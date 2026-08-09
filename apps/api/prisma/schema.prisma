@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MatchStatus {
+  OPEN
+  FULL
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ParticipantRole {
+  HOST
+  PLAYER
+}
+
+enum ParticipantStatus {
+  JOINED
+  LEFT
+  REMOVED
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  username String @unique
+  passwordHash String
+  firstName String?
+  lastName String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdMatches Match[] @relation("MatchCreator")
+  participations MatchParticipant[]
+  messages LobbyMessage[] @relation("MessageSender")
+}
+
+model Match {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  description String?
+  createdById String @db.Uuid
+  venueName String
+  address String?
+  latitude Float?
+  longitude Float?
+  startsAt DateTime
+  maxPlayers Int
+  status MatchStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy User @relation("MatchCreator", fields: [createdById], references: [id])
+  participants MatchParticipant[]
+  messages LobbyMessage[]
+}
+
+model MatchParticipant {
+  id String @id @default(uuid()) @db.Uuid
+  matchId String @db.Uuid
+  userId String @db.Uuid
+  role ParticipantRole @default(PLAYER)
+  status ParticipantStatus @default(JOINED)
+  joinedAt DateTime @default(now())
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([matchId, userId])
+  @@index([userId])
+}
+
+model LobbyMessage {
+  id String @id @default(uuid()) @db.Uuid
+  matchId String @db.Uuid
+  senderId String @db.Uuid
+  content String
+  createdAt DateTime @default(now())
+  editedAt DateTime?
+  deletedAt DateTime?
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User @relation("MessageSender", fields: [senderId], references: [id])
+  @@index([matchId, createdAt])
+}

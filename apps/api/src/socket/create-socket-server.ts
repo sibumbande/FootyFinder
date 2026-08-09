@@ -1,0 +1,2 @@
+import type { Server as HttpServer } from 'node:http'; import { Server } from 'socket.io'; import { allowedOrigins } from '../config/cors.js'; import { registerChatGateway } from '../modules/chat/chat.gateway.js';
+export function createSocketServer(server: HttpServer) { const io = new Server(server, { cors: { origin: allowedOrigins, credentials: true, methods: ['GET', 'POST'] } }); registerChatGateway(io); return io; }

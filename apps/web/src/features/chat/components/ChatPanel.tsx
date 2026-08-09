@@ -1,0 +1,1 @@
+export function ChatPanel() { return <section className="card"><h2>Lobby chat</h2><p>Chat history and live messaging will be connected in a later iteration.</p><form className="form"><label>Message<input placeholder="Write a message" /></label><button className="button" type="button">Send</button></form></section>; }

@@ -1,0 +1,1 @@
+import { prisma } from '../../database/prisma.js'; export class ChatRepository { listForMatch(matchId: string) { return prisma.lobbyMessage.findMany({ where: { matchId }, orderBy: { createdAt: 'asc' } }); } }

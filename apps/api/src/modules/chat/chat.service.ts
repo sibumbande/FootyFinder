@@ -1,0 +1,1 @@
+import { ChatRepository } from './chat.repository.js'; export class ChatService { constructor(private readonly chat = new ChatRepository()) {} history(matchId: string) { return this.chat.listForMatch(matchId); } }

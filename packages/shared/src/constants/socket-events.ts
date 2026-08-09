@@ -1,0 +1,1 @@
+export const SocketEvents = { joinRoom: 'match:join-room', leaveRoom: 'match:leave-room', participantJoined: 'participant:joined', participantLeft: 'participant:left', sendMessage: 'message:send', messageCreated: 'message:created' } as const;

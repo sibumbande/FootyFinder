@@ -1,0 +1,1 @@
+import type { Match } from '@footy-finder/shared'; import { Link } from 'react-router-dom'; export function MatchCard({ match }: { match: Match }) { return <article className="card"><h2>{match.name}</h2><p>{match.venueName}</p><p>{new Date(match.startsAt).toLocaleString()}</p><Link className="button" to={`/matches/${match.id}`}>View lobby</Link></article>; }

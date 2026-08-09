@@ -1,0 +1,1 @@
+import { useParams } from 'react-router-dom'; import { ChatPanel } from '@/features/chat/components/ChatPanel.js'; export function MatchLobbyPage() { const { matchId } = useParams(); return <section className="page"><h1>Match lobby</h1><div className="card"><p>Lobby ID: {matchId}</p><p>Participants and match details will appear here.</p></div><ChatPanel /></section>; }

@@ -1,0 +1,1 @@
+import { prisma } from '../../database/prisma.js'; export class MatchesRepository { list() { return prisma.match.findMany({ orderBy: { startsAt: 'asc' } }); } findById(id: string) { return prisma.match.findUnique({ where: { id } }); } }

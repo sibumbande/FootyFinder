@@ -1,0 +1,1 @@
+import { MatchesRepository } from './matches.repository.js'; export class MatchesService { constructor(private readonly matches = new MatchesRepository()) {} list() { return this.matches.list(); } get(id: string) { return this.matches.findById(id); } }
