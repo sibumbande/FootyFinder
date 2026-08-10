@@ -1,4 +1,4 @@
-import type { LoginInput, PublicUser, RegisterInput } from '@footy-finder/shared';
+import type { AuthenticatedUser, LoginInput, RegisterInput } from '@footy-finder/shared';
 import { ApiError } from '@footy-finder/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApiClient, usersClient } from '../api/auth.js';
@@ -6,7 +6,7 @@ import { authApiClient, usersClient } from '../api/auth.js';
 export const currentUserKey = ['auth', 'current-user'] as const;
 
 export function useCurrentUser() {
-  return useQuery<PublicUser | null>({
+  return useQuery<AuthenticatedUser | null>({
     queryKey: currentUserKey,
     queryFn: async () => {
       try { return (await usersClient.me()).data; }

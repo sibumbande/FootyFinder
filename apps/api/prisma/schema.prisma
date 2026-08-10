@@ -26,6 +26,29 @@ enum ParticipantStatus {
   REMOVED
 }
 
+enum TeamSide {
+  HOME
+  AWAY
+}
+
+enum SquadRole {
+  STARTER
+  RESERVE
+}
+
+enum WalletTransactionType {
+  DEPOSIT
+  MATCH_CREATE
+  MATCH_JOIN
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  ERROR
+}
+
 model User {
   id String @id @default(uuid()) @db.Uuid
   email String @unique
@@ -34,11 +57,31 @@ model User {
   firstName String?
   lastName String?
   avatarUrl String?
+  balanceCents Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdMatches Match[] @relation("MatchCreator")
   participations MatchParticipant[]
   messages LobbyMessage[] @relation("MessageSender")
+  walletTransactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  type WalletTransactionType
+  amountCents Int
+  status WalletTransactionStatus @default(PENDING)
+  provider String?
+  providerReference String?
+  idempotencyKey String @unique
+  matchId String? @db.Uuid
+  failureReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Match {
@@ -66,10 +109,14 @@ model MatchParticipant {
   userId String @db.Uuid
   role ParticipantRole @default(PLAYER)
   status ParticipantStatus @default(JOINED)
+  team TeamSide?
+  squadRole SquadRole?
+  slotNumber Int?
   joinedAt DateTime @default(now())
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([matchId, userId])
+  @@unique([matchId, team, squadRole, slotNumber])
   @@index([userId])
 }
 

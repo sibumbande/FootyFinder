@@ -1,0 +1,125 @@
+/* Central motion controls for navigation transitions. */
+:root {
+  --motion-page-duration: 380ms;
+  --motion-page-fade-duration: 220ms;
+  --motion-page-distance: 0.75rem;
+  --motion-page-distance-back: -0.75rem;
+  --motion-page-spring: cubic-bezier(0.22, 0.9, 0.25, 1.08);
+  --motion-notification-enter-duration: 560ms;
+  --motion-notification-exit-duration: 480ms;
+}
+
+@keyframes route-page-slide-in {
+  from {
+    transform: translate3d(var(--motion-page-offset), 0.2rem, 0) scale(0.9975);
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes route-page-fade-in {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
+.route-page-transition {
+  --motion-page-offset: var(--motion-page-distance);
+  min-width: 0;
+  animation:
+    route-page-slide-in var(--motion-page-duration) var(--motion-page-spring) both,
+    route-page-fade-in var(--motion-page-fade-duration) ease-out both;
+  transform-origin: center;
+}
+
+.route-page-transition--pop {
+  --motion-page-offset: var(--motion-page-distance-back);
+}
+
+.route-page-transition--replace {
+  --motion-page-offset: 0rem;
+}
+
+@keyframes notification-pop-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0.75rem, -0.65rem, 0) scale(0.28) rotate(-9deg);
+  }
+  45% {
+    opacity: 1;
+    transform: translate3d(-0.15rem, 0.1rem, 0) scale(1.08) rotate(2deg);
+  }
+  72% {
+    transform: translate3d(0.05rem, 0, 0) scale(0.97) rotate(-0.75deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0);
+  }
+}
+
+@keyframes notification-burst {
+  0% { opacity: 0.8; transform: scale(0.25); }
+  70% { opacity: 0.28; }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+
+@keyframes notification-swirl-out {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0);
+    filter: blur(0);
+  }
+  24% {
+    opacity: 1;
+    transform: translate3d(-0.12rem, 0.08rem, 0) scale(1.035) rotate(-8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(1.4rem, -1rem, 0) scale(0.025) rotate(270deg);
+    filter: blur(3px);
+  }
+}
+
+.notification-toast {
+  --notification-accent: var(--theme-brand-500);
+  isolation: isolate;
+  transform-origin: calc(100% - 1.25rem) 1.25rem;
+  will-change: transform, opacity, filter;
+}
+
+.notification-toast--info { --notification-accent: var(--theme-info-600); }
+.notification-toast--success { --notification-accent: var(--theme-brand-500); }
+.notification-toast--warning { --notification-accent: var(--theme-warning-600); }
+.notification-toast--error { --notification-accent: var(--theme-danger-600); }
+
+.notification-toast:not(.notification-toast--exiting) {
+  animation: notification-pop-in var(--motion-notification-enter-duration) cubic-bezier(0.2, 0.9, 0.25, 1.18) both;
+}
+
+.notification-toast:not(.notification-toast--exiting)::before {
+  position: absolute;
+  z-index: -1;
+  inset: -0.65rem;
+  border: 2px solid rgb(var(--notification-accent) / 0.65);
+  border-radius: 1.35rem;
+  content: '';
+  pointer-events: none;
+  animation: notification-burst 520ms ease-out both;
+}
+
+.notification-toast--exiting {
+  pointer-events: none;
+  animation: notification-swirl-out var(--motion-notification-exit-duration) cubic-bezier(0.55, 0, 0.85, 0.35) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-page-transition {
+    animation: none;
+  }
+
+  .notification-toast,
+  .notification-toast::before {
+    animation: none !important;
+  }
+}

@@ -1,7 +1,7 @@
 import type { LoginInput, RegisterInput } from '@footy-finder/shared';
 import argon2 from 'argon2';
 import { AppError } from '../../errors/app-error.js';
-import { toPublicUser } from '../users/user.mapper.js';
+import { toAuthenticatedUser } from '../users/user.mapper.js';
 import { UsersRepository } from '../users/users.repository.js';
 
 export class AuthService {
@@ -17,7 +17,7 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
     try {
-      return toPublicUser(await this.users.create(input, passwordHash));
+      return toAuthenticatedUser(await this.users.create(input, passwordHash));
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
         throw new AppError(409, 'An account with those details already exists.', 'ACCOUNT_TAKEN');
@@ -31,6 +31,6 @@ export class AuthService {
     if (!user || !(await argon2.verify(user.passwordHash, input.password))) {
       throw new AppError(401, 'Email/username or password is incorrect.', 'INVALID_CREDENTIALS');
     }
-    return toPublicUser(user);
+    return toAuthenticatedUser(user);
   }
 }

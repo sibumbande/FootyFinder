@@ -4,7 +4,7 @@ import type { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
-const user = { id: '4a5529e6-4289-4f0a-94b7-233950def34d', email: 'player@example.com', username: 'player1', passwordHash: '', firstName: 'Pat', lastName: 'Player', avatarUrl: null, createdAt: now, updatedAt: now };
+const user = { id: '4a5529e6-4289-4f0a-94b7-233950def34d', email: 'player@example.com', username: 'player1', passwordHash: '', firstName: 'Pat', lastName: 'Player', avatarUrl: null, balanceCents: 0, createdAt: now, updatedAt: now };
 const input = { email: user.email, username: user.username, password: 'football9', firstName: 'Pat', lastName: 'Player' };
 
 function repository(overrides: Record<string, unknown> = {}) {

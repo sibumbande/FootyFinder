@@ -1,0 +1,90 @@
+/*
+ * Footy Finder color system
+ * -------------------------
+ * This is the single source of truth for application colors. Components use
+ * semantic Tailwind tokens (canvas, surface, content, line, brand, danger),
+ * never mode-specific color values.
+ */
+:root {
+  color-scheme: light;
+
+  --theme-canvas: 248 250 252;
+  --theme-surface: 255 255 255;
+  --theme-surface-muted: 241 245 249;
+  --theme-surface-hover: 241 245 249;
+  --theme-content: 51 65 85;
+  --theme-content-strong: 20 32 25;
+  --theme-content-muted: 71 85 105;
+  --theme-content-subtle: 148 163 184;
+  --theme-content-inverse: 255 255 255;
+  --theme-line: 226 232 240;
+  --theme-line-strong: 203 213 225;
+
+  --theme-brand-50: 242 248 244;
+  --theme-brand-100: 220 239 226;
+  --theme-brand-200: 187 222 198;
+  --theme-brand-500: 39 138 75;
+  --theme-brand-600: 29 113 59;
+  --theme-brand-700: 24 91 50;
+  --theme-brand-900: 18 53 34;
+
+  --theme-danger-50: 254 242 242;
+  --theme-danger-200: 254 202 202;
+  --theme-danger-400: 248 113 113;
+  --theme-danger-600: 220 38 38;
+  --theme-danger-700: 185 28 28;
+
+  --theme-info-50: 239 246 255;
+  --theme-info-200: 191 219 254;
+  --theme-info-600: 37 99 235;
+  --theme-info-700: 29 78 216;
+
+  --theme-warning-50: 255 251 235;
+  --theme-warning-200: 253 230 138;
+  --theme-warning-600: 217 119 6;
+  --theme-warning-700: 180 83 9;
+
+  --theme-shadow: 20 32 25;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --theme-canvas: 9 14 11;
+  --theme-surface: 17 25 20;
+  --theme-surface-muted: 24 35 28;
+  --theme-surface-hover: 30 43 35;
+  --theme-content: 203 213 207;
+  --theme-content-strong: 241 245 242;
+  --theme-content-muted: 156 170 161;
+  --theme-content-subtle: 105 120 111;
+  --theme-content-inverse: 255 255 255;
+  --theme-line: 42 56 47;
+  --theme-line-strong: 61 78 67;
+
+  --theme-brand-50: 20 48 31;
+  --theme-brand-100: 25 67 40;
+  --theme-brand-200: 37 92 55;
+  --theme-brand-500: 70 180 104;
+  --theme-brand-600: 56 158 89;
+  --theme-brand-700: 106 205 134;
+  --theme-brand-900: 13 42 25;
+
+  --theme-danger-50: 64 24 27;
+  --theme-danger-200: 102 38 42;
+  --theme-danger-400: 248 113 113;
+  --theme-danger-600: 248 113 113;
+  --theme-danger-700: 252 165 165;
+
+  --theme-info-50: 20 38 69;
+  --theme-info-200: 30 64 115;
+  --theme-info-600: 96 165 250;
+  --theme-info-700: 147 197 253;
+
+  --theme-warning-50: 66 43 14;
+  --theme-warning-200: 113 75 18;
+  --theme-warning-600: 251 191 36;
+  --theme-warning-700: 252 211 77;
+
+  --theme-shadow: 0 0 0;
+}

@@ -1,0 +1,2 @@
+We need to extract the lobby itself into its own class that can house multiple numbers of players to cater for the different match types.
+so far we have registration, match creation and lobbies.

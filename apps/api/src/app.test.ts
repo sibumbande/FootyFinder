@@ -17,11 +17,13 @@ describe('CORS policy', () => {
 
   it('handles preflight requests for the configured origin', async () => {
     const response = await request(app)
-      .options('/users')
+      .options('/wallet/deposits/demo')
       .set('Origin', allowedOrigins[0])
-      .set('Access-Control-Request-Method', 'GET');
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type,idempotency-key');
     expect(response.status).toBe(204);
     expect(response.headers['access-control-allow-origin']).toBe(allowedOrigins[0]);
+    expect(response.headers['access-control-allow-headers'].toLowerCase()).toContain('idempotency-key');
   });
 });
 
