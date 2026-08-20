@@ -1,1 +1,3 @@
-export interface ApiResponse<T> { data: T; }
+export interface ApiResponse<T> {
+  data: T;
+}

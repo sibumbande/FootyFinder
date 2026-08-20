@@ -1,25 +1,79 @@
-import type { RegisterInput } from '@footy-finder/shared';
+import type { RegisterInput, UpdatePlayerProfileInput } from '@footy-finder/shared';
 import { prisma } from '../../database/prisma.js';
 
+export const safeUserInclude = {
+  profile: { include: { preferredPositions: true } },
+  walletAccount: true,
+  teamMemberships: {
+    include: { team: true },
+    orderBy: { joinedAt: 'asc' as const },
+  },
+} as const;
 export class UsersRepository {
-  findById(id: string) { return prisma.user.findUnique({ where: { id } }); }
-  findByEmail(email: string) { return prisma.user.findUnique({ where: { email } }); }
-  findByUsername(username: string) { return prisma.user.findUnique({ where: { username } }); }
+  findById(id: string) {
+    return prisma.user.findUnique({ where: { id }, include: safeUserInclude });
+  }
+  findByEmail(email: string) {
+    return prisma.user.findUnique({ where: { email }, include: safeUserInclude });
+  }
+  findByUsername(username: string) {
+    return prisma.user.findUnique({ where: { username }, include: safeUserInclude });
+  }
   findByIdentifier(identifier: string) {
     return prisma.user.findFirst({
-      where: { OR: [{ email: identifier.toLowerCase() }, { username: { equals: identifier, mode: 'insensitive' } }] },
+      where: {
+        OR: [
+          { email: identifier.toLowerCase() },
+          { username: { equals: identifier, mode: 'insensitive' } },
+        ],
+      },
+      include: safeUserInclude,
     });
   }
   create(input: RegisterInput, passwordHash: string) {
+    const displayName =
+      [input.firstName, input.lastName].filter(Boolean).join(' ') || input.username;
     return prisma.user.create({
       data: {
         email: input.email,
         username: input.username,
         passwordHash,
-        firstName: input.firstName ?? null,
-        lastName: input.lastName ?? null,
+        profile: { create: { displayName } },
+        walletAccount: { create: { currency: 'ZAR' } },
       },
+      include: safeUserInclude,
     });
   }
-  list() { return prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }); }
+  list() {
+    return prisma.user.findMany({
+      include: safeUserInclude,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  }
+  updateProfile(userId: string, input: UpdatePlayerProfileInput) {
+    const { preferredPositions, ...profile } = input;
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        profile: {
+          upsert: {
+            create: {
+              ...profile,
+              displayName: input.displayName,
+              preferredPositions: { create: preferredPositions.map((position) => ({ position })) },
+            },
+            update: {
+              ...profile,
+              preferredPositions: {
+                deleteMany: {},
+                create: preferredPositions.map((position) => ({ position })),
+              },
+            },
+          },
+        },
+      },
+      include: safeUserInclude,
+    });
+  }
 }

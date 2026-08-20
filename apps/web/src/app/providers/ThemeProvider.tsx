@@ -26,7 +26,13 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme: () => setTheme((current) => current === 'light' ? 'dark' : 'light') }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        setTheme,
+        toggleTheme: () => setTheme((current) => (current === 'light' ? 'dark' : 'light')),
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

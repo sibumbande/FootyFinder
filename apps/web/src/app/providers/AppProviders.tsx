@@ -1,1 +1,16 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; import type { PropsWithChildren } from 'react'; import { NotificationProvider } from '@/features/notifications/NotificationProvider.js'; import { ThemeProvider } from './ThemeProvider.js'; export const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } } }); export function AppProviders({ children }: PropsWithChildren) { return <ThemeProvider><QueryClientProvider client={queryClient}><NotificationProvider>{children}</NotificationProvider></QueryClientProvider></ThemeProvider>; }
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { PropsWithChildren } from 'react';
+import { NotificationProvider } from '@/features/notifications/NotificationProvider.js';
+import { ThemeProvider } from './ThemeProvider.js';
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
+});
+export function AppProviders({ children }: PropsWithChildren) {
+  return (
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>{children}</NotificationProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
+  );
+}

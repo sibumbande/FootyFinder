@@ -9,10 +9,17 @@ const user = {
   email: 'wallet@example.com',
   username: 'wallet_player',
   passwordHash: 'hidden',
-  firstName: null,
-  lastName: null,
-  avatarUrl: null,
-  balanceCents: 50_000,
+  profile: {
+    displayName: 'Wallet Player',
+    avatarUrl: null,
+    bio: null,
+    dominantFoot: null,
+    homeArea: null,
+    preferredPositions: [],
+    createdAt: now,
+    updatedAt: now,
+  },
+  walletAccount: { balanceCents: 50_000, currency: 'ZAR' },
   createdAt: now,
   updatedAt: now,
 };
@@ -35,7 +42,10 @@ const transaction = {
 function setup(result: Awaited<ReturnType<PaymentOperator['deposit']>> | Error) {
   const operator: PaymentOperator = {
     name: 'test-provider',
-    deposit: result instanceof Error ? vi.fn().mockRejectedValue(result) : vi.fn().mockResolvedValue(result),
+    deposit:
+      result instanceof Error
+        ? vi.fn().mockRejectedValue(result)
+        : vi.fn().mockResolvedValue(result),
   };
   const wallet = {
     findByIdempotencyKey: vi.fn().mockResolvedValue(null),
@@ -48,7 +58,10 @@ function setup(result: Awaited<ReturnType<PaymentOperator['deposit']>> | Error) 
 
 describe('DepositsService', () => {
   it('credits a successful payment only through the success transition', async () => {
-    const { service, wallet } = setup({ status: 'success', providerReference: 'provider-payment-1' });
+    const { service, wallet } = setup({
+      status: 'success',
+      providerReference: 'provider-payment-1',
+    });
     await expect(service.deposit(user.id, 50_000, 'deposit-1')).resolves.toMatchObject({
       status: 'success',
       user: { balanceCents: 50_000 },
@@ -59,15 +72,31 @@ describe('DepositsService', () => {
 
   it('records a declined payment without crediting the wallet', async () => {
     const { service, wallet } = setup({ status: 'failure', message: 'Card declined.' });
-    await expect(service.deposit(user.id, 50_000, 'deposit-1')).resolves.toMatchObject({ status: 'failure', message: 'Card declined.' });
+    await expect(service.deposit(user.id, 50_000, 'deposit-1')).resolves.toMatchObject({
+      status: 'failure',
+      message: 'Card declined.',
+    });
     expect(wallet.succeed).not.toHaveBeenCalled();
-    expect(wallet.settle).toHaveBeenCalledWith(transaction.id, 'FAILED', 'Card declined.', undefined);
+    expect(wallet.settle).toHaveBeenCalledWith(
+      transaction.id,
+      'FAILED',
+      'Card declined.',
+      undefined,
+    );
   });
 
   it('turns an operator exception into an error state without crediting the wallet', async () => {
     const { service, wallet } = setup(new Error('Provider unavailable.'));
-    await expect(service.deposit(user.id, 50_000, 'deposit-1')).resolves.toMatchObject({ status: 'error', message: 'Provider unavailable.' });
+    await expect(service.deposit(user.id, 50_000, 'deposit-1')).resolves.toMatchObject({
+      status: 'error',
+      message: 'Provider unavailable.',
+    });
     expect(wallet.succeed).not.toHaveBeenCalled();
-    expect(wallet.settle).toHaveBeenCalledWith(transaction.id, 'ERROR', 'Provider unavailable.', undefined);
+    expect(wallet.settle).toHaveBeenCalledWith(
+      transaction.id,
+      'ERROR',
+      'Provider unavailable.',
+      undefined,
+    );
   });
 });

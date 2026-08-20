@@ -1,121 +1,293 @@
-import { MATCH_CAPACITY, MATCH_FEE_CENTS } from '@footy-finder/shared';
+import { getMaxMatchParticipants, MATCH_FORMAT_CONFIG } from '@footy-finder/shared';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { ChatPanel } from '@/features/chat/components/ChatPanel.js';
+import { useMatchSocket } from '@/features/chat/hooks/useMatchSocket.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { useNotifications } from '@/features/notifications/NotificationProvider.js';
+import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
-import { formatRands } from '@/utils/format-currency.js';
-import { TeamRoster } from '../components/TeamRoster.js';
-import { useDeleteMatch, useJoinMatch, useLeaveMatch, useMatch } from '../hooks/useMatches.js';
-
+import { FormationBoard } from '../components/formation/FormationBoard.js';
+import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
+import { MatchTimer } from '../components/MatchTimer.js';
+import { ResultForm } from '../components/ResultForm.js';
+import {
+  useCancellationQuote,
+  useCancellationStatus,
+  useChangeTeam,
+  useDeleteMatch,
+  useFormationUpdate,
+  useLeaveMatch,
+  useMatch,
+  useReadyMatch,
+} from '../hooks/useMatches.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
+  useMatchSocket(matchId);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   const matchQuery = useMatch(matchId);
-  const join = useJoinMatch(matchId);
   const leave = useLeaveMatch(matchId);
   const deletion = useDeleteMatch(matchId);
+  const ready = useReadyMatch(matchId);
+  const formation = useFormationUpdate(matchId);
+  const changeTeam = useChangeTeam(matchId);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [tab, setTab] = useState<'formation' | 'players' | 'chat'>('formation');
   const match = matchQuery.data;
   const participants = match?.participants ?? [];
+  const onFieldIds = new Set(
+    match?.formationSlots?.flatMap((slot) => (slot.participantId ? [slot.participantId] : [])) ??
+      [],
+  );
   const currentParticipant = participants.find((item) => item.userId === user?.id);
   const isHost = match?.createdById === user?.id;
-  const actionError = join.error ?? leave.error ?? deletion.error;
-
+  const quote = useCancellationQuote(matchId, Boolean(currentParticipant));
+  const cancellationStatus = useCancellationStatus(matchId);
   if (matchQuery.isPending)
+    return <div className="h-[42rem] animate-pulse rounded-3xl bg-surface" />;
+  if (!match || matchQuery.error)
     return (
-      <div className="grid gap-5">
-        <div className="h-44 animate-pulse rounded-3xl bg-surface" />
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div className="h-[38rem] animate-pulse rounded-3xl bg-surface" />
-          <div className="h-[38rem] animate-pulse rounded-3xl bg-surface" />
-        </div>
-      </div>
-    );
-  if (matchQuery.error || !match)
-    return (
-      <div className="mx-auto max-w-xl">
-        <FormError
-          message={
-            matchQuery.error instanceof Error ? matchQuery.error.message : 'Match lobby not found.'
-          }
-        />
+      <div>
+        <FormError message={matchQuery.error?.message ?? 'Match not found.'} />
         <Link className="button mt-4" to="/matches">
-          Back to matches
+          Back to discovery
         </Link>
       </div>
     );
-
-  const deleteLobby = () => {
+  const mutable = ['OPEN', 'READY'].includes(match.status);
+  const capacity = getMaxMatchParticipants(match.format);
+  const canChat = isHost || Boolean(currentParticipant);
+  const cancelMatch = () => {
     if (
       !window.confirm(
-        'Delete this match lobby permanently? Players will no longer be able to access it.',
+        'Cancel this match? Every eligible paid player will receive a full internal wallet credit.',
       )
     )
       return;
-    deletion.mutate(undefined, { onSuccess: () => navigate('/matches', { replace: true }) });
+    deletion.mutate(undefined, {
+      onSuccess: () => {
+        notify({
+          variant: 'info',
+          title: 'Match cancelled',
+          message: 'Eligible player fees were returned to their wallets.',
+        });
+        navigate('/matches', { replace: true });
+      },
+    });
   };
-
+  const leaveMatch = () => {
+    const initial = quote.data?.initialCreditCents ?? 0;
+    const replacement = quote.data?.possibleReplacementCreditCents ?? 0;
+    const detail = replacement
+      ? `${formatCurrency(initial)} now, and ${formatCurrency(replacement)} if a replacement joins.`
+      : `${formatCurrency(initial)} will be credited.`;
+    if (window.confirm(`Leave this match? ${detail}`))
+      leave.mutate(undefined, {
+        onSuccess: () => notify({ variant: 'info', title: 'Place cancelled', message: detail }),
+      });
+  };
+  const copyInvite = async () => {
+    if (!match.inviteToken) return;
+    await navigator.clipboard.writeText(
+      `${window.location.origin}/matches/invite/${match.inviteToken}`,
+    );
+    notify({
+      variant: 'success',
+      title: 'Invite copied',
+      message: 'The private match link is ready to share.',
+    });
+  };
   return (
-    <section className="grid gap-7">
-      <div className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+    <section className="grid gap-6">
+      <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-bold text-brand-700">
-                {match.status === 'FULL' ? 'Lobby full' : 'Open lobby'}
+                {MATCH_FORMAT_CONFIG[match.format].shortLabel}
+              </span>
+              <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">
+                {match.status.replace('_', ' ')}
+              </span>
+              <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">
+                {match.visibility.toLowerCase()}
               </span>
               {isHost && (
-                <span className="rounded-full bg-content-inverse/15 px-3 py-1 text-xs font-bold">
-                  You are the host
+                <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">
+                  Organiser
                 </span>
               )}
             </div>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{match.name}</h1>
-            <p className="mt-3 text-lg font-semibold text-brand-100">{match.venueName}</p>
-            <p className="mt-1 text-sm text-brand-100">{match.address}</p>
-            <p className="mt-4 text-sm font-bold">{formatDate(match.startsAt)}</p>
+            <h1 className="mt-4 text-3xl font-black sm:text-4xl">{match.name}</h1>
+            <p className="mt-2 font-semibold text-brand-100">
+              {match.venue.name} · {match.venue.addressLine1}, {match.venue.city}
+            </p>
+            <p className="mt-2 text-sm text-brand-100">
+              {formatDate(match.startsAt)} · {match.durationMinutes} minutes ·{' '}
+              {match.feeCents ? formatCurrency(match.feeCents) : 'Free'}
+            </p>
             {match.description && (
-              <p className="mt-4 max-w-2xl leading-7 text-brand-100">{match.description}</p>
+              <p className="mt-4 max-w-2xl text-brand-100">{match.description}</p>
             )}
           </div>
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row lg:flex-col">
-            <div className="rounded-2xl bg-content-inverse/10 px-5 py-3 text-center">
-              <span className="block text-2xl font-bold">
-                {match.participantCount}/{MATCH_CAPACITY}
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <MatchTimer startsAt={match.startsAt} endsAt={match.matchEndsAt} />
+            <div className="rounded-2xl bg-content-inverse/10 px-4 py-3 text-center">
+              <span className="block text-xl font-black">
+                {match.participantCount}/{capacity}
               </span>
-              <span className="text-xs font-semibold text-brand-100">Players joined</span>
+              <span className="text-[10px] font-bold uppercase text-brand-100">Players</span>
             </div>
-            {!currentParticipant && match.participantCount < MATCH_CAPACITY && (
-              <Button onClick={() => join.mutate()} loading={join.isPending}>
-                Join for {formatRands(MATCH_FEE_CENTS)}
-              </Button>
-            )}
-            {currentParticipant && !isHost && (
-              <Button variant="secondary" onClick={() => leave.mutate()} loading={leave.isPending}>
-                Leave lobby
-              </Button>
-            )}
-            {isHost && (
-              <button
-                type="button"
-                onClick={deleteLobby}
-                disabled={deletion.isPending}
-                className="min-h-11 rounded-xl border border-danger-400 px-4 text-sm font-bold text-danger-400 transition hover:bg-danger-50 disabled:opacity-60"
-              >
-                {deletion.isPending ? 'Deleting…' : 'Delete lobby'}
-              </button>
-            )}
           </div>
         </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          {!currentParticipant && mutable && match.participantCount < capacity && (
+            <Button onClick={() => setJoinOpen(true)}>Join a team</Button>
+          )}
+          {currentParticipant && mutable && (
+            <Button variant="secondary" onClick={leaveMatch} loading={leave.isPending}>
+              Leave match
+            </Button>
+          )}
+          {isHost && match.status === 'OPEN' && (
+            <Button variant="secondary" onClick={() => ready.mutate()} loading={ready.isPending}>
+              Mark ready
+            </Button>
+          )}
+          {isHost && match.visibility === 'PRIVATE' && (
+            <Button variant="secondary" onClick={copyInvite}>
+              Copy invite link
+            </Button>
+          )}
+          {isHost && !['COMPLETED', 'CANCELLED'].includes(match.status) && (
+            <button
+              onClick={cancelMatch}
+              className="min-h-11 rounded-xl border border-danger-400 px-4 text-sm font-bold text-danger-400 hover:bg-danger-50"
+            >
+              Cancel match
+            </button>
+          )}
+        </div>
+      </header>
+      <FormError
+        message={leave.error?.message ?? deletion.error?.message ?? ready.error?.message}
+      />
+      {cancellationStatus.data && (
+        <section className="grid gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-5 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-brand-700">
+              Cancellation credit
+            </p>
+            <p className="mt-1 text-xl font-black text-content-strong">
+              {formatCurrency(
+                cancellationStatus.data.initialCreditCents +
+                  cancellationStatus.data.replacementCreditCents,
+              )}{' '}
+              received
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-brand-700">
+              Replacement
+            </p>
+            <p className="mt-1 text-xl font-black text-content-strong">
+              {cancellationStatus.data.replacementFound
+                ? `Found - additional ${formatCurrency(cancellationStatus.data.replacementCreditCents)} credited`
+                : 'Waiting for a player'}
+            </p>
+          </div>
+        </section>
+      )}
+      <nav className="grid grid-cols-3 gap-1 rounded-xl bg-surface-muted p-1 md:hidden">
+        {(['formation', 'players', 'chat'] as const).map((item) => (
+          <button
+            key={item}
+            onClick={() => setTab(item)}
+            className={`rounded-lg px-2 py-2 text-sm font-bold capitalize ${tab === item ? 'bg-surface text-brand-700 shadow-sm' : 'text-content-muted'}`}
+          >
+            {item}
+          </button>
+        ))}
+      </nav>
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+        <div
+          className={`${tab === 'formation' ? 'block' : 'hidden'} rounded-3xl border border-line bg-surface p-4 shadow-sm md:block sm:p-6`}
+        >
+          <FormationBoard
+            slots={match.formationSlots ?? []}
+            participants={participants}
+            isHost={isHost}
+            editable={mutable}
+            update={(slotId, input) => formation.mutateAsync({ slotId, input })}
+          />
+        </div>
+        <div className={`${tab === 'chat' ? 'block' : 'hidden'} md:block`}>
+          <ChatPanel matchId={match.id} enabled={canChat} />
+        </div>
       </div>
-      <FormError message={actionError instanceof Error ? actionError.message : undefined} />
-      <div className="grid gap-5 xl:grid-cols-2">
-        <TeamRoster team="HOME" participants={participants} />
-        <TeamRoster team="AWAY" participants={participants} />
+      <div className={`${tab === 'players' ? 'grid' : 'hidden'} gap-4 md:grid md:grid-cols-2`}>
+        {(['HOME', 'AWAY'] as const).map((team) => (
+          <section
+            key={team}
+            className={`rounded-2xl border p-4 ${team === 'HOME' ? 'border-team-home-border bg-team-home-muted' : 'border-team-away-border bg-team-away-muted'}`}
+          >
+            <h2 className={`font-bold ${team === 'HOME' ? 'text-team-home' : 'text-team-away'}`}>
+              {team === 'HOME' ? 'Home' : 'Away'} team
+            </h2>
+            {participants
+              .filter((item) => item.team === team)
+              .map((player) => (
+                <div
+                  key={player.id}
+                  className="mt-2 flex items-center gap-2 rounded-xl bg-surface p-3 text-sm font-semibold text-content-strong"
+                >
+                  <Link className="min-w-0 flex-1 truncate" to={`/players/${player.userId}`}>
+                    {player.user?.displayName}
+                  </Link>
+                  {mutable &&
+                    (isHost || player.userId === user?.id) &&
+                    (isHost || !onFieldIds.has(player.id)) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeTeam.mutate({
+                            participantId: player.id,
+                            team: team === 'HOME' ? 'AWAY' : 'HOME',
+                          })
+                        }
+                        className="rounded-lg border border-line px-2 py-1 text-xs text-content-muted"
+                      >
+                        Move to {team === 'HOME' ? 'Away' : 'Home'}
+                      </button>
+                    )}
+                </div>
+              ))}
+          </section>
+        ))}
       </div>
-      <ChatPanel />
+      {match.status === 'AWAITING_RESULT' && isHost && (
+        <ResultForm matchId={match.id} participants={participants} />
+      )}
+      {match.result && (
+        <section className="rounded-3xl border border-brand-200 bg-brand-50 p-8 text-center">
+          <p className="text-sm font-black uppercase tracking-widest text-brand-700">Full time</p>
+          <p className="mt-3 text-5xl font-black text-content-strong">
+            {match.result.homeScore} — {match.result.awayScore}
+          </p>
+          <div className="mt-5 text-sm text-content">
+            {match.result.scorers.map((scorer) => (
+              <p key={scorer.id}>
+                {scorer.participant?.user?.displayName} × {scorer.goals}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
+      <JoinTeamDialog match={match} open={joinOpen} onClose={() => setJoinOpen(false)} />
     </section>
   );
 }

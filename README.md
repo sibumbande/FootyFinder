@@ -1,29 +1,31 @@
 # Footy Finder
 
-Footy Finder is a TypeScript monorepo for discovering players and organising soccer match lobbies. The current vertical slice includes registration, login, persistent cookie authentication, protected routing, and a database-backed player directory.
+Footy Finder is an npm-workspaces TypeScript monorepo for discovering football matches, funding a ZAR wallet, joining a team, and coordinating a persistent match lobby from booking through final result.
 
 ## Requirements
 
 - Node.js 20 or newer
-- npm 10 or newer (included with current Node.js releases)
+- npm 10 or newer
 - PostgreSQL 14 or newer
 
-## Workspace
+## Applications and packages
 
-- `apps/web` — Vite, React, React Router, TanStack Query, React Hook Form, and Tailwind CSS.
-- `apps/api` — Express, Prisma/PostgreSQL, Argon2, JWT authentication, and Socket.IO scaffolding.
-- `packages/shared` — platform-independent public types and Zod schemas.
-- `packages/api-client` — framework-independent HTTP client for web and a future native app.
+- `apps/web` - Vite, React, React Router, TanStack Query, React Hook Form, Tailwind CSS, and Socket.IO Client.
+- `apps/api` - Express, Prisma/PostgreSQL, Argon2id, JWT cookie authentication, and Socket.IO.
+- `packages/shared` - environment-independent domain types, Zod schemas, match-format configuration, formations, and lifecycle helpers.
+- `packages/api-client` - the typed HTTP client used by the web app and suitable for a future native client.
+
+The repository uses standard npm workspaces. Do not use pnpm commands or create a pnpm lockfile.
 
 ## Local setup
 
-1. Install dependencies:
+1. Install all workspace dependencies:
 
    ```bash
    npm install
    ```
 
-2. Copy `apps/api/.env.example` to `apps/api/.env`. Set a PostgreSQL connection string and replace the example JWT secret:
+2. Copy `apps/api/.env.example` to `apps/api/.env`, then set the database connection and a private JWT secret:
 
    ```env
    DATABASE_URL="postgresql://postgres:postgres@localhost:5432/footy_finder?schema=public"
@@ -31,67 +33,123 @@ Footy Finder is a TypeScript monorepo for discovering players and organising soc
    JWT_SECRET=replace-this-with-at-least-32-random-characters
    JWT_EXPIRES_IN_SECONDS=604800
    CLIENT_URL=http://localhost:5173
+   PUBLIC_API_URL=http://localhost:3000
+   TEAM_UPLOAD_DIR=uploads/teams
+   MATCH_DURATION_FIVE_A_SIDE_MINUTES=90
+   MATCH_DURATION_SEVEN_A_SIDE_MINUTES=90
+   MATCH_DURATION_ELEVEN_A_SIDE_MINUTES=90
+   POST_MATCH_CHAT_DURATION_MINUTES=25
    ```
 
-3. Optionally copy `apps/web/.env.example` to `apps/web/.env` if the API is not at `http://localhost:3000`.
+3. If the API does not run at `http://localhost:3000`, copy `apps/web/.env.example` to `apps/web/.env` and set `VITE_API_URL`.
 
-4. Generate Prisma Client and apply the committed initial migration:
+4. Generate Prisma Client and apply the committed migrations:
 
    ```bash
    npm run prisma:generate
    npm run prisma:migrate
    ```
 
-   When Prisma prompts for a migration name during later schema work, use a descriptive name. On a clean database, the committed `20260809000000_init` migration creates users, matches, participants, and lobby messages.
-
-5. Start both applications:
+5. Start the web app and API:
 
    ```bash
    npm run dev
    ```
 
-   The web app runs at `http://localhost:5173` and the API at `http://localhost:3000`. Open `/register` to create the first user; no seed data is required.
+The web app runs at `http://localhost:5173`; the API runs at `http://localhost:3000`. Individual commands are `npm run dev:web` and `npm run dev:api`.
 
-Individual commands are `npm run dev:web` and `npm run dev:api`. Quality checks are `npm run lint`, `npm test`, and `npm run build`.
+## Product behavior
 
-## Authentication overview
+### Identity and profiles
 
-Registration and login validate shared Zod contracts. The API hashes passwords with Argon2id and stores only `passwordHash`. It signs a short JWT identity payload and sends it in an HTTP-only, same-site cookie; frontend JavaScript never reads or stores the credential. The API client includes credentials with requests, `GET /users/me` restores the session, and TanStack Query owns the current safe `PublicUser`. Logout clears the cookie and authenticated query cache.
+Registration creates a private account, a public `PlayerProfile`, and a ZAR `WalletAccount`. Public DTOs contain display name, avatar, bio, positions, dominant foot, and home area, but never email, password hashes, wallet balances, or payment data. Players can edit their profile and start a private one-to-one conversation from another player's profile.
 
-The middleware also accepts an `Authorization: Bearer` token so a future native client can reuse the API contract. In production, serve the web and API in a compatible same-site deployment and use HTTPS so the secure cookie is enforced.
+Authentication is stored in an HTTP-only same-site JWT cookie. The browser never stores the credential in JavaScript. Socket.IO uses the same authenticated identity and joins a private per-user room for messages and notifications.
 
-## Implemented API endpoints
+### Matches and formations
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /users/me` (authenticated)
-- `GET /users` (authenticated)
-- `POST /wallet/deposits/demo` (authenticated; requires `Idempotency-Key`)
-- Persistent match create, read, update, delete, join, leave, participant, and message-history routes under `/matches`.
+The create wizard supports public or invitation-only 5-a-side, 7-a-side, and 11-a-side matches. Capacity, per-team limits, on-field counts, reserve counts, and default formation coordinates are centralized in `packages/shared/src/config`.
 
-API errors use safe messages and status codes (`400`, `401`, `409`, and `500`) without exposing password hashes, tokens, Prisma errors, or stack traces.
+Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, price, availability, distance, and sorting filters; private matches are excluded and require their secure invitation token.
 
-## CORS policy
+The host can ready or cancel the match, move participants between teams, assign or swap formation slots, and reposition pitch markers. Players may switch teams only from the reserves while capacity remains. The responsive lobby provides a pitch, reserves, participant list, timer, persisted chat, and result form.
 
-The Express API and Socket.IO server only expose browser responses to the origin configured by `CLIENT_URL`. For local development this is `http://localhost:5173`. Set `CLIENT_URL` to the deployed web application's exact origin in production; requests from CLI and server-to-server clients without an `Origin` header remain supported.
+Lifecycle transitions are server-authoritative. A background scheduler moves due matches to `IN_PROGRESS`, then to `AWAITING_RESULT` using the duration stored on the match. The host submits the final score and participating scorers; scorer totals and membership are validated transactionally before completion. Lobby chat closes after the configured post-match window.
 
-## Theming
+### Wallet and cancellations
 
-The web application supports persisted light and dark modes and defaults to the operating-system preference on a first visit. All color values live in `apps/web/src/app/theme.css`; components consume semantic Tailwind tokens such as `canvas`, `surface`, `content`, `line`, `brand`, and `danger`. Update the light and dark CSS variables in that file to change the system palette without editing individual components.
+Money is stored as integer cents. The temporary **Add funds** action sends a provider-neutral demo deposit and credits R500.00 only after the server-side operator returns success. Every deposit, entry debit, cancellation credit, and replacement credit has an auditable `WalletTransaction` and idempotency key.
 
-Page navigation uses a shared directional spring transition: forward navigation enters from the right, browser-back navigation enters from the left, and redirects use a neutral fade/lift. Its duration, distance, spring curve, and keyframes are controlled centrally in `apps/web/src/app/motion.css`. The transition restarts for every React Router history location and automatically disables itself when the visitor requests reduced motion.
+Joining revalidates team capacity and wallet balance inside a serializable transaction, debits the server-owned match fee, creates `MatchPayment`, and creates the participant atomically. A duplicate join request cannot debit the wallet twice. Zero-fee matches follow the same capacity checks without requiring funds.
 
-## Match booking and lobbies
+Cancelling more than eight hours before kickoff credits 100% internally. Cancelling exactly eight hours or later but before kickoff credits 50%; a successful paid replacement on the same team receives the reopened place and credits the remaining 50% to the original player, FIFO. Cancelling the entire match credits every eligible paid participant 100%. No flow sends an external card or bank refund.
 
-Authenticated players can start the booking wizard from the Home banner or `/matches/new`. The current field catalogue contains three temporary frontend fixtures; it is isolated in `apps/web/src/features/matches/constants/fields.ts` so it can be replaced by a fields API later. A booking records its selected field, address, kickoff date/time, name, and optional description in PostgreSQL.
+### Messaging and notifications
 
-Creating a match also creates a persistent lobby and assigns its creator to Home Team starter slot 1. Each lobby supports 30 joined players split into two teams, with 10 starters and 5 reserves per team. Players can join and leave, while the host remains responsible for the lobby and is the only user allowed to delete it. Deleting a lobby cascades to its participants and persisted lobby messages. The chat panel is intentionally display-only until message persistence and Socket.IO delivery are implemented.
+Lobby chat is restricted to the host and joined participants. Direct conversations enforce membership on every read and write and use a stable participant key to prevent duplicate one-to-one threads. Messages persist before realtime broadcast.
 
-The `20260810000000_add_match_team_slots` migration adds persistent team, squad-role, and slot assignments. Apply committed migrations with `npm run prisma:migrate` during local setup.
+The notification bell reads persisted notifications with unread state. Deposits, joins, cancellations, replacements, wallet credits, match starts, results, and direct messages use the same notification service. Realtime notifications also feed the existing four-second animated in-app toast system.
 
-## Wallet and match fees
+### Teams
 
-Each signed-in user has a private ZAR wallet balance, stored as integer cents. The header displays the balance and provides a temporary **Add funds** action that credits R500.00 through the demo payment operator. Creating a match or joining one costs R80.00; the fee and the match operation are committed in one database transaction, so either both succeed or neither does.
+Teams are a first-class, normalized domain. A user may own or belong to multiple Teams, with an independent `OWNER`, `CAPTAIN`, or `MEMBER` role in each. Creating a Team is free and transactionally creates its OWNER membership plus persisted defaults for 5v5, 7v7, and 11v11 formations; it never reads from or changes the wallet.
 
-The deposit module accepts a provider-neutral success, failure, or error result. Each attempt is recorded in `WalletTransaction` with an idempotency key, provider reference, and status. A future card gateway can implement `PaymentOperator` without changing the wallet settlement flow. The demo route is development scaffolding and should be disabled or replaced before production payments are enabled.
+`/teams` lists the authenticated player's clubs, `/teams/create` provides the three-step creation wizard, and `/teams/:teamId` contains Overview, Squad, Formation, Invites, and role-gated Settings sections. Public player profiles include privacy-safe Team summaries. OWNERs manage details, images, roles, members, invites, formations, and deletion. CAPTAINs manage invites and formations. MEMBERs have read-only Team and formation access and can use the existing profile/direct-message flow.
+
+Team invite links use a cryptographically random raw token in `/teams/invite/:token`; PostgreSQL stores only its SHA-256 hash. Public GET inspection renders safe Team metadata and never joins the visitor. An authenticated POST accepts the invite in a serializable transaction, consumes the single-use invitation, and creates the unique membership atomically. Logged-out visitors retain the invite URL through normal login or registration. Invites expire after seven days by default, can be revoked, and support future multi-use limits. A successful join persists a notification for Team administrators and broadcasts the existing user- and Team-room Socket.IO events.
+
+Saved Team formations reuse the shared formation presets and the existing animated `FormationBoard`; they do not alter historical Match formations. Unassigned members remain in the squad bench. OWNER/CAPTAIN drag, swap, tap-select, and coordinate changes persist immediately with optimistic rollback, while MEMBERs receive a read-only view.
+
+Team profile images use multipart upload through the small `TeamImageStorage` interface. The development provider validates PNG, JPEG, and WEBP signatures up to 5 MB, generates UUID filenames under `TEAM_UPLOAD_DIR`, and serves them from `/uploads`. Replacing or deleting a Team removes only its safely recognized local image. Uploaded development media is generated state and should not be committed. Production can replace this provider with S3, Cloudinary, or similar object storage without changing Team business logic.
+
+## API overview
+
+Public authentication and profile routes:
+
+- `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`
+- `GET /players/:userId`
+- `PATCH /players/me/profile` (authenticated)
+- `GET /users`, `GET /users/me` (authenticated)
+
+Authenticated domain routes:
+
+- `/matches` - discovery, create, invite access, lobby updates, ready/cancel, team join/change/leave, cancellation quote, formation, result, participants, and lobby messages.
+- `/wallet/deposits/demo` - demo R500 deposit; requires `Idempotency-Key`.
+- `/conversations` - list/start conversations, read/send messages, and mark read.
+- `/notifications` - list, mark one read, and mark all read.
+- `/teams` - create/list Teams and get, update, or delete a Team.
+- `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
+- `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
+- `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
+- `POST /teams/:teamId/image` - validated multipart Team image replacement.
+
+Public Team invitation routes:
+
+- `GET /team-invites/:token` - inspect only; never mutates membership.
+- `POST /team-invites/:token/accept` - authenticated, transactional acceptance.
+
+API errors use stable codes and safe messages without exposing tokens, hashes, Prisma errors, payment secrets, or stack traces. CORS allows only the exact `CLIENT_URL` browser origin and explicitly supports the `Idempotency-Key` preflight header.
+
+## Theme and motion
+
+All system colors live in `apps/web/src/app/theme.css`. Components consume semantic Tailwind tokens, including dedicated pitch and Home/Away team tokens, in both light and dark modes. Change the CSS variables there to update the palette centrally.
+
+Page transitions are controlled in `apps/web/src/app/motion.css` and use a short directional slide with a restrained elastic settle. Transitions and notification animation respect reduced-motion preferences.
+
+## Quality commands
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data.
+
+## Production notes
+
+- Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
+- Replace local Team image storage with a durable object-storage provider before multi-instance deployment.
+- Serve the web and API over HTTPS in a compatible same-site deployment so secure authentication cookies work correctly.
+- Run migrations during deployment and operate the lifecycle scheduler as a single logical worker, or add distributed job coordination before horizontally scaling the API.
+- External refunds, withdrawals, Team-vs-Team Match creation/payments, leagues, tournaments, Team chat, social features, and accumulated Team/player statistics are intentionally outside the current scope.

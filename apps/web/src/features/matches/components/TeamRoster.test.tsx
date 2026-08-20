@@ -1,2 +1,10 @@
-import { render, screen } from '@testing-library/react'; import { describe, expect, it } from 'vitest'; import { TeamRoster } from './TeamRoster.js';
-describe('TeamRoster', () => { it('renders ten starter and five reserve slots', () => { render(<TeamRoster team="HOME" participants={[]} />); expect(screen.getByText('Starting lineup')).toBeInTheDocument(); expect(screen.getByText('Reserves')).toBeInTheDocument(); expect(screen.getAllByText('Open slot')).toHaveLength(15); }); });
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { TeamRoster } from './TeamRoster.js';
+describe('TeamRoster', () => {
+  it('renders an empty team roster', () => {
+    render(<TeamRoster team="HOME" participants={[]} />);
+    expect(screen.getByRole('heading', { name: 'Home Team' })).toBeInTheDocument();
+    expect(screen.getByText('No players yet.')).toBeInTheDocument();
+  });
+});

@@ -19,7 +19,12 @@ export class AuthService {
     try {
       return toAuthenticatedUser(await this.users.create(input, passwordHash));
     } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
         throw new AppError(409, 'An account with those details already exists.', 'ACCOUNT_TAKEN');
       }
       throw error;

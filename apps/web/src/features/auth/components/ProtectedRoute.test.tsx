@@ -8,7 +8,10 @@ vi.mock('../hooks/useAuth.js', () => ({
 describe('ProtectedRoute', () => {
   it('redirects unauthenticated visitors to login', async () => {
     render(
-      <MemoryRouter initialEntries={['/']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter
+        initialEntries={['/']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Routes>
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<p>Private home</p>} />

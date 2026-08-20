@@ -1,2 +1,62 @@
-import type { PropsWithChildren } from 'react'; import { Logo } from '@/components/Logo.js'; import { ThemeToggle } from '@/components/ThemeToggle.js';
-export function AuthLayout({ children, eyebrow, title, description }: PropsWithChildren<{ eyebrow: string; title: string; description: string }>) { return <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(30rem,0.82fr)]"><aside className="relative hidden overflow-hidden bg-brand-900 p-12 text-content-inverse lg:flex lg:flex-col lg:justify-between"><div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgb(var(--theme-content-inverse)) 0 1px, transparent 1.5px)', backgroundSize: '28px 28px' }} /><div className="relative"><Logo light /></div><div className="relative max-w-lg"><p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-brand-100">Your game starts here</p><h2 className="text-4xl font-bold leading-tight">Find players. Build a squad. Get on the pitch.</h2><p className="mt-5 text-lg leading-8 text-brand-100">A simpler way to connect with local football players and organise the matches that bring everyone together.</p></div><p className="relative text-sm text-brand-100">Built for football communities, everywhere.</p></aside><main className="relative flex min-h-screen items-center justify-center p-5 sm:p-8"><div className="absolute right-5 top-5 sm:right-8 sm:top-8"><ThemeToggle /></div><div className="w-full max-w-xl"><div className="mb-8 pr-14 lg:hidden"><Logo /></div><div className="mb-7"><p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">{eyebrow}</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-content-strong sm:text-4xl">{title}</h1><p className="mt-3 leading-7 text-content-muted">{description}</p></div>{children}</div></main></div>; }
+import type { PropsWithChildren } from 'react';
+import { Logo } from '@/components/Logo.js';
+import { ThemeToggle } from '@/components/ThemeToggle.js';
+export function AuthLayout({
+  children,
+  eyebrow,
+  title,
+  description,
+}: PropsWithChildren<{ eyebrow: string; title: string; description: string }>) {
+  return (
+    <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(30rem,0.82fr)]">
+      <aside className="relative hidden overflow-hidden bg-brand-900 p-12 text-content-inverse lg:flex lg:flex-col lg:justify-between">
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 20%, rgb(var(--theme-content-inverse)) 0 1px, transparent 1.5px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+        <div className="relative">
+          <Logo light />
+        </div>
+        <div className="relative max-w-lg">
+          <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-brand-100">
+            Your game starts here
+          </p>
+          <h2 className="text-4xl font-bold leading-tight">
+            Find players. Build a squad. Get on the pitch.
+          </h2>
+          <p className="mt-5 text-lg leading-8 text-brand-100">
+            A simpler way to connect with local football players and organise the matches that bring
+            everyone together.
+          </p>
+        </div>
+        <p className="relative text-sm text-brand-100">
+          Built for football communities, everywhere.
+        </p>
+      </aside>
+      <main className="relative flex min-h-screen items-center justify-center p-5 sm:p-8">
+        <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
+          <ThemeToggle />
+        </div>
+        <div className="w-full max-w-xl">
+          <div className="mb-8 pr-14 lg:hidden">
+            <Logo />
+          </div>
+          <div className="mb-7">
+            <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">
+              {eyebrow}
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-content-strong sm:text-4xl">
+              {title}
+            </h1>
+            <p className="mt-3 leading-7 text-content-muted">{description}</p>
+          </div>
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}

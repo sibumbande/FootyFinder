@@ -8,7 +8,14 @@ import { RegisterPage } from '@/features/auth/pages/RegisterPage.js';
 import { MatchListPage } from '@/features/matches/pages/MatchListPage.js';
 import { CreateMatchPage } from '@/features/matches/pages/CreateMatchPage.js';
 import { MatchLobbyPage } from '@/features/matches/pages/MatchLobbyPage.js';
+import { InviteMatchPage } from '@/features/matches/pages/InviteMatchPage.js';
+import { MessagesPage } from '@/features/messaging/pages/MessagesPage.js';
+import { PlayerProfilePage } from '@/features/users/pages/PlayerProfilePage.js';
 import { HomePage } from '@/features/users/pages/HomePage.js';
+import { MyTeamsPage } from '@/features/teams/pages/MyTeamsPage.js';
+import { CreateTeamPage } from '@/features/teams/pages/CreateTeamPage.js';
+import { TeamPage } from '@/features/teams/pages/TeamPage.js';
+import { TeamInvitePage } from '@/features/teams/pages/TeamInvitePage.js';
 import { PageTransition } from './PageTransition.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
@@ -27,8 +34,17 @@ export function AppRouter() {
             <Route path="/matches" element={animated(<MatchListPage />)} />
             <Route path="/matches/new" element={animated(<CreateMatchPage />)} />
             <Route path="/matches/:matchId" element={animated(<MatchLobbyPage />)} />
+            <Route path="/matches/invite/:token" element={animated(<InviteMatchPage />)} />
+            <Route path="/players/:userId" element={animated(<PlayerProfilePage />)} />
+            <Route path="/messages" element={animated(<MessagesPage />)} />
+            <Route path="/messages/:conversationId" element={animated(<MessagesPage />)} />
+            <Route path="/messages/new/:userId" element={animated(<MessagesPage />)} />
+            <Route path="/teams" element={animated(<MyTeamsPage />)} />
+            <Route path="/teams/create" element={animated(<CreateTeamPage />)} />
+            <Route path="/teams/:teamId" element={animated(<TeamPage />)} />
           </Route>
         </Route>
+        <Route path="/teams/invite/:token" element={animated(<TeamInvitePage />)} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

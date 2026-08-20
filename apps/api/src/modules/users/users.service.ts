@@ -9,5 +9,18 @@ export class UsersService {
     if (!user) throw new AppError(401, 'Authentication required.', 'UNAUTHENTICATED');
     return toAuthenticatedUser(user);
   }
-  async list() { return (await this.users.list()).map(toPublicUser); }
+  async list() {
+    return (await this.users.list()).map(toPublicUser);
+  }
+  async get(userId: string) {
+    const user = await this.users.findById(userId);
+    if (!user) throw new AppError(404, 'Player profile not found.', 'PLAYER_NOT_FOUND');
+    return toPublicUser(user);
+  }
+  async updateProfile(
+    userId: string,
+    input: import('@footy-finder/shared').UpdatePlayerProfileInput,
+  ) {
+    return toAuthenticatedUser(await this.users.updateProfile(userId, input));
+  }
 }

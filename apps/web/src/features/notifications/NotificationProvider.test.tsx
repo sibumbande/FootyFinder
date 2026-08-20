@@ -4,7 +4,15 @@ import { NotificationProvider, useNotifications } from './NotificationProvider.j
 
 function NotificationTrigger() {
   const { notify } = useNotifications();
-  return <button onClick={() => notify({ variant: 'success', title: 'Funds added', message: 'Wallet updated.' })}>Notify</button>;
+  return (
+    <button
+      onClick={() =>
+        notify({ variant: 'success', title: 'Funds added', message: 'Wallet updated.' })
+      }
+    >
+      Notify
+    </button>
+  );
 }
 
 describe('NotificationProvider', () => {
@@ -12,7 +20,11 @@ describe('NotificationProvider', () => {
 
   it('starts its exit animation after four seconds and then removes the notification', () => {
     vi.useFakeTimers();
-    render(<NotificationProvider><NotificationTrigger /></NotificationProvider>);
+    render(
+      <NotificationProvider>
+        <NotificationTrigger />
+      </NotificationProvider>,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Notify' }));
 
     const notification = screen.getByRole('status');

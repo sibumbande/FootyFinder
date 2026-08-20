@@ -11,7 +11,11 @@ afterEach(() => {
 describe('ThemeProvider', () => {
   it('toggles dark mode and persists the selection', () => {
     localStorage.setItem('footy-finder-theme', 'light');
-    render(<ThemeProvider><ThemeToggle /></ThemeProvider>);
+    render(
+      <ThemeProvider>
+        <ThemeToggle />
+      </ThemeProvider>,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch to dark mode' }));
 

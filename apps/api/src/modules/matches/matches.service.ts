@@ -1,95 +1,388 @@
-import type { CreateMatchInput, MatchParticipant, SquadRole, TeamSide, UpdateMatchInput } from '@footy-finder/shared';
-import { MATCH_CAPACITY, MATCH_FEE_CENTS, RESERVES_PER_TEAM, STARTERS_PER_TEAM } from '@footy-finder/shared';
+import { randomBytes } from 'node:crypto';
+import type {
+  ChangeParticipantTeamInput,
+  CreateMatchInput,
+  DiscoveryQuery,
+  FormationSlotUpdateInput,
+  JoinMatchInput,
+  ResultInput,
+  UpdateMatchInput,
+} from '@footy-finder/shared';
+import {
+  canChangeLobby,
+  getCancellationCreditCents,
+  getEffectiveMatchStatus,
+  getMaxMatchParticipants,
+  getMaxParticipantsPerTeam,
+} from '@footy-finder/shared';
+import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
+import { domainEvents } from '../../events/domain-events.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { toMatch, toMatchParticipant } from './match.mapper.js';
-import { AlreadyJoinedError, InsufficientBalanceError, MatchesRepository } from './matches.repository.js';
+import {
+  AlreadyJoinedError,
+  InsufficientBalanceError,
+  MatchClosedError,
+  MatchesRepository,
+  TeamFullError,
+} from './matches.repository.js';
 
-type Slot = { team: TeamSide; squadRole: SquadRole; slotNumber: number };
-
-export function findNextSlot(participants: Pick<MatchParticipant, 'team' | 'squadRole' | 'slotNumber'>[]): Slot | null {
-  for (const squadRole of ['STARTER', 'RESERVE'] as const) {
-    const limit = squadRole === 'STARTER' ? STARTERS_PER_TEAM : RESERVES_PER_TEAM;
-    const counts = {
-      HOME: participants.filter((item) => item.team === 'HOME' && item.squadRole === squadRole).length,
-      AWAY: participants.filter((item) => item.team === 'AWAY' && item.squadRole === squadRole).length,
-    };
-    const team: TeamSide = counts.HOME <= counts.AWAY ? 'HOME' : 'AWAY';
-    if (counts[team] < limit) return { team, squadRole, slotNumber: counts[team] + 1 };
-  }
-  return null;
-}
+const durations = {
+  FIVE_A_SIDE: env.MATCH_DURATION_FIVE_A_SIDE_MINUTES,
+  SEVEN_A_SIDE: env.MATCH_DURATION_SEVEN_A_SIDE_MINUTES,
+  ELEVEN_A_SIDE: env.MATCH_DURATION_ELEVEN_A_SIDE_MINUTES,
+} as const;
+const distanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+  const rad = Math.PI / 180;
+  const a =
+    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 export class MatchesService {
-  constructor(private readonly matches = new MatchesRepository()) {}
+  constructor(
+    private readonly matches = new MatchesRepository(),
+    private readonly notifications = new NotificationsService(),
+  ) {}
 
-  async list() { return (await this.matches.list()).map(toMatch); }
-  async get(id: string) { const match = await this.matches.findById(id); if (!match) throw new AppError(404, 'Match lobby not found.', 'MATCH_NOT_FOUND'); return toMatch(match); }
+  async list(query: DiscoveryQuery) {
+    let matches = (await this.matches.listPublic(query)).map((match) => ({
+      match: toMatch(match),
+      distance:
+        query.lat !== undefined && match.venue.latitude !== null
+          ? distanceKm(
+              query.lat,
+              query.lng!,
+              Number(match.venue.latitude),
+              Number(match.venue.longitude),
+            )
+          : undefined,
+    }));
+    if (query.lat !== undefined)
+      matches = matches.filter(
+        ({ distance }) => distance !== undefined && distance <= query.radiusKm,
+      );
+    if (query.availableOnly)
+      matches = matches.filter(
+        ({ match }) => match.participantCount < getMaxMatchParticipants(match.format),
+      );
+    if ((query.sort ?? (query.lat === undefined ? 'soonest' : 'nearest')) === 'nearest')
+      matches.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    return matches.map(({ match, distance }) => ({ ...match, distanceKm: distance }));
+  }
+  async get(id: string, userId: string) {
+    const match = await this.load(id);
+    if (
+      match.visibility === 'PRIVATE' &&
+      match.createdById !== userId &&
+      !match.participants.some((item) => item.userId === userId) &&
+      !(await this.matches.hasParticipation(id, userId))
+    )
+      throw new AppError(
+        403,
+        'Use a valid invitation to access this private match.',
+        'PRIVATE_MATCH',
+      );
+    return toMatch(match, { includeInvite: match.createdById === userId });
+  }
+  async getByInvite(token: string) {
+    const match = await this.matches.findByInviteToken(token);
+    if (!match)
+      throw new AppError(404, 'Match invitation is invalid or expired.', 'INVITE_NOT_FOUND');
+    return toMatch(match);
+  }
   async create(input: CreateMatchInput, userId: string) {
+    const inviteToken =
+      input.visibility === 'PRIVATE' ? randomBytes(32).toString('base64url') : undefined;
+    return toMatch(await this.matches.create(input, userId, durations[input.format], inviteToken), {
+      includeInvite: true,
+    });
+  }
+  async update(id: string, input: UpdateMatchInput, userId: string) {
+    const match = await this.assertHost(id, userId);
+    this.assertMutable(match);
+    return toMatch(await this.matches.update(id, input), { includeInvite: true });
+  }
+  async ready(id: string, userId: string) {
+    const match = await this.assertHost(id, userId);
+    this.assertMutable(match);
+    return toMatch(await this.matches.markReady(id), { includeInvite: true });
+  }
+
+  async remove(id: string, userId: string) {
+    const match = await this.assertHost(id, userId);
+    if (match.status === 'CANCELLED') return;
+    this.assertMutable(match);
+    const { refundedUserIds } = await this.matches.cancelMatch(id);
+    await Promise.all(
+      refundedUserIds.map((refundedUserId) =>
+        this.notifications.create(
+          refundedUserId,
+          'MATCH_CANCELLED',
+          'Match cancelled',
+          'Your full match fee was credited to your Footy Finder wallet.',
+          `/matches/${id}`,
+        ),
+      ),
+    );
+  }
+
+  async join(id: string, userId: string, input: JoinMatchInput, idempotencyKey: string) {
+    if (!idempotencyKey || idempotencyKey.length > 200)
+      throw new AppError(
+        400,
+        'A valid Idempotency-Key header is required.',
+        'IDEMPOTENCY_KEY_REQUIRED',
+      );
     try {
-      return toMatch(await this.matches.createWithCharge(input, userId, MATCH_FEE_CENTS));
+      const result = await this.matches.join(id, userId, input, idempotencyKey);
+      if (!result.replayed) {
+        const participant = toMatchParticipant(result.participant);
+        domainEvents.emit('participant:joined', {
+          matchId: id,
+          participant,
+        });
+        await this.notifications.create(
+          userId,
+          'MATCH_JOINED',
+          'Match joined',
+          `Your place on the ${input.team === 'HOME' ? 'Home' : 'Away'} team is confirmed.`,
+          `/matches/${id}`,
+        );
+        const joinedMatch = await this.load(id);
+        const audience = new Set([
+          joinedMatch.createdById,
+          ...joinedMatch.participants.map(({ userId: participantUserId }) => participantUserId),
+        ]);
+        audience.delete(userId);
+        await Promise.all(
+          [...audience].map((recipientId) =>
+            this.notifications.create(
+              recipientId,
+              'INFO',
+              'Player joined',
+              `${participant.user?.displayName ?? 'A player'} joined the ${input.team === 'HOME' ? 'Home' : 'Away'} team.`,
+              `/matches/${id}`,
+            ),
+          ),
+        );
+        if (result.replacement)
+          await Promise.all([
+            this.notifications.create(
+              result.replacement.userId,
+              'REPLACEMENT_FOUND',
+              'Replacement found',
+              'The remaining cancellation credit was added to your wallet.',
+              `/matches/${id}`,
+            ),
+            this.notifications.create(
+              result.replacement.userId,
+              'WALLET_CREDIT',
+              'Wallet credited',
+              `R${(result.replacement.amountCents / 100).toFixed(2)} was added to your balance.`,
+              `/matches/${id}`,
+            ),
+          ]);
+      }
+      return toMatchParticipant(result.participant);
     } catch (error) {
-      this.rethrowWalletError(error);
+      this.rethrowJoinError(error);
     }
   }
 
-  async update(id: string, input: UpdateMatchInput, userId: string) {
-    await this.assertHost(id, userId);
-    return toMatch(await this.matches.update(id, input));
+  async cancellationQuote(id: string, userId: string) {
+    const match = await this.load(id);
+    const participant = match.participants.find((item) => item.userId === userId);
+    if (!participant) throw new AppError(409, 'You have not joined this match.', 'NOT_JOINED');
+    const now = new Date();
+    const hoursUntilKickoff = (match.startsAt.getTime() - now.getTime()) / 3_600_000;
+    const initialCreditCents = getCancellationCreditCents(match.feeCents, match.startsAt, now);
+    if (initialCreditCents === null)
+      throw new AppError(409, 'You cannot leave once kickoff has arrived.', 'MATCH_STARTED');
+    return {
+      initialCreditCents,
+      possibleReplacementCreditCents: match.feeCents - initialCreditCents,
+      hoursUntilKickoff,
+    };
   }
-
-  async remove(id: string, userId: string) { await this.assertHost(id, userId); await this.matches.remove(id); }
-
-  async join(id: string, userId: string) {
-    const match = await this.matches.findById(id);
-    if (!match) throw new AppError(404, 'Match lobby not found.', 'MATCH_NOT_FOUND');
-    if (!['OPEN', 'FULL'].includes(match.status)) throw new AppError(409, 'This lobby is not accepting players.', 'MATCH_CLOSED');
-    const existing = await this.matches.findParticipant(id, userId);
-    if (existing?.status === 'JOINED') throw new AppError(409, 'You have already joined this lobby.', 'ALREADY_JOINED');
-    if (match.participants.length >= MATCH_CAPACITY) throw new AppError(409, 'This lobby is full.', 'MATCH_FULL');
-    const slot = findNextSlot(match.participants);
-    if (!slot) throw new AppError(409, 'This lobby is full.', 'MATCH_FULL');
+  async cancellationStatus(id: string, userId: string) {
+    const cancellation = await this.matches.findCancellation(id, userId);
+    if (!cancellation) return null;
+    return {
+      matchId: cancellation.matchId,
+      originalTeam: cancellation.originalTeam,
+      originalAmountCents: cancellation.originalAmountCents,
+      initialCreditCents: cancellation.initialCreditCents,
+      replacementCreditCents: cancellation.replacementCreditCents,
+      replacementFound: cancellation.replacementParticipantId !== null,
+      cancelledAt: cancellation.cancelledAt.toISOString(),
+    };
+  }
+  async leave(id: string, userId: string) {
     try {
-      const participant = await this.matches.joinWithCharge(
+      const { cancellation, replayed } = await this.matches.cancelParticipation(
         id,
         userId,
-        slot.team,
-        slot.squadRole,
-        slot.slotNumber,
-        MATCH_FEE_CENTS,
-        match.participants.length + 1 >= MATCH_CAPACITY,
+        new Date(),
       );
-      return toMatchParticipant(participant);
+      if (!replayed) domainEvents.emit('participant:left', { matchId: id, userId });
+      if (cancellation && !replayed)
+        await this.notifications.create(
+          userId,
+          'PLAYER_CANCELLED',
+          'Place cancelled',
+          `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`,
+          `/matches/${id}`,
+        );
+      return cancellation;
     } catch (error) {
-      this.rethrowWalletError(error);
+      if (error instanceof MatchClosedError)
+        throw new AppError(409, 'You cannot leave once kickoff has arrived.', 'MATCH_STARTED');
+      throw error;
     }
   }
 
-  async leave(id: string, userId: string) {
-    const match = await this.matches.findById(id);
-    if (!match) throw new AppError(404, 'Match lobby not found.', 'MATCH_NOT_FOUND');
-    if (match.createdById === userId) throw new AppError(409, 'The host must delete the lobby instead of leaving it.', 'HOST_CANNOT_LEAVE');
-    const participant = await this.matches.findParticipant(id, userId);
-    if (!participant || participant.status !== 'JOINED') throw new AppError(409, 'You have not joined this lobby.', 'NOT_JOINED');
-    await this.matches.leave(id, userId);
-    if (match.status === 'FULL') await this.matches.setStatus(id, 'OPEN');
+  async updateFormation(
+    id: string,
+    slotId: string,
+    input: FormationSlotUpdateInput,
+    userId: string,
+  ) {
+    const match = await this.assertHost(id, userId);
+    this.assertMutable(match);
+    const slots =
+      toMatch(await this.matches.updateFormation(id, slotId, input), { includeInvite: true })
+        .formationSlots ?? [];
+    domainEvents.emit('formation:updated', { matchId: id, slots });
+    return slots;
+  }
+  async changeTeam(
+    id: string,
+    participantId: string,
+    input: ChangeParticipantTeamInput,
+    userId: string,
+  ) {
+    const match = await this.load(id);
+    try {
+      const participant = await this.matches.changeTeam(
+        id,
+        participantId,
+        userId,
+        match.createdById === userId,
+        input.team,
+      );
+      const dto = toMatchParticipant(participant);
+      domainEvents.emit('participant:team-changed', { matchId: id, participant: dto });
+      return dto;
+    } catch (error) {
+      if (error instanceof TeamFullError)
+        throw new AppError(409, 'That team is full.', 'TEAM_FULL');
+      if (error instanceof MatchClosedError)
+        throw new AppError(409, 'Teams cannot change after kickoff.', 'MATCH_STARTED');
+      if (error instanceof Error && error.message === 'ON_FIELD_SWITCH')
+        throw new AppError(409, 'Move to reserves before switching teams.', 'ON_FIELD_SWITCH');
+      if (error instanceof Error && error.message === 'PLAYER_FORBIDDEN')
+        throw new AppError(403, 'You cannot move another player.', 'PLAYER_FORBIDDEN');
+      if (error instanceof Error && error.message === 'PARTICIPANT_NOT_FOUND')
+        throw new AppError(404, 'Participant not found.', 'PARTICIPANT_NOT_FOUND');
+      throw error;
+    }
+  }
+  async submitResult(id: string, input: ResultInput, userId: string) {
+    const match = await this.assertHost(id, userId);
+    if (
+      getEffectiveMatchStatus({
+        status: match.status === 'FULL' ? 'OPEN' : match.status,
+        startsAt: match.startsAt,
+        durationMinutes: match.durationMinutes,
+      }) !== 'AWAITING_RESULT'
+    )
+      throw new AppError(
+        409,
+        'Results can be submitted after the match timer ends.',
+        'RESULT_NOT_READY',
+      );
+    try {
+      const completed = toMatch(await this.matches.submitResult(id, userId, input), {
+        includeInvite: true,
+      });
+      domainEvents.emit('match:result-submitted', { matchId: id, result: completed.result });
+      const recipients = new Set([
+        match.createdById,
+        ...match.participants.map(({ userId: participantUserId }) => participantUserId),
+      ]);
+      await Promise.all(
+        [...recipients].map((recipientId) =>
+          this.notifications.create(
+            recipientId,
+            'RESULT_SUBMITTED',
+            'Result submitted',
+            `Final score: Home ${input.homeScore}-${input.awayScore} Away.`,
+            `/matches/${id}`,
+          ),
+        ),
+      );
+      return completed;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'SCORER_TOTAL_MISMATCH')
+        throw new AppError(
+          400,
+          'Scorer goal totals must equal the final scores.',
+          'SCORER_TOTAL_MISMATCH',
+        );
+      if (error instanceof Error && error.message === 'INVALID_SCORER')
+        throw new AppError(
+          400,
+          'Every scorer must have participated in this match.',
+          'INVALID_SCORER',
+        );
+      throw error;
+    }
+  }
+  async participants(id: string, userId: string) {
+    return (await this.get(id, userId)).participants ?? [];
   }
 
-  async participants(id: string) { return (await this.get(id)).participants ?? []; }
-
-  private async assertHost(id: string, userId: string) {
+  private async load(id: string) {
     const match = await this.matches.findById(id);
     if (!match) throw new AppError(404, 'Match lobby not found.', 'MATCH_NOT_FOUND');
-    if (match.createdById !== userId) throw new AppError(403, 'Only the lobby host can do that.', 'HOST_REQUIRED');
     return match;
   }
-
-  private rethrowWalletError(error: unknown): never {
-    if (error instanceof InsufficientBalanceError) {
-      throw new AppError(402, 'You need at least R80.00 in your wallet for this match.', 'INSUFFICIENT_BALANCE');
-    }
-    if (error instanceof AlreadyJoinedError) {
-      throw new AppError(409, 'You have already joined this lobby.', 'ALREADY_JOINED');
-    }
+  private async assertHost(id: string, userId: string) {
+    const match = await this.load(id);
+    if (match.createdById !== userId)
+      throw new AppError(403, 'Only the match organiser can do that.', 'HOST_REQUIRED');
+    return match;
+  }
+  private assertMutable(match: Awaited<ReturnType<MatchesRepository['findById']>> & {}) {
+    if (
+      !match ||
+      !canChangeLobby({
+        status: match.status === 'FULL' ? 'OPEN' : match.status,
+        startsAt: match.startsAt,
+        durationMinutes: match.durationMinutes,
+      })
+    )
+      throw new AppError(409, 'This action is unavailable after kickoff.', 'MATCH_STARTED');
+  }
+  private rethrowJoinError(error: unknown): never {
+    if (error instanceof InsufficientBalanceError)
+      throw new AppError(
+        402,
+        'Your wallet does not have enough funds for this match.',
+        'INSUFFICIENT_BALANCE',
+      );
+    if (error instanceof AlreadyJoinedError)
+      throw new AppError(
+        409,
+        'You have already joined this match or the request conflicts with an earlier payment.',
+        'ALREADY_JOINED',
+      );
+    if (error instanceof TeamFullError) throw new AppError(409, 'That team is full.', 'TEAM_FULL');
+    if (error instanceof MatchClosedError)
+      throw new AppError(409, 'This match is no longer accepting players.', 'MATCH_CLOSED');
     throw error;
   }
 }

@@ -1,2 +1,10 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'; import { useAuth } from '../hooks/useAuth.js'; import { AuthLoadingScreen } from './AuthLoadingScreen.js';
-export function ProtectedRoute() { const { isPending, isAuthenticated } = useAuth(); const location = useLocation(); if (isPending) return <AuthLoadingScreen />; if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location.pathname }} />; return <Outlet />; }
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth.js';
+import { AuthLoadingScreen } from './AuthLoadingScreen.js';
+export function ProtectedRoute() {
+  const { isPending, isAuthenticated } = useAuth();
+  const location = useLocation();
+  if (isPending) return <AuthLoadingScreen />;
+  if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  return <Outlet />;
+}

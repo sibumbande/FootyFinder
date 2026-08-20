@@ -7,17 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MatchStatus {
-  OPEN
-  FULL
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+enum MatchFormat {
+  FIVE_A_SIDE
+  SEVEN_A_SIDE
+  ELEVEN_A_SIDE
 }
 
-enum ParticipantRole {
-  HOST
-  PLAYER
+enum MatchVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum MatchStatus {
+  OPEN
+  READY
+  FULL
+  IN_PROGRESS
+  AWAITING_RESULT
+  COMPLETED
+  CANCELLED
 }
 
 enum ParticipantStatus {
@@ -31,15 +39,29 @@ enum TeamSide {
   AWAY
 }
 
-enum SquadRole {
-  STARTER
-  RESERVE
+enum FootballPosition {
+  GOALKEEPER
+  DEFENDER
+  MIDFIELDER
+  FORWARD
+}
+
+enum DominantFoot {
+  LEFT
+  RIGHT
+  BOTH
 }
 
 enum WalletTransactionType {
   DEPOSIT
   MATCH_CREATE
   MATCH_JOIN
+  DEPOSIT_CREDIT
+  MATCH_ENTRY_DEBIT
+  MATCH_CANCELLATION_CREDIT
+  PLAYER_CANCELLATION_FULL_CREDIT
+  PLAYER_CANCELLATION_PARTIAL_CREDIT
+  REPLACEMENT_CREDIT
 }
 
 enum WalletTransactionStatus {
@@ -49,86 +71,404 @@ enum WalletTransactionStatus {
   ERROR
 }
 
+enum MatchPaymentStatus {
+  SUCCEEDED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum TeamRole {
+  OWNER
+  CAPTAIN
+  MEMBER
+}
+
+enum NotificationType {
+  INFO
+  DIRECT_MESSAGE
+  MATCH_INVITATION
+  DEPOSIT_SUCCEEDED
+  MATCH_JOINED
+  PLAYER_CANCELLED
+  REPLACEMENT_FOUND
+  WALLET_CREDIT
+  MATCH_CANCELLED
+  MATCH_STARTED
+  RESULT_SUBMITTED
+  TEAM_MEMBER_JOINED
+  TEAM_UPDATED
+}
+
 model User {
-  id String @id @default(uuid()) @db.Uuid
-  email String @unique
-  username String @unique
-  passwordHash String
-  firstName String?
-  lastName String?
-  avatarUrl String?
-  balanceCents Int @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdMatches Match[] @relation("MatchCreator")
-  participations MatchParticipant[]
-  messages LobbyMessage[] @relation("MessageSender")
-  walletTransactions WalletTransaction[]
+  id                      String                    @id @default(uuid()) @db.Uuid
+  email                   String                    @unique
+  username                String                    @unique
+  passwordHash            String
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  profile                 PlayerProfile?
+  walletAccount           WalletAccount?
+  createdMatches          Match[]                   @relation("MatchCreator")
+  participations          MatchParticipant[]
+  lobbyMessages           LobbyMessage[]            @relation("LobbyMessageSender")
+  submittedResults        MatchResult[]             @relation("ResultSubmitter")
+  conversationMemberships ConversationParticipant[]
+  directMessages          DirectMessage[]           @relation("DirectMessageSender")
+  notifications           Notification[]
+  ownedTeams              Team[]                    @relation("TeamOwner")
+  teamMemberships         TeamMembership[]
+  createdTeamInvites      TeamInvite[]              @relation("TeamInviteCreator")
+}
+
+model PlayerProfile {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  userId             String                    @unique @db.Uuid
+  displayName        String
+  avatarUrl          String?
+  bio                String?
+  dominantFoot       DominantFoot?
+  homeArea           String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredPositions PlayerPreferredPosition[]
+}
+
+model PlayerPreferredPosition {
+  profileId String           @db.Uuid
+  position  FootballPosition
+  profile   PlayerProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, position])
+}
+
+model WalletAccount {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @unique @db.Uuid
+  currency     String              @default("ZAR")
+  balanceCents Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
 }
 
 model WalletTransaction {
-  id String @id @default(uuid()) @db.Uuid
-  userId String @db.Uuid
-  type WalletTransactionType
-  amountCents Int
-  status WalletTransactionStatus @default(PENDING)
-  provider String?
+  id                String                  @id @default(uuid()) @db.Uuid
+  walletAccountId   String                  @db.Uuid
+  type              WalletTransactionType
+  amountCents       Int
+  status            WalletTransactionStatus @default(PENDING)
+  provider          String?
   providerReference String?
-  idempotencyKey String @unique
-  matchId String? @db.Uuid
-  failureReason String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idempotencyKey    String                  @unique
+  referenceType     String?
+  referenceId       String?
+  description       String?
+  failureReason     String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  walletAccount     WalletAccount           @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  matchPayment      MatchPayment?
 
-  @@index([userId, createdAt])
+  @@unique([provider, providerReference])
+  @@index([walletAccountId, createdAt])
+}
+
+model Venue {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  addressLine1    String
+  addressLine2    String?
+  locality        String?
+  city            String
+  region          String
+  postalCode      String?
+  countryCode     String
+  latitude        Decimal? @db.Decimal(9, 6)
+  longitude       Decimal? @db.Decimal(9, 6)
+  externalPlaceId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  matches         Match[]
 }
 
 model Match {
-  id String @id @default(uuid()) @db.Uuid
-  name String
-  description String?
-  createdById String @db.Uuid
-  venueName String
-  address String?
-  latitude Float?
-  longitude Float?
-  startsAt DateTime
-  maxPlayers Int
-  status MatchStatus @default(OPEN)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy User @relation("MatchCreator", fields: [createdById], references: [id])
-  participants MatchParticipant[]
-  messages LobbyMessage[]
+  id              String                    @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
+  createdById     String                    @db.Uuid
+  venueId         String                    @db.Uuid
+  format          MatchFormat
+  visibility      MatchVisibility
+  inviteToken     String?                   @unique
+  startsAt        DateTime
+  durationMinutes Int
+  feeCents        Int
+  currency        String                    @default("ZAR")
+  status          MatchStatus               @default(OPEN)
+  cancelledAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  createdBy       User                      @relation("MatchCreator", fields: [createdById], references: [id])
+  venue           Venue                     @relation(fields: [venueId], references: [id])
+  participants    MatchParticipant[]
+  formationSlots  FormationSlot[]
+  messages        LobbyMessage[]
+  result          MatchResult?
+  payments        MatchPayment[]
+  cancellations   ParticipantCancellation[]
+
+  @@index([visibility, startsAt])
+  @@index([format, startsAt])
 }
 
 model MatchParticipant {
-  id String @id @default(uuid()) @db.Uuid
-  matchId String @db.Uuid
-  userId String @db.Uuid
-  role ParticipantRole @default(PLAYER)
-  status ParticipantStatus @default(JOINED)
-  team TeamSide?
-  squadRole SquadRole?
-  slotNumber Int?
-  joinedAt DateTime @default(now())
-  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String                   @id @default(uuid()) @db.Uuid
+  matchId        String                   @db.Uuid
+  userId         String                   @db.Uuid
+  status         ParticipantStatus        @default(JOINED)
+  team           TeamSide
+  joinedAt       DateTime                 @default(now())
+  leftAt         DateTime?
+  match          Match                    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  formationSlot  FormationSlot?
+  payment        MatchPayment?
+  scoring        MatchScorer[]
+  replacementFor ParticipantCancellation? @relation("ReplacementParticipant")
+
   @@unique([matchId, userId])
-  @@unique([matchId, team, squadRole, slotNumber])
+  @@index([matchId, team, status])
   @@index([userId])
 }
 
+model FormationSlot {
+  id            String            @id @default(uuid()) @db.Uuid
+  matchId       String            @db.Uuid
+  team          TeamSide
+  slotIndex     Int
+  positionX     Decimal           @db.Decimal(5, 2)
+  positionY     Decimal           @db.Decimal(5, 2)
+  participantId String?           @unique @db.Uuid
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  match         Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant   MatchParticipant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, team, slotIndex])
+  @@index([matchId, team])
+}
+
+model MatchPayment {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  matchId             String                   @db.Uuid
+  userId              String                   @db.Uuid
+  participantId       String                   @unique @db.Uuid
+  team                TeamSide
+  amountCents         Int
+  currency            String                   @default("ZAR")
+  status              MatchPaymentStatus       @default(SUCCEEDED)
+  walletTransactionId String                   @unique @db.Uuid
+  idempotencyKey      String                   @unique
+  createdAt           DateTime                 @default(now())
+  paidAt              DateTime                 @default(now())
+  match               Match                    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant         MatchParticipant         @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  walletTransaction   WalletTransaction        @relation(fields: [walletTransactionId], references: [id])
+  cancellation        ParticipantCancellation?
+
+  @@index([matchId, team, status])
+  @@index([userId])
+}
+
+model ParticipantCancellation {
+  id                       String            @id @default(uuid()) @db.Uuid
+  matchId                  String            @db.Uuid
+  userId                   String            @db.Uuid
+  matchPaymentId           String            @unique @db.Uuid
+  originalTeam             TeamSide
+  cancelledAt              DateTime          @default(now())
+  originalAmountCents      Int
+  initialCreditCents       Int
+  replacementCreditCents   Int               @default(0)
+  replacementParticipantId String?           @unique @db.Uuid
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  match                    Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchPayment             MatchPayment      @relation(fields: [matchPaymentId], references: [id])
+  replacementParticipant   MatchParticipant? @relation("ReplacementParticipant", fields: [replacementParticipantId], references: [id])
+
+  @@index([matchId, originalTeam, cancelledAt])
+  @@index([userId])
+}
+
+model MatchResult {
+  id            String        @id @default(uuid()) @db.Uuid
+  matchId       String        @unique @db.Uuid
+  homeScore     Int
+  awayScore     Int
+  submittedById String        @db.Uuid
+  submittedAt   DateTime      @default(now())
+  match         Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  submittedBy   User          @relation("ResultSubmitter", fields: [submittedById], references: [id])
+  scorers       MatchScorer[]
+}
+
+model MatchScorer {
+  id            String           @id @default(uuid()) @db.Uuid
+  matchResultId String           @db.Uuid
+  participantId String           @db.Uuid
+  team          TeamSide
+  goals         Int
+  matchResult   MatchResult      @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
+  participant   MatchParticipant @relation(fields: [participantId], references: [id])
+
+  @@unique([matchResultId, participantId])
+}
+
 model LobbyMessage {
-  id String @id @default(uuid()) @db.Uuid
-  matchId String @db.Uuid
-  senderId String @db.Uuid
-  content String
-  createdAt DateTime @default(now())
-  editedAt DateTime?
+  id        String    @id @default(uuid()) @db.Uuid
+  matchId   String    @db.Uuid
+  senderId  String    @db.Uuid
+  content   String
+  createdAt DateTime  @default(now())
+  editedAt  DateTime?
   deletedAt DateTime?
-  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  sender User @relation("MessageSender", fields: [senderId], references: [id])
+  match     Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender    User      @relation("LobbyMessageSender", fields: [senderId], references: [id])
+
   @@index([matchId, createdAt])
+}
+
+model Conversation {
+  id           String                    @id @default(uuid()) @db.Uuid
+  directKey    String                    @unique
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  participants ConversationParticipant[]
+  messages     DirectMessage[]
+}
+
+model ConversationParticipant {
+  conversationId String       @db.Uuid
+  userId         String       @db.Uuid
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model DirectMessage {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  senderId       String       @db.Uuid
+  content        String
+  createdAt      DateTime     @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("DirectMessageSender", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @db.Uuid
+  type       NotificationType
+  title      String
+  message    String
+  targetPath String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model Team {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String
+  shortName       String?
+  description     String?
+  profileImageUrl String?
+  locationText    String?
+  primaryFormat   MatchFormat
+  primaryColor    String?
+  secondaryColor  String?
+  ownerUserId     String           @db.Uuid
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  owner           User             @relation("TeamOwner", fields: [ownerUserId], references: [id])
+  memberships     TeamMembership[]
+  invites         TeamInvite[]
+  formations      TeamFormation[]
+
+  @@index([ownerUserId])
+  @@index([name])
+}
+
+model TeamMembership {
+  id             String              @id @default(uuid()) @db.Uuid
+  teamId         String              @db.Uuid
+  userId         String              @db.Uuid
+  role           TeamRole            @default(MEMBER)
+  joinedAt       DateTime            @default(now())
+  team           Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  formationSlots TeamFormationSlot[]
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@index([teamId, role])
+}
+
+model TeamInvite {
+  id              String    @id @default(uuid()) @db.Uuid
+  teamId          String    @db.Uuid
+  createdByUserId String    @db.Uuid
+  tokenHash       String    @unique
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  maxUses         Int       @default(1)
+  useCount        Int       @default(0)
+  team            Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy       User      @relation("TeamInviteCreator", fields: [createdByUserId], references: [id])
+
+  @@index([teamId, createdAt])
+}
+
+model TeamFormation {
+  id           String              @id @default(uuid()) @db.Uuid
+  teamId       String              @db.Uuid
+  format       MatchFormat
+  formationKey String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  slots        TeamFormationSlot[]
+
+  @@unique([teamId, format])
+}
+
+model TeamFormationSlot {
+  id           String          @id @default(uuid()) @db.Uuid
+  formationId  String          @db.Uuid
+  slotIndex    Int
+  positionX    Decimal         @db.Decimal(5, 2)
+  positionY    Decimal         @db.Decimal(5, 2)
+  membershipId String?         @db.Uuid
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  formation    TeamFormation   @relation(fields: [formationId], references: [id], onDelete: Cascade)
+  membership   TeamMembership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+
+  @@unique([formationId, slotIndex])
+  @@unique([formationId, membershipId])
+  @@index([membershipId])
 }

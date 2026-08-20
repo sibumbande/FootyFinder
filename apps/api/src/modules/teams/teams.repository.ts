@@ -1,0 +1,249 @@
+import { Prisma, type MatchFormat, type TeamRole } from '@prisma/client';
+import type {
+  CreateTeamInput,
+  UpdateTeamFormationSlotInput,
+  UpdateTeamInput,
+} from '@footy-finder/shared';
+import {
+  MATCH_FORMATS,
+  createFormationPresetSlots,
+  getDefaultFormationKey,
+} from '@footy-finder/shared';
+import { prisma } from '../../database/prisma.js';
+import { serializableTransaction } from '../../database/transaction.js';
+import { safeUserInclude } from '../users/users.repository.js';
+
+const memberInclude = { user: { include: safeUserInclude } } as const;
+export const teamInclude = Prisma.validator<Prisma.TeamInclude>()({
+  owner: { include: safeUserInclude },
+  memberships: { include: memberInclude, orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }] },
+  _count: { select: { memberships: true } },
+});
+const inviteInclude = {
+  createdBy: { include: safeUserInclude },
+  team: { include: { _count: { select: { memberships: true } } } },
+} as const;
+const formationInclude = {
+  slots: {
+    include: { membership: { include: memberInclude } },
+    orderBy: { slotIndex: 'asc' as const },
+  },
+} as const;
+
+export class TeamsRepository {
+  create(input: CreateTeamInput, ownerUserId: string) {
+    return serializableTransaction((tx) =>
+      tx.team.create({
+        data: {
+          name: input.name,
+          shortName: input.shortName,
+          description: input.description,
+          locationText: input.locationText,
+          primaryFormat: input.primaryFormat,
+          primaryColor: input.primaryColor,
+          secondaryColor: input.secondaryColor,
+          owner: { connect: { id: ownerUserId } },
+          memberships: { create: { userId: ownerUserId, role: 'OWNER' } },
+          formations: {
+            create: MATCH_FORMATS.map((format) => {
+              const formationKey =
+                format === input.primaryFormat
+                  ? input.formationKey
+                  : getDefaultFormationKey(format);
+              return {
+                format,
+                formationKey,
+                slots: { create: createFormationPresetSlots(format, formationKey) },
+              };
+            }),
+          },
+        },
+        include: teamInclude,
+      }),
+    );
+  }
+
+  listForUser(userId: string) {
+    return prisma.team.findMany({
+      where: { memberships: { some: { userId } } },
+      include: teamInclude,
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+  findById(id: string) {
+    return prisma.team.findUnique({ where: { id }, include: teamInclude });
+  }
+  findMembership(teamId: string, userId: string) {
+    return prisma.teamMembership.findUnique({
+      where: { teamId_userId: { teamId, userId } },
+      include: memberInclude,
+    });
+  }
+  update(id: string, input: UpdateTeamInput & { profileImageUrl?: string | null }) {
+    return prisma.team.update({ where: { id }, data: input, include: teamInclude });
+  }
+  delete(id: string) {
+    return prisma.team.delete({ where: { id } });
+  }
+  updateMemberRole(teamId: string, userId: string, role: Exclude<TeamRole, 'OWNER'>) {
+    return prisma.teamMembership.update({
+      where: { teamId_userId: { teamId, userId } },
+      data: { role },
+      include: memberInclude,
+    });
+  }
+  async removeMember(teamId: string, userId: string) {
+    return serializableTransaction(async (tx) => {
+      await tx.teamFormationSlot.updateMany({
+        where: { membership: { teamId, userId } },
+        data: { membershipId: null },
+      });
+      return tx.teamMembership.delete({ where: { teamId_userId: { teamId, userId } } });
+    });
+  }
+
+  createInvite(teamId: string, createdByUserId: string, tokenHash: string, expiresAt: Date) {
+    return prisma.teamInvite.create({
+      data: { teamId, createdByUserId, tokenHash, expiresAt, maxUses: 1 },
+      include: inviteInclude,
+    });
+  }
+  listInvites(teamId: string) {
+    return prisma.teamInvite.findMany({
+      where: { teamId },
+      include: inviteInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+  findInviteByHash(tokenHash: string) {
+    return prisma.teamInvite.findUnique({ where: { tokenHash }, include: inviteInclude });
+  }
+  revokeInvite(id: string, teamId: string) {
+    return prisma.teamInvite.updateMany({
+      where: { id, teamId, revokedAt: null, useCount: { lt: 1 } },
+      data: { revokedAt: new Date() },
+    });
+  }
+  acceptInvite(tokenHash: string, userId: string, now: Date) {
+    return serializableTransaction(async (tx) => {
+      const invite = await tx.teamInvite.findUnique({
+        where: { tokenHash },
+        include: { team: true },
+      });
+      if (!invite) return { outcome: 'INVALID' as const };
+      const existing = await tx.teamMembership.findUnique({
+        where: { teamId_userId: { teamId: invite.teamId, userId } },
+        include: memberInclude,
+      });
+      if (existing) return { outcome: 'ALREADY_MEMBER' as const, invite, membership: existing };
+      if (invite.revokedAt) return { outcome: 'REVOKED' as const };
+      if (invite.expiresAt <= now) return { outcome: 'EXPIRED' as const };
+      const consumed = await tx.teamInvite.updateMany({
+        where: {
+          id: invite.id,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          useCount: { lt: invite.maxUses },
+        },
+        data: { useCount: { increment: 1 } },
+      });
+      if (consumed.count !== 1) return { outcome: 'USED' as const };
+      const membership = await tx.teamMembership.create({
+        data: { teamId: invite.teamId, userId, role: 'MEMBER' },
+        include: memberInclude,
+      });
+      return { outcome: 'JOINED' as const, invite, membership };
+    });
+  }
+
+  findFormation(teamId: string, format: MatchFormat) {
+    return prisma.teamFormation.findUnique({
+      where: { teamId_format: { teamId, format } },
+      include: formationInclude,
+    });
+  }
+  replaceFormation(teamId: string, format: MatchFormat, formationKey: string) {
+    return serializableTransaction(async (tx) => {
+      const formation = await tx.teamFormation.findUniqueOrThrow({
+        where: { teamId_format: { teamId, format } },
+        include: { slots: true },
+      });
+      const assigned = formation.slots
+        .sort((a, b) => a.slotIndex - b.slotIndex)
+        .map(({ membershipId }) => membershipId);
+      await tx.teamFormationSlot.deleteMany({ where: { formationId: formation.id } });
+      await tx.teamFormation.update({
+        where: { id: formation.id },
+        data: {
+          formationKey,
+          slots: {
+            create: createFormationPresetSlots(format, formationKey).map((slot, index) => ({
+              ...slot,
+              membershipId: assigned[index] ?? null,
+            })),
+          },
+        },
+      });
+      return tx.teamFormation.findUniqueOrThrow({
+        where: { id: formation.id },
+        include: formationInclude,
+      });
+    });
+  }
+  updateFormationSlot(
+    teamId: string,
+    format: MatchFormat,
+    slotId: string,
+    input: UpdateTeamFormationSlotInput,
+  ) {
+    return serializableTransaction(async (tx) => {
+      const formation = await tx.teamFormation.findUniqueOrThrow({
+        where: { teamId_format: { teamId, format } },
+      });
+      const slot = await tx.teamFormationSlot.findFirstOrThrow({
+        where: { id: slotId, formationId: formation.id },
+      });
+      if (input.membershipId) {
+        const member = await tx.teamMembership.findFirst({
+          where: { id: input.membershipId, teamId },
+        });
+        if (!member) throw new Error('TEAM_MEMBER_NOT_FOUND');
+        const source = await tx.teamFormationSlot.findFirst({
+          where: { formationId: formation.id, membershipId: input.membershipId },
+        });
+        const targetMembershipId = slot.membershipId;
+        if (source)
+          await tx.teamFormationSlot.update({
+            where: { id: source.id },
+            data: { membershipId: null },
+          });
+        if (targetMembershipId)
+          await tx.teamFormationSlot.update({
+            where: { id: slot.id },
+            data: { membershipId: null },
+          });
+        await tx.teamFormationSlot.update({
+          where: { id: slot.id },
+          data: { membershipId: input.membershipId },
+        });
+        if (source && targetMembershipId)
+          await tx.teamFormationSlot.update({
+            where: { id: source.id },
+            data: { membershipId: targetMembershipId },
+          });
+      }
+      await tx.teamFormationSlot.update({
+        where: { id: slot.id },
+        data: {
+          membershipId: input.membershipId === null ? null : undefined,
+          positionX: input.positionX,
+          positionY: input.positionY,
+        },
+      });
+      return tx.teamFormation.findUniqueOrThrow({
+        where: { id: formation.id },
+        include: formationInclude,
+      });
+    });
+  }
+}

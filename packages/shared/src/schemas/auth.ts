@@ -3,7 +3,10 @@ import { z } from 'zod';
 const optionalName = z
   .string()
   .max(80, 'Keep this under 80 characters')
-  .refine((value) => value.length === 0 || value.trim().length > 0, 'Name cannot contain only spaces')
+  .refine(
+    (value) => value.length === 0 || value.trim().length > 0,
+    'Name cannot contain only spaces',
+  )
   .refine((value) => value.length === 0 || /\p{L}/u.test(value), 'Enter a valid name')
   .transform((value) => value.trim() || undefined)
   .optional();
@@ -43,7 +46,11 @@ export const registerFormSchema = registerSchema
   .extend({ confirmPassword: z.string().min(1, 'Confirm your password') })
   .superRefine(({ password, confirmPassword }, context) => {
     if (password !== confirmPassword) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['confirmPassword'], message: 'Passwords do not match' });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'Passwords do not match',
+      });
     }
   });
 

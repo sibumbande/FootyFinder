@@ -10,4 +10,5 @@ export interface DepositResponse {
   transactionId: string;
   user?: AuthenticatedUser;
   message?: string;
+  replayed?: boolean;
 }

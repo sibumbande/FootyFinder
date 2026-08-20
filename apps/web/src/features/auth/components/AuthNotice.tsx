@@ -1,1 +1,3 @@
-export function AuthNotice() { return null; }
+export function AuthNotice() {
+  return null;
+}

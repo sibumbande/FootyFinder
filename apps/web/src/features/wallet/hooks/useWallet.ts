@@ -7,7 +7,8 @@ export function useAddFunds() {
   return useMutation({
     mutationFn: async () => {
       const { data } = await walletClient.demoDeposit(crypto.randomUUID());
-      if (data.status !== 'success' || !data.user) throw new Error(data.message ?? 'The deposit could not be completed.');
+      if (data.status !== 'success' || !data.user)
+        throw new Error(data.message ?? 'The deposit could not be completed.');
       return data;
     },
     onSuccess: ({ user }) => queryClient.setQueryData(currentUserKey, user),

@@ -1,27 +1,45 @@
-export interface PublicUser {
-  id: string;
-  email: string;
+export const FOOTBALL_POSITIONS = ['GOALKEEPER', 'DEFENDER', 'MIDFIELDER', 'FORWARD'] as const;
+export type FootballPosition = (typeof FOOTBALL_POSITIONS)[number];
+export const DOMINANT_FEET = ['LEFT', 'RIGHT', 'BOTH'] as const;
+export type DominantFoot = (typeof DOMINANT_FEET)[number];
+
+export interface PublicPlayerProfile {
+  userId: string;
   username: string;
-  firstName?: string | null;
-  lastName?: string | null;
+  displayName: string;
   avatarUrl?: string | null;
+  bio?: string | null;
+  preferredPositions: FootballPosition[];
+  dominantFoot?: DominantFoot | null;
+  homeArea?: string | null;
   createdAt: string;
+  updatedAt: string;
+  teams?: Array<{
+    id: string;
+    name: string;
+    shortName?: string | null;
+    profileImageUrl?: string | null;
+    role: 'OWNER' | 'CAPTAIN' | 'MEMBER';
+  }>;
+}
+
+/** Public football identity. It intentionally contains no contact or billing data. */
+export interface PublicUser extends PublicPlayerProfile {
+  id: string;
 }
 
 export interface AuthenticatedUser extends PublicUser {
+  email: string;
   balanceCents: number;
+  currency: 'ZAR';
 }
 
-/** Internal database-only user shape. Never return this from the API. */
+/** Internal database-only account shape. Never return this from the API. */
 export interface DatabaseUser {
   id: string;
   email: string;
   username: string;
   passwordHash: string;
-  firstName: string | null;
-  lastName: string | null;
-  avatarUrl: string | null;
-  balanceCents: number;
   createdAt: Date;
   updatedAt: Date;
 }

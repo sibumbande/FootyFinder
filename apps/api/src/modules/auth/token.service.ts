@@ -3,7 +3,9 @@ import { env } from '../../config/env.js';
 
 export const AUTH_COOKIE_NAME = 'footy_finder_session';
 
-export interface AuthTokenPayload { sub: string; }
+export interface AuthTokenPayload {
+  sub: string;
+}
 
 export class TokenService {
   sign(userId: string) {

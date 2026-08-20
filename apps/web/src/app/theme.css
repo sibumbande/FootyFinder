@@ -44,6 +44,17 @@
   --theme-warning-600: 217 119 6;
   --theme-warning-700: 180 83 9;
 
+  --theme-team-home: 37 99 235;
+  --theme-team-home-muted: 239 246 255;
+  --theme-team-home-border: 147 197 253;
+  --theme-team-away: 220 38 38;
+  --theme-team-away-muted: 254 242 242;
+  --theme-team-away-border: 252 165 165;
+  --theme-pitch: 35 125 67;
+  --theme-pitch-alt: 42 139 76;
+  --theme-pitch-line: 220 239 226;
+  --theme-pitch-border: 24 91 50;
+
   --theme-shadow: 20 32 25;
 }
 
@@ -85,6 +96,17 @@
   --theme-warning-200: 113 75 18;
   --theme-warning-600: 251 191 36;
   --theme-warning-700: 252 211 77;
+
+  --theme-team-home: 96 165 250;
+  --theme-team-home-muted: 20 38 69;
+  --theme-team-home-border: 59 130 246;
+  --theme-team-away: 248 113 113;
+  --theme-team-away-muted: 64 24 27;
+  --theme-team-away-border: 220 38 38;
+  --theme-pitch: 22 91 48;
+  --theme-pitch-alt: 27 108 57;
+  --theme-pitch-line: 187 222 198;
+  --theme-pitch-border: 70 180 104;
 
   --theme-shadow: 0 0 0;
 }

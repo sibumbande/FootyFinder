@@ -1,2 +1,29 @@
-import { render, screen } from '@testing-library/react'; import { describe, expect, it } from 'vitest'; import { UserCard } from './UserCard.js';
-describe('UserCard', () => { it('renders a database user and falls back to their username for the display name', () => { render(<UserCard user={{ id: '1', email: 'player@example.com', username: 'player_one', firstName: null, lastName: null, avatarUrl: null, createdAt: '2026-01-01T00:00:00.000Z' }} />); expect(screen.getByRole('heading', { name: 'player_one' })).toBeInTheDocument(); expect(screen.getByText('@player_one')).toBeInTheDocument(); }); });
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import { UserCard } from './UserCard.js';
+describe('UserCard', () => {
+  it('renders a database user and falls back to their username for the display name', () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <UserCard
+          user={{
+            id: '1',
+            userId: '1',
+            username: 'player_one',
+            displayName: 'player_one',
+            avatarUrl: null,
+            bio: null,
+            preferredPositions: [],
+            dominantFoot: null,
+            homeArea: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'player_one' })).toBeInTheDocument();
+    expect(screen.getByText('@player_one')).toBeInTheDocument();
+  });
+});

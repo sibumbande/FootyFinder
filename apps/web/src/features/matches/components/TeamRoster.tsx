@@ -1,12 +1,31 @@
-import type { MatchParticipant, SquadRole, TeamSide } from '@footy-finder/shared';
-import { RESERVES_PER_TEAM, STARTERS_PER_TEAM } from '@footy-finder/shared';
+import type { MatchParticipant, TeamSide } from '@footy-finder/shared';
 import { Avatar } from '@/components/ui/Avatar.js';
-
-export function TeamRoster({ team, participants }: { team: TeamSide; participants: MatchParticipant[] }) {
-  const name = team === 'HOME' ? 'Home Team' : 'Away Team';
-  return <section className="rounded-3xl border border-line bg-surface p-5 shadow-sm"><div className="mb-5 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-brand-600">{team === 'HOME' ? 'Team A' : 'Team B'}</p><h2 className="mt-1 text-xl font-bold text-content-strong">{name}</h2></div><span className="rounded-full bg-surface-muted px-3 py-1 text-xs font-bold text-content-muted">{participants.filter((item) => item.team === team).length}/15</span></div><RosterGroup title="Starting lineup" team={team} role="STARTER" limit={STARTERS_PER_TEAM} participants={participants} /><div className="my-5 border-t border-line" /><RosterGroup title="Reserves" team={team} role="RESERVE" limit={RESERVES_PER_TEAM} participants={participants} /></section>;
-}
-
-function RosterGroup({ title, team, role, limit, participants }: { title: string; team: TeamSide; role: SquadRole; limit: number; participants: MatchParticipant[] }) {
-  return <div><h3 className="mb-3 text-sm font-bold text-content">{title} <span className="font-normal text-content-subtle">({limit})</span></h3><div className="grid gap-2">{Array.from({ length: limit }, (_, index) => { const number = index + 1; const participant = participants.find((item) => item.team === team && item.squadRole === role && item.slotNumber === number); return <div key={`${role}-${number}`} className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 ${participant ? 'border-line bg-surface-muted' : 'border-dashed border-line bg-canvas'}`}><span className="w-5 text-center text-xs font-bold text-content-subtle">{number}</span>{participant?.user ? <><Avatar user={participant.user} size="sm" /><span className="min-w-0 flex-1 truncate text-sm font-semibold text-content-strong">{participant.user.firstName || participant.user.username}</span>{participant.role === 'HOST' && <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-700">Host</span>}</> : <span className="text-sm text-content-subtle">Open slot</span>}</div>; })}</div></div>;
+export function TeamRoster({
+  team,
+  participants,
+}: {
+  team: TeamSide;
+  participants: MatchParticipant[];
+}) {
+  const players = participants.filter((item) => item.team === team);
+  return (
+    <section
+      className={`rounded-3xl border p-5 ${team === 'HOME' ? 'border-team-home-border bg-team-home-muted' : 'border-team-away-border bg-team-away-muted'}`}
+    >
+      <h2 className={`text-xl font-bold ${team === 'HOME' ? 'text-team-home' : 'text-team-away'}`}>
+        {team === 'HOME' ? 'Home Team' : 'Away Team'}
+      </h2>
+      <div className="mt-4 grid gap-2">
+        {players.map((participant) => (
+          <div key={participant.id} className="flex items-center gap-3 rounded-xl bg-surface p-3">
+            {participant.user && <Avatar user={participant.user} size="sm" />}
+            <span className="font-semibold text-content-strong">
+              {participant.user?.displayName ?? 'Player'}
+            </span>
+          </div>
+        ))}
+        {players.length === 0 && <p className="text-sm text-content-muted">No players yet.</p>}
+      </div>
+    </section>
+  );
 }
