@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import type {
+  CreateTeamMatchInput,
   CreateTeamInput,
   MatchFormat,
   TeamRole,
@@ -12,6 +13,13 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
 import { domainEvents } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { toMatch } from '../matches/match.mapper.js';
+import {
+  MatchesRepository,
+  TeamFixtureForbiddenError,
+  TeamFixtureTeamNotFoundError,
+  durationForFormat,
+} from '../matches/matches.repository.js';
 import {
   LocalTeamImageStorage,
   type TeamImageInput,
@@ -38,6 +46,7 @@ export class TeamsService {
       resolve(env.TEAM_UPLOAD_DIR),
       env.PUBLIC_API_URL,
     ),
+    private readonly matches = new MatchesRepository(),
   ) {}
 
   async create(input: CreateTeamInput, userId: string) {
@@ -61,6 +70,37 @@ export class TeamsService {
     const team = await this.assertOwner(id, userId);
     await this.teams.delete(id);
     if (team.profileImageUrl) await this.images.delete(team.profileImageUrl);
+  }
+  async createMatch(id: string, input: CreateTeamMatchInput, userId: string) {
+    this.assertFormation(input.format, input.formationKey);
+    try {
+      return toMatch(
+        await this.matches.createTeamFixture(
+          id,
+          input,
+          userId,
+          durationForFormat(input.format, {
+            FIVE_A_SIDE: env.MATCH_DURATION_FIVE_A_SIDE_MINUTES,
+            SEVEN_A_SIDE: env.MATCH_DURATION_SEVEN_A_SIDE_MINUTES,
+            ELEVEN_A_SIDE: env.MATCH_DURATION_ELEVEN_A_SIDE_MINUTES,
+          }),
+        ),
+        { viewerCanManage: true, viewerCanChat: true },
+      );
+    } catch (error) {
+      if (error instanceof TeamFixtureTeamNotFoundError)
+        throw new AppError(404, 'Team not found.', 'TEAM_NOT_FOUND');
+      if (error instanceof TeamFixtureForbiddenError)
+        throw new AppError(403, 'Owner or captain permission is required.', 'TEAM_FORBIDDEN');
+      throw error;
+    }
+  }
+  async matchesForTeam(id: string, userId: string) {
+    const { role } = await this.assertMember(id, userId);
+    const viewerCanManage = role === 'OWNER' || role === 'CAPTAIN';
+    return (await this.matches.listForTeam(id)).map((match) =>
+      toMatch(match, { viewerCanManage, viewerCanChat: true }),
+    );
   }
   async uploadImage(id: string, userId: string, file?: TeamImageInput) {
     const team = await this.assertOwner(id, userId);
@@ -228,5 +268,11 @@ export class TeamsService {
     if (!member || !['OWNER', 'CAPTAIN'].includes(member.role))
       throw new AppError(403, 'Owner or captain permission is required.', 'TEAM_FORBIDDEN');
     return team;
+  }
+  private async assertMember(id: string, userId: string) {
+    const team = await this.load(id);
+    const member = team.memberships.find(({ userId: idOfMember }) => idOfMember === userId);
+    if (!member) throw new AppError(403, 'Current Team membership is required.', 'TEAM_FORBIDDEN');
+    return member;
   }
 }

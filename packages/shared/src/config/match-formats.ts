@@ -4,51 +4,45 @@ export type MatchFormat = (typeof MATCH_FORMATS)[number];
 export interface MatchFormatConfig {
   label: string;
   shortLabel: string;
-  playersPerTeam: number;
-  reservesPerTeam: number;
+  startersPerTeam: number;
   onFieldCapacity: number;
-  maxParticipantsPerTeam: number;
-  maxParticipants: number;
 }
+
+export const DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM = 5;
+export const MAX_SUBSTITUTES_PER_TEAM = 10;
 
 export const MATCH_FORMAT_CONFIG: Record<MatchFormat, MatchFormatConfig> = {
   FIVE_A_SIDE: {
     label: '5-a-side',
     shortLabel: '5v5',
-    playersPerTeam: 5,
-    reservesPerTeam: 5,
+    startersPerTeam: 5,
     onFieldCapacity: 10,
-    maxParticipantsPerTeam: 10,
-    maxParticipants: 20,
   },
   SEVEN_A_SIDE: {
     label: '7-a-side',
     shortLabel: '7v7',
-    playersPerTeam: 7,
-    reservesPerTeam: 5,
+    startersPerTeam: 7,
     onFieldCapacity: 14,
-    maxParticipantsPerTeam: 12,
-    maxParticipants: 24,
   },
   ELEVEN_A_SIDE: {
     label: '11-a-side',
     shortLabel: '11v11',
-    playersPerTeam: 11,
-    reservesPerTeam: 5,
+    startersPerTeam: 11,
     onFieldCapacity: 22,
-    maxParticipantsPerTeam: 16,
-    maxParticipants: 32,
   },
 };
 
 export const getMatchFormatConfig = (format: MatchFormat) => MATCH_FORMAT_CONFIG[format];
 export const getPlayersPerTeam = (format: MatchFormat) =>
-  getMatchFormatConfig(format).playersPerTeam;
-export const getReserveCapacity = (format: MatchFormat) =>
-  getMatchFormatConfig(format).reservesPerTeam;
+  getMatchFormatConfig(format).startersPerTeam;
+export const getStarterCapacity = getPlayersPerTeam;
 export const getOnFieldCapacity = (format: MatchFormat) =>
   getMatchFormatConfig(format).onFieldCapacity;
-export const getMaxParticipantsPerTeam = (format: MatchFormat) =>
-  getMatchFormatConfig(format).maxParticipantsPerTeam;
-export const getMaxMatchParticipants = (format: MatchFormat) =>
-  getMatchFormatConfig(format).maxParticipants;
+export const getMaxParticipantsPerTeam = (
+  format: MatchFormat,
+  substituteCapacityPerTeam = DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+) => getStarterCapacity(format) + substituteCapacityPerTeam;
+export const getMaxMatchParticipants = (
+  format: MatchFormat,
+  substituteCapacityPerTeam = DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+) => getMaxParticipantsPerTeam(format, substituteCapacityPerTeam) * 2;

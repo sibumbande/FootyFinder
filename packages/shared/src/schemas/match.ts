@@ -1,6 +1,10 @@
 import { z } from 'zod';
-import { MATCH_FORMATS } from '../config/match-formats.js';
-import { MATCH_VISIBILITIES, TEAM_SIDES } from '../types/match.js';
+import {
+  DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+  MATCH_FORMATS,
+  MAX_SUBSTITUTES_PER_TEAM,
+} from '../config/match-formats.js';
+import { MATCH_RULES, MATCH_VISIBILITIES, TEAM_SIDES } from '../types/match.js';
 
 const optionalText = (max: number) =>
   z
@@ -35,6 +39,18 @@ export const createMatchSchema = z.object({
   name: z.string().trim().min(3).max(120),
   description: optionalText(1000),
   format: z.enum(MATCH_FORMATS),
+  substituteCapacityPerTeam: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_SUBSTITUTES_PER_TEAM)
+    .default(DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM),
+  rollingSubstitutes: z.boolean().default(false),
+  rules: z
+    .array(z.enum(MATCH_RULES))
+    .max(MATCH_RULES.length)
+    .refine((rules) => new Set(rules).size === rules.length, 'Match rules must be unique')
+    .default([]),
   visibility: z.enum(MATCH_VISIBILITIES),
   venue: venueInputSchema,
   startsAt: z
@@ -43,6 +59,9 @@ export const createMatchSchema = z.object({
     .refine((value) => new Date(value).getTime() > Date.now(), 'Choose a future date and time'),
   feeCents: z.number().int().min(0).max(1_000_000),
 });
+export const createTeamMatchSchema = createMatchSchema
+  .omit({ visibility: true, feeCents: true })
+  .extend({ formationKey: z.string().trim().min(1).max(80) });
 export const updateMatchSchema = z.object({
   name: z.string().trim().min(3).max(120).optional(),
   description: optionalText(1000),
@@ -83,6 +102,7 @@ export const discoveryQuerySchema = z
   });
 
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;
+export type CreateTeamMatchInput = z.infer<typeof createTeamMatchSchema>;
 export type UpdateMatchInput = z.infer<typeof updateMatchSchema>;
 export type JoinMatchInput = z.infer<typeof joinMatchSchema>;
 export type ChangeParticipantTeamInput = z.infer<typeof changeParticipantTeamSchema>;

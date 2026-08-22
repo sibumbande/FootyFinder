@@ -1,5 +1,6 @@
 import type {
   CreateMatchInput,
+  CreateTeamMatchInput,
   DiscoveryQuery,
   FormationSlotUpdateInput,
   JoinMatchInput,
@@ -20,16 +21,23 @@ export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
 export class TeamFullError extends Error {}
 export class MatchClosedError extends Error {}
+export class TeamFixtureForbiddenError extends Error {}
+export class TeamFixtureTeamNotFoundError extends Error {}
+export class TeamMatchPlanningError extends Error {}
 
 const isLobbyOpen = (
-  match: { status: string; startsAt: Date; durationMinutes: number },
+  match: { mode: string; status: string; startsAt: Date; durationMinutes: number },
   now: Date,
-) => !['CANCELLED', 'COMPLETED'].includes(match.status) && now < match.startsAt;
+) =>
+  match.mode === 'QUICK_GAME' &&
+  ['OPEN', 'READY', 'FULL'].includes(match.status) &&
+  now < match.startsAt;
 
 export class MatchesRepository {
   listPublic(query: DiscoveryQuery) {
     return prisma.match.findMany({
       where: {
+        mode: 'QUICK_GAME',
         visibility: 'PUBLIC',
         status: { notIn: ['CANCELLED', 'COMPLETED'] },
         startsAt: {
@@ -62,6 +70,71 @@ export class MatchesRepository {
   findCancellation(matchId: string, userId: string) {
     return prisma.participantCancellation.findFirst({ where: { matchId, userId } });
   }
+  findAttachedTeamMembership(matchId: string, userId: string) {
+    return prisma.teamMembership.findFirst({
+      where: { userId, team: { matchSides: { some: { matchId } } } },
+      select: { teamId: true, role: true },
+    });
+  }
+  listForTeam(teamId: string) {
+    return prisma.match.findMany({
+      where: { mode: 'TEAM_MATCH', teamSides: { some: { teamId } } },
+      include: matchInclude,
+      orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  createTeamFixture(
+    teamId: string,
+    input: CreateTeamMatchInput,
+    userId: string,
+    durationMinutes: number,
+  ) {
+    return serializableTransaction(async (tx) => {
+      const team = await tx.team.findUnique({
+        where: { id: teamId },
+        include: {
+          memberships: { where: { userId }, select: { role: true } },
+        },
+      });
+      if (!team) throw new TeamFixtureTeamNotFoundError();
+      if (!team.memberships.some(({ role }) => role === 'OWNER' || role === 'CAPTAIN'))
+        throw new TeamFixtureForbiddenError();
+      return tx.match.create({
+        data: {
+          name: input.name,
+          description: input.description,
+          createdBy: { connect: { id: userId } },
+          mode: 'TEAM_MATCH',
+          format: input.format,
+          substituteCapacityPerTeam: input.substituteCapacityPerTeam,
+          rollingSubstitutes: input.rollingSubstitutes,
+          rules: input.rules,
+          visibility: 'PRIVATE',
+          startsAt: new Date(input.startsAt),
+          durationMinutes,
+          feeCents: 0,
+          currency: 'ZAR',
+          status: 'DRAFT',
+          venue: { create: input.venue },
+          formationSlots: { create: createDefaultFormation(input.format) },
+          teamSides: {
+            create: {
+              team: { connect: { id: teamId } },
+              side: 'HOME',
+              organisingUser: { connect: { id: userId } },
+              formationKey: input.formationKey,
+              teamNameSnapshot: team.name,
+              teamImageUrlSnapshot: team.profileImageUrl,
+              primaryColorSnapshot: team.primaryColor,
+              secondaryColorSnapshot: team.secondaryColor,
+            },
+          },
+        },
+        include: matchInclude,
+      });
+    });
+  }
 
   create(input: CreateMatchInput, userId: string, durationMinutes: number, inviteToken?: string) {
     return serializableTransaction((tx) =>
@@ -71,6 +144,10 @@ export class MatchesRepository {
           description: input.description,
           createdBy: { connect: { id: userId } },
           format: input.format,
+          mode: 'QUICK_GAME',
+          substituteCapacityPerTeam: input.substituteCapacityPerTeam,
+          rollingSubstitutes: input.rollingSubstitutes,
+          rules: input.rules,
           visibility: input.visibility,
           inviteToken,
           startsAt: new Date(input.startsAt),
@@ -116,6 +193,7 @@ export class MatchesRepository {
         where: { id: matchId },
         include: { participants: { where: { status: 'JOINED' } } },
       });
+      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
       if (!isLobbyOpen(match, new Date())) throw new MatchClosedError();
       const previousParticipation = await tx.matchParticipant.findUnique({
         where: { matchId_userId: { matchId, userId } },
@@ -129,7 +207,7 @@ export class MatchesRepository {
         throw new AlreadyJoinedError();
       if (
         match.participants.filter((participant) => participant.team === input.team).length >=
-        getMaxParticipantsPerTeam(match.format)
+        getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam)
       )
         throw new TeamFullError();
 
@@ -177,6 +255,7 @@ export class MatchesRepository {
           originalTeam: input.team,
           replacementParticipantId: null,
           replacementCreditCents: 0,
+          matchPayment: { status: { not: 'REFUNDED' } },
         },
         orderBy: { cancelledAt: 'asc' },
       });
@@ -219,6 +298,7 @@ export class MatchesRepository {
   cancelParticipation(matchId: string, userId: string, now: Date) {
     return serializableTransaction(async (tx) => {
       const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
+      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
       if (!isLobbyOpen(match, now)) throw new MatchClosedError();
       const participant = await tx.matchParticipant.findUniqueOrThrow({
         where: { matchId_userId: { matchId, userId } },
@@ -270,7 +350,9 @@ export class MatchesRepository {
           status:
             initialCreditCents === participant.payment.amountCents
               ? 'REFUNDED'
-              : 'PARTIALLY_REFUNDED',
+              : initialCreditCents > 0
+                ? 'PARTIALLY_REFUNDED'
+                : 'SUCCEEDED',
         },
       });
       const cancellation = await tx.participantCancellation.create({
@@ -340,6 +422,7 @@ export class MatchesRepository {
         where: { id: matchId },
         include: { participants: { where: { status: 'JOINED' } } },
       });
+      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
       if (!isLobbyOpen(match, new Date())) throw new MatchClosedError();
       const participant = match.participants.find((item) => item.id === participantId);
       if (!participant) throw new Error('PARTICIPANT_NOT_FOUND');
@@ -353,7 +436,7 @@ export class MatchesRepository {
       if (slot && !actorIsHost) throw new Error('ON_FIELD_SWITCH');
       if (
         match.participants.filter((item) => item.team === team).length >=
-        getMaxParticipantsPerTeam(match.format)
+        getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam)
       )
         throw new TeamFullError();
       if (slot)

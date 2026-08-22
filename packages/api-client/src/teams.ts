@@ -1,5 +1,7 @@
 import type {
   CreateTeamInput,
+  CreateTeamMatchInput,
+  Match,
   MatchFormat,
   SaveTeamFormationInput,
   TeamDetail,
@@ -29,6 +31,12 @@ export const teamsApi = (client: ApiClient) => ({
     }),
   remove: (teamId: string) =>
     client.request<{ data: { success: true } }>(`/teams/${teamId}`, { method: 'DELETE' }),
+  createMatch: (teamId: string, input: CreateTeamMatchInput) =>
+    client.request<{ data: Match }>(`/teams/${teamId}/matches`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  matches: (teamId: string) => client.request<{ data: Match[] }>(`/teams/${teamId}/matches`),
   uploadImage: (teamId: string, image: File) => {
     const body = new FormData();
     body.append('image', image);

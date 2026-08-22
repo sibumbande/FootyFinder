@@ -20,6 +20,8 @@ teamsRouter.post('/', controller.create);
 teamsRouter.get('/:teamId', controller.get);
 teamsRouter.patch('/:teamId', controller.update);
 teamsRouter.delete('/:teamId', controller.remove);
+teamsRouter.post('/:teamId/matches', controller.createMatch);
+teamsRouter.get('/:teamId/matches', controller.matches);
 teamsRouter.post('/:teamId/image', upload.single('image'), controller.uploadImage);
 teamsRouter.get('/:teamId/members', controller.members);
 teamsRouter.patch('/:teamId/members/:userId', controller.updateMemberRole);

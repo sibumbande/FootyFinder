@@ -1,5 +1,6 @@
 import {
   MATCH_FORMATS,
+  createTeamMatchSchema,
   createTeamSchema,
   saveTeamFormationSchema,
   updateTeamFormationSlotSchema,
@@ -55,6 +56,26 @@ export const remove: RequestHandler = async (req, res, next) => {
   try {
     await service.remove(teamId(req.params), userId(res.locals));
     res.json({ data: { success: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+export const createMatch: RequestHandler = async (req, res, next) => {
+  try {
+    res.status(201).json({
+      data: await service.createMatch(
+        teamId(req.params),
+        createTeamMatchSchema.parse(req.body),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const matches: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await service.matchesForTeam(teamId(req.params), userId(res.locals)) });
   } catch (error) {
     next(error);
   }

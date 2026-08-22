@@ -1,4 +1,9 @@
-import { getMaxMatchParticipants, MATCH_FORMAT_CONFIG } from '@footy-finder/shared';
+import {
+  CANCELLATION_CUTOFF_HOURS,
+  getMaxMatchParticipants,
+  MATCH_FORMAT_CONFIG,
+  MATCH_RULE_CONFIG,
+} from '@footy-finder/shared';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
@@ -59,7 +64,7 @@ export function MatchLobbyPage() {
       </div>
     );
   const mutable = ['OPEN', 'READY'].includes(match.status);
-  const capacity = getMaxMatchParticipants(match.format);
+  const capacity = getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
   const canChat = isHost || Boolean(currentParticipant);
   const cancelMatch = () => {
     if (
@@ -82,9 +87,12 @@ export function MatchLobbyPage() {
   const leaveMatch = () => {
     const initial = quote.data?.initialCreditCents ?? 0;
     const replacement = quote.data?.possibleReplacementCreditCents ?? 0;
-    const detail = replacement
-      ? `${formatCurrency(initial)} now, and ${formatCurrency(replacement)} if a replacement joins.`
-      : `${formatCurrency(initial)} will be credited.`;
+    const detail =
+      initial === 0 && replacement > 0
+        ? `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. ${formatCurrency(replacement)} will be credited if a replacement joins.`
+        : replacement > 0
+          ? `${formatCurrency(initial)} now, and ${formatCurrency(replacement)} if a replacement joins.`
+          : `${formatCurrency(initial)} will be credited.`;
     if (window.confirm(`Leave this match? ${detail}`))
       leave.mutate(undefined, {
         onSuccess: () => notify({ variant: 'info', title: 'Place cancelled', message: detail }),
@@ -132,6 +140,16 @@ export function MatchLobbyPage() {
             </p>
             {match.description && (
               <p className="mt-4 max-w-2xl text-brand-100">{match.description}</p>
+            )}
+            <p className="mt-3 text-sm text-brand-100">
+              {MATCH_FORMAT_CONFIG[match.format].startersPerTeam} starters +{' '}
+              {match.substituteCapacityPerTeam} substitutes per team ·{' '}
+              {match.rollingSubstitutes ? 'Rolling substitutions' : 'Standard substitutions'}
+            </p>
+            {match.rules.length > 0 && (
+              <p className="mt-1 text-sm text-brand-100">
+                Rules: {match.rules.map((rule) => MATCH_RULE_CONFIG[rule].label).join(', ')}
+              </p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex">

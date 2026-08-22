@@ -1,6 +1,10 @@
 import { getDefaultFormationKey } from '@footy-finder/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { NotificationsService } from '../notifications/notifications.service.js';
+import {
+  TeamFixtureForbiddenError,
+  type MatchesRepository,
+} from '../matches/matches.repository.js';
 import type { TeamImageStorage } from './team-image.storage.js';
 import type { TeamsRepository } from './teams.repository.js';
 import { TeamsService } from './teams.service.js';
@@ -58,8 +62,140 @@ const team = {
 };
 const notifications = { create: vi.fn() } as unknown as NotificationsService;
 const images = { save: vi.fn(), delete: vi.fn() } as unknown as TeamImageStorage;
+const teamMatch = {
+  id: 'match-1',
+  name: 'Team planning night',
+  description: null,
+  createdById: 'owner',
+  venueId: 'venue-1',
+  mode: 'TEAM_MATCH' as const,
+  format: 'FIVE_A_SIDE' as const,
+  substituteCapacityPerTeam: 5,
+  rollingSubstitutes: false,
+  rules: [],
+  visibility: 'PRIVATE' as const,
+  inviteToken: null,
+  startsAt: new Date('2099-01-01T18:00:00.000Z'),
+  durationMinutes: 50,
+  feeCents: 0,
+  currency: 'ZAR',
+  status: 'DRAFT' as const,
+  cancelledAt: null,
+  createdAt: now,
+  updatedAt: now,
+  createdBy: publicUser('owner'),
+  venue: {
+    id: 'venue-1',
+    name: 'Planning Pitch',
+    addressLine1: '1 Team Road',
+    addressLine2: null,
+    locality: null,
+    city: 'Johannesburg',
+    region: 'Gauteng',
+    postalCode: null,
+    countryCode: 'ZA',
+    latitude: null,
+    longitude: null,
+    externalPlaceId: null,
+    createdAt: now,
+    updatedAt: now,
+  },
+  participants: [],
+  formationSlots: [],
+  result: null,
+  teamSides: [
+    {
+      id: 'match-team-1',
+      matchId: 'match-1',
+      teamId: 'team-1',
+      side: 'HOME' as const,
+      organisingUserId: 'owner',
+      formationKey: getDefaultFormationKey('FIVE_A_SIDE'),
+      teamNameSnapshot: 'Test FC',
+      teamImageUrlSnapshot: null,
+      primaryColorSnapshot: null,
+      secondaryColorSnapshot: null,
+      availabilityRequestedAt: null,
+      lineupFinalizedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ],
+};
 
 describe('TeamsService', () => {
+  it('creates a private free HOME-only Team draft through the isolated Match repository', async () => {
+    const matches = {
+      createTeamFixture: vi.fn().mockResolvedValue(teamMatch),
+    } as unknown as MatchesRepository;
+    const service = new TeamsService({} as TeamsRepository, notifications, images, matches);
+    const input = {
+      name: 'Team planning night',
+      format: 'FIVE_A_SIDE' as const,
+      substituteCapacityPerTeam: 5,
+      rollingSubstitutes: false,
+      rules: [],
+      startsAt: '2099-01-01T18:00:00.000Z',
+      formationKey: getDefaultFormationKey('FIVE_A_SIDE'),
+      venue: {
+        name: 'Planning Pitch',
+        addressLine1: '1 Team Road',
+        city: 'Johannesburg',
+        region: 'Gauteng',
+        countryCode: 'ZA',
+      },
+    };
+    await expect(service.createMatch('team-1', input, 'owner')).resolves.toMatchObject({
+      mode: 'TEAM_MATCH',
+      status: 'DRAFT',
+      visibility: 'PRIVATE',
+      feeCents: 0,
+      teamSides: [{ side: 'HOME', teamId: 'team-1' }],
+      viewerCanManage: true,
+    });
+    expect(matches.createTeamFixture).toHaveBeenCalledWith('team-1', input, 'owner', 90);
+    expect(Object.keys(matches)).not.toContain('wallet');
+  });
+
+  it('maps MEMBER Team fixture creation to TEAM_FORBIDDEN', async () => {
+    const matches = {
+      createTeamFixture: vi.fn().mockRejectedValue(new TeamFixtureForbiddenError()),
+    } as unknown as MatchesRepository;
+    const service = new TeamsService({} as TeamsRepository, notifications, images, matches);
+    await expect(
+      service.createMatch(
+        'team-1',
+        {
+          name: 'Blocked fixture',
+          format: 'FIVE_A_SIDE',
+          substituteCapacityPerTeam: 5,
+          rollingSubstitutes: false,
+          rules: [],
+          startsAt: '2099-01-01T18:00:00.000Z',
+          formationKey: getDefaultFormationKey('FIVE_A_SIDE'),
+          venue: {
+            name: 'Planning Pitch',
+            addressLine1: '1 Team Road',
+            city: 'Johannesburg',
+            region: 'Gauteng',
+            countryCode: 'ZA',
+          },
+        },
+        'member',
+      ),
+    ).rejects.toMatchObject({ code: 'TEAM_FORBIDDEN' });
+  });
+
+  it('allows current members to list fixtures but rejects outsiders', async () => {
+    const repository = { findById: vi.fn().mockResolvedValue(team) } as unknown as TeamsRepository;
+    const matches = { listForTeam: vi.fn().mockResolvedValue([]) } as unknown as MatchesRepository;
+    const service = new TeamsService(repository, notifications, images, matches);
+    await expect(service.matchesForTeam('team-1', 'member')).resolves.toEqual([]);
+    await expect(service.matchesForTeam('team-1', 'outsider')).rejects.toMatchObject({
+      code: 'TEAM_FORBIDDEN',
+    });
+  });
+
   it('creates the Team and owner membership without touching a wallet', async () => {
     const repository = { create: vi.fn().mockResolvedValue(team) } as unknown as TeamsRepository;
     const service = new TeamsService(repository, notifications, images);

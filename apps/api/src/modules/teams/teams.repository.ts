@@ -83,7 +83,17 @@ export class TeamsRepository {
     return prisma.team.update({ where: { id }, data: input, include: teamInclude });
   }
   delete(id: string) {
-    return prisma.team.delete({ where: { id } });
+    return serializableTransaction(async (tx) => {
+      const cancelledAt = new Date();
+      await tx.match.updateMany({
+        where: {
+          teamSides: { some: { teamId: id } },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        },
+        data: { status: 'CANCELLED', cancelledAt },
+      });
+      return tx.team.delete({ where: { id } });
+    });
   }
   updateMemberRole(teamId: string, userId: string, role: Exclude<TeamRole, 'OWNER'>) {
     return prisma.teamMembership.update({

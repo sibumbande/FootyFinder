@@ -22,7 +22,7 @@ export function JoinTeamDialog({
   const addFunds = useAddFunds();
   const { notify } = useNotifications();
   if (!open) return null;
-  const limit = getMaxParticipantsPerTeam(match.format);
+  const limit = getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam);
   const insufficient = join.error instanceof ApiError && join.error.code === 'INSUFFICIENT_BALANCE';
   const submit = () =>
     join.mutate(

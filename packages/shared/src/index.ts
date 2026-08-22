@@ -5,6 +5,7 @@ export * from './types/notification.js';
 export * from './types/messaging.js';
 export * from './types/team.js';
 export * from './config/match-formats.js';
+export * from './config/match-rules.js';
 export * from './config/formations.js';
 export * from './schemas/auth.js';
 export * from './schemas/match.js';

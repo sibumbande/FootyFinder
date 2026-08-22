@@ -14,10 +14,19 @@ describe('match lifecycle', () => {
     );
   });
 
+  it('keeps Team planning drafts in DRAFT even after their provisional kickoff', () => {
+    expect(
+      getEffectiveMatchStatus(
+        { status: 'DRAFT', startsAt: kickoff, durationMinutes: 90 },
+        new Date('2026-01-03T12:00:00.000Z'),
+      ),
+    ).toBe('DRAFT');
+  });
+
   it.each([
-    ['more than eight hours', '2026-01-02T03:59:59.999Z', 10_001],
-    ['exactly eight hours', '2026-01-02T04:00:00.000Z', 5_000],
-    ['less than eight hours', '2026-01-02T04:00:00.001Z', 5_000],
+    ['more than twelve hours', '2026-01-01T23:59:59.999Z', 10_001],
+    ['exactly twelve hours', '2026-01-02T00:00:00.000Z', 0],
+    ['less than twelve hours', '2026-01-02T00:00:00.001Z', 0],
     ['at kickoff', '2026-01-02T12:00:00.000Z', null],
     ['after kickoff', '2026-01-02T12:00:00.001Z', null],
   ])('calculates cancellation credit %s', (_case, now, expected) => {

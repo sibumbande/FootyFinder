@@ -18,6 +18,7 @@ export function startMatchLifecycleScheduler(notifications = new NotificationsSe
       const now = new Date();
       const starting = await prisma.match.findMany({
         where: {
+          mode: 'QUICK_GAME',
           status: { in: ['OPEN', 'READY', 'FULL'] },
           startsAt: { lte: now },
         },
@@ -50,7 +51,7 @@ export function startMatchLifecycleScheduler(notifications = new NotificationsSe
       }
 
       const inProgress = await prisma.match.findMany({
-        where: { status: 'IN_PROGRESS' },
+        where: { mode: 'QUICK_GAME', status: 'IN_PROGRESS' },
         select: { id: true, startsAt: true, durationMinutes: true },
       });
       for (const match of inProgress) {

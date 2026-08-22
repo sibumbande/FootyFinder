@@ -2,6 +2,7 @@ import type { MatchFormat } from '../config/match-formats.js';
 import type { PublicUser } from './user.js';
 
 export const MATCH_STATUSES = [
+  'DRAFT',
   'OPEN',
   'READY',
   'IN_PROGRESS',
@@ -10,12 +11,16 @@ export const MATCH_STATUSES = [
   'CANCELLED',
 ] as const;
 export type MatchStatus = (typeof MATCH_STATUSES)[number];
+export const MATCH_MODES = ['QUICK_GAME', 'TEAM_MATCH'] as const;
+export type MatchMode = (typeof MATCH_MODES)[number];
 export const MATCH_VISIBILITIES = ['PUBLIC', 'PRIVATE'] as const;
 export type MatchVisibility = (typeof MATCH_VISIBILITIES)[number];
 export const PARTICIPANT_STATUSES = ['JOINED', 'LEFT', 'REMOVED'] as const;
 export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export const TEAM_SIDES = ['HOME', 'AWAY'] as const;
 export type TeamSide = (typeof TEAM_SIDES)[number];
+export const MATCH_RULES = ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'] as const;
+export type MatchRule = (typeof MATCH_RULES)[number];
 
 export interface Venue {
   id: string;
@@ -60,6 +65,21 @@ export interface MatchScorer {
   goals: number;
   participant?: MatchParticipant;
 }
+
+export interface MatchTeamSide {
+  id: string;
+  matchId: string;
+  teamId?: string | null;
+  side: TeamSide;
+  organisingUserId: string;
+  formationKey: string;
+  teamNameSnapshot: string;
+  teamImageUrlSnapshot?: string | null;
+  primaryColorSnapshot?: string | null;
+  secondaryColorSnapshot?: string | null;
+  availabilityRequestedAt?: string | null;
+  lineupFinalizedAt?: string | null;
+}
 export interface MatchResult {
   id: string;
   homeScore: number;
@@ -73,7 +93,11 @@ export interface Match {
   name: string;
   description?: string | null;
   createdById: string;
+  mode: MatchMode;
   format: MatchFormat;
+  substituteCapacityPerTeam: number;
+  rollingSubstitutes: boolean;
+  rules: MatchRule[];
   visibility: MatchVisibility;
   startsAt: string;
   durationMinutes: number;
@@ -93,6 +117,9 @@ export interface Match {
   participants?: MatchParticipant[];
   formationSlots?: FormationSlot[];
   result?: MatchResult | null;
+  teamSides: MatchTeamSide[];
+  viewerCanManage: boolean;
+  viewerCanChat: boolean;
 }
 
 export interface LobbyMessage {

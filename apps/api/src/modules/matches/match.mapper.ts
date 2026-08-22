@@ -27,7 +27,14 @@ const toFormationSlot = (slot: MatchRecord['formationSlots'][number]): Formation
   participant: slot.participant ? toMatchParticipant(slot.participant) : null,
 });
 
-export function toMatch(match: MatchRecord, options: { includeInvite?: boolean } = {}): Match {
+export function toMatch(
+  match: MatchRecord,
+  options: {
+    includeInvite?: boolean;
+    viewerCanManage?: boolean;
+    viewerCanChat?: boolean;
+  } = {},
+): Match {
   const storedStatus = (match.status === 'FULL' ? 'OPEN' : match.status) as MatchStatus;
   const status = getEffectiveMatchStatus({
     status: storedStatus,
@@ -39,7 +46,11 @@ export function toMatch(match: MatchRecord, options: { includeInvite?: boolean }
     name: match.name,
     description: match.description,
     createdById: match.createdById,
+    mode: match.mode,
     format: match.format,
+    substituteCapacityPerTeam: match.substituteCapacityPerTeam,
+    rollingSubstitutes: match.rollingSubstitutes,
+    rules: match.rules,
     visibility: match.visibility,
     startsAt: match.startsAt.toISOString(),
     durationMinutes: match.durationMinutes,
@@ -79,5 +90,21 @@ export function toMatch(match: MatchRecord, options: { includeInvite?: boolean }
           })),
         }
       : null,
+    teamSides: match.teamSides.map((teamSide) => ({
+      id: teamSide.id,
+      matchId: teamSide.matchId,
+      teamId: teamSide.teamId,
+      side: teamSide.side,
+      organisingUserId: teamSide.organisingUserId,
+      formationKey: teamSide.formationKey,
+      teamNameSnapshot: teamSide.teamNameSnapshot,
+      teamImageUrlSnapshot: teamSide.teamImageUrlSnapshot,
+      primaryColorSnapshot: teamSide.primaryColorSnapshot,
+      secondaryColorSnapshot: teamSide.secondaryColorSnapshot,
+      availabilityRequestedAt: teamSide.availabilityRequestedAt?.toISOString(),
+      lineupFinalizedAt: teamSide.lineupFinalizedAt?.toISOString(),
+    })),
+    viewerCanManage: options.viewerCanManage ?? false,
+    viewerCanChat: options.viewerCanChat ?? false,
   };
 }

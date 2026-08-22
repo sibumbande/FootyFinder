@@ -9,6 +9,7 @@ import type {
   UpdateMatchInput,
 } from '@footy-finder/shared';
 import {
+  CANCELLATION_CUTOFF_HOURS,
   canChangeLobby,
   getCancellationCreditCents,
   getEffectiveMatchStatus,
@@ -26,6 +27,7 @@ import {
   MatchClosedError,
   MatchesRepository,
   TeamFullError,
+  TeamMatchPlanningError,
 } from './matches.repository.js';
 
 const durations = {
@@ -66,7 +68,9 @@ export class MatchesService {
       );
     if (query.availableOnly)
       matches = matches.filter(
-        ({ match }) => match.participantCount < getMaxMatchParticipants(match.format),
+        ({ match }) =>
+          match.participantCount <
+          getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam),
       );
     if ((query.sort ?? (query.lat === undefined ? 'soonest' : 'nearest')) === 'nearest')
       matches.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
@@ -74,10 +78,16 @@ export class MatchesService {
   }
   async get(id: string, userId: string) {
     const match = await this.load(id);
+    const attachedMembership =
+      match.mode === 'TEAM_MATCH'
+        ? await this.matches.findAttachedTeamMembership(id, userId)
+        : null;
+    const isParticipant = match.participants.some((item) => item.userId === userId);
     if (
       match.visibility === 'PRIVATE' &&
       match.createdById !== userId &&
-      !match.participants.some((item) => item.userId === userId) &&
+      !isParticipant &&
+      !attachedMembership &&
       !(await this.matches.hasParticipation(id, userId))
     )
       throw new AppError(
@@ -85,7 +95,15 @@ export class MatchesService {
         'Use a valid invitation to access this private match.',
         'PRIVATE_MATCH',
       );
-    return toMatch(match, { includeInvite: match.createdById === userId });
+    const viewerCanManage =
+      match.mode === 'QUICK_GAME'
+        ? match.createdById === userId
+        : attachedMembership?.role === 'OWNER' || attachedMembership?.role === 'CAPTAIN';
+    return toMatch(match, {
+      includeInvite: match.mode === 'QUICK_GAME' && match.createdById === userId,
+      viewerCanManage,
+      viewerCanChat: match.createdById === userId || isParticipant || Boolean(attachedMembership),
+    });
   }
   async getByInvite(token: string) {
     const match = await this.matches.findByInviteToken(token);
@@ -98,21 +116,37 @@ export class MatchesService {
       input.visibility === 'PRIVATE' ? randomBytes(32).toString('base64url') : undefined;
     return toMatch(await this.matches.create(input, userId, durations[input.format], inviteToken), {
       includeInvite: true,
+      viewerCanManage: true,
+      viewerCanChat: true,
     });
   }
   async update(id: string, input: UpdateMatchInput, userId: string) {
-    const match = await this.assertHost(id, userId);
+    const match = await this.assertManager(id, userId);
     this.assertMutable(match);
-    return toMatch(await this.matches.update(id, input), { includeInvite: true });
+    return toMatch(await this.matches.update(id, input), {
+      includeInvite: match.mode === 'QUICK_GAME',
+      viewerCanManage: true,
+      viewerCanChat: true,
+    });
   }
   async ready(id: string, userId: string) {
-    const match = await this.assertHost(id, userId);
+    const match = await this.assertManager(id, userId);
+    if (match.mode === 'TEAM_MATCH')
+      throw new AppError(
+        409,
+        'Team fixtures remain planning drafts until booking and funding are available.',
+        'TEAM_MATCH_DRAFT',
+      );
     this.assertMutable(match);
-    return toMatch(await this.matches.markReady(id), { includeInvite: true });
+    return toMatch(await this.matches.markReady(id), {
+      includeInvite: true,
+      viewerCanManage: true,
+      viewerCanChat: true,
+    });
   }
 
   async remove(id: string, userId: string) {
-    const match = await this.assertHost(id, userId);
+    const match = await this.assertManager(id, userId);
     if (match.status === 'CANCELLED') return;
     this.assertMutable(match);
     const { refundedUserIds } = await this.matches.cancelMatch(id);
@@ -194,6 +228,7 @@ export class MatchesService {
 
   async cancellationQuote(id: string, userId: string) {
     const match = await this.load(id);
+    if (match.mode === 'TEAM_MATCH') this.throwTeamPlanningOnly();
     const participant = match.participants.find((item) => item.userId === userId);
     if (!participant) throw new AppError(409, 'You have not joined this match.', 'NOT_JOINED');
     const now = new Date();
@@ -233,11 +268,14 @@ export class MatchesService {
           userId,
           'PLAYER_CANCELLED',
           'Place cancelled',
-          `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`,
+          cancellation.initialCreditCents > 0
+            ? `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`
+            : `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. Your fee will be credited if a replacement joins.`,
           `/matches/${id}`,
         );
       return cancellation;
     } catch (error) {
+      if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
       if (error instanceof MatchClosedError)
         throw new AppError(409, 'You cannot leave once kickoff has arrived.', 'MATCH_STARTED');
       throw error;
@@ -250,11 +288,14 @@ export class MatchesService {
     input: FormationSlotUpdateInput,
     userId: string,
   ) {
-    const match = await this.assertHost(id, userId);
+    const match = await this.assertManager(id, userId);
     this.assertMutable(match);
     const slots =
-      toMatch(await this.matches.updateFormation(id, slotId, input), { includeInvite: true })
-        .formationSlots ?? [];
+      toMatch(await this.matches.updateFormation(id, slotId, input), {
+        includeInvite: match.mode === 'QUICK_GAME',
+        viewerCanManage: true,
+        viewerCanChat: true,
+      }).formationSlots ?? [];
     domainEvents.emit('formation:updated', { matchId: id, slots });
     return slots;
   }
@@ -277,6 +318,7 @@ export class MatchesService {
       domainEvents.emit('participant:team-changed', { matchId: id, participant: dto });
       return dto;
     } catch (error) {
+      if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
       if (error instanceof TeamFullError)
         throw new AppError(409, 'That team is full.', 'TEAM_FULL');
       if (error instanceof MatchClosedError)
@@ -291,7 +333,7 @@ export class MatchesService {
     }
   }
   async submitResult(id: string, input: ResultInput, userId: string) {
-    const match = await this.assertHost(id, userId);
+    const match = await this.assertManager(id, userId);
     if (
       getEffectiveMatchStatus({
         status: match.status === 'FULL' ? 'OPEN' : match.status,
@@ -306,7 +348,9 @@ export class MatchesService {
       );
     try {
       const completed = toMatch(await this.matches.submitResult(id, userId, input), {
-        includeInvite: true,
+        includeInvite: match.mode === 'QUICK_GAME',
+        viewerCanManage: true,
+        viewerCanChat: true,
       });
       domainEvents.emit('match:result-submitted', { matchId: id, result: completed.result });
       const recipients = new Set([
@@ -350,10 +394,20 @@ export class MatchesService {
     if (!match) throw new AppError(404, 'Match lobby not found.', 'MATCH_NOT_FOUND');
     return match;
   }
-  private async assertHost(id: string, userId: string) {
+  private async assertManager(id: string, userId: string) {
     const match = await this.load(id);
-    if (match.createdById !== userId)
-      throw new AppError(403, 'Only the match organiser can do that.', 'HOST_REQUIRED');
+    if (match.mode === 'QUICK_GAME') {
+      if (match.createdById !== userId)
+        throw new AppError(403, 'Only the match organiser can do that.', 'HOST_REQUIRED');
+      return match;
+    }
+    const membership = await this.matches.findAttachedTeamMembership(id, userId);
+    if (!membership || !['OWNER', 'CAPTAIN'].includes(membership.role))
+      throw new AppError(
+        403,
+        'Owner or captain permission is required for this Team fixture.',
+        'TEAM_FORBIDDEN',
+      );
     return match;
   }
   private assertMutable(match: Awaited<ReturnType<MatchesRepository['findById']>> & {}) {
@@ -381,8 +435,16 @@ export class MatchesService {
         'ALREADY_JOINED',
       );
     if (error instanceof TeamFullError) throw new AppError(409, 'That team is full.', 'TEAM_FULL');
+    if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
     if (error instanceof MatchClosedError)
       throw new AppError(409, 'This match is no longer accepting players.', 'MATCH_CLOSED');
     throw error;
+  }
+  private throwTeamPlanningOnly(): never {
+    throw new AppError(
+      409,
+      'Team fixtures are planning workspaces and do not use Quick Game player payments.',
+      'TEAM_MATCH_PLANNING',
+    );
   }
 }

@@ -68,7 +68,7 @@ Authentication is stored in an HTTP-only same-site JWT cookie. The browser never
 
 ### Matches and formations
 
-The create wizard supports public or invitation-only 5-a-side, 7-a-side, and 11-a-side matches. Capacity, per-team limits, on-field counts, reserve counts, and default formation coordinates are centralized in `packages/shared/src/config`.
+The create wizard supports public or invitation-only 5-a-side, 7-a-side, and 11-a-side matches. Starter counts and default formation coordinates are centralized in `packages/shared/src/config`; each Match persists its own 0–10 substitute capacity per Team, rolling-substitution setting, and typed informational rules. Existing and unspecified Matches use five substitutes per Team.
 
 Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, price, availability, distance, and sorting filters; private matches are excluded and require their secure invitation token.
 
@@ -76,13 +76,15 @@ The host can ready or cancel the match, move participants between teams, assign 
 
 Lifecycle transitions are server-authoritative. A background scheduler moves due matches to `IN_PROGRESS`, then to `AWAITING_RESULT` using the duration stored on the match. The host submits the final score and participating scorers; scorer totals and membership are validated transactionally before completion. Lobby chat closes after the configured post-match window.
 
+Matches are explicitly classified as `QUICK_GAME` or `TEAM_MATCH`. Existing Matches remain Quick Games. A Team OWNER or CAPTAIN can create a private, free, HOME-only Team fixture through the Team Match API. These fixtures remain `DRAFT` planning workspaces, retain Team name/image/color and formation snapshots, never enter personal-wallet or Quick Game join flows, and are excluded from automatic lifecycle progression. Current attached-Team members can view the fixture and enter its Match room; current OWNERs and CAPTAINs administer it.
+
 ### Wallet and cancellations
 
 Money is stored as integer cents. The temporary **Add funds** action sends a provider-neutral demo deposit and credits R500.00 only after the server-side operator returns success. Every deposit, entry debit, cancellation credit, and replacement credit has an auditable `WalletTransaction` and idempotency key.
 
 Joining revalidates team capacity and wallet balance inside a serializable transaction, debits the server-owned match fee, creates `MatchPayment`, and creates the participant atomically. A duplicate join request cannot debit the wallet twice. Zero-fee matches follow the same capacity checks without requiring funds.
 
-Cancelling more than eight hours before kickoff credits 100% internally. Cancelling exactly eight hours or later but before kickoff credits 50%; a successful paid replacement on the same team receives the reopened place and credits the remaining 50% to the original player, FIFO. Cancelling the entire match credits every eligible paid participant 100%. No flow sends an external card or bank refund.
+Cancelling more than twelve hours before kickoff credits 100% internally. Cancelling exactly twelve hours or less before kickoff issues no initial credit; a successful paid replacement on the same Team releases the full withheld eligible amount to the original player, FIFO. A player cannot leave at or after kickoff. Retries remain idempotent, and cancelling the entire Match credits every eligible paid participant 100%. No flow sends an external card or bank refund.
 
 ### Messaging and notifications
 
@@ -101,6 +103,8 @@ Team invite links use a cryptographically random raw token in `/teams/invite/:to
 Saved Team formations reuse the shared formation presets and the existing animated `FormationBoard`; they do not alter historical Match formations. Unassigned members remain in the squad bench. OWNER/CAPTAIN drag, swap, tap-select, and coordinate changes persist immediately with optimistic rollback, while MEMBERs receive a read-only view.
 
 Team profile images use multipart upload through the small `TeamImageStorage` interface. The development provider validates PNG, JPEG, and WEBP signatures up to 5 MB, generates UUID filenames under `TEAM_UPLOAD_DIR`, and serves them from `/uploads`. Replacing or deleting a Team removes only its safely recognized local image. Uploaded development media is generated state and should not be committed. Production can replace this provider with S3, Cloudinary, or similar object storage without changing Team business logic.
+
+Deleting a Team transactionally cancels its unfinished Team fixtures, nulls only the live Team relation, and retains the normalized `MatchTeam` snapshots and historical Matches. Completed and already-cancelled Match history is not rewritten.
 
 ## API overview
 
@@ -121,6 +125,7 @@ Authenticated domain routes:
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
+- `POST /teams/:teamId/matches` and `GET /teams/:teamId/matches` - create or list private Team Match planning fixtures.
 - `POST /teams/:teamId/image` - validated multipart Team image replacement.
 
 Public Team invitation routes:
@@ -142,9 +147,11 @@ Page transitions are controlled in `apps/web/src/app/motion.css` and use a short
 npm run lint
 npm test
 npm run build
+npm run smoke:match-capacity --workspace=@footy-finder/api
+npm run smoke:team-match --workspace=@footy-finder/api
 ```
 
-The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data.
+The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data. `20260823100000_match_capacity_and_rules` backfills every existing Match to five substitutes per Team and adds the database-enforced capacity, rolling-substitution, and informational-rule fields. `20260823150000_private_team_match_foundation` backfills existing Matches as Quick Games and adds Team Match drafts plus normalized nullable Team sides and historical snapshots without rewriting older migrations.
 
 ## Production notes
 

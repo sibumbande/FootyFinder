@@ -17,6 +17,7 @@ export const matchInclude = Prisma.validator<Prisma.MatchInclude>()({
     orderBy: [{ team: 'asc' }, { slotIndex: 'asc' }],
   },
   result: { include: { scorers: { include: { participant: { include: participantInclude } } } } },
+  teamSides: { orderBy: { side: 'asc' } },
 });
 
 export type MatchRecord = Prisma.MatchGetPayload<{ include: typeof matchInclude }>;

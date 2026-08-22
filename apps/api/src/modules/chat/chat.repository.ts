@@ -1,10 +1,21 @@
 import { prisma } from '../../database/prisma.js';
 import { safeUserInclude } from '../users/users.repository.js';
 export class ChatRepository {
-  findMatch(matchId: string) {
+  findMatch(matchId: string, userId: string) {
     return prisma.match.findUnique({
       where: { id: matchId },
-      include: { participants: { where: { status: 'JOINED' } } },
+      include: {
+        participants: { where: { status: 'JOINED' } },
+        teamSides: {
+          select: {
+            team: {
+              select: {
+                memberships: { where: { userId }, select: { id: true } },
+              },
+            },
+          },
+        },
+      },
     });
   }
   listForMatch(matchId: string) {

@@ -18,7 +18,17 @@ enum MatchVisibility {
   PRIVATE
 }
 
+enum MatchRule {
+  GOALKEEPERS_SWAP_AFTER_EVERY_GOAL
+}
+
+enum MatchMode {
+  QUICK_GAME
+  TEAM_MATCH
+}
+
 enum MatchStatus {
+  DRAFT
   OPEN
   READY
   FULL
@@ -118,6 +128,7 @@ model User {
   ownedTeams              Team[]                    @relation("TeamOwner")
   teamMemberships         TeamMembership[]
   createdTeamInvites      TeamInvite[]              @relation("TeamInviteCreator")
+  organisedMatchTeams     MatchTeam[]               @relation("MatchTeamOrganiser")
 }
 
 model PlayerProfile {
@@ -194,33 +205,63 @@ model Venue {
 }
 
 model Match {
-  id              String                    @id @default(uuid()) @db.Uuid
-  name            String
-  description     String?
-  createdById     String                    @db.Uuid
-  venueId         String                    @db.Uuid
-  format          MatchFormat
-  visibility      MatchVisibility
-  inviteToken     String?                   @unique
-  startsAt        DateTime
-  durationMinutes Int
-  feeCents        Int
-  currency        String                    @default("ZAR")
-  status          MatchStatus               @default(OPEN)
-  cancelledAt     DateTime?
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
-  createdBy       User                      @relation("MatchCreator", fields: [createdById], references: [id])
-  venue           Venue                     @relation(fields: [venueId], references: [id])
-  participants    MatchParticipant[]
-  formationSlots  FormationSlot[]
-  messages        LobbyMessage[]
-  result          MatchResult?
-  payments        MatchPayment[]
-  cancellations   ParticipantCancellation[]
+  id                        String                    @id @default(uuid()) @db.Uuid
+  name                      String
+  description               String?
+  createdById               String                    @db.Uuid
+  venueId                   String                    @db.Uuid
+  mode                      MatchMode                 @default(QUICK_GAME)
+  format                    MatchFormat
+  substituteCapacityPerTeam Int                       @default(5)
+  rollingSubstitutes        Boolean                   @default(false)
+  rules                     MatchRule[]               @default([])
+  visibility                MatchVisibility
+  inviteToken               String?                   @unique
+  startsAt                  DateTime
+  durationMinutes           Int
+  feeCents                  Int
+  currency                  String                    @default("ZAR")
+  status                    MatchStatus               @default(OPEN)
+  cancelledAt               DateTime?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  createdBy                 User                      @relation("MatchCreator", fields: [createdById], references: [id])
+  venue                     Venue                     @relation(fields: [venueId], references: [id])
+  participants              MatchParticipant[]
+  formationSlots            FormationSlot[]
+  messages                  LobbyMessage[]
+  result                    MatchResult?
+  payments                  MatchPayment[]
+  cancellations             ParticipantCancellation[]
+  teamSides                 MatchTeam[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
+}
+
+model MatchTeam {
+  id                      String    @id @default(uuid()) @db.Uuid
+  matchId                 String    @db.Uuid
+  teamId                  String?   @db.Uuid
+  side                    TeamSide
+  organisingUserId        String    @db.Uuid
+  formationKey            String
+  teamNameSnapshot        String
+  teamImageUrlSnapshot    String?
+  primaryColorSnapshot    String?
+  secondaryColorSnapshot  String?
+  availabilityRequestedAt DateTime?
+  lineupFinalizedAt       DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  match                   Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team                    Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  organisingUser          User      @relation("MatchTeamOrganiser", fields: [organisingUserId], references: [id])
+
+  @@unique([matchId, side])
+  @@unique([matchId, teamId])
+  @@index([teamId])
+  @@index([organisingUserId])
 }
 
 model MatchParticipant {
@@ -407,6 +448,7 @@ model Team {
   memberships     TeamMembership[]
   invites         TeamInvite[]
   formations      TeamFormation[]
+  matchSides      MatchTeam[]
 
   @@index([ownerUserId])
   @@index([name])

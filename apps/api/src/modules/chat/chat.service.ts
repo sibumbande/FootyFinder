@@ -28,11 +28,12 @@ export class ChatService {
     return message;
   }
   private async authorize(matchId: string, userId: string, sending: boolean) {
-    const match = await this.chat.findMatch(matchId);
+    const match = await this.chat.findMatch(matchId, userId);
     if (!match) throw new AppError(404, 'Match not found.', 'MATCH_NOT_FOUND');
     if (
       match.createdById !== userId &&
-      !match.participants.some((participant) => participant.userId === userId)
+      !match.participants.some((participant) => participant.userId === userId) &&
+      !match.teamSides.some((side) => Boolean(side.team?.memberships.length))
     )
       throw new AppError(403, 'Join this match to use lobby chat.', 'LOBBY_ACCESS_REQUIRED');
     const chatClosesAt = new Date(
@@ -42,7 +43,11 @@ export class ChatService {
       }).getTime() +
         env.POST_MATCH_CHAT_DURATION_MINUTES * 60_000,
     );
-    if (sending && new Date() > chatClosesAt)
+    if (
+      sending &&
+      !(match.mode === 'TEAM_MATCH' && match.status === 'DRAFT') &&
+      new Date() > chatClosesAt
+    )
       throw new AppError(409, 'Post-match chat is closed.', 'CHAT_CLOSED');
   }
 }
