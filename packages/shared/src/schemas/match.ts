@@ -4,7 +4,12 @@ import {
   MATCH_FORMATS,
   MAX_SUBSTITUTES_PER_TEAM,
 } from '../config/match-formats.js';
-import { MATCH_RULES, MATCH_VISIBILITIES, TEAM_SIDES } from '../types/match.js';
+import {
+  MATCH_RULES,
+  MATCH_VISIBILITIES,
+  TEAM_MATCH_AVAILABILITY_STATUSES,
+  TEAM_SIDES,
+} from '../types/match.js';
 
 const optionalText = (max: number) =>
   z
@@ -69,6 +74,17 @@ export const updateMatchSchema = z.object({
 });
 export const joinMatchSchema = z.object({ team: z.enum(TEAM_SIDES) });
 export const changeParticipantTeamSchema = z.object({ team: z.enum(TEAM_SIDES) });
+export const teamMatchSideSchema = z.enum(TEAM_SIDES);
+export const teamMatchAvailabilityQuerySchema = z.object({
+  availability: z.enum(TEAM_MATCH_AVAILABILITY_STATUSES).optional(),
+  selected: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
+});
+export const updateMyTeamMatchAvailabilitySchema = z.object({
+  status: z.enum(TEAM_MATCH_AVAILABILITY_STATUSES),
+});
 export const formationSlotUpdateSchema = z
   .object({
     participantId: z.string().uuid().nullable().optional(),
@@ -109,3 +125,7 @@ export type ChangeParticipantTeamInput = z.infer<typeof changeParticipantTeamSch
 export type FormationSlotUpdateInput = z.infer<typeof formationSlotUpdateSchema>;
 export type ResultInput = z.infer<typeof resultInputSchema>;
 export type DiscoveryQuery = z.infer<typeof discoveryQuerySchema>;
+export type TeamMatchAvailabilityQuery = z.infer<typeof teamMatchAvailabilityQuerySchema>;
+export type UpdateMyTeamMatchAvailabilityInput = z.infer<
+  typeof updateMyTeamMatchAvailabilitySchema
+>;

@@ -19,6 +19,13 @@ export const PARTICIPANT_STATUSES = ['JOINED', 'LEFT', 'REMOVED'] as const;
 export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export const TEAM_SIDES = ['HOME', 'AWAY'] as const;
 export type TeamSide = (typeof TEAM_SIDES)[number];
+export const TEAM_MATCH_AVAILABILITY_STATUSES = [
+  'AVAILABLE',
+  'MAYBE',
+  'UNAVAILABLE',
+  'NO_RESPONSE',
+] as const;
+export type TeamMatchAvailabilityStatus = (typeof TEAM_MATCH_AVAILABILITY_STATUSES)[number];
 export const MATCH_RULES = ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'] as const;
 export type MatchRule = (typeof MATCH_RULES)[number];
 
@@ -79,6 +86,47 @@ export interface MatchTeamSide {
   secondaryColorSnapshot?: string | null;
   availabilityRequestedAt?: string | null;
   lineupFinalizedAt?: string | null;
+}
+
+export interface TeamMatchAvailabilityRow {
+  id: string;
+  matchTeamId: string;
+  userId: string;
+  status: TeamMatchAvailabilityStatus;
+  respondedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: PublicUser;
+  selectionStatus: null;
+}
+
+export interface TeamMatchAvailabilitySummary {
+  squadPool: number;
+  available: number;
+  maybe: number;
+  unavailable: number;
+  noResponse: number;
+}
+
+export interface TeamMatchAvailabilityResponse {
+  requestedAt: string | null;
+  summary: TeamMatchAvailabilitySummary;
+  rows: TeamMatchAvailabilityRow[];
+}
+
+export interface TeamMatchAvailabilityRequestResult {
+  requestedAt: string;
+  addedMemberCount: number;
+  notifiedMemberCount: number;
+}
+
+export interface TeamMatchAvailabilityChangedEvent {
+  matchId: string;
+  side: TeamSide;
+}
+
+export interface TeamMatchAvailabilityRequestedEvent extends TeamMatchAvailabilityChangedEvent {
+  requestedAt: string;
 }
 export interface MatchResult {
   id: string;

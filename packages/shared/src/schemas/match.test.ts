@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createMatchSchema, createTeamMatchSchema } from './match.js';
+import {
+  createMatchSchema,
+  createTeamMatchSchema,
+  teamMatchAvailabilityQuerySchema,
+  updateMyTeamMatchAvailabilitySchema,
+} from './match.js';
 
 const validMatch = {
   name: 'Friday football',
@@ -74,5 +79,27 @@ describe('createTeamMatchSchema', () => {
     });
     expect(parsed).not.toHaveProperty('visibility');
     expect(parsed).not.toHaveProperty('feeCents');
+  });
+});
+
+describe('Team Match availability schemas', () => {
+  it.each(['AVAILABLE', 'MAYBE', 'UNAVAILABLE', 'NO_RESPONSE'] as const)(
+    'accepts the %s response status',
+    (status) => {
+      expect(updateMyTeamMatchAvailabilitySchema.parse({ status })).toEqual({ status });
+    },
+  );
+
+  it('parses selected query values strictly', () => {
+    expect(teamMatchAvailabilityQuerySchema.parse({ selected: 'true' }).selected).toBe(true);
+    expect(teamMatchAvailabilityQuerySchema.parse({ selected: 'false' }).selected).toBe(false);
+    expect(() => teamMatchAvailabilityQuerySchema.parse({ selected: '1' })).toThrow();
+  });
+
+  it('validates availability filters', () => {
+    expect(teamMatchAvailabilityQuerySchema.parse({ availability: 'NO_RESPONSE' })).toMatchObject({
+      availability: 'NO_RESPONSE',
+    });
+    expect(() => teamMatchAvailabilityQuerySchema.parse({ availability: 'UNKNOWN' })).toThrow();
   });
 });

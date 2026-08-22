@@ -10,12 +10,13 @@ export async function serializableTransaction<T>(
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {
-      if (
-        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-        error.code !== 'P2034' ||
-        attempt === 2
-      )
-        throw error;
+      const retryable =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2034' ||
+          (error.code === 'P2010' &&
+            typeof error.meta?.code === 'string' &&
+            error.meta.code === '40001'));
+      if (!retryable || attempt === 2) throw error;
     }
   }
   throw new Error('Transaction retry exhausted.');

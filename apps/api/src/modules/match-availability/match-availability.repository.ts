@@ -1,0 +1,156 @@
+import { Prisma, type TeamMatchAvailabilityStatus, type TeamSide } from '@prisma/client';
+import { prisma } from '../../database/prisma.js';
+import { serializableTransaction } from '../../database/transaction.js';
+import { safeUserInclude } from '../users/users.repository.js';
+
+export class TeamMatchSideNotFoundError extends Error {}
+export class TeamAvailabilityForbiddenError extends Error {}
+export class TeamMatchClosedError extends Error {}
+export class AvailabilityNotRequestedError extends Error {}
+
+const availabilityInclude = Prisma.validator<Prisma.TeamMatchAvailabilityInclude>()({
+  user: { include: safeUserInclude },
+});
+
+export type TeamMatchAvailabilityRecord = Prisma.TeamMatchAvailabilityGetPayload<{
+  include: typeof availabilityInclude;
+}>;
+
+const contextInclude = (userId: string) =>
+  Prisma.validator<Prisma.MatchTeamInclude>()({
+    match: { select: { mode: true, status: true } },
+    team: {
+      select: {
+        id: true,
+        memberships: { where: { userId }, select: { userId: true, role: true } },
+      },
+    },
+  });
+
+export class MatchAvailabilityRepository {
+  findContext(matchId: string, side: TeamSide, userId: string) {
+    return prisma.matchTeam.findUnique({
+      where: { matchId_side: { matchId, side } },
+      include: contextInclude(userId),
+    });
+  }
+
+  listForSide(matchTeamId: string) {
+    return prisma.teamMatchAvailability.findMany({
+      where: { matchTeamId },
+      include: availabilityInclude,
+      orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }],
+    });
+  }
+
+  request(matchId: string, side: TeamSide, userId: string) {
+    return serializableTransaction(async (tx) => {
+      const initial = await tx.matchTeam.findUnique({
+        where: { matchId_side: { matchId, side } },
+        select: { id: true },
+      });
+      if (!initial) throw new TeamMatchSideNotFoundError();
+
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "MatchTeam" WHERE "id" = ${initial.id}::uuid FOR UPDATE`,
+      );
+
+      const matchTeam = await tx.matchTeam.findUniqueOrThrow({
+        where: { id: initial.id },
+        include: {
+          match: { select: { id: true, name: true, mode: true, status: true } },
+          team: {
+            select: {
+              id: true,
+              memberships: {
+                select: { userId: true, role: true },
+                orderBy: [{ joinedAt: 'asc' }, { userId: 'asc' }],
+              },
+            },
+          },
+        },
+      });
+      if (matchTeam.match.mode !== 'TEAM_MATCH' || !matchTeam.team)
+        throw new TeamMatchSideNotFoundError();
+      if (['CANCELLED', 'COMPLETED'].includes(matchTeam.match.status))
+        throw new TeamMatchClosedError();
+      const requester = matchTeam.team.memberships.find((member) => member.userId === userId);
+      if (!requester || !['OWNER', 'CAPTAIN'].includes(requester.role))
+        throw new TeamAvailabilityForbiddenError();
+
+      const existing = await tx.teamMatchAvailability.findMany({
+        where: { matchTeamId: matchTeam.id },
+        select: { userId: true },
+      });
+      const existingUserIds = new Set(existing.map((row) => row.userId));
+      const missing = matchTeam.team.memberships.filter(
+        (member) => !existingUserIds.has(member.userId),
+      );
+      if (missing.length) {
+        await tx.teamMatchAvailability.createMany({
+          data: missing.map((member) => ({
+            matchTeamId: matchTeam.id,
+            userId: member.userId,
+            status: 'NO_RESPONSE',
+          })),
+        });
+      }
+
+      const requestedAt = new Date();
+      await tx.matchTeam.update({
+        where: { id: matchTeam.id },
+        data: { availabilityRequestedAt: requestedAt },
+      });
+
+      const notifications = [];
+      for (const member of missing) {
+        if (member.userId === userId) continue;
+        notifications.push(
+          await tx.notification.create({
+            data: {
+              userId: member.userId,
+              type: 'TEAM_MATCH_AVAILABILITY_REQUESTED',
+              title: 'Match availability requested',
+              message: `${matchTeam.teamNameSnapshot} needs your availability for ${matchTeam.match.name}.`,
+              targetPath: `/matches/${matchId}`,
+            },
+          }),
+        );
+      }
+
+      return {
+        requestedAt,
+        addedMemberCount: missing.length,
+        notifiedMemberCount: notifications.length,
+        notifications,
+      };
+    });
+  }
+
+  updateMine(matchId: string, side: TeamSide, userId: string, status: TeamMatchAvailabilityStatus) {
+    return serializableTransaction(async (tx) => {
+      const matchTeam = await tx.matchTeam.findUnique({
+        where: { matchId_side: { matchId, side } },
+        include: contextInclude(userId),
+      });
+      if (matchTeam?.match.mode !== 'TEAM_MATCH' || !matchTeam.team)
+        throw new TeamMatchSideNotFoundError();
+      if (['CANCELLED', 'COMPLETED'].includes(matchTeam.match.status))
+        throw new TeamMatchClosedError();
+      if (!matchTeam.team.memberships.length) throw new TeamAvailabilityForbiddenError();
+      const existing = await tx.teamMatchAvailability.findUnique({
+        where: { matchTeamId_userId: { matchTeamId: matchTeam.id, userId } },
+        select: { id: true },
+      });
+      if (!existing) throw new AvailabilityNotRequestedError();
+      return tx.teamMatchAvailability.update({
+        where: { id: existing.id },
+        data: {
+          status,
+          respondedAt: status === 'NO_RESPONSE' ? null : new Date(),
+        },
+        include: availabilityInclude,
+      });
+    });
+  }
+}

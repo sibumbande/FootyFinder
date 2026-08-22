@@ -16,5 +16,8 @@ matchesRouter.patch('/:id/formation/slots/:slotId', controller.formation);
 matchesRouter.patch('/:id/participants/:participantId/team', controller.changeTeam);
 matchesRouter.post('/:id/result', controller.submitResult);
 matchesRouter.get('/:id/participants', controller.participants);
+matchesRouter.post('/:id/team-sides/:side/availability/request', controller.requestAvailability);
+matchesRouter.get('/:id/team-sides/:side/availability', controller.teamAvailability);
+matchesRouter.put('/:id/team-sides/:side/availability/me', controller.updateMyAvailability);
 matchesRouter.get('/:id/messages', controller.messages);
 matchesRouter.post('/:id/messages', controller.sendMessage);

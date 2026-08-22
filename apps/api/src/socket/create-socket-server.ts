@@ -58,6 +58,12 @@ export function createSocketServer(server: HttpServer) {
     io.to(`match:${payload.matchId}`).emit(SocketEvents.matchResultSubmitted, payload.result);
     io.to(`match:${payload.matchId}`).emit(SocketEvents.matchCompleted, payload.result);
   });
+  domainEvents.on('match-availability:requested', (payload) =>
+    io.to(`match:${payload.matchId}`).emit(SocketEvents.matchAvailabilityRequested, payload),
+  );
+  domainEvents.on('match-availability:updated', (payload) =>
+    io.to(`match:${payload.matchId}`).emit(SocketEvents.matchAvailabilityUpdated, payload),
+  );
   domainEvents.on('direct-message:created', (payload) => {
     io.to(`user:${payload.recipientUserId}`).emit(
       SocketEvents.directMessageCreated,

@@ -9,6 +9,8 @@ export const SocketEvents = {
   matchEnded: 'match:ended',
   matchResultSubmitted: 'match:result-submitted',
   matchCompleted: 'match:completed',
+  matchAvailabilityRequested: 'match-availability:requested',
+  matchAvailabilityUpdated: 'match-availability:updated',
   sendMessage: 'message:send',
   messageCreated: 'message:created',
   directMessageSend: 'direct-message:send',

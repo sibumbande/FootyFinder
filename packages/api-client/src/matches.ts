@@ -12,6 +12,12 @@ import type {
   ParticipantCancellationStatus,
   ResultInput,
   SendLobbyMessageInput,
+  TeamMatchAvailabilityQuery,
+  TeamMatchAvailabilityRequestResult,
+  TeamMatchAvailabilityResponse,
+  TeamMatchAvailabilityRow,
+  TeamSide,
+  UpdateMyTeamMatchAvailabilityInput,
   UpdateMatchInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
@@ -20,6 +26,13 @@ const queryString = (query: Partial<DiscoveryQuery> = {}) => {
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined) params.set(key, String(value));
   });
+  const value = params.toString();
+  return value ? `?${value}` : '';
+};
+const availabilityQueryString = (query: Partial<TeamMatchAvailabilityQuery> = {}) => {
+  const params = new URLSearchParams();
+  if (query.availability !== undefined) params.set('availability', query.availability);
+  if (query.selected !== undefined) params.set('selected', String(query.selected));
   const value = params.toString();
   return value ? `?${value}` : '';
 };
@@ -70,6 +83,20 @@ export const matchesApi = (client: ApiClient) => ({
     }),
   participants: (id: string) =>
     client.request<{ data: MatchParticipant[] }>(`/matches/${id}/participants`),
+  requestAvailability: (id: string, side: TeamSide) =>
+    client.request<{ data: TeamMatchAvailabilityRequestResult }>(
+      `/matches/${id}/team-sides/${side}/availability/request`,
+      { method: 'POST' },
+    ),
+  availability: (id: string, side: TeamSide, query?: Partial<TeamMatchAvailabilityQuery>) =>
+    client.request<{ data: TeamMatchAvailabilityResponse }>(
+      `/matches/${id}/team-sides/${side}/availability${availabilityQueryString(query)}`,
+    ),
+  updateMyAvailability: (id: string, side: TeamSide, input: UpdateMyTeamMatchAvailabilityInput) =>
+    client.request<{ data: TeamMatchAvailabilityRow }>(
+      `/matches/${id}/team-sides/${side}/availability/me`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
   messages: (id: string) => client.request<{ data: LobbyMessage[] }>(`/matches/${id}/messages`),
   sendMessage: (id: string, input: SendLobbyMessageInput) =>
     client.request<{ data: LobbyMessage }>(`/matches/${id}/messages`, {

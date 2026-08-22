@@ -12,6 +12,7 @@ export const NOTIFICATION_TYPES = [
   'RESULT_SUBMITTED',
   'TEAM_MEMBER_JOINED',
   'TEAM_UPDATED',
+  'TEAM_MATCH_AVAILABILITY_REQUESTED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {
