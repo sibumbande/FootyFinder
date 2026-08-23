@@ -1,5 +1,6 @@
 import type {
   CreateTeamInput,
+  CreateTeamMatchInput,
   MatchFormat,
   TeamRole,
   UpdateTeamFormationSlotInput,
@@ -8,12 +9,14 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teamsClient } from '@/api/client.js';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
+import { matchKey } from '@/features/matches/hooks/useMatches.js';
 
 export const myTeamsKey = ['teams', 'mine'] as const;
 export const teamKey = (teamId: string) => ['teams', teamId] as const;
 export const teamInvitesKey = (teamId: string) => [...teamKey(teamId), 'invites'] as const;
 export const teamFormationKey = (teamId: string, format: MatchFormat) =>
   [...teamKey(teamId), 'formation', format] as const;
+export const teamMatchesKey = (teamId: string) => [...teamKey(teamId), 'matches'] as const;
 
 export const useMyTeams = () =>
   useQuery({ queryKey: myTeamsKey, queryFn: async () => (await teamsClient.list()).data });
@@ -42,6 +45,22 @@ export function useCreateTeam() {
       cache.setQueryData(teamKey(data.id), data);
       void cache.invalidateQueries({ queryKey: myTeamsKey });
       void cache.invalidateQueries({ queryKey: currentUserKey });
+    },
+  });
+}
+export const useTeamMatches = (teamId: string) =>
+  useQuery({
+    queryKey: teamMatchesKey(teamId),
+    queryFn: async () => (await teamsClient.matches(teamId)).data,
+    enabled: Boolean(teamId),
+  });
+export function useCreateTeamMatch(teamId: string) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTeamMatchInput) => teamsClient.createMatch(teamId, input),
+    onSuccess: ({ data }) => {
+      cache.setQueryData(matchKey(data.id), data);
+      void cache.invalidateQueries({ queryKey: teamMatchesKey(teamId) });
     },
   });
 }

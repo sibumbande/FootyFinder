@@ -5,8 +5,8 @@ import { TeamFormationEditor } from './TeamFormationEditor.js';
 
 const state = vi.hoisted(() => ({ role: 'MEMBER' as 'MEMBER' | 'CAPTAIN' }));
 vi.mock('@/features/matches/components/formation/FormationBoard.js', () => ({
-  FormationBoard: ({ isHost }: { isHost: boolean }) => (
-    <div>Board mode: {isHost ? 'edit' : 'read only'}</div>
+  FormationBoard: ({ canEdit }: { canEdit: boolean }) => (
+    <div>Board mode: {canEdit ? 'edit' : 'read only'}</div>
   ),
 }));
 vi.mock('../hooks/useTeams.js', () => ({

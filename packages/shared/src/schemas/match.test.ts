@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignTeamMatchStarterSchema,
   createMatchSchema,
   createTeamMatchSchema,
+  openTeamMatchLineupSlotSchema,
+  removeTeamMatchStarterSchema,
   teamMatchAvailabilityQuerySchema,
   updateMyTeamMatchAvailabilitySchema,
+  updateTeamMatchLineupSlotPositionSchema,
 } from './match.js';
 
 const validMatch = {
@@ -101,5 +105,39 @@ describe('Team Match availability schemas', () => {
       availability: 'NO_RESPONSE',
     });
     expect(() => teamMatchAvailabilityQuerySchema.parse({ availability: 'UNKNOWN' })).toThrow();
+  });
+});
+
+describe('Team Match lineup schemas', () => {
+  it('validates supported displacement actions', () => {
+    expect(
+      assignTeamMatchStarterSchema.parse({
+        userId: 'cfd39df4-1275-40ca-85da-b13b115a6205',
+        displacedPlayerAction: 'BENCH',
+      }),
+    ).toMatchObject({ displacedPlayerAction: 'BENCH' });
+    expect(() =>
+      assignTeamMatchStarterSchema.parse({
+        userId: 'cfd39df4-1275-40ca-85da-b13b115a6205',
+        displacedPlayerAction: 'REPLACE',
+      }),
+    ).toThrow();
+  });
+
+  it('limits removal and opening actions to bench or remove', () => {
+    expect(removeTeamMatchStarterSchema.parse({ playerAction: 'REMOVE' })).toEqual({
+      playerAction: 'REMOVE',
+    });
+    expect(openTeamMatchLineupSlotSchema.parse({})).toEqual({});
+    expect(() => removeTeamMatchStarterSchema.parse({ playerAction: 'SWAP' })).toThrow();
+  });
+
+  it('requires bounded coordinates for Match-Day movement', () => {
+    expect(updateTeamMatchLineupSlotPositionSchema.parse({ positionX: 45, positionY: 70 })).toEqual(
+      { positionX: 45, positionY: 70 },
+    );
+    expect(() =>
+      updateTeamMatchLineupSlotPositionSchema.parse({ positionX: 45, positionY: 101 }),
+    ).toThrow();
   });
 });

@@ -15,6 +15,7 @@ import { useNotifications } from '@/features/notifications/NotificationProvider.
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
 import { FormationBoard } from '../components/formation/FormationBoard.js';
+import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
 import { ResultForm } from '../components/ResultForm.js';
@@ -51,7 +52,10 @@ export function MatchLobbyPage() {
   const currentParticipant = participants.find((item) => item.userId === user?.id);
   const isHost = match?.createdById === user?.id;
   const quote = useCancellationQuote(matchId, Boolean(currentParticipant));
-  const cancellationStatus = useCancellationStatus(matchId);
+  const cancellationStatus = useCancellationStatus(
+    matchId,
+    Boolean(match) && match?.mode !== 'TEAM_MATCH',
+  );
   if (matchQuery.isPending)
     return <div className="h-[42rem] animate-pulse rounded-3xl bg-surface" />;
   if (!match || matchQuery.error)
@@ -63,6 +67,7 @@ export function MatchLobbyPage() {
         </Link>
       </div>
     );
+  if (match.mode === 'TEAM_MATCH') return <TeamMatchDayLobby match={match} />;
   const mutable = ['OPEN', 'READY'].includes(match.status);
   const capacity = getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
   const canChat = isHost || Boolean(currentParticipant);
@@ -236,11 +241,32 @@ export function MatchLobbyPage() {
           className={`${tab === 'formation' ? 'block' : 'hidden'} rounded-3xl border border-line bg-surface p-4 shadow-sm md:block sm:p-6`}
         >
           <FormationBoard
-            slots={match.formationSlots ?? []}
-            participants={participants}
-            isHost={isHost}
-            editable={mutable}
-            update={(slotId, input) => formation.mutateAsync({ slotId, input })}
+            slots={(match.formationSlots ?? []).map((slot) => ({
+              id: slot.id,
+              team: slot.team,
+              slotIndex: slot.slotIndex,
+              positionX: slot.positionX,
+              positionY: slot.positionY,
+              playerId: slot.participantId,
+              player: slot.participant?.user
+                ? {
+                    id: slot.participant.id,
+                    team: slot.participant.team,
+                    user: slot.participant.user,
+                  }
+                : null,
+            }))}
+            players={participants.flatMap((participant) =>
+              participant.user
+                ? [{ id: participant.id, team: participant.team, user: participant.user }]
+                : [],
+            )}
+            canEdit={isHost && mutable}
+            onAssign={({ slotId, playerId }) =>
+              formation.mutateAsync({ slotId, input: { participantId: playerId } })
+            }
+            onRemove={(slotId) => formation.mutateAsync({ slotId, input: { participantId: null } })}
+            onMove={(slotId, input) => formation.mutateAsync({ slotId, input })}
           />
         </div>
         <div className={`${tab === 'chat' ? 'block' : 'hidden'} md:block`}>

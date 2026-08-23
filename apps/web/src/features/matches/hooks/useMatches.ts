@@ -53,11 +53,11 @@ export const useCancellationQuote = (id: string, enabled: boolean) =>
     queryFn: async () => (await matchApi.cancellationQuote(id)).data,
     enabled,
   });
-export const useCancellationStatus = (id: string) =>
+export const useCancellationStatus = (id: string, enabled = true) =>
   useQuery({
     queryKey: [...matchKey(id), 'cancellation-status'],
     queryFn: async () => (await matchApi.cancellationStatus(id)).data,
-    enabled: Boolean(id),
+    enabled: Boolean(id) && enabled,
     refetchInterval: 15_000,
   });
 export const useLeaveMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.leave(id));
@@ -72,13 +72,14 @@ export const useChangeTeam = (id: string) =>
   );
 export const useSubmitResult = (id: string) =>
   lobbyMutation<ResultInput>(id, (input) => matchApi.submitResult(id, input));
-export function useDeleteMatch(id: string) {
+export function useDeleteMatch(id: string, teamId?: string) {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: () => matchApi.remove(id),
     onSuccess: () => {
       cache.removeQueries({ queryKey: matchKey(id) });
       void cache.invalidateQueries({ queryKey: matchesKey });
+      if (teamId) void cache.invalidateQueries({ queryKey: ['teams', teamId, 'matches'] });
     },
   });
 }

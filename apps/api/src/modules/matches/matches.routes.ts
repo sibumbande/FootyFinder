@@ -19,5 +19,41 @@ matchesRouter.get('/:id/participants', controller.participants);
 matchesRouter.post('/:id/team-sides/:side/availability/request', controller.requestAvailability);
 matchesRouter.get('/:id/team-sides/:side/availability', controller.teamAvailability);
 matchesRouter.put('/:id/team-sides/:side/availability/me', controller.updateMyAvailability);
+matchesRouter.get('/:id/team-sides/:side/lineup', controller.lineup);
+matchesRouter.put(
+  '/:id/team-sides/:side/lineup/selections/:userId/invite',
+  controller.inviteSelection,
+);
+matchesRouter.put(
+  '/:id/team-sides/:side/lineup/slots/:slotId/player',
+  controller.assignLineupStarter,
+);
+matchesRouter.post(
+  '/:id/team-sides/:side/lineup/slots/:slotId/remove',
+  controller.removeLineupStarter,
+);
+matchesRouter.post('/:id/team-sides/:side/lineup/slots/:slotId/open', controller.openLineupSlot);
+matchesRouter.post('/:id/team-sides/:side/lineup/slots/:slotId/claim', controller.claimLineupSlot);
+matchesRouter.patch(
+  '/:id/team-sides/:side/lineup/slots/:slotId/position',
+  controller.moveLineupSlot,
+);
+matchesRouter.put(
+  '/:id/team-sides/:side/lineup/substitutes/:userId',
+  controller.selectLineupSubstitute,
+);
+matchesRouter.delete(
+  '/:id/team-sides/:side/lineup/substitutes/:userId',
+  controller.removeLineupSubstitute,
+);
+matchesRouter.post(
+  '/:id/team-sides/:side/lineup/selections/me/decline',
+  controller.declineLineupSelection,
+);
+matchesRouter.post('/:id/team-sides/:side/lineup/finalize', controller.finalizeLineup);
+matchesRouter.post(
+  '/:id/team-sides/:side/lineup/save-as-team-default',
+  controller.saveLineupAsTeamDefault,
+);
 matchesRouter.get('/:id/messages', controller.messages);
 matchesRouter.post('/:id/messages', controller.sendMessage);

@@ -290,6 +290,18 @@ export class MatchesService {
   ) {
     const match = await this.assertManager(id, userId);
     this.assertMutable(match);
+    const target = match.formationSlots.find((slot) => slot.id === slotId);
+    if (
+      target &&
+      input.positionY !== undefined &&
+      ((target.team === 'HOME' && input.positionY < 50) ||
+        (target.team === 'AWAY' && input.positionY > 50))
+    )
+      throw new AppError(
+        400,
+        "That position is outside the Team's half.",
+        'POSITION_OUTSIDE_TEAM_HALF',
+      );
     const slots =
       toMatch(await this.matches.updateFormation(id, slotId, input), {
         includeInvite: match.mode === 'QUICK_GAME',

@@ -54,6 +54,7 @@ const makeService = (overrides: Record<string, unknown> = {}) => {
   const repository = {
     findContext: vi.fn().mockResolvedValue(context()),
     listForSide: vi.fn().mockResolvedValue([]),
+    listSelectionStatuses: vi.fn().mockResolvedValue([]),
     request: vi.fn(),
     updateMine: vi.fn(),
     ...overrides,
@@ -105,14 +106,15 @@ describe('MatchAvailabilityService', () => {
     expect(result.rows.map(({ userId }) => userId)).toEqual(['viewer']);
   });
 
-  it('reserves selected filters without exposing rows as selected in Phase 1C', async () => {
+  it('filters availability rows using active Match-Day selection states', async () => {
     const { service } = makeService({
-      listForSide: vi.fn().mockResolvedValue([row('one', 'AVAILABLE')]),
+      listForSide: vi.fn().mockResolvedValue([row('one', 'AVAILABLE'), row('two', 'AVAILABLE')]),
+      listSelectionStatuses: vi.fn().mockResolvedValue([{ userId: 'one', status: 'INVITED' }]),
     });
-    expect((await service.get('match-1', 'HOME', { selected: true }, 'viewer')).rows).toEqual([]);
-    expect((await service.get('match-1', 'HOME', { selected: false }, 'viewer')).rows).toHaveLength(
-      1,
-    );
+    const selected = await service.get('match-1', 'HOME', { selected: true }, 'viewer');
+    const notSelected = await service.get('match-1', 'HOME', { selected: false }, 'viewer');
+    expect(selected.rows).toMatchObject([{ userId: 'one', selectionStatus: 'INVITED' }]);
+    expect(notSelected.rows).toMatchObject([{ userId: 'two', selectionStatus: null }]);
   });
 
   it('publishes persisted notifications before broadcasting the request invalidation', async () => {

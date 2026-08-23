@@ -2,14 +2,16 @@ import {
   FORMATION_PRESETS,
   MATCH_FORMAT_CONFIG,
   MATCH_FORMATS,
-  type FormationSlot,
   type MatchFormat,
-  type MatchParticipant,
   type TeamDetail,
 } from '@footy-finder/shared';
 import { useState } from 'react';
 import { FormError } from '@/components/ui/FormError.js';
-import { FormationBoard } from '@/features/matches/components/formation/FormationBoard.js';
+import {
+  FormationBoard,
+  type FormationBoardPlayer,
+  type FormationBoardSlot,
+} from '@/features/matches/components/formation/FormationBoard.js';
 import { useTeamFormation, useTeamFormationMutations } from '../hooks/useTeams.js';
 
 export function TeamFormationEditor({ team }: { team: TeamDetail }) {
@@ -17,16 +19,12 @@ export function TeamFormationEditor({ team }: { team: TeamDetail }) {
   const formation = useTeamFormation(team.id, format);
   const mutations = useTeamFormationMutations(team.id, format);
   const canEdit = team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN';
-  const participants: MatchParticipant[] = team.members.map((member) => ({
+  const players: FormationBoardPlayer[] = team.members.map((member) => ({
     id: member.id,
-    matchId: team.id,
-    userId: member.userId,
-    status: 'JOINED',
     team: 'HOME',
-    joinedAt: member.joinedAt,
     user: member.user,
   }));
-  const slots: FormationSlot[] =
+  const slots: FormationBoardSlot[] =
     formation.data?.slots.map((slot) => ({
       id: slot.id,
       matchId: team.id,
@@ -34,10 +32,8 @@ export function TeamFormationEditor({ team }: { team: TeamDetail }) {
       slotIndex: slot.slotIndex,
       positionX: slot.positionX,
       positionY: slot.positionY,
-      participantId: slot.membershipId,
-      participant: slot.member
-        ? (participants.find(({ id }) => id === slot.member?.id) ?? null)
-        : null,
+      playerId: slot.membershipId,
+      player: slot.member ? (players.find(({ id }) => id === slot.member?.id) ?? null) : null,
     })) ?? [];
   return (
     <section className="grid gap-5">
@@ -85,24 +81,26 @@ export function TeamFormationEditor({ team }: { team: TeamDetail }) {
       ) : formation.data ? (
         <FormationBoard
           slots={slots}
-          participants={participants}
-          isHost={canEdit}
-          editable={canEdit}
+          players={players}
+          canEdit={canEdit}
           sides={['HOME']}
+          pitchMode="single-team"
           reserveLabels={{ HOME: 'Squad' }}
           heading={`${MATCH_FORMAT_CONFIG[format].shortLabel} Team formation`}
           editableHint="Drag or tap squad members into position. Changes save immediately."
           readonlyHint="Owner and captains manage this saved Team formation."
-          update={(slotId, input) =>
+          onAssign={({ slotId, playerId }) =>
             mutations.slot.mutateAsync({
               slotId,
               input: {
-                membershipId: input.participantId,
-                positionX: input.positionX,
-                positionY: input.positionY,
+                membershipId: playerId,
               },
             })
           }
+          onRemove={(slotId) =>
+            mutations.slot.mutateAsync({ slotId, input: { membershipId: null } })
+          }
+          onMove={(slotId, position) => mutations.slot.mutateAsync({ slotId, input: position })}
         />
       ) : null}
     </section>

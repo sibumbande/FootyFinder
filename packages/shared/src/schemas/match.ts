@@ -7,6 +7,8 @@ import {
 import {
   MATCH_RULES,
   MATCH_VISIBILITIES,
+  DISPLACED_PLAYER_ACTIONS,
+  LINEUP_PLAYER_ACTIONS,
   TEAM_MATCH_AVAILABILITY_STATUSES,
   TEAM_SIDES,
 } from '../types/match.js';
@@ -85,6 +87,20 @@ export const teamMatchAvailabilityQuerySchema = z.object({
 export const updateMyTeamMatchAvailabilitySchema = z.object({
   status: z.enum(TEAM_MATCH_AVAILABILITY_STATUSES),
 });
+export const assignTeamMatchStarterSchema = z.object({
+  userId: z.string().uuid(),
+  displacedPlayerAction: z.enum(DISPLACED_PLAYER_ACTIONS).optional(),
+});
+export const removeTeamMatchStarterSchema = z.object({
+  playerAction: z.enum(LINEUP_PLAYER_ACTIONS),
+});
+export const openTeamMatchLineupSlotSchema = z.object({
+  occupiedPlayerAction: z.enum(LINEUP_PLAYER_ACTIONS).optional(),
+});
+export const updateTeamMatchLineupSlotPositionSchema = z.object({
+  positionX: z.number().min(0).max(100),
+  positionY: z.number().min(0).max(100),
+});
 export const formationSlotUpdateSchema = z
   .object({
     participantId: z.string().uuid().nullable().optional(),
@@ -128,4 +144,10 @@ export type DiscoveryQuery = z.infer<typeof discoveryQuerySchema>;
 export type TeamMatchAvailabilityQuery = z.infer<typeof teamMatchAvailabilityQuerySchema>;
 export type UpdateMyTeamMatchAvailabilityInput = z.infer<
   typeof updateMyTeamMatchAvailabilitySchema
+>;
+export type AssignTeamMatchStarterInput = z.infer<typeof assignTeamMatchStarterSchema>;
+export type RemoveTeamMatchStarterInput = z.infer<typeof removeTeamMatchStarterSchema>;
+export type OpenTeamMatchLineupSlotInput = z.infer<typeof openTeamMatchLineupSlotSchema>;
+export type UpdateTeamMatchLineupSlotPositionInput = z.infer<
+  typeof updateTeamMatchLineupSlotPositionSchema
 >;

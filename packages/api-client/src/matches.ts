@@ -19,6 +19,12 @@ import type {
   TeamSide,
   UpdateMyTeamMatchAvailabilityInput,
   UpdateMatchInput,
+  AssignTeamMatchStarterInput,
+  OpenTeamMatchLineupSlotInput,
+  RemoveTeamMatchStarterInput,
+  TeamFormation,
+  TeamMatchLineup,
+  UpdateTeamMatchLineupSlotPositionInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 const queryString = (query: Partial<DiscoveryQuery> = {}) => {
@@ -96,6 +102,82 @@ export const matchesApi = (client: ApiClient) => ({
     client.request<{ data: TeamMatchAvailabilityRow }>(
       `/matches/${id}/team-sides/${side}/availability/me`,
       { method: 'PUT', body: JSON.stringify(input) },
+    ),
+  lineup: (id: string, side: TeamSide) =>
+    client.request<{ data: TeamMatchLineup }>(`/matches/${id}/team-sides/${side}/lineup`),
+  inviteLineupPlayer: (id: string, side: TeamSide, userId: string) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/selections/${userId}/invite`,
+      { method: 'PUT' },
+    ),
+  assignLineupStarter: (
+    id: string,
+    side: TeamSide,
+    slotId: string,
+    input: AssignTeamMatchStarterInput,
+  ) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/slots/${slotId}/player`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
+  removeLineupStarter: (
+    id: string,
+    side: TeamSide,
+    slotId: string,
+    input: RemoveTeamMatchStarterInput,
+  ) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/slots/${slotId}/remove`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  openLineupSlot: (
+    id: string,
+    side: TeamSide,
+    slotId: string,
+    input: OpenTeamMatchLineupSlotInput = {},
+  ) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/slots/${slotId}/open`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  claimLineupSlot: (id: string, side: TeamSide, slotId: string) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/slots/${slotId}/claim`,
+      { method: 'POST' },
+    ),
+  moveLineupSlot: (
+    id: string,
+    side: TeamSide,
+    slotId: string,
+    input: UpdateTeamMatchLineupSlotPositionInput,
+  ) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/slots/${slotId}/position`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+    ),
+  selectLineupSubstitute: (id: string, side: TeamSide, userId: string) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/substitutes/${userId}`,
+      { method: 'PUT' },
+    ),
+  removeLineupSubstitute: (id: string, side: TeamSide, userId: string) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/substitutes/${userId}`,
+      { method: 'DELETE' },
+    ),
+  declineLineupSelection: (id: string, side: TeamSide) =>
+    client.request<{ data: TeamMatchLineup }>(
+      `/matches/${id}/team-sides/${side}/lineup/selections/me/decline`,
+      { method: 'POST' },
+    ),
+  finalizeLineup: (id: string, side: TeamSide) =>
+    client.request<{ data: TeamMatchLineup }>(`/matches/${id}/team-sides/${side}/lineup/finalize`, {
+      method: 'POST',
+    }),
+  saveLineupAsTeamDefault: (id: string, side: TeamSide) =>
+    client.request<{ data: TeamFormation }>(
+      `/matches/${id}/team-sides/${side}/lineup/save-as-team-default`,
+      { method: 'POST' },
     ),
   messages: (id: string) => client.request<{ data: LobbyMessage[] }>(`/matches/${id}/messages`),
   sendMessage: (id: string, input: SendLobbyMessageInput) =>

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   CreateMatchInput,
   CreateTeamMatchInput,
@@ -10,8 +11,10 @@ import type {
 } from '@footy-finder/shared';
 import {
   createDefaultFormation,
+  createFormationPresetSlots,
   getCancellationCreditCents,
   getMaxParticipantsPerTeam,
+  mapTeamPositionToMatchHalf,
 } from '@footy-finder/shared';
 import { serializableTransaction } from '../../database/transaction.js';
 import { prisma } from '../../database/prisma.js';
@@ -95,12 +98,21 @@ export class MatchesRepository {
         where: { id: teamId },
         include: {
           memberships: { where: { userId }, select: { role: true } },
+          formations: {
+            where: { format: input.format },
+            include: {
+              slots: {
+                include: { membership: { select: { userId: true } } },
+                orderBy: { slotIndex: 'asc' },
+              },
+            },
+          },
         },
       });
       if (!team) throw new TeamFixtureTeamNotFoundError();
       if (!team.memberships.some(({ role }) => role === 'OWNER' || role === 'CAPTAIN'))
         throw new TeamFixtureForbiddenError();
-      return tx.match.create({
+      const match = await tx.match.create({
         data: {
           name: input.name,
           description: input.description,
@@ -133,6 +145,52 @@ export class MatchesRepository {
         },
         include: matchInclude,
       });
+      const matchTeam = match.teamSides[0]!;
+      const teamFormation = team.formations[0];
+      const presetSlots = createFormationPresetSlots(input.format, input.formationKey);
+      const coordinateSlots =
+        teamFormation?.formationKey === input.formationKey &&
+        teamFormation.slots.length === presetSlots.length
+          ? teamFormation.slots.map(({ slotIndex, positionX, positionY }) => ({
+              slotIndex,
+              positionX: Number(positionX),
+              positionY: Number(positionY),
+            }))
+          : presetSlots;
+      const validSlotIndexes = new Set(coordinateSlots.map(({ slotIndex }) => slotIndex));
+      const assignedUserBySlot = new Map(
+        teamFormation?.slots
+          .filter(
+            ({ membership, slotIndex }) => Boolean(membership) && validSlotIndexes.has(slotIndex),
+          )
+          .map(({ slotIndex, membership }) => [slotIndex, membership!.userId]) ?? [],
+      );
+      const selectionIdByUser = new Map<string, string>();
+      for (const assignedUserId of assignedUserBySlot.values())
+        if (!selectionIdByUser.has(assignedUserId))
+          selectionIdByUser.set(assignedUserId, randomUUID());
+      if (selectionIdByUser.size)
+        await tx.teamMatchSelection.createMany({
+          data: [...selectionIdByUser].map(([selectedUserId, id]) => ({
+            id,
+            matchTeamId: matchTeam.id,
+            userId: selectedUserId,
+            status: 'SELECTED_STARTER',
+            selectedByUserId: userId,
+          })),
+        });
+      await tx.teamMatchLineupSlot.createMany({
+        data: coordinateSlots.map((slot) => {
+          const assignedUserId = assignedUserBySlot.get(slot.slotIndex);
+          return {
+            matchTeamId: matchTeam.id,
+            slotIndex: slot.slotIndex,
+            ...mapTeamPositionToMatchHalf('HOME', slot),
+            selectionId: assignedUserId ? selectionIdByUser.get(assignedUserId) : undefined,
+          };
+        }),
+      });
+      return tx.match.findUniqueOrThrow({ where: { id: match.id }, include: matchInclude });
     });
   }
 

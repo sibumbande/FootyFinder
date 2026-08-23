@@ -56,6 +56,15 @@ enum TeamMatchAvailabilityStatus {
   NO_RESPONSE
 }
 
+enum TeamMatchSelectionStatus {
+  INVITED
+  SELECTED_STARTER
+  SELECTED_SUBSTITUTE
+  OPEN_SLOT_CLAIMED
+  DECLINED
+  REMOVED
+}
+
 enum FootballPosition {
   GOALKEEPER
   DEFENDER
@@ -115,6 +124,10 @@ enum NotificationType {
   TEAM_MEMBER_JOINED
   TEAM_UPDATED
   TEAM_MATCH_AVAILABILITY_REQUESTED
+  TEAM_MATCH_SELECTION_UPDATED
+  TEAM_MATCH_POSITION_OPENED
+  TEAM_MATCH_POSITION_CLAIMED
+  TEAM_MATCH_LINEUP_FINALIZED
 }
 
 model User {
@@ -138,6 +151,8 @@ model User {
   createdTeamInvites      TeamInvite[]              @relation("TeamInviteCreator")
   organisedMatchTeams     MatchTeam[]               @relation("MatchTeamOrganiser")
   teamMatchAvailabilities TeamMatchAvailability[]
+  teamMatchSelections     TeamMatchSelection[]      @relation("TeamMatchSelectedUser")
+  madeMatchSelections     TeamMatchSelection[]      @relation("TeamMatchSelectionSelector")
 }
 
 model PlayerProfile {
@@ -267,6 +282,8 @@ model MatchTeam {
   team                    Team?                   @relation(fields: [teamId], references: [id], onDelete: SetNull)
   organisingUser          User                    @relation("MatchTeamOrganiser", fields: [organisingUserId], references: [id])
   availabilities          TeamMatchAvailability[]
+  selections              TeamMatchSelection[]
+  lineupSlots             TeamMatchLineupSlot[]
 
   @@unique([matchId, side])
   @@unique([matchId, teamId])
@@ -288,6 +305,42 @@ model TeamMatchAvailability {
   @@unique([matchTeamId, userId])
   @@index([matchTeamId, status])
   @@index([userId])
+}
+
+model TeamMatchSelection {
+  id               String                   @id @default(uuid()) @db.Uuid
+  matchTeamId      String                   @db.Uuid
+  userId           String                   @db.Uuid
+  status           TeamMatchSelectionStatus
+  selectedByUserId String?                  @db.Uuid
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  matchTeam        MatchTeam                @relation(fields: [matchTeamId], references: [id], onDelete: Cascade)
+  user             User                     @relation("TeamMatchSelectedUser", fields: [userId], references: [id], onDelete: Restrict)
+  selectedBy       User?                    @relation("TeamMatchSelectionSelector", fields: [selectedByUserId], references: [id], onDelete: SetNull)
+  lineupSlot       TeamMatchLineupSlot?
+
+  @@unique([matchTeamId, userId])
+  @@index([matchTeamId, status])
+  @@index([userId])
+  @@index([selectedByUserId])
+}
+
+model TeamMatchLineupSlot {
+  id          String              @id @default(uuid()) @db.Uuid
+  matchTeamId String              @db.Uuid
+  slotIndex   Int
+  positionX   Decimal             @db.Decimal(5, 2)
+  positionY   Decimal             @db.Decimal(5, 2)
+  isOpen      Boolean             @default(false)
+  selectionId String?             @unique @db.Uuid
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  matchTeam   MatchTeam           @relation(fields: [matchTeamId], references: [id], onDelete: Cascade)
+  selection   TeamMatchSelection? @relation(fields: [selectionId], references: [id], onDelete: SetNull)
+
+  @@unique([matchTeamId, slotIndex])
+  @@index([matchTeamId, isOpen])
 }
 
 model MatchParticipant {

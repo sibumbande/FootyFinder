@@ -72,4 +72,28 @@ describe('host permissions', () => {
     ).rejects.toMatchObject({ statusCode: 403, code: 'TEAM_FORBIDDEN' });
     expect(repository.cancelMatch).not.toHaveBeenCalled();
   });
+
+  it('rejects Quick Game movement across the halfway line before persistence', async () => {
+    const repository = {
+      findById: vi.fn().mockResolvedValue({
+        id: 'match-1',
+        mode: 'QUICK_GAME',
+        createdById: 'host-1',
+        status: 'OPEN',
+        startsAt: new Date(Date.now() + 86_400_000),
+        durationMinutes: 60,
+        formationSlots: [{ id: 'slot-1', team: 'HOME' }],
+      }),
+      updateFormation: vi.fn(),
+    } as unknown as MatchesRepository;
+    await expect(
+      new MatchesService(repository).updateFormation(
+        'match-1',
+        'slot-1',
+        { positionX: 50, positionY: 25 },
+        'host-1',
+      ),
+    ).rejects.toMatchObject({ statusCode: 400, code: 'POSITION_OUTSIDE_TEAM_HALF' });
+    expect(repository.updateFormation).not.toHaveBeenCalled();
+  });
 });

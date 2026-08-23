@@ -64,6 +64,24 @@ export function createSocketServer(server: HttpServer) {
   domainEvents.on('match-availability:updated', (payload) =>
     io.to(`match:${payload.matchId}`).emit(SocketEvents.matchAvailabilityUpdated, payload),
   );
+  domainEvents.on('match-lineup:changed', (payload) => {
+    const event =
+      payload.reason === 'POSITION_OPENED'
+        ? SocketEvents.matchLineupPositionOpened
+        : payload.reason === 'POSITION_CLAIMED'
+          ? SocketEvents.matchLineupPositionClaimed
+          : payload.reason === 'MOVEMENT'
+            ? SocketEvents.matchLineupSlotMoved
+            : payload.reason === 'FINALIZED'
+              ? SocketEvents.matchLineupFinalized
+              : payload.reason === 'DEFAULT_SAVED'
+                ? SocketEvents.matchLineupDefaultSaved
+                : SocketEvents.matchLineupSelectionUpdated;
+    io.to(`match:${payload.matchId}`).emit(event, {
+      matchId: payload.matchId,
+      side: payload.side,
+    });
+  });
   domainEvents.on('direct-message:created', (payload) => {
     io.to(`user:${payload.recipientUserId}`).emit(
       SocketEvents.directMessageCreated,

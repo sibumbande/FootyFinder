@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
+import { formatDate } from '@/utils/format-date.js';
 import { TeamAvatar } from '../components/TeamAvatar.js';
 import { TeamFormationEditor } from '../components/TeamFormationEditor.js';
 import { TeamInvitePanel } from '../components/TeamInvitePanel.js';
@@ -13,12 +14,13 @@ import {
   useDeleteTeam,
   useTeam,
   useTeamMemberMutation,
+  useTeamMatches,
   useUpdateTeam,
   useUploadTeamImage,
 } from '../hooks/useTeams.js';
 import { useTeamSocket } from '../hooks/useTeamSocket.js';
 
-type Tab = 'overview' | 'squad' | 'formation' | 'invites' | 'settings';
+type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'invites' | 'settings';
 export function TeamPage() {
   const { teamId = '' } = useParams();
   useTeamSocket(teamId);
@@ -27,7 +29,7 @@ export function TeamPage() {
   if (team.isPending) return <div className="h-[40rem] animate-pulse rounded-3xl bg-surface" />;
   if (!team.data || team.error)
     return <FormError message={team.error?.message ?? 'Team not found.'} />;
-  const allowedTabs: Tab[] = ['overview', 'squad', 'formation'];
+  const allowedTabs: Tab[] = ['overview', 'matches', 'squad', 'formation'];
   if (team.data.viewerRole === 'OWNER' || team.data.viewerRole === 'CAPTAIN')
     allowedTabs.push('invites');
   if (team.data.viewerRole === 'OWNER') allowedTabs.push('settings');
@@ -50,6 +52,7 @@ export function TeamPage() {
       </nav>
       <div className="rounded-3xl border border-line bg-surface p-5 shadow-sm sm:p-7">
         {tab === 'overview' && <Overview team={team.data} />}
+        {tab === 'matches' && <TeamMatches team={team.data} />}
         {tab === 'squad' && <Squad team={team.data} />}
         {tab === 'formation' && <TeamFormationEditor team={team.data} />}
         {tab === 'invites' && <TeamInvitePanel team={team.data} />}
@@ -88,8 +91,61 @@ function TeamHero({ team }: { team: TeamDetail }) {
             {team.viewerRole.toLowerCase()}
           </span>
         )}
+        {(team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && (
+          <Link className="button" to={`/teams/${team.id}/matches/new`}>
+            Organise Match
+          </Link>
+        )}
       </div>
     </header>
+  );
+}
+function TeamMatches({ team }: { team: TeamDetail }) {
+  const matches = useTeamMatches(team.id);
+  const canManage = team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN';
+  return (
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-content-strong">Private Team fixtures</h2>
+          <p className="mt-1 text-sm text-content-muted">
+            Availability, selection, and lineup planning stay inside the Team.
+          </p>
+        </div>
+        {canManage && (
+          <Link className="button" to={`/teams/${team.id}/matches/new`}>
+            Organise Match
+          </Link>
+        )}
+      </div>
+      <FormError message={matches.error?.message} />
+      {matches.isPending && <div className="h-28 animate-pulse rounded-2xl bg-surface-muted" />}
+      {matches.data?.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-line-strong p-8 text-center text-content-muted">
+          No Team fixtures have been organised yet.
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {matches.data?.map((match) => (
+          <Link
+            key={match.id}
+            to={`/matches/${match.id}`}
+            className="rounded-2xl border border-line p-4 transition hover:border-brand-300 hover:bg-surface-hover"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-bold text-content-strong">{match.name}</h3>
+              <span className="rounded-full bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase text-brand-700">
+                {match.status}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-content-muted">
+              {MATCH_FORMAT_CONFIG[match.format].shortLabel} · {formatDate(match.startsAt)}
+            </p>
+            <p className="mt-1 text-xs text-content-muted">{match.venue.name}</p>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 function Overview({ team }: { team: TeamDetail }) {

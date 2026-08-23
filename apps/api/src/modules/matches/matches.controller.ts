@@ -1,22 +1,28 @@
 import {
   changeParticipantTeamSchema,
+  assignTeamMatchStarterSchema,
   discoveryQuerySchema,
   formationSlotUpdateSchema,
   joinMatchSchema,
   resultInputSchema,
   sendLobbyMessageSchema,
+  openTeamMatchLineupSlotSchema,
+  removeTeamMatchStarterSchema,
   teamMatchAvailabilityQuerySchema,
   teamMatchSideSchema,
   updateMyTeamMatchAvailabilitySchema,
+  updateTeamMatchLineupSlotPositionSchema,
 } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { ChatService } from '../chat/chat.service.js';
 import { MatchAvailabilityService } from '../match-availability/match-availability.service.js';
+import { MatchLineupService } from '../match-lineup/match-lineup.service.js';
 import { createMatchSchema, updateMatchSchema } from './matches.schema.js';
 import { MatchesService } from './matches.service.js';
 const service = new MatchesService();
 const chat = new ChatService();
 const availability = new MatchAvailabilityService();
+const lineups = new MatchLineupService();
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 const matchId = (params: Record<string, unknown>) => String(params.id);
 export const list: RequestHandler = async (req, res, next) => {
@@ -194,6 +200,174 @@ export const updateMyAvailability: RequestHandler = async (req, res, next) => {
         matchId(req.params),
         teamMatchSideSchema.parse(req.params.side),
         updateMyTeamMatchAvailabilitySchema.parse(req.body),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const lineup: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.get(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const inviteSelection: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.invite(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.userId),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const assignLineupStarter: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.assignStarter(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.slotId),
+        assignTeamMatchStarterSchema.parse(req.body),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const removeLineupStarter: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.removeStarter(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.slotId),
+        removeTeamMatchStarterSchema.parse(req.body).playerAction,
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const openLineupSlot: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.openSlot(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.slotId),
+        openTeamMatchLineupSlotSchema.parse(req.body ?? {}),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const claimLineupSlot: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.claim(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.slotId),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const moveLineupSlot: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.moveSlot(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.slotId),
+        updateTeamMatchLineupSlotPositionSchema.parse(req.body),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const selectLineupSubstitute: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.selectSubstitute(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.userId),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const removeLineupSubstitute: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.removeSubstitute(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        String(req.params.userId),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const declineLineupSelection: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.decline(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const finalizeLineup: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.finalize(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const saveLineupAsTeamDefault: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await lineups.saveAsTeamDefault(
+        matchId(req.params),
+        teamMatchSideSchema.parse(req.params.side),
         userId(res.locals),
       ),
     });

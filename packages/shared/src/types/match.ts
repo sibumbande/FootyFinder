@@ -26,6 +26,19 @@ export const TEAM_MATCH_AVAILABILITY_STATUSES = [
   'NO_RESPONSE',
 ] as const;
 export type TeamMatchAvailabilityStatus = (typeof TEAM_MATCH_AVAILABILITY_STATUSES)[number];
+export const TEAM_MATCH_SELECTION_STATUSES = [
+  'INVITED',
+  'SELECTED_STARTER',
+  'SELECTED_SUBSTITUTE',
+  'OPEN_SLOT_CLAIMED',
+  'DECLINED',
+  'REMOVED',
+] as const;
+export type TeamMatchSelectionStatus = (typeof TEAM_MATCH_SELECTION_STATUSES)[number];
+export const DISPLACED_PLAYER_ACTIONS = ['SWAP', 'BENCH', 'REMOVE'] as const;
+export type DisplacedPlayerAction = (typeof DISPLACED_PLAYER_ACTIONS)[number];
+export const LINEUP_PLAYER_ACTIONS = ['BENCH', 'REMOVE'] as const;
+export type LineupPlayerAction = (typeof LINEUP_PLAYER_ACTIONS)[number];
 export const MATCH_RULES = ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'] as const;
 export type MatchRule = (typeof MATCH_RULES)[number];
 
@@ -97,7 +110,7 @@ export interface TeamMatchAvailabilityRow {
   createdAt: string;
   updatedAt: string;
   user: PublicUser;
-  selectionStatus: null;
+  selectionStatus: TeamMatchSelectionStatus | null;
 }
 
 export interface TeamMatchAvailabilitySummary {
@@ -127,6 +140,53 @@ export interface TeamMatchAvailabilityChangedEvent {
 
 export interface TeamMatchAvailabilityRequestedEvent extends TeamMatchAvailabilityChangedEvent {
   requestedAt: string;
+}
+
+export type TeamMatchLineupChangeReason =
+  'SELECTION' | 'POSITION_OPENED' | 'POSITION_CLAIMED' | 'MOVEMENT' | 'FINALIZED' | 'DEFAULT_SAVED';
+
+export interface TeamMatchLineupChangedEvent {
+  matchId: string;
+  side: TeamSide;
+  reason: TeamMatchLineupChangeReason;
+}
+
+export interface TeamMatchSelection {
+  id: string;
+  matchTeamId: string;
+  userId: string;
+  status: TeamMatchSelectionStatus;
+  selectedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: PublicUser;
+}
+
+export interface TeamMatchLineupSlot {
+  id: string;
+  matchTeamId: string;
+  slotIndex: number;
+  positionX: number;
+  positionY: number;
+  isOpen: boolean;
+  selection: TeamMatchSelection | null;
+}
+
+export interface TeamMatchLineup {
+  matchId: string;
+  matchTeamId: string;
+  teamId: string;
+  side: TeamSide;
+  format: MatchFormat;
+  formationKey: string;
+  starterCapacity: number;
+  substituteCapacity: number;
+  lineupFinalizedAt: string | null;
+  viewerCanManage: boolean;
+  slots: TeamMatchLineupSlot[];
+  substitutes: TeamMatchSelection[];
+  viewerSelection: TeamMatchSelection | null;
+  selectionPool?: TeamMatchSelection[];
 }
 export interface MatchResult {
   id: string;

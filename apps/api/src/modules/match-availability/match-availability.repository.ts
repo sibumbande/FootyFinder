@@ -43,6 +43,13 @@ export class MatchAvailabilityRepository {
     });
   }
 
+  listSelectionStatuses(matchTeamId: string) {
+    return prisma.teamMatchSelection.findMany({
+      where: { matchTeamId },
+      select: { userId: true, status: true },
+    });
+  }
+
   request(matchId: string, side: TeamSide, userId: string) {
     return serializableTransaction(async (tx) => {
       const initial = await tx.matchTeam.findUnique({

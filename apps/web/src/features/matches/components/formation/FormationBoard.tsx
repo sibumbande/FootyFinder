@@ -1,15 +1,34 @@
-import type { FormationSlot, MatchParticipant, TeamSide } from '@footy-finder/shared';
+import type { DisplacedPlayerAction, PublicUser, TeamSide } from '@footy-finder/shared';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar.js';
 import { Button } from '@/components/ui/Button.js';
 
-type Update = (
-  slotId: string,
-  input: { participantId?: string | null; positionX?: number; positionY?: number },
-) => Promise<unknown>;
+export interface FormationBoardPlayer {
+  id: string;
+  team: TeamSide;
+  user: PublicUser;
+  badge?: string;
+}
+
+export interface FormationBoardSlot {
+  id: string;
+  team: TeamSide;
+  slotIndex: number;
+  positionX: number;
+  positionY: number;
+  playerId?: string | null;
+  player?: FormationBoardPlayer | null;
+  isOpen?: boolean;
+}
+
+type Assignment = {
+  slotId: string;
+  playerId: string;
+  displacedPlayerAction?: DisplacedPlayerAction;
+};
 
 type PlayerDrag = {
-  participantId: string;
+  playerId: string;
   sourceSlotId: string;
   team: TeamSide;
   pointerId: number;
@@ -20,25 +39,38 @@ type PlayerDrag = {
   active: boolean;
 };
 
-const clampPercentage = (value: number) => Math.max(4, Math.min(96, value));
+type PendingAssignment = { target: FormationBoardSlot; playerId: string };
+const clamp = (value: number) => Math.max(4, Math.min(96, value));
+export const isFormationPositionValid = (
+  pitchMode: 'two-sided' | 'single-team',
+  team: TeamSide,
+  positionY: number,
+) => pitchMode === 'single-team' || (team === 'HOME' ? positionY >= 50 : positionY <= 50);
+
 export function FormationBoard({
   slots,
-  participants,
-  isHost,
-  editable,
-  update,
+  players,
+  canEdit,
+  onAssign,
+  onRemove,
+  onMove,
   sides = ['HOME', 'AWAY'],
+  pitchMode = 'two-sided',
+  occupiedDropMode = 'implicit',
   heading = 'Formation',
   editableHint = 'Tap or drag players; drag empty slot space to reposition.',
   readonlyHint = 'The organiser controls the pre-match formation.',
   reserveLabels,
 }: {
-  slots: FormationSlot[];
-  participants: MatchParticipant[];
-  isHost: boolean;
-  editable: boolean;
-  update: Update;
+  slots: FormationBoardSlot[];
+  players: FormationBoardPlayer[];
+  canEdit: boolean;
+  onAssign: (input: Assignment) => Promise<unknown>;
+  onRemove: (slotId: string) => Promise<unknown>;
+  onMove: (slotId: string, position: { positionX: number; positionY: number }) => Promise<unknown>;
   sides?: TeamSide[];
+  pitchMode?: 'two-sided' | 'single-team';
+  occupiedDropMode?: 'implicit' | 'explicit';
   heading?: string;
   editableHint?: string;
   readonlyHint?: string;
@@ -50,54 +82,76 @@ export function FormationBoard({
   const [playerDrag, setPlayerDrag] = useState<PlayerDrag | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [landingSlotId, setLandingSlotId] = useState<string | null>(null);
+  const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
   const pitch = useRef<HTMLDivElement>(null);
   const suppressClick = useRef(false);
   useEffect(() => setLocalSlots(slots), [slots]);
-  const onField = new Set(
-    localSlots.flatMap((slot) => (slot.participantId ? [slot.participantId] : [])),
-  );
-  const reserves = participants.filter((item) => !onField.has(item.id));
-  const save = async (slotId: string, input: Parameters<Update>[1]) => {
+  const onField = new Set(localSlots.flatMap((slot) => (slot.playerId ? [slot.playerId] : [])));
+  const reserves = players.filter((item) => !onField.has(item.id));
+  const markSaved = () => {
+    setSaving('saved');
+    window.setTimeout(() => setSaving('idle'), 1200);
+  };
+
+  const assign = async (
+    target: FormationBoardSlot,
+    playerId: string,
+    displacedPlayerAction?: DisplacedPlayerAction,
+  ) => {
     const confirmed = localSlots;
+    const source = localSlots.find((slot) => slot.playerId === playerId);
+    const displaced = target.player;
     setSaving('saving');
     setLocalSlots((items) =>
-      items.map((slot) =>
-        slot.id === slotId
-          ? {
-              ...slot,
-              ...input,
-              participantId:
-                input.participantId === undefined ? slot.participantId : input.participantId,
-              participant: input.participantId
-                ? participants.find((item) => item.id === input.participantId)
-                : input.participantId === null
-                  ? null
-                  : slot.participant,
-            }
-          : input.participantId && slot.participantId === input.participantId
-            ? { ...slot, participantId: null, participant: null }
-            : slot,
-      ),
+      items.map((slot) => {
+        if (slot.id === target.id)
+          return {
+            ...slot,
+            playerId,
+            player: players.find((player) => player.id === playerId) ?? null,
+            isOpen: false,
+          };
+        if (source && slot.id === source.id)
+          return displaced && (displacedPlayerAction === 'SWAP' || occupiedDropMode === 'implicit')
+            ? { ...slot, playerId: displaced.id, player: displaced }
+            : { ...slot, playerId: null, player: null };
+        return slot;
+      }),
     );
     try {
-      await update(slotId, input);
-      setSaving('saved');
-      window.setTimeout(() => setSaving('idle'), 1200);
+      await onAssign({ slotId: target.id, playerId, displacedPlayerAction });
+      markSaved();
+    } catch (error) {
+      setLocalSlots(confirmed);
+      setSaving('error');
+      throw error;
+    }
+  };
+
+  const chooseAssignment = (target: FormationBoardSlot, playerId: string) => {
+    const source = localSlots.find((slot) => slot.playerId === playerId);
+    if (target.playerId && target.playerId !== playerId && occupiedDropMode === 'explicit') {
+      if (source) void assign(target, playerId, 'SWAP').catch(() => undefined);
+      else setPendingAssignment({ target, playerId });
+    } else void assign(target, playerId).catch(() => undefined);
+    setSelected(null);
+  };
+
+  const removeSelected = async () => {
+    const slot = localSlots.find((item) => item.playerId === selected);
+    if (!slot) return setSelected(null);
+    const confirmed = localSlots;
+    setLocalSlots((items) =>
+      items.map((item) => (item.id === slot.id ? { ...item, playerId: null, player: null } : item)),
+    );
+    setSaving('saving');
+    try {
+      await onRemove(slot.id);
+      markSaved();
     } catch {
       setLocalSlots(confirmed);
       setSaving('error');
     }
-  };
-  const selectOrPlace = (slot: FormationSlot) => {
-    if (!isHost || !editable) return;
-    if (selected) {
-      void save(slot.id, { participantId: selected });
-      setSelected(null);
-    } else if (slot.participantId) setSelected(slot.participantId);
-  };
-  const reserveSelected = () => {
-    const slot = localSlots.find((item) => item.participantId === selected);
-    if (slot) void save(slot.id, { participantId: null });
     setSelected(null);
   };
 
@@ -105,12 +159,23 @@ export function FormationBoard({
     const rect = pitch.current?.getBoundingClientRect();
     if (!rect) return null;
     return {
-      positionX: clampPercentage(((clientX - rect.left) / rect.width) * 100),
-      positionY: clampPercentage(((clientY - rect.top) / rect.height) * 100),
+      positionX: clamp(((clientX - rect.left) / rect.width) * 100),
+      positionY: clamp(((clientY - rect.top) / rect.height) * 100),
       rect,
     };
   };
-
+  const savePosition = async (
+    slotId: string,
+    position: { positionX: number; positionY: number },
+  ) => {
+    setSaving('saving');
+    try {
+      await onMove(slotId, position);
+      markSaved();
+    } catch {
+      setSaving('error');
+    }
+  };
   const nearestDropTarget = (
     clientX: number,
     clientY: number,
@@ -134,15 +199,15 @@ export function FormationBoard({
         .sort((a, b) => a.distance - b.distance)[0]?.slot ?? null
     );
   };
-
-  const startPlayerDrag = (event: React.PointerEvent<HTMLButtonElement>, slot: FormationSlot) => {
-    // When a reserve is already selected, a tap on an occupied slot is a swap,
-    // so leave the event to the existing tap-to-place interaction.
-    if (!isHost || !editable || !slot.participantId || selected) return;
+  const startPlayerDrag = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    slot: FormationBoardSlot,
+  ) => {
+    if (!canEdit || !slot.playerId || selected) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setPlayerDrag({
-      participantId: slot.participantId,
+      playerId: slot.playerId,
       sourceSlotId: slot.id,
       team: slot.team,
       pointerId: event.pointerId,
@@ -153,7 +218,6 @@ export function FormationBoard({
       active: false,
     });
   };
-
   const movePlayerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!playerDrag || event.pointerId !== playerDrag.pointerId) return;
     const position = pointerPosition(event.clientX, event.clientY);
@@ -165,12 +229,7 @@ export function FormationBoard({
     if (active && !playerDrag.active) setSelected(null);
     setPlayerDrag((current) =>
       current
-        ? {
-            ...current,
-            positionX: position.positionX,
-            positionY: position.positionY,
-            active,
-          }
+        ? { ...current, positionX: position.positionX, positionY: position.positionY, active }
         : null,
     );
     setDropTargetId(
@@ -180,26 +239,30 @@ export function FormationBoard({
         : null,
     );
   };
-
   const finishPlayerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!playerDrag || event.pointerId !== playerDrag.pointerId) return;
+    const position = pointerPosition(event.clientX, event.clientY);
     const target = playerDrag.active
       ? nearestDropTarget(event.clientX, event.clientY, playerDrag.sourceSlotId, playerDrag.team)
       : null;
     if (playerDrag.active) {
       suppressClick.current = true;
-      const landingId = target?.id ?? playerDrag.sourceSlotId;
-      setLandingSlotId(landingId);
-      if (target) void save(target.id, { participantId: playerDrag.participantId });
+      const valid =
+        position && isFormationPositionValid(pitchMode, playerDrag.team, position.positionY);
+      setLandingSlotId(valid ? (target?.id ?? playerDrag.sourceSlotId) : playerDrag.sourceSlotId);
+      if (valid && target) chooseAssignment(target, playerDrag.playerId);
+      else if (valid && position)
+        void savePosition(playerDrag.sourceSlotId, {
+          positionX: position.positionX,
+          positionY: position.positionY,
+        });
       window.setTimeout(() => setLandingSlotId(null), 460);
       window.setTimeout(() => {
         suppressClick.current = false;
       }, 0);
     } else {
-      // Pointer-down is prevented to disable the browser drag ghost, so handle
-      // a stationary tap explicitly instead of depending on a synthetic click.
       suppressClick.current = true;
-      setSelected(playerDrag.participantId);
+      setSelected(playerDrag.playerId);
       window.setTimeout(() => {
         suppressClick.current = false;
       }, 0);
@@ -207,30 +270,37 @@ export function FormationBoard({
     setPlayerDrag(null);
     setDropTargetId(null);
   };
-  const dragPosition = (event: React.PointerEvent, slot: FormationSlot) => {
-    if (!isHost || !editable || selected || event.target !== event.currentTarget || !pitch.current)
+  const moveEmptySlot = (clientX: number, clientY: number, slot: FormationBoardSlot) => {
+    const position = pointerPosition(clientX, clientY);
+    if (!position || !isFormationPositionValid(pitchMode, slot.team, position.positionY)) {
+      setLandingSlotId(slot.id);
+      window.setTimeout(() => setLandingSlotId(null), 460);
       return;
+    }
+    void savePosition(slot.id, {
+      positionX: position.positionX,
+      positionY: position.positionY,
+    });
+  };
+  const startEmptySlotDrag = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    slot: FormationBoardSlot,
+  ) => {
+    if (!canEdit || selected || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const finish = async (up: PointerEvent) => {
-      const rect = pitch.current!.getBoundingClientRect();
-      const positionX = Math.max(0, Math.min(100, ((up.clientX - rect.left) / rect.width) * 100));
-      const positionY = Math.max(0, Math.min(100, ((up.clientY - rect.top) / rect.height) * 100));
-      await save(slot.id, { positionX, positionY });
-    };
-    const element = event.currentTarget as HTMLButtonElement;
+    const element = event.currentTarget;
     element.onpointerup = (up) => {
       element.onpointerup = null;
-      void finish(up);
+      moveEmptySlot(up.clientX, up.clientY, slot);
     };
   };
+
   return (
     <section className="grid gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-content-strong">{heading}</h2>
-          <p className="text-sm text-content-muted">
-            {isHost && editable ? editableHint : readonlyHint}
-          </p>
+          <p className="text-sm text-content-muted">{canEdit ? editableHint : readonlyHint}</p>
         </div>
         <span
           className={`text-xs font-bold ${saving === 'error' ? 'text-danger-700' : 'text-content-muted'}`}
@@ -248,63 +318,64 @@ export function FormationBoard({
         ref={pitch}
         className={`formation-pitch relative mx-auto aspect-[68/105] w-full max-w-xl overflow-hidden rounded-3xl border-4 border-pitch-border bg-pitch shadow-soft ${playerDrag?.active ? 'formation-pitch--dragging' : ''}`}
       >
-        <div className="absolute inset-y-0 left-1/2 w-px bg-pitch-line/80" />
+        <div
+          data-testid="pitch-halfway-line"
+          className="absolute inset-x-0 top-1/2 h-px bg-pitch-line/80"
+        />
         <div className="absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-pitch-line/80" />
         <div className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-pitch-line" />
         <div className="absolute left-1/2 top-0 h-20 w-1/2 -translate-x-1/2 border-2 border-t-0 border-pitch-line/80" />
         <div className="absolute bottom-0 left-1/2 h-20 w-1/2 -translate-x-1/2 border-2 border-b-0 border-pitch-line/80" />
         {localSlots.map((slot) => {
           const dragging = playerDrag?.sourceSlotId === slot.id;
-          const dropTarget = dropTargetId === slot.id;
-          const landing = landingSlotId === slot.id;
           return (
             <button
               key={slot.id}
               type="button"
               data-formation-slot-id={slot.id}
               onPointerDown={(event) =>
-                slot.participantId ? startPlayerDrag(event, slot) : dragPosition(event, slot)
+                slot.playerId ? startPlayerDrag(event, slot) : startEmptySlotDrag(event, slot)
               }
               onPointerMove={movePlayerDrag}
-              onPointerUp={finishPlayerDrag}
+              onPointerUp={(event) => slot.playerId && finishPlayerDrag(event)}
               onPointerCancel={finishPlayerDrag}
               onClick={() => {
-                if (suppressClick.current) return;
-                selectOrPlace(slot);
+                if (suppressClick.current || !canEdit) return;
+                if (selected) chooseAssignment(slot, selected);
+                else if (slot.playerId) setSelected(slot.playerId);
               }}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => {
-                if (selected) selectOrPlace(slot);
-              }}
-              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${dragging ? 'formation-marker--dragging' : ''} ${dropTarget ? 'formation-marker--drop-target' : ''} ${landing ? 'formation-marker--landing' : ''} ${selected && (!slot.participantId || slot.participantId !== selected) ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
+              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
               style={{
                 left: `${dragging ? playerDrag.positionX : slot.positionX}%`,
                 top: `${dragging ? playerDrag.positionY : slot.positionY}%`,
-                zIndex: dragging ? 30 : dropTarget ? 20 : 10,
+                zIndex: dragging ? 30 : dropTargetId === slot.id ? 20 : 10,
               }}
-              aria-label={`${slot.team} slot ${slot.slotIndex}${slot.participant?.user ? `, ${slot.participant.user.displayName}` : ', empty'}`}
+              aria-label={`${slot.team} slot ${slot.slotIndex}${slot.player ? `, ${slot.player.user.displayName}` : slot.isOpen ? ', open position' : ', empty'}`}
             >
-              {slot.participant?.user ? (
+              {slot.player ? (
                 <span className="formation-marker__avatar pointer-events-none">
-                  <Avatar user={slot.participant.user} size="sm" />
+                  <Avatar user={slot.player.user} size="sm" />
                 </span>
               ) : (
-                <span className="pointer-events-none text-xs font-black">{slot.slotIndex}</span>
+                <span className="pointer-events-none text-[10px] font-black">
+                  {slot.isOpen ? 'OPEN' : slot.slotIndex}
+                </span>
               )}
             </button>
           );
         })}
       </div>
-      {selected && isHost && editable && (
+      {selected && canEdit && (
         <div className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm font-semibold text-brand-700">
           <span>
-            {participants.find((item) => item.id === selected)?.user?.displayName ?? 'Player'}{' '}
-            selected
+            {players.find((item) => item.id === selected)?.user.displayName ?? 'Player'} selected
           </span>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={reserveSelected}>
-              Move to reserves
-            </Button>
+            {onField.has(selected) && (
+              <Button variant="secondary" onClick={() => void removeSelected()}>
+                Move off pitch
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setSelected(null)}>
               Cancel
             </Button>
@@ -318,15 +389,62 @@ export function FormationBoard({
             team={team}
             players={reserves.filter((item) => item.team === team)}
             selected={selected}
-            canEdit={isHost && editable}
+            canEdit={canEdit}
             onSelect={setSelected}
             label={reserveLabels?.[team]}
           />
         ))}
       </div>
+      {pendingAssignment && (
+        <div
+          className="fixed inset-0 z-[70] grid place-items-center bg-content-strong/50 p-4"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="occupied-slot-title"
+            className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-soft"
+          >
+            <h3 id="occupied-slot-title" className="text-lg font-bold text-content-strong">
+              Position already occupied
+            </h3>
+            <p className="mt-2 text-sm text-content-muted">
+              Choose what happens to the current starter.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button
+                onClick={() => {
+                  void assign(pendingAssignment.target, pendingAssignment.playerId, 'BENCH').catch(
+                    () => undefined,
+                  );
+                  setPendingAssignment(null);
+                }}
+              >
+                Move to substitutes
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void assign(pendingAssignment.target, pendingAssignment.playerId, 'REMOVE').catch(
+                    () => undefined,
+                  );
+                  setPendingAssignment(null);
+                }}
+              >
+                Remove from lineup
+              </Button>
+              <Button variant="ghost" onClick={() => setPendingAssignment(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
+
 function ReserveBench({
   team,
   players,
@@ -336,7 +454,7 @@ function ReserveBench({
   label,
 }: {
   team: TeamSide;
-  players: MatchParticipant[];
+  players: FormationBoardPlayer[];
   selected: string | null;
   canEdit: boolean;
   onSelect: (id: string) => void;
@@ -359,15 +477,18 @@ function ReserveBench({
             key={player.id}
             type="button"
             disabled={!canEdit}
-            draggable={canEdit}
-            onDragStart={() => onSelect(player.id)}
             onClick={() => onSelect(player.id)}
             className={`flex items-center gap-2 rounded-xl border p-2 text-left ${selected === player.id ? 'border-brand-500 bg-surface' : 'border-line bg-surface/70'} disabled:cursor-default`}
           >
-            <Avatar user={player.user!} size="sm" />
-            <span className="truncate text-sm font-semibold text-content-strong">
-              {player.user?.displayName}
+            <Avatar user={player.user} size="sm" />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-content-strong">
+              {player.user.displayName}
             </span>
+            {player.badge && (
+              <span className="text-[10px] font-bold uppercase text-content-muted">
+                {player.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>

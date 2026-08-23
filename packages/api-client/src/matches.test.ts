@@ -35,3 +35,38 @@ describe('matchesApi Team availability', () => {
     });
   });
 });
+
+describe('matchesApi Team lineup', () => {
+  it('uses typed lineup assignment, movement, claim, and finalization routes', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = matchesApi({ request } as unknown as ApiClient);
+    await api.assignLineupStarter('match-1', 'HOME', 'slot-1', {
+      userId: '11111111-1111-4111-8111-111111111111',
+      displacedPlayerAction: 'BENCH',
+    });
+    await api.moveLineupSlot('match-1', 'HOME', 'slot-1', {
+      positionX: 40,
+      positionY: 70,
+    });
+    await api.claimLineupSlot('match-1', 'HOME', 'slot-1');
+    await api.finalizeLineup('match-1', 'HOME');
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      '/matches/match-1/team-sides/HOME/lineup/slots/slot-1/player',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      '/matches/match-1/team-sides/HOME/lineup/slots/slot-1/position',
+      { method: 'PATCH', body: JSON.stringify({ positionX: 40, positionY: 70 }) },
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      '/matches/match-1/team-sides/HOME/lineup/slots/slot-1/claim',
+      { method: 'POST' },
+    );
+    expect(request).toHaveBeenNthCalledWith(4, '/matches/match-1/team-sides/HOME/lineup/finalize', {
+      method: 'POST',
+    });
+  });
+});

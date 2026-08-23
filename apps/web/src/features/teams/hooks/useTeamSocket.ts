@@ -15,7 +15,9 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
       void cache.invalidateQueries({ queryKey: myTeamsKey });
     };
     const refreshFormation = () => {
-      if (format) void cache.invalidateQueries({ queryKey: teamFormationKey(teamId, format) });
+      void cache.invalidateQueries({
+        queryKey: format ? teamFormationKey(teamId, format) : [...teamKey(teamId), 'formation'],
+      });
       refresh();
     };
     socket.emit(SocketEvents.joinTeamRoom, { teamId });

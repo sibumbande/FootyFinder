@@ -2,6 +2,7 @@ import type {
   TeamMatchAvailabilityQuery,
   TeamMatchAvailabilityResponse,
   TeamMatchAvailabilityRow,
+  TeamMatchSelectionStatus,
   TeamSide,
   UpdateMyTeamMatchAvailabilityInput,
 } from '@footy-finder/shared';
@@ -18,7 +19,10 @@ import {
   type TeamMatchAvailabilityRecord,
 } from './match-availability.repository.js';
 
-const toAvailabilityRow = (row: TeamMatchAvailabilityRecord): TeamMatchAvailabilityRow => ({
+const toAvailabilityRow = (
+  row: TeamMatchAvailabilityRecord,
+  selectionStatus: TeamMatchSelectionStatus | null = null,
+): TeamMatchAvailabilityRow => ({
   id: row.id,
   matchTeamId: row.matchTeamId,
   userId: row.userId,
@@ -27,8 +31,15 @@ const toAvailabilityRow = (row: TeamMatchAvailabilityRecord): TeamMatchAvailabil
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
   user: toPublicUser(row.user),
-  selectionStatus: null,
+  selectionStatus,
 });
+
+const selectedStatuses = new Set<TeamMatchSelectionStatus>([
+  'INVITED',
+  'SELECTED_STARTER',
+  'SELECTED_SUBSTITUTE',
+  'OPEN_SLOT_CLAIMED',
+]);
 
 export class MatchAvailabilityService {
   constructor(
@@ -61,7 +72,13 @@ export class MatchAvailabilityService {
     const context = await this.availability.findContext(matchId, side, userId);
     this.assertAccessibleContext(context);
     const membership = context.team!.memberships[0]!;
-    const allRows = await this.availability.listForSide(context.id);
+    const [allRows, selections] = await Promise.all([
+      this.availability.listForSide(context.id),
+      this.availability.listSelectionStatuses(context.id),
+    ]);
+    const selectionByUser = new Map(
+      selections.map((selection) => [selection.userId, selection.status]),
+    );
     const summary = {
       squadPool: allRows.length,
       available: allRows.filter((row) => row.status === 'AVAILABLE').length,
@@ -73,8 +90,13 @@ export class MatchAvailabilityService {
     const rows = allRows
       .filter((row) => canInspectAll || row.userId === userId)
       .filter((row) => !query.availability || row.status === query.availability)
-      .filter(() => query.selected !== true)
-      .map(toAvailabilityRow);
+      .filter((row) => {
+        if (query.selected === undefined) return true;
+        const selectionStatus = selectionByUser.get(row.userId);
+        const selected = selectionStatus ? selectedStatuses.has(selectionStatus) : false;
+        return selected === query.selected;
+      })
+      .map((row) => toAvailabilityRow(row, selectionByUser.get(row.userId) ?? null));
     return {
       requestedAt: context.availabilityRequestedAt?.toISOString() ?? null,
       summary,

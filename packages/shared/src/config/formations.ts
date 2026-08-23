@@ -115,6 +115,26 @@ export function createFormationPresetSlots(format: MatchFormat, formationKey: st
   }));
 }
 
+export function mapTeamPositionToMatchHalf(
+  side: TeamSide,
+  position: { positionX: number; positionY: number },
+) {
+  return {
+    positionX: position.positionX,
+    positionY: side === 'HOME' ? 50 + position.positionY / 2 : 50 - position.positionY / 2,
+  };
+}
+
+export function mapMatchHalfPositionToTeam(
+  side: TeamSide,
+  position: { positionX: number; positionY: number },
+) {
+  return {
+    positionX: position.positionX,
+    positionY: side === 'HOME' ? (position.positionY - 50) * 2 : (50 - position.positionY) * 2,
+  };
+}
+
 export function createDefaultFormation(format: MatchFormat): DefaultFormationSlot[] {
   const home = getFormationPresets(format)[0].positions;
   if (home.length !== getPlayersPerTeam(format))
