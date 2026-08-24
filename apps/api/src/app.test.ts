@@ -82,6 +82,11 @@ describe('protected endpoints', () => {
     expect(response.body.code).toBe('UNAUTHENTICATED');
   });
 
+  it('keeps Admin authentication and privileged routes behind persisted auth', async () => {
+    expect((await request(app).get('/admin/auth/status')).body.code).toBe('UNAUTHENTICATED');
+    expect((await request(app).get('/admin/audit-logs')).body.code).toBe('UNAUTHENTICATED');
+  });
+
   it('keeps Team invite inspection public but requires auth for acceptance', async () => {
     const inspection = await request(app).get('/team-invites/not-a-real-token');
     expect(inspection.status).toBe(404);

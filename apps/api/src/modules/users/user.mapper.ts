@@ -5,6 +5,7 @@ type SafeUserSource = {
   email: string;
   username: string;
   accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  platformRole?: 'USER' | 'ADMIN';
   createdAt: Date;
   profile?: {
     displayName: string;
@@ -59,5 +60,6 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
     balanceCents: user.walletAccount?.balanceCents ?? 0,
     currency: user.walletAccount?.currency === 'ZAR' ? 'ZAR' : 'ZAR',
     accountStatus: user.accountStatus ?? 'ACTIVE',
+    platformRole: user.platformRole ?? 'USER',
   };
 }

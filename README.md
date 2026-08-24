@@ -11,6 +11,7 @@ Footy Finder is an npm-workspaces TypeScript monorepo for discovering football m
 ## Applications and packages
 
 - `apps/web` - Vite, React, React Router, TanStack Query, React Hook Form, Tailwind CSS, and Socket.IO Client.
+- `apps/admin` - separately deployable React operations console using the same typed API, session boundary, and PostgreSQL-backed domains.
 - `apps/api` - Express, Prisma/PostgreSQL, Argon2id, JWT cookie authentication, and Socket.IO.
 - `packages/shared` - environment-independent domain types, Zod schemas, match-format configuration, formations, and lifecycle helpers.
 - `packages/api-client` - the typed HTTP client used by the web app and suitable for a future native client.
@@ -39,6 +40,8 @@ The repository uses standard npm workspaces. Do not use pnpm commands or create 
    RATE_LIMIT_AUTH_PER_15_MINUTES=20
    RATE_LIMIT_MESSAGES_PER_MINUTE=30
    RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE=20
+   ADMIN_MFA_ENCRYPTION_KEY=replace-this-with-an-independent-mfa-key
+   ADMIN_MFA_MAX_AGE_MINUTES=720
    PUBLIC_API_URL=http://localhost:3000
    TEAM_UPLOAD_DIR=uploads/teams
    MATCH_DURATION_FIVE_A_SIDE_MINUTES=90
@@ -47,7 +50,7 @@ The repository uses standard npm workspaces. Do not use pnpm commands or create 
    POST_MATCH_CHAT_DURATION_MINUTES=25
    ```
 
-3. If the API does not run at `http://localhost:3000`, copy `apps/web/.env.example` to `apps/web/.env` and set `VITE_API_URL`.
+3. If the API does not run at `http://localhost:3000`, copy the `.env.example` files in `apps/web` and `apps/admin` to `.env` and set `VITE_API_URL`.
 
 4. Generate Prisma Client and apply the committed migrations:
 
@@ -62,7 +65,15 @@ The repository uses standard npm workspaces. Do not use pnpm commands or create 
    npm run dev
    ```
 
-The web app runs at `http://localhost:5173`; the API runs at `http://localhost:3000`. Individual commands are `npm run dev:web` and `npm run dev:api`.
+The player app runs at `http://localhost:5173`, the Admin app at `http://localhost:5174`, and the API at `http://localhost:3000`. Individual commands are `npm run dev:web`, `npm run dev:admin`, and `npm run dev:api`.
+
+To create the first platform administrator, register an ordinary account and run:
+
+```bash
+npm run admin:bootstrap --workspace=@footy-finder/api -- admin@example.com
+```
+
+Then sign in at the Admin app and configure the authenticator secret. Team OWNER/CAPTAIN roles do not grant platform Admin access.
 
 ## Product behavior
 
@@ -128,6 +139,8 @@ Authenticated domain routes:
 - `/conversations` - list/start conversations, read/send messages, and mark read.
 - `/notifications` - list, mark one read, and mark all read.
 - `/teams` - create/list Teams and get, update, or delete a Team.
+- `/admin/auth` - platform-Admin MFA status, setup, and verification using a persisted session.
+- `/admin/audit-logs` - MFA-gated, privacy-safe append-only Admin history.
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
@@ -156,6 +169,7 @@ npm run build
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:security-sessions --workspace=@footy-finder/api
+npm run smoke:admin-identity --workspace=@footy-finder/api
 ```
 
 The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data. `20260823100000_match_capacity_and_rules` backfills every existing Match to five substitutes per Team and adds the database-enforced capacity, rolling-substitution, and informational-rule fields. `20260823150000_private_team_match_foundation` backfills existing Matches as Quick Games and adds Team Match drafts plus normalized nullable Team sides and historical snapshots without rewriting older migrations.
@@ -163,6 +177,8 @@ The committed `20260811100000_master_domain_foundation` migration normalizes pro
 ## Production notes
 
 The additive `20260824090000_auth_sessions_security` migration creates revocable authentication sessions and account status, hashes every existing Quick Match invitation without invalidating its active link, and adds digest storage for future invitation rotation.
+
+`20260824130000_admin_identity_audit` adds platform roles, encrypted Admin MFA credentials, per-session Admin verification, and a PostgreSQL-trigger-protected append-only audit log. It does not grant Admin access to existing accounts.
 
 - Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
 - Replace local Team image storage with a durable object-storage provider before multi-instance deployment.

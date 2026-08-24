@@ -30,6 +30,7 @@ describe('environment contract', () => {
         ADMIN_CLIENT_URL: 'https://admin.example.test',
         PUBLIC_API_URL: 'https://api.example.test',
         TRUST_PROXY_HOPS: '1',
+        ADMIN_MFA_ENCRYPTION_KEY: 'an-independent-production-mfa-key',
       }).success,
     ).toBe(true);
   });

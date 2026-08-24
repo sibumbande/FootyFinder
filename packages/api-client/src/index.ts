@@ -6,3 +6,4 @@ export * from './wallet.js';
 export * from './messaging.js';
 export * from './notifications.js';
 export * from './teams.js';
+export * from './admin.js';

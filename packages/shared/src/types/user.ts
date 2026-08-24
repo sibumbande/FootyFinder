@@ -4,6 +4,8 @@ export const DOMINANT_FEET = ['LEFT', 'RIGHT', 'BOTH'] as const;
 export type DominantFoot = (typeof DOMINANT_FEET)[number];
 export const ACCOUNT_STATUSES = ['ACTIVE', 'SUSPENDED', 'BANNED'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
+export const PLATFORM_ROLES = ['USER', 'ADMIN'] as const;
+export type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
 export interface PublicPlayerProfile {
   userId: string;
@@ -35,6 +37,7 @@ export interface AuthenticatedUser extends PublicUser {
   balanceCents: number;
   currency: 'ZAR';
   accountStatus: AccountStatus;
+  platformRole: PlatformRole;
 }
 
 /** Internal database-only account shape. Never return this from the API. */

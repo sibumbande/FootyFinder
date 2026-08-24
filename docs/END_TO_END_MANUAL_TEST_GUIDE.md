@@ -57,7 +57,7 @@ The following are deliberately **not implemented** and are not failures unless a
 - Team Wallet, Team funding, venue reservations, venue pricing, and provider integrations;
 - friends, blocks, recruitment, general social chat, and persistent Team Chat;
 - Team-v-Team opponent matchmaking;
-- Admin tools, platform audit log, verification, age/consent gates, moderation, reports, bans, reviews, and disputes;
+- Admin venue/Match/support/moderation/dispute operations, age/consent gates, reports, bans, and reviews (the platform Admin shell, MFA, bootstrap, and append-only audit log are implemented);
 - guest Match discovery, cities/waitlists, tournaments, leagues, and accumulated player/Team statistics.
 
 Private Phase 1 Team fixtures are intentionally HOME-only, free, `DRAFT` planning workspaces. They do not enter the automatic Match lifecycle, debit wallets, or create historical `MatchParticipant` rows.
@@ -1145,6 +1145,34 @@ Run the following in light and dark mode at approximately 390×844, 768×1024, a
 
 **Expected:** Content remains usable without clipping or lost controls, text stays legible, and status/team meaning is not conveyed by color alone where context requires a label.
 
+## 15A. Admin identity and operations shell
+
+### ADM-001 — Bootstrap and role isolation
+
+1. Register a disposable ordinary account in the player app.
+2. Confirm Team OWNER/CAPTAIN status does not allow entry to `http://localhost:5174`.
+3. Run `npm run admin:bootstrap --workspace=@footy-finder/api -- <email-or-username>` for the disposable account.
+4. Sign in to the Admin app with that account.
+
+**Expected:** There is no public Admin registration or promotion control. Before bootstrap the account sees Access denied; after bootstrap it reaches only the MFA gate. Team roles never imply platform Admin authority. The bootstrap action appears as a system event in the audit log after MFA verification.
+
+### ADM-002 — MFA setup, verification, and session isolation
+
+1. Create the authenticator secret from the Admin MFA gate and save it in a TOTP authenticator.
+2. Try an incorrect code, then a current six-digit code.
+3. Open a second isolated browser profile and sign in with the same Admin account.
+4. Verify MFA in the second profile, then log out only the first profile.
+
+**Expected:** The secret is presented only during pending setup and is never present in ordinary API/current-user responses. An incorrect code returns `MFA_CODE_INVALID`. Each browser session requires its own recent verification, and logging out one does not revoke the other.
+
+### ADM-003 — Admin shell and immutable audit history
+
+1. Open Dashboard and Audit log at desktop and narrow mobile widths.
+2. Inspect the audit response in DevTools.
+3. Attempt `GET /admin/audit-logs` as an ordinary authenticated player and as an Admin session whose MFA has not been verified.
+
+**Expected:** The shell is responsive and identifies future modules without pretending they are active. Audit entries show bounded privacy-safe actor/action/entity data, never password/MFA/session secrets. Ordinary users receive `ADMIN_FORBIDDEN`; unverified Admin sessions receive `ADMIN_MFA_REQUIRED`. Audit records cannot be edited or deleted through any route.
+
 ## 16. Known-defect register for this manual run
 
 Do not silently pass these cases and do not file duplicates without checking whether the referenced finding has been closed.
@@ -1168,6 +1196,7 @@ These scripts are not substitutes for the browser cases, but they validate datab
 npm run smoke:api-contract --workspace=@footy-finder/api
 npm run smoke:atomic-notifications --workspace=@footy-finder/api
 npm run smoke:security-sessions --workspace=@footy-finder/api
+npm run smoke:admin-identity --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1183,6 +1212,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | ------------------------------------------- | ------------------------------------------------ |
 | npm workspaces/tooling and environment      | Sections 3, 5, 17                                |
 | Registration/login/session/logout           | AUTH-001–AUTH-005                                |
+| Platform Admin identity/MFA/audit            | ADM-001–ADM-003                                  |
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
 | Personal wallet/demo deposits               | WAL-001–WAL-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |

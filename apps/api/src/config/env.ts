@@ -19,6 +19,8 @@ export const envSchema = z
     RATE_LIMIT_AUTH_PER_15_MINUTES: z.coerce.number().int().positive().default(20),
     RATE_LIMIT_MESSAGES_PER_MINUTE: z.coerce.number().int().positive().default(30),
     RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE: z.coerce.number().int().positive().default(20),
+    ADMIN_MFA_ENCRYPTION_KEY: z.string().min(32).optional(),
+    ADMIN_MFA_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(720),
     MATCH_DURATION_FIVE_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
     MATCH_DURATION_SEVEN_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
     MATCH_DURATION_ELEVEN_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
@@ -44,6 +46,12 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['TRUST_PROXY_HOPS'],
         message: 'TRUST_PROXY_HOPS must be explicitly configured in production',
+      });
+    if (!value.ADMIN_MFA_ENCRYPTION_KEY)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ADMIN_MFA_ENCRYPTION_KEY'],
+        message: 'ADMIN_MFA_ENCRYPTION_KEY is required in production',
       });
   })
   .transform((value) => ({ ...value, TRUST_PROXY_HOPS: value.TRUST_PROXY_HOPS ?? 0 }));
