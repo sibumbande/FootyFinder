@@ -13,6 +13,8 @@
 
 The evidence order used was runtime behavior, live PostgreSQL/Prisma state, source, tests, shared contracts, then documentation. Secret values were not read into or copied into this report.
 
+> **Post-audit remediation status (2026-08-24, commit `e2ba24b`):** This document remains the historical audit of commit `aa03e5b`. Browser/API Contract Restoration and Atomic Notification/Domain Consistency have since been implemented and independently retested. `AUDIT-API-001`, `AUDIT-CONTRACT-001`, `AUDIT-API-002`, `AUDIT-MATCH-003`, `AUDIT-TEST-003`, `AUDIT-CON-001`, `AUDIT-NOTIF-001`, `AUDIT-TEAM-002`, and `AUDIT-PERF-004` are closed at the current baseline. The realtime, session/security, financial, scalability, and accessibility findings remain open unless a later status note explicitly closes them.
+
 ## A. EXECUTIVE SUMMARY
 
 Footy Finder is a coherent, working npm-workspaces TypeScript monorepo. Its strongest areas are shared format/formation/lifecycle contracts, privacy-safe response mapping, serializable Match and Team-Match mutations, integer-cent money storage, hashed Team invitations, isolated Team-Match availability/selection/lineup persistence, and a well-integrated React/TanStack Query/Socket.IO frontend. All supported static gates passed, all 129 automated tests passed, all five PostgreSQL phase smokes passed, and an authenticated HTTP plus Socket.IO smoke passed with exact fixture cleanup.

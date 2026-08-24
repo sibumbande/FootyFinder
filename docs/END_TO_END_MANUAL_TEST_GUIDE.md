@@ -4,6 +4,8 @@
 
 **Source of truth:** `docs/SYSTEM_AUDIT.md`, the current application code, shared contracts, and repository scripts.
 
+**Current post-audit baseline:** commit `e2ba24b` closes the browser/API-contract and atomic-notification findings described in the historical audit. Section 16 distinguishes closed findings from remaining known defects.
+
 **Important:** This guide tests the product that exists now. It does not describe the future roadmap as if it were available. Known defects are labelled **KNOWN EXPECTED FAILURE** and include the behavior that should pass after remediation.
 
 ## 1. Test run record
@@ -200,7 +202,7 @@ Opening the health endpoint should return HTTP 200. The terminal should show the
 | Prisma reports unapplied migrations              | Run `npm run prisma:migrate` from the repository root. Do not edit an applied migration.                                                      |
 | Generated Prisma types are stale                 | Run `npm run prisma:generate`, then restart the API.                                                                                          |
 | Browser requests have no session                 | Use `http://localhost` consistently, allow cookies, and confirm requests use credentials. Do not mix `localhost` with `127.0.0.1`.            |
-| CORS preflight fails only for `PUT`              | This is current known finding `AUDIT-API-001`; follow the expected-failure cases in section 12 and the fallback instructions in section 13.2. |
+| CORS preflight fails only for `PUT`              | Treat this as a regression. Confirm the API is running at the configured URL, then run the complete method matrix in section 13.4.             |
 | Old UI/data remains after code changes           | Restart both servers, hard refresh, and clear only this local site's storage/cookies if necessary.                                            |
 | Team image URL fails                             | Confirm `PUBLIC_API_URL`, `TEAM_UPLOAD_DIR`, and API port, then inspect the upload request and API log.                                       |
 
@@ -436,7 +438,7 @@ Create or step through three Matches, covering 5v5, 7v7, and 11v11. Across them 
 
 **Expected:** Public Matches respond correctly to filters/sort and open the right lobby. Private Matches never appear. Clearing a filter restores otherwise eligible Matches.
 
-**Known observation:** When the Available-only control is unchecked, the web currently sends `availableOnly=false`, which the API parses as true (`AUDIT-CONTRACT-001`). If full Matches remain excluded, mark that assertion **KNOWN EXPECTED FAILURE**. After remediation, explicit false must disable the availability filter.
+**Expected:** When the Available-only control is unchecked, the web sends `availableOnly=false` and full Matches remain eligible for the results. Explicit false must disable the availability filter.
 
 ### QCK-004 — Private invitation access
 
@@ -711,7 +713,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 
 **Expected:** Each format has its exact starter-slot count and independent saved state. The single-Team pitch allows the full safe 4–96 visual area without HOME/AWAY half restrictions. Owner/Captain changes persist with animated optimistic behavior and rollback; MEMBER is read-only.
 
-**Known expected failure:** Changing the preset uses `PUT /teams/:teamId/formations/:format` and is blocked by browser CORS (`AUDIT-API-001`). Record the preflight/network failure. Slot assignment/movement uses PATCH and should still work. Section 13.2 provides a direct-API fallback for the preset so later copying tests can continue.
+**Expected:** Changing the preset through `PUT /teams/:teamId/formations/:format` succeeds in the browser. Slot assignment and movement continue to work through their existing PATCH operations.
 
 ### TEM-010 — Team settings
 
@@ -770,7 +772,7 @@ Run this near the end using a secondary disposable Team, or after all main Team 
 
 **Intended behavior:** Users update only their own snapshotted response. Available/Maybe/Unavailable set `respondedAt`; No response clears it. Manager filters return correct rows while summary totals remain unfiltered. Members never receive another user's private response through socket payloads.
 
-**Current result:** Each response is a `PUT` request and browser preflight fails because `PUT` is absent from the CORS allowlist (`AUDIT-API-001`). Mark the browser update **KNOWN EXPECTED FAILURE**, capture Network evidence, then use section 13.2 to set statuses directly so filters and later selection tests can continue.
+**Expected:** Each availability `PUT` succeeds in the browser, persists the chosen status, updates totals and filters, and survives reload.
 
 ### TMD-005 — Membership changes between availability requests
 
@@ -797,7 +799,7 @@ Run this near the end using a secondary disposable Team, or after all main Team 
 
 **Intended behavior:** Invitation records `INVITED`; substitute selection records `SELECTED_SUBSTITUTE`; repeated no-op retries do not duplicate notifications; remove/reselect is supported; capacity rejects the excess with `SUBSTITUTE_CAPACITY_REACHED`.
 
-**Current result:** Invite and select-substitute use PUT and are blocked in the browser by `AUDIT-API-001`. Mark those actions **KNOWN EXPECTED FAILURE** and use section 13.2 for prerequisite state. Remove-substitute uses DELETE and should work in the browser.
+**Expected:** Invite, select-substitute, and remove-substitute all succeed in the browser through their documented PUT and DELETE operations.
 
 ### TMD-008 — Starter assignment and occupied-slot decisions
 
@@ -809,7 +811,7 @@ Run this near the end using a secondary disposable Team, or after all main Team 
 
 **Intended behavior:** Assignments are side-serialized and unique. SWAP requires the incoming user already to be a starter. BENCH observes substitute capacity. REMOVE changes displaced selection state. Duplicate starter occupancy is rejected. Manager edits clear finalization.
 
-**Current result:** Player assignment uses PUT and is browser-CORS blocked (`AUDIT-API-001`). Capture one expected failure and use the direct-API fallback for setup. Once assigned, PATCH coordinate movement and POST bench/remove/open actions remain browser-testable.
+**Expected:** Player assignment, coordinate movement, bench/remove, and open-position actions all succeed through the browser and persist authoritatively.
 
 ### TMD-009 — Open, reopen, decline, and manager override
 
@@ -903,9 +905,9 @@ The successful login body contains the private current-user response and each `W
 
 On macOS/Linux, use `curl -c <temporary-cookie-file>` for login and `curl -b <same-file>` for later requests. Store cookie files in the operating system temporary directory, delete them after the run, and use the same methods/paths/bodies shown below.
 
-### 13.2 Direct API workaround for known browser `PUT` failure
+### 13.2 Direct API verification for `PUT` actions
 
-First reproduce the browser preflight failure and record it. Direct calls are a setup workaround, not a pass for the browser case. Set these values from the test worksheet:
+Use these direct calls only to diagnose an unexpected browser failure or to prepare controlled test state. The corresponding browser actions are expected to pass. Set these values from the test worksheet:
 
 ```powershell
 $teamId = '<team-uuid>'
@@ -953,7 +955,7 @@ $presetBody = @{ formationKey = $formationKey } | ConvertTo-Json -Compress
 Invoke-RestMethod -Uri "$qaApi/teams/$teamId/formations/$format" -Method Put -WebSession $ownerSession -ContentType 'application/json' -Body $presetBody
 ```
 
-After each fallback, reload the relevant browser page and confirm that the persisted state is visible. A successful direct request proves the domain endpoint works; it does not resolve `AUDIT-API-001`.
+After each direct request, reload the relevant browser page and confirm that the persisted state is visible. A successful direct request proves the domain endpoint works; a browser-only failure remains a CORS or client regression and must be reported.
 
 ### 13.3 Controlled Match timing
 
@@ -1000,7 +1002,7 @@ curl -i -X OPTIONS http://localhost:3000/health -H "Origin: http://localhost:517
 
 Repeat with `GET`, `POST`, `PATCH`, and `DELETE`.
 
-**Expected current result:** The configured origin and credential policy are returned. GET, POST, PATCH, and DELETE appear in allowed methods; `Idempotency-Key` is allowed. PUT is absent, so the PUT assertion is **KNOWN EXPECTED FAILURE** (`AUDIT-API-001`). After remediation, every method used by the API—including PUT—must appear and browser PUT cases must pass.
+**Expected:** The configured origin and credential policy are returned. GET, POST, PUT, PATCH, DELETE, and OPTIONS are allowed; `Content-Type`, `Authorization`, and `Idempotency-Key` are accepted. Browser PUT actions must pass.
 
 Try one unapproved origin such as `http://localhost:9999`. It must not receive permission to make credentialed cross-origin requests.
 
@@ -1010,7 +1012,7 @@ Try one unapproved origin such as `http://localhost:9999`. It must not receive p
 2. Inspect login, `/users/me`, public player, Team, Match, and error responses.
 3. Attempt a malformed UUID route and a random valid UUID.
 
-**Expected:** The cookie is HTTP-only and SameSite Lax. It is not Secure in local development; production must explicitly set `NODE_ENV=production` and use HTTPS. Responses must not expose JWTs, password hashes, raw Team invite hashes, payment secrets, Prisma query detail, or stack traces. Malformed/not-found UUIDs may currently become generic 500s (`AUDIT-API-002`); record as known behavior.
+**Expected:** The cookie is HTTP-only and SameSite Lax. It is not Secure in local development; production must explicitly set `NODE_ENV=production` and use HTTPS. Responses must not expose JWTs, password hashes, raw Team invite hashes, payment secrets, Prisma query detail, or stack traces. Malformed UUIDs return a stable validation response and missing valid UUIDs return a safe not-found response rather than a generic 500.
 
 ## 14. Realtime, authorization revocation, abuse, and resilience
 
@@ -1137,15 +1139,13 @@ Run the following in light and dark mode at approximately 390×844, 768×1024, a
 
 Do not silently pass these cases and do not file duplicates without checking whether the referenced finding has been closed.
 
+The current baseline has closed and retested the following historical findings: `AUDIT-API-001`, `AUDIT-CONTRACT-001`, `AUDIT-API-002`, `AUDIT-MATCH-003`, `AUDIT-TEST-003`, `AUDIT-CON-001`, `AUDIT-NOTIF-001`, `AUDIT-TEAM-002`, and `AUDIT-PERF-004`. A recurrence is a new regression, not a known expected failure.
+
 | Finding                             | Severity | Manual case(s)                              | Current expected result                                                                                                   | Intended retest result                                                                     |
 | ----------------------------------- | -------: | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `AUDIT-API-001`                     |       P1 | TEM-009, TMD-004, TMD-007, TMD-008, 13.4    | Browser PUT preflight is denied                                                                                           | PUT is allowed from the configured client and all controls persist normally                |
-| `AUDIT-CON-001` / `AUDIT-NOTIF-001` |    P1/P2 | RES-001; financial, Match, DM, invite flows | A forced notification insert failure can make an already-committed action appear failed; do not induce by damaging the DB | Domain change and required notification/outbox commit atomically; broadcast follows commit |
 | `AUDIT-RT-001`                      |       P1 | RT-003, RT-004                              | Revoked room member can passively receive events until disconnect                                                         | Revoked sockets are evicted or reauthorized immediately                                    |
 | `AUDIT-RT-002` / `AUDIT-FE-002`     |    P1/P2 | RT-002                                      | Reconnected socket does not rejoin Match/Team rooms                                                                       | Reconnect rejoins and refetches authorized room state                                      |
 | `AUDIT-SEC-001`                     |       P1 | SEC-001                                     | No stable rate-limit response                                                                                             | Tiered limits return safe 429 responses at documented thresholds                           |
-| `AUDIT-CONTRACT-001`                |       P2 | QCK-003                                     | Explicit `availableOnly=false` acts like true                                                                             | False disables the filter                                                                  |
-| `AUDIT-API-002`                     |       P2 | 13.5                                        | Invalid IDs can become generic 500 responses                                                                              | Shared UUID validation and stable not-found/bad-request mapping                            |
 | `AUDIT-FIN-004`                     |       P2 | WAL-005, QLB-009, QLB-011                   | Asynchronous credit notification may not refresh header balance                                                           | Header wallet state invalidates immediately                                                |
 | `AUDIT-MATCH-002`                   |       P2 | QLB-013                                     | Historical LEFT/REMOVED participant may be accepted as scorer                                                             | Product attendance policy is explicit and enforced                                         |
 | `AUDIT-MATCH-004`                   |       P2 | QLB-013                                     | Concurrent losing result request can expose an unmapped conflict                                                          | Idempotent authoritative result/conflict response                                          |
@@ -1155,13 +1155,15 @@ Do not silently pass these cases and do not file duplicates without checking whe
 | `AUDIT-UPLOAD-001`                  |       P2 | TEM-002, TEM-011                            | Linux can retain replaced/deleted generated images                                                                        | Cross-platform containment allows safe deletion                                            |
 | `AUDIT-TEAM-003`                    |       P3 | TEM-010                                     | Empty optional Team strings may not clear                                                                                 | Explicit null/clear semantics work                                                         |
 
-The failure-injection portion of `AUDIT-CON-001` is intentionally not a manual procedure. It requires an automated transactional test double or controlled outbox test; corrupting a database or application module is not an acceptable manual-test prerequisite.
+Notification transaction failure is covered by automated tests and `smoke:atomic-notifications`; corrupting a database or application module is not an acceptable manual-test procedure.
 
 ## 17. Optional engineering smoke suite
 
 These scripts are not substitutes for the browser cases, but they validate database invariants and concurrency using isolated fixtures. Ensure `DATABASE_URL` points to the dedicated manual-QA database and the repository worktree is suitable for generated `dist` output.
 
 ```bash
+npm run smoke:api-contract --workspace=@footy-finder/api
+npm run smoke:atomic-notifications --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api

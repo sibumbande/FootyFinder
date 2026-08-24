@@ -1,0 +1,48 @@
+# Admin Back Office Implementation
+
+## Architecture decision
+
+The Admin back office is a separately deployable application inside this npm-workspaces monorepo. `apps/admin` uses the shared contracts and API client, while privileged orchestration remains under `/admin` in the existing API and PostgreSQL database. Match, wallet, notification, Team, and booking invariants stay in their existing domain services.
+
+A separate repository, API, or database is intentionally deferred until an independent operating team, regulatory boundary, or deployment lifecycle requires it.
+
+## Compatibility boundaries
+
+- Existing Prisma `Venue` rows remain immutable Match location snapshots.
+- The managed catalogue uses separate Venue/Field models and copies a snapshot when a Match books a Field.
+- Existing Quick Game entry fees, joining, cancellation, replacement credits, formations, chat, and lifecycle remain supported.
+- Private Team Matches remain free HOME-only `DRAFT` planning workspaces and do not reserve Fields or mutate wallets.
+- Admin-created playable Matches use `QUICK_GAME` with an explicit Admin source.
+- Support tickets never expose unrelated direct messages.
+- Suspensions and bans preserve historical and financial records.
+- Admin financial actions use typed wallet operations; raw balances and ledger rows are never editable.
+- Every privileged mutation and its redacted audit event commit atomically; realtime publication follows commit and is best effort.
+
+## Delivery register
+
+| Slice | Delivery | Status |
+| --- | --- | --- |
+| 0 | Baseline verification and stale audit/manual-test closure | Complete (`admin-slice-0`) |
+| 1 | Revocable sessions, realtime security, rate limits, and request hardening | Pending |
+| 2 | Platform Admin role, audit log, MFA/bootstrap, and Admin application shell | Pending |
+| 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Pending |
+| 4 | Support inbox and environment-gated test-data tools | Pending |
+| 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Pending |
+| 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Pending |
+| 7 | Moderation, suspension, bans, and enforcement review | Pending |
+| 8 | Result and booking disputes with immutable result revisions | Pending |
+| 9 | Operations dashboard, browser E2E coverage, documentation, and final audit | Pending |
+
+Each slice receives an additive migration when persistence changes, focused automated tests, relevant isolated PostgreSQL smoke coverage, the complete existing regression suite, and its own Git commit before work begins on the next slice.
+
+## Current verified baseline
+
+Baseline commit: `e2ba24b`.
+
+- Prisma schema formats, validates, generates, and reports all 11 migrations applied.
+- TypeScript lint gates pass in all workspaces.
+- 161 automated tests pass: API 93, web 20, API client 8, shared 40.
+- Production builds pass.
+- `smoke:api-contract`, `smoke:atomic-notifications`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
+
+The original system audit remains a historical report of commit `aa03e5b`. Its post-audit status note identifies findings closed by the current baseline.
