@@ -24,8 +24,8 @@ A separate repository, API, or database is intentionally deferred until an indep
 | --- | --- | --- |
 | 0 | Baseline verification and stale audit/manual-test closure | Complete (`6531712`) |
 | 1 | Revocable sessions, realtime security, rate limits, and request hardening | Complete (`8204cad`) |
-| 2 | Platform Admin role, audit log, MFA/bootstrap, and Admin application shell | Complete |
-| 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Pending |
+| 2 | Platform Admin role, audit log, MFA/bootstrap, and Admin application shell | Complete (`b72bb6a`) |
+| 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Complete (current slice) |
 | 4 | Support inbox and environment-gated test-data tools | Pending |
 | 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Pending |
 | 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Pending |
@@ -37,11 +37,11 @@ Each slice receives an additive migration when persistence changes, focused auto
 
 ## Current verified baseline
 
-Slice 2 verified on top of Slice 1 commit `8204cad`.
+Slice 3 verified on top of Slice 2 commit `b72bb6a`.
 
-- Prisma schema formats, validates, generates, and reports all 13 migrations applied.
+- Prisma schema formats, validates, generates, and reports all 14 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 181 automated tests pass: API 111, web 20, API client 10, shared 40.
+- 184 automated tests pass: API 113, web 20, API client 11, shared 40.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
 
@@ -65,3 +65,12 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - Every privileged route uses the shared persisted session boundary, current account status, current platform role, and recent MFA verification.
 - `AdminAuditLog` is append-only at the PostgreSQL trigger layer. Audit responses expose privacy-safe actors and bounded recent history.
 - `smoke:admin-identity` proves platform role persistence, encrypted TOTP operation, verified-session storage, append-only enforcement, transaction rollback, and exact cleanup.
+
+## Slice 3 managed catalogue boundary
+
+- Managed venues and fields are independent operational records; historical Match `Venue` snapshots are not rewritten or repurposed.
+- Admins can activate/deactivate venues, configure field status and supported formats, replace non-overlapping weekly operating periods, record temporary closures/openings, and remove future exceptions.
+- ZAR price rows are immutable effective-dated history. Both the serializable service and a PostgreSQL exclusion constraint reject overlapping periods, including concurrent writes.
+- Every catalogue mutation appends its actor, action, entity, request correlation, and safe metadata in the same database transaction.
+- The Admin application exposes the complete catalogue workflow at `/venues`; all API routes require an active Admin account, a persisted session, and recent MFA verification.
+- `smoke:admin-catalog` proves catalogue relations, database checks, price-overlap enforcement, atomic audit creation, rollback, and exact cleanup.

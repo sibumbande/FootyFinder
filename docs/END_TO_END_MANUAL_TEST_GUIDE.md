@@ -57,7 +57,7 @@ The following are deliberately **not implemented** and are not failures unless a
 - Team Wallet, Team funding, venue reservations, venue pricing, and provider integrations;
 - friends, blocks, recruitment, general social chat, and persistent Team Chat;
 - Team-v-Team opponent matchmaking;
-- Admin venue/Match/support/moderation/dispute operations, age/consent gates, reports, bans, and reviews (the platform Admin shell, MFA, bootstrap, and append-only audit log are implemented);
+- Admin Match loading, support, moderation, and dispute operations, age/consent gates, reports, bans, and reviews (the platform Admin shell, MFA, bootstrap, append-only audit log, and managed Venue/Field catalogue are implemented);
 - guest Match discovery, cities/waitlists, tournaments, leagues, and accumulated player/Team statistics.
 
 Private Phase 1 Team fixtures are intentionally HOME-only, free, `DRAFT` planning workspaces. They do not enter the automatic Match lifecycle, debit wallets, or create historical `MatchParticipant` rows.
@@ -1173,6 +1173,25 @@ Run the following in light and dark mode at approximately 390×844, 768×1024, a
 
 **Expected:** The shell is responsive and identifies future modules without pretending they are active. Audit entries show bounded privacy-safe actor/action/entity data, never password/MFA/session secrets. Ordinary users receive `ADMIN_FORBIDDEN`; unverified Admin sessions receive `ADMIN_MFA_REQUIRED`. Audit records cannot be edited or deleted through any route.
 
+### ADM-004 — Managed venue and field catalogue
+
+1. Open **Venues & fields** in a recently MFA-verified Admin session and create a disposable venue with a real city, province, country code, and timezone.
+2. Add one field supporting 5-a-side and 7-a-side, then change its status from Active to Maintenance and back.
+3. Add Monday 08:00–12:00 and 12:00–22:00 operating periods and save. Attempt to add 11:00–13:00 as well.
+4. Add a future closure with a reason, reload the page, then remove it.
+5. Add an R800 effective price with a bounded future period. Reload and attempt to add a second price whose effective period overlaps it.
+6. Deactivate and reactivate the venue. Review the Admin audit log after each successful mutation.
+
+**Expected:** Adjacent weekly periods save; overlapping periods return `FIELD_AVAILABILITY_OVERLAP`. Status, formats, hours, closure, and venue activity persist after reload. Price history displays in rands and cannot be edited or deleted. The overlapping price returns `FIELD_PRICE_OVERLAP`, including under simultaneous requests. Every successful change has one correlated audit entry; rejected changes create none. Existing Quick Game and Team Match venue snapshots remain unchanged.
+
+### ADM-005 — Catalogue authorization and validation
+
+1. Repeat `GET /admin/venues` as an ordinary player, an unverified Admin session, and a verified Admin session.
+2. Submit malformed UUIDs, invalid country codes, invalid day/minute ranges, end-before-start exceptions, duplicate formats, and negative prices.
+3. Try a catalogue mutation from a disallowed browser Origin using cookie authentication.
+
+**Expected:** Ordinary players receive `ADMIN_FORBIDDEN`; unverified Admin sessions receive `ADMIN_MFA_REQUIRED`; only the verified Admin can read or write. Malformed route IDs receive `INVALID_ROUTE_PARAMETER`, invalid bodies receive `VALIDATION_ERROR`, and the Origin boundary rejects the cross-site cookie mutation. No failed request partially changes the catalogue or audit log.
+
 ## 16. Known-defect register for this manual run
 
 Do not silently pass these cases and do not file duplicates without checking whether the referenced finding has been closed.
@@ -1197,6 +1216,7 @@ npm run smoke:api-contract --workspace=@footy-finder/api
 npm run smoke:atomic-notifications --workspace=@footy-finder/api
 npm run smoke:security-sessions --workspace=@footy-finder/api
 npm run smoke:admin-identity --workspace=@footy-finder/api
+npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1213,6 +1233,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | npm workspaces/tooling and environment      | Sections 3, 5, 17                                |
 | Registration/login/session/logout           | AUTH-001–AUTH-005                                |
 | Platform Admin identity/MFA/audit            | ADM-001–ADM-003                                  |
+| Managed Venue/Field catalogue and pricing    | ADM-004–ADM-005                                  |
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
 | Personal wallet/demo deposits               | WAL-001–WAL-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |

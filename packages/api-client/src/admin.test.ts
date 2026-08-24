@@ -18,4 +18,29 @@ describe('adminApi', () => {
     });
     expect(request).toHaveBeenNthCalledWith(4, '/admin/audit-logs');
   });
+
+  it('uses the managed venue, field, schedule, exception, and price contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    const venue = { name: 'Central', addressLine1: '1 Main Road', city: 'Cape Town', region: 'Western Cape', countryCode: 'ZA', timezone: 'Africa/Johannesburg', isActive: true };
+    const field = { name: 'Court A', status: 'ACTIVE' as const, supportedFormats: ['FIVE_A_SIDE' as const] };
+    await api.venues();
+    await api.createVenue(venue);
+    await api.updateVenue('venue-id', venue);
+    await api.createField('venue-id', field);
+    await api.updateField('field-id', field);
+    await api.replaceFieldAvailability('field-id', { periods: [] });
+    await api.addFieldException('field-id', { startsAt: '2026-09-01T08:00:00.000Z', endsAt: '2026-09-01T10:00:00.000Z', available: false });
+    await api.removeFieldException('field-id', 'exception-id');
+    await api.addFieldPrice('field-id', { amountCents: 80000, effectiveFrom: '2026-09-01T00:00:00.000Z' });
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/venues', '/admin/venues', '/admin/venues/venue-id',
+      '/admin/venues/venue-id/fields', '/admin/fields/field-id',
+      '/admin/fields/field-id/availability', '/admin/fields/field-id/exceptions',
+      '/admin/fields/field-id/exceptions/exception-id', '/admin/fields/field-id/prices',
+    ]);
+    expect(request).toHaveBeenLastCalledWith('/admin/fields/field-id/prices', {
+      method: 'POST', body: JSON.stringify({ amountCents: 80000, effectiveFrom: '2026-09-01T00:00:00.000Z' }),
+    });
+  });
 });

@@ -120,6 +120,12 @@ enum PlatformRole {
   ADMIN
 }
 
+enum ManagedFieldStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
 enum NotificationType {
   INFO
   DIRECT_MESSAGE
@@ -211,6 +217,91 @@ model AdminAuditLog {
   @@index([createdAt])
   @@index([actorUserId, createdAt])
   @@index([entityType, entityId, createdAt])
+}
+
+model ManagedVenue {
+  id           String         @id @default(uuid()) @db.Uuid
+  name         String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  region       String
+  postalCode   String?
+  countryCode  String
+  latitude     Decimal?       @db.Decimal(9, 6)
+  longitude    Decimal?       @db.Decimal(9, 6)
+  timezone     String         @default("Africa/Johannesburg")
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  fields       ManagedField[]
+
+  @@index([city, isActive])
+}
+
+model ManagedField {
+  id                  String                        @id @default(uuid()) @db.Uuid
+  venueId             String                        @db.Uuid
+  name                String
+  description         String?
+  status              ManagedFieldStatus            @default(ACTIVE)
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  venue               ManagedVenue                  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  supportedFormats    ManagedFieldSupportedFormat[]
+  availabilityPeriods ManagedFieldAvailability[]
+  exceptions          ManagedFieldException[]
+  prices              ManagedFieldPrice[]
+
+  @@unique([venueId, name])
+  @@index([venueId, status])
+}
+
+model ManagedFieldSupportedFormat {
+  fieldId String       @db.Uuid
+  format  MatchFormat
+  field   ManagedField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@id([fieldId, format])
+}
+
+model ManagedFieldAvailability {
+  id          String       @id @default(uuid()) @db.Uuid
+  fieldId     String       @db.Uuid
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+  createdAt   DateTime     @default(now())
+  field       ManagedField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@index([fieldId, dayOfWeek])
+}
+
+model ManagedFieldException {
+  id        String       @id @default(uuid()) @db.Uuid
+  fieldId   String       @db.Uuid
+  startsAt  DateTime
+  endsAt    DateTime
+  available Boolean      @default(false)
+  reason    String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  field     ManagedField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@index([fieldId, startsAt, endsAt])
+}
+
+model ManagedFieldPrice {
+  id            String       @id @default(uuid()) @db.Uuid
+  fieldId       String       @db.Uuid
+  amountCents   Int
+  currency      String       @default("ZAR")
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime     @default(now())
+  field         ManagedField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+
+  @@index([fieldId, effectiveFrom])
 }
 
 model PlayerProfile {

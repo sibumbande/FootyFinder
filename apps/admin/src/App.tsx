@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { adminClient, authClient, usersClient } from './api.js';
+import { VenuesPage } from './VenuesPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -191,6 +192,7 @@ function AdminShell() {
         </div>
         <nav>
           <NavLink to="/">Dashboard</NavLink>
+          <NavLink to="/venues">Venues & fields</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -200,6 +202,7 @@ function AdminShell() {
       <main className="content">
         <Routes>
           <Route index element={<Dashboard />} />
+          <Route path="venues" element={<VenuesPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

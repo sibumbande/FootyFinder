@@ -141,6 +141,7 @@ Authenticated domain routes:
 - `/teams` - create/list Teams and get, update, or delete a Team.
 - `/admin/auth` - platform-Admin MFA status, setup, and verification using a persisted session.
 - `/admin/audit-logs` - MFA-gated, privacy-safe append-only Admin history.
+- `/admin/venues` and `/admin/fields/*` - MFA-gated managed venue/field catalogue, weekly hours, exceptions, supported formats, status, and immutable effective ZAR pricing.
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
@@ -170,6 +171,7 @@ npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:security-sessions --workspace=@footy-finder/api
 npm run smoke:admin-identity --workspace=@footy-finder/api
+npm run smoke:admin-catalog --workspace=@footy-finder/api
 ```
 
 The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data. `20260823100000_match_capacity_and_rules` backfills every existing Match to five substitutes per Team and adds the database-enforced capacity, rolling-substitution, and informational-rule fields. `20260823150000_private_team_match_foundation` backfills existing Matches as Quick Games and adds Team Match drafts plus normalized nullable Team sides and historical snapshots without rewriting older migrations.
@@ -179,6 +181,8 @@ The committed `20260811100000_master_domain_foundation` migration normalizes pro
 The additive `20260824090000_auth_sessions_security` migration creates revocable authentication sessions and account status, hashes every existing Quick Match invitation without invalidating its active link, and adds digest storage for future invitation rotation.
 
 `20260824130000_admin_identity_audit` adds platform roles, encrypted Admin MFA credentials, per-session Admin verification, and a PostgreSQL-trigger-protected append-only audit log. It does not grant Admin access to existing accounts.
+
+`20260824170000_managed_fields_pricing` adds the Admin-managed venue and field catalogue without changing historical Match venues. It includes supported formats, weekly operating periods, availability exceptions, immutable effective-dated ZAR prices, database checks, and PostgreSQL-enforced non-overlapping price history.
 
 - Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
 - Replace local Team image storage with a durable object-storage provider before multi-instance deployment.
