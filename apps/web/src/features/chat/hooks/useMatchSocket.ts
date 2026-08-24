@@ -28,7 +28,13 @@ export function useMatchSocket(matchId?: string) {
       refreshLineup(payload);
       void cache.invalidateQueries({ queryKey: ['teams'] });
     };
-    socket.emit(SocketEvents.joinRoom, { matchId });
+    const joinAndRecover = () => {
+      socket.emit(SocketEvents.joinRoom, { matchId });
+      refresh();
+      refreshMessages();
+    };
+    joinAndRecover();
+    socket.on('connect', joinAndRecover);
     socket.on(SocketEvents.participantJoined, refresh);
     socket.on(SocketEvents.participantLeft, refresh);
     socket.on(SocketEvents.participantTeamChanged, refresh);
@@ -37,6 +43,9 @@ export function useMatchSocket(matchId?: string) {
     socket.on(SocketEvents.matchEnded, refresh);
     socket.on(SocketEvents.matchResultSubmitted, refresh);
     socket.on(SocketEvents.matchCompleted, refresh);
+    socket.on(SocketEvents.matchUpdated, refresh);
+    socket.on(SocketEvents.matchReady, refresh);
+    socket.on(SocketEvents.matchCancelled, refresh);
     socket.on(SocketEvents.messageCreated, refreshMessages);
     socket.on(SocketEvents.matchAvailabilityRequested, refreshAvailability);
     socket.on(SocketEvents.matchAvailabilityUpdated, refreshAvailability);
@@ -48,6 +57,7 @@ export function useMatchSocket(matchId?: string) {
     socket.on(SocketEvents.matchLineupDefaultSaved, refreshDefault);
     return () => {
       socket.emit(SocketEvents.leaveRoom, { matchId });
+      socket.off('connect', joinAndRecover);
       socket.off(SocketEvents.participantJoined, refresh);
       socket.off(SocketEvents.participantLeft, refresh);
       socket.off(SocketEvents.participantTeamChanged, refresh);
@@ -56,6 +66,9 @@ export function useMatchSocket(matchId?: string) {
       socket.off(SocketEvents.matchEnded, refresh);
       socket.off(SocketEvents.matchResultSubmitted, refresh);
       socket.off(SocketEvents.matchCompleted, refresh);
+      socket.off(SocketEvents.matchUpdated, refresh);
+      socket.off(SocketEvents.matchReady, refresh);
+      socket.off(SocketEvents.matchCancelled, refresh);
       socket.off(SocketEvents.messageCreated, refreshMessages);
       socket.off(SocketEvents.matchAvailabilityRequested, refreshAvailability);
       socket.off(SocketEvents.matchAvailabilityUpdated, refreshAvailability);

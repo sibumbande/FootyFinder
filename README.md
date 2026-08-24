@@ -33,6 +33,12 @@ The repository uses standard npm workspaces. Do not use pnpm commands or create 
    JWT_SECRET=replace-this-with-at-least-32-random-characters
    JWT_EXPIRES_IN_SECONDS=604800
    CLIENT_URL=http://localhost:5173
+   ADMIN_CLIENT_URL=http://localhost:5174
+   NODE_ENV=development
+   TRUST_PROXY_HOPS=0
+   RATE_LIMIT_AUTH_PER_15_MINUTES=20
+   RATE_LIMIT_MESSAGES_PER_MINUTE=30
+   RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE=20
    PUBLIC_API_URL=http://localhost:3000
    TEAM_UPLOAD_DIR=uploads/teams
    MATCH_DURATION_FIVE_A_SIDE_MINUTES=90
@@ -64,13 +70,13 @@ The web app runs at `http://localhost:5173`; the API runs at `http://localhost:3
 
 Registration creates a private account, a public `PlayerProfile`, and a ZAR `WalletAccount`. Public DTOs contain display name, avatar, bio, positions, dominant foot, and home area, but never email, password hashes, wallet balances, or payment data. Players can edit their profile and start a private one-to-one conversation from another player's profile.
 
-Authentication is stored in an HTTP-only same-site JWT cookie. The browser never stores the credential in JavaScript. Socket.IO uses the same authenticated identity and joins a private per-user room for messages and notifications.
+Authentication is stored in an HTTP-only same-site JWT cookie bound to a persisted, independently revocable session. The browser never stores the credential in JavaScript. Logout revokes only the current session, restricted accounts are rejected, and Socket.IO validates the same session before joining a private per-user room. Cookie-authenticated mutations also verify the browser Origin.
 
 ### Matches and formations
 
 The create wizard supports public or invitation-only 5-a-side, 7-a-side, and 11-a-side matches. Starter counts and default formation coordinates are centralized in `packages/shared/src/config`; each Match persists its own 0–10 substitute capacity per Team, rolling-substitution setting, and typed informational rules. Existing and unspecified Matches use five substitutes per Team.
 
-Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, price, availability, distance, and sorting filters; private matches are excluded and require their secure invitation token.
+Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, price, availability, distance, and sorting filters; private matches are excluded and require their secure invitation token. Quick Match invitation tokens are stored only as SHA-256 digests; a plaintext link is delivered once when the Match is created or the host rotates it.
 
 The host can ready or cancel the match, move participants between teams, assign or swap formation slots, and reposition pitch markers. Players may switch teams only from the reserves while capacity remains. The responsive lobby provides a pitch, reserves, participant list, timer, persisted chat, and result form.
 
@@ -133,7 +139,7 @@ Public Team invitation routes:
 - `GET /team-invites/:token` - inspect only; never mutates membership.
 - `POST /team-invites/:token/accept` - authenticated, transactional acceptance.
 
-API errors use stable codes and safe messages without exposing tokens, hashes, Prisma errors, payment secrets, or stack traces. CORS allows only the exact `CLIENT_URL` browser origin and explicitly supports the `Idempotency-Key` preflight header.
+API and Socket.IO errors use stable codes and safe messages without exposing tokens, hashes, Prisma errors, payment secrets, or stack traces. CORS allows only the exact player and Admin browser origins and explicitly supports the `Idempotency-Key` preflight header. Tiered authentication, message, and costly-mutation limits return `RATE_LIMITED`; the development in-memory limiter must be replaced by a shared store before horizontally scaling the API.
 
 ## Theme and motion
 
@@ -149,14 +155,19 @@ npm test
 npm run build
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
+npm run smoke:security-sessions --workspace=@footy-finder/api
 ```
 
 The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data. `20260823100000_match_capacity_and_rules` backfills every existing Match to five substitutes per Team and adds the database-enforced capacity, rolling-substitution, and informational-rule fields. `20260823150000_private_team_match_foundation` backfills existing Matches as Quick Games and adds Team Match drafts plus normalized nullable Team sides and historical snapshots without rewriting older migrations.
 
 ## Production notes
 
+The additive `20260824090000_auth_sessions_security` migration creates revocable authentication sessions and account status, hashes every existing Quick Match invitation without invalidating its active link, and adds digest storage for future invitation rotation.
+
 - Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
 - Replace local Team image storage with a durable object-storage provider before multi-instance deployment.
 - Serve the web and API over HTTPS in a compatible same-site deployment so secure authentication cookies work correctly.
+- Set `NODE_ENV=production`, explicit HTTPS player/Admin/API URLs, and the correct `TRUST_PROXY_HOPS`; production configuration fails closed when these are missing.
+- Use a shared rate-limit store before running more than one API instance.
 - Run migrations during deployment and operate the lifecycle scheduler as a single logical worker, or add distributed job coordination before horizontally scaling the API.
 - External refunds, withdrawals, Team-vs-Team Match creation/payments, leagues, tournaments, Team chat, social features, and accumulated Team/player statistics are intentionally outside the current scope.

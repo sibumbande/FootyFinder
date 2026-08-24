@@ -69,6 +69,7 @@ export class TeamsService {
   async remove(id: string, userId: string) {
     const team = await this.assertOwner(id, userId);
     await this.teams.delete(id);
+    emitDomainEventBestEffort('team:deleted', { teamId: id });
     if (team.profileImageUrl) await this.images.delete(team.profileImageUrl);
   }
   async createMatch(id: string, input: CreateTeamMatchInput, userId: string) {
@@ -127,9 +128,14 @@ export class TeamsService {
       throw new AppError(409, 'The Team owner role cannot be changed here.', 'TEAM_OWNER_REQUIRED');
     const existing = await this.teams.findMembership(id, memberUserId);
     if (!existing) throw new AppError(404, 'Team member not found.', 'TEAM_MEMBER_NOT_FOUND');
-    return toTeamMember(
+    const member = toTeamMember(
       await this.teams.updateMemberRole(id, memberUserId, role as 'CAPTAIN' | 'MEMBER'),
     );
+    emitDomainEventBestEffort('team:member-role-updated', {
+      teamId: id,
+      userId: memberUserId,
+    });
+    return member;
   }
   async removeMember(id: string, memberUserId: string, userId: string) {
     const team = await this.assertOwner(id, userId);

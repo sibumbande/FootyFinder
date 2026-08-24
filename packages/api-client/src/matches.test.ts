@@ -13,6 +13,15 @@ describe('matchesApi discovery', () => {
   });
 });
 
+describe('matchesApi invitation rotation', () => {
+  it('uses the authenticated one-time invitation endpoint', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = matchesApi({ request } as unknown as ApiClient);
+    await api.rotateInvite('match-1');
+    expect(request).toHaveBeenCalledWith('/matches/match-1/invite', { method: 'POST' });
+  });
+});
+
 describe('matchesApi Team availability', () => {
   it('encodes strict availability filters including selected=false', async () => {
     const request = vi.fn().mockResolvedValue({ data: {} });

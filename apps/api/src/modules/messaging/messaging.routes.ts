@@ -1,10 +1,11 @@
 import { Router, type Router as ExpressRouter } from 'express';
 import { registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './messaging.controller.js';
+import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 export const messagingRouter: ExpressRouter = Router();
 registerUuidRouteParams(messagingRouter, ['id']);
 messagingRouter.get('/', controller.list);
-messagingRouter.post('/', controller.start);
+messagingRouter.post('/', costlyMutationRateLimit, controller.start);
 messagingRouter.get('/:id', controller.get);
-messagingRouter.post('/:id/messages', controller.send);
+messagingRouter.post('/:id/messages', messageRateLimit, controller.send);
 messagingRouter.post('/:id/read', controller.markRead);

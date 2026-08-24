@@ -6,6 +6,7 @@ import { notificationsClient } from '@/api/client.js';
 import { formatDate } from '@/utils/format-date.js';
 import { useNotifications } from './NotificationProvider.js';
 import { ensureSocketConnected } from '@/socket/socket.js';
+import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
 const key = ['notifications'] as const;
 export function NotificationsMenu() {
   const [open, setOpen] = useState(false);
@@ -43,12 +44,28 @@ export function NotificationsMenu() {
   useEffect(() => {
     const socket = ensureSocketConnected();
     const receive = (item: AppNotification) => {
+      if (seen.current.has(item.id)) return;
       seen.current.add(item.id);
       cache.setQueryData<AppNotification[]>(key, (current) => [item, ...(current ?? [])]);
-      notify({ variant: item.type.includes('CANCEL') ? 'warning' : 'info', title: item.title, message: item.message });
+      notify({
+        variant: item.type.includes('CANCEL') ? 'warning' : 'info',
+        title: item.title,
+        message: item.message,
+      });
+    };
+    const refreshWallet = () => void cache.invalidateQueries({ queryKey: currentUserKey });
+    const sessionRevoked = () => {
+      cache.clear();
+      cache.setQueryData(currentUserKey, null);
     };
     socket.on(SocketEvents.notificationCreated, receive);
-    return () => { socket.off(SocketEvents.notificationCreated, receive); };
+    socket.on(SocketEvents.walletUpdated, refreshWallet);
+    socket.on(SocketEvents.sessionRevoked, sessionRevoked);
+    return () => {
+      socket.off(SocketEvents.notificationCreated, receive);
+      socket.off(SocketEvents.walletUpdated, refreshWallet);
+      socket.off(SocketEvents.sessionRevoked, sessionRevoked);
+    };
   }, [cache, notify]);
   const unread = notifications.data?.filter((item) => !item.readAt).length ?? 0;
   return (

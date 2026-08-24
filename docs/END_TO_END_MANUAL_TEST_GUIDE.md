@@ -263,7 +263,7 @@ Run this short sequence before the complete regression suite.
 | SMK-007 | Create a Team and invite another user            | Team appears in My Teams; invite inspection and acceptance work.                                                  |        |
 | SMK-008 | Organise a private Team Match                    | Fixture opens as a free, private, HOME-only `DRAFT` workspace and does not change wallet balances.                |        |
 
-Stop and repair unexpected environment failures before continuing. A known `PUT` CORS failure does not invalidate the earlier smoke cases.
+Stop and repair unexpected environment failures before continuing. Every configured player/Admin-origin CORS preflight, including `PUT`, must pass.
 
 ## 6. Identity, profiles, navigation, theme, and motion
 
@@ -304,6 +304,15 @@ Stop and repair unexpected environment failures before continuing. A known `PUT`
 3. Use Back and try a protected route.
 
 **Expected:** The dropdown is positioned and dismissible, logout returns to login, and protected data does not reappear. Back cannot restore an authenticated page. The wallet balance remains in the header rather than inside the menu.
+
+### AUTH-005 — Independent session revocation
+
+1. Sign in to the same test account in two isolated browser profiles.
+2. Keep an authenticated page and Socket.IO connection open in both profiles.
+3. Log out in the first profile.
+4. Try a protected route in both profiles without signing in again.
+
+**Expected:** The first profile's persisted session and socket are revoked immediately. The second profile remains authenticated and functional because logout revokes only the current session.
 
 ### PROF-001 — Edit the current profile
 
@@ -401,7 +410,7 @@ Stop and repair unexpected environment failures before continuing. A known `PUT`
 2. From another session, cause a Match cancellation or qualifying replacement credit to Member A.
 3. Observe the notification and header without manually reloading, then reload.
 
-**Current expected behavior:** The credit and notification persist, but the live header can remain stale until a later refetch/reload (`AUDIT-FIN-004`). Record **KNOWN EXPECTED FAILURE** if this occurs. After remediation, the header must update promptly from the wallet-credit event.
+**Expected:** The credit and notification persist, and the live header updates promptly from the wallet-credit invalidation event without a manual reload.
 
 ## 8. Quick Game creation and discovery
 
@@ -447,8 +456,9 @@ Create or step through three Matches, covering 5v5, 7v7, and 11v11. Across them 
 3. Open the invitation URL while logged out, then log in/register through the prompt.
 4. Reopen the invitation link as a signed-in user.
 5. On the invitation page, choose HOME or AWAY and join the R0 private Match, then reload its ordinary lobby URL.
+6. As Owner, generate/copy the link again after a lobby reload. Verify the previous link no longer resolves and the new link does.
 
-**Expected:** The private Match stays out of discovery and direct unauthorized access is denied. The invitation URL displays safe Match information and preserves the return path through authentication. Merely inspecting the link does not charge or join the user. Selecting a side applies normal payment/capacity rules; after a successful join, the participant can use the ordinary lobby URL.
+**Expected:** The private Match stays out of discovery and direct unauthorized access is denied. The invitation URL displays safe Match information and preserves the return path through authentication. Merely inspecting the link does not charge or join the user. Selecting a side applies normal payment/capacity rules; after a successful join, the participant can use the ordinary lobby URL. Plaintext invitation tokens are returned only on creation/rotation, and rotating invalidates the previous link.
 
 ### QCK-005 — API-only Match edit and stale-client observation
 
@@ -464,7 +474,7 @@ Invoke-RestMethod -Uri "$qaApi/matches/$quickMatchId" -Method Patch -WebSession 
 2. Keep another authorized lobby session open while making the edit.
 3. Attempt the same request using a player session and try an invalid value.
 
-**Expected:** Allowed changes persist; unauthorized users cannot edit. Other clients may not receive immediate targeted invalidation and can rely on polling (`AUDIT-RT-003`); record the delay. Do not deliberately move kickoff into the past through technical tools—`AUDIT-MATCH-003` already documents that validation gap.
+**Expected:** Allowed changes persist; unauthorized users cannot edit. Other authorized clients receive targeted invalidation. Attempts to move kickoff into the past are rejected with `MATCH_START_TIME_INVALID`.
 
 ## 9. Quick Game lobby, teams, formations, chat, and lifecycle
 
@@ -535,7 +545,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 2. Try the same action as a player.
 3. Reload and observe another lobby session.
 
-**Expected:** Host can set the eligible Quick Match to `READY`; a player cannot. State persists. Immediate cross-session refresh may be delayed because ready lacks a targeted room event (`AUDIT-RT-003`).
+**Expected:** Host can set the eligible Quick Match to `READY`; a player cannot. State persists and authorized open sessions refresh from the targeted Match-room event.
 
 ### QLB-008 — Withdrawal more than 12 hours before kickoff
 
@@ -558,7 +568,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 4. Have another funded, previously unjoined user join HOME for the same fee.
 5. Observe Member A's notification/balance and reload.
 
-**Expected:** Member A receives no initial credit. The successful paid replacement releases the full withheld eligible amount exactly once, FIFO. The replacement pays normally and occupies one place. Member A's live header can remain stale until reload (`AUDIT-FIN-004`).
+**Expected:** Member A receives no initial credit. The successful paid replacement releases the full withheld eligible amount exactly once, FIFO. The replacement pays normally and occupies one place. Member A's live header refreshes from the wallet invalidation event.
 
 ### QLB-010 — Kickoff withdrawal rejection
 
@@ -575,7 +585,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 3. Try cancelling as a player.
 4. Reload every affected session and the discovery page.
 
-**Expected:** Only the host can cancel. Every eligible paid participant receives one full internal credit, the Match becomes `CANCELLED`, it no longer accepts joins or ordinary lobby mutations, and it leaves active discovery. Notifications persist. Cross-session balance refresh can require reload as documented in `AUDIT-FIN-004`.
+**Expected:** Only the host can cancel. Every eligible paid participant receives one full internal credit, the Match becomes `CANCELLED`, it no longer accepts joins or ordinary lobby mutations, and it leaves active discovery. Notifications persist and affected live wallet headers refresh.
 
 ### QLB-012 — Automatic lifecycle
 
@@ -650,7 +660,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 2. In Settings, replace the valid Team image with another valid image.
 3. Reload and inspect `/uploads/...` in Network.
 
-**Expected:** MIME type and file signature are validated; invalid/oversized files are rejected safely. A valid replacement receives a generated URL, persists, and is served by the API. On Linux, replacement/deletion can leave the old generated file because of `AUDIT-UPLOAD-001`; record as **KNOWN EXPECTED FAILURE** if confirmed.
+**Expected:** MIME type and file signature are validated; invalid/oversized files are rejected safely. A valid replacement receives a generated URL, persists, and is served by the API. Replaced/deleted generated files are safely removed on Windows and Linux.
 
 ### TEM-003 — Tabs and role-specific controls
 
@@ -684,7 +694,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 3. Demote and re-promote Captain.
 4. Try changing roles as Captain, Member A, and Outsider.
 
-**Expected:** Only Owner can promote/demote. Server authorization applies immediately and state persists. Captain's already-open UI may remain stale because role changes have no targeted event (`AUDIT-TEAM-001`); record the delay and verify reload corrects it.
+**Expected:** Only Owner can promote/demote. Server authorization applies immediately, state persists, and targeted events refresh already-open authorized Team views.
 
 ### TEM-007 — Remove a member and protect Owner
 
@@ -732,7 +742,7 @@ Run this near the end using a secondary disposable Team, or after all main Team 
 2. Delete the Team as Owner and confirm the destructive prompt.
 3. Check My Teams, old invitation links, the old Team URL, and the fixture record where accessible.
 
-**Expected:** Memberships, active invites, and saved formations are removed. Unfinished Team fixtures are cancelled and their live Team relation is detached, while Team-side name/image/color snapshots and Match history remain. User accounts and unrelated Matches remain. Generated images may leak on Linux as noted in `AUDIT-UPLOAD-001`.
+**Expected:** Memberships, active invites, and saved formations are removed. Unfinished Team fixtures are cancelled and their live Team relation is detached, while Team-side name/image/color snapshots and Match history remain. User accounts and unrelated Matches remain. Safely recognized local generated images are removed cross-platform.
 
 ## 12. Private Team Match-Day workflow
 
@@ -1030,7 +1040,7 @@ Try one unapproved origin such as `http://localhost:9999`. It must not receive p
 3. Without reloading/navigating Member A, have Owner open a position or move a slot.
 4. Compare Member A's page to the authoritative state after manual reload.
 
-**Current expected result:** The client socket reconnects, but Match/Team hooks do not rejoin their rooms. Non-polled Team-Match state can remain stale until remount/refetch (`AUDIT-RT-002`). Mark **KNOWN EXPECTED FAILURE** if Member A misses the change. After remediation, the client must rejoin on every connection and recover state automatically.
+**Expected:** The client rejoins the authorized Match/Team room on every connection, immediately refetches authoritative state, and receives the subsequent change without a page reload.
 
 ### RT-003 — Room authorization after revocation
 
@@ -1039,7 +1049,7 @@ Try one unapproved origin such as `http://localhost:9999`. It must not receive p
 3. Trigger a private Team room event/message from another current member.
 4. Try sending from removed Member B, then reload.
 
-**Current expected result:** New HTTP/socket sends are reauthorized and should fail, but the already-connected socket can continue passively receiving private room broadcasts until disconnect (`AUDIT-RT-001`). Mark passive delivery **KNOWN EXPECTED FAILURE** and do not include private message text in shared evidence. After remediation, removal must evict or reauthorize all affected sockets immediately.
+**Expected:** New HTTP/socket sends fail, the affected user's active sockets are immediately evicted from the private Team room, and no later private room broadcast is received. Do not include private message text in shared evidence.
 
 ### RT-004 — Match-room revocation after leaving
 
@@ -1048,13 +1058,13 @@ Try one unapproved origin such as `http://localhost:9999`. It must not receive p
 3. Send a lobby message or trigger a room event from an authorized user.
 4. Attempt a new send from the departed player and then reload.
 
-**Current expected result:** The departed user cannot perform newly authorized sends, but their existing socket can passively receive broadcasts until disconnect (`AUDIT-RT-001`). Treat passive delivery as a known expected failure.
+**Expected:** The departed user cannot send and all active sockets for that user are immediately evicted from the Match room, preventing passive receipt of later broadcasts.
 
 ### SEC-001 — Controlled local rate-limit observation
 
 Only on the local test instance, make about 20 invalid login attempts over a short interval, then about 20 rapid but valid low-impact requests such as conversation creation attempts. Stop if the server becomes unstable.
 
-**Current expected result:** No IP/account/resource rate limit is implemented (`AUDIT-SEC-001`), so no stable 429 policy appears. Record **KNOWN EXPECTED FAILURE**. After remediation, configured thresholds should return a safe 429 without locking out unrelated users or corrupting data.
+**Expected:** The configured threshold returns HTTP 429 with stable `RATE_LIMITED` code and retry metadata without locking out unrelated users or corrupting data.
 
 Do not load-test, brute-force, fuzz, or direct this test at any shared environment.
 
@@ -1139,20 +1149,13 @@ Run the following in light and dark mode at approximately 390×844, 768×1024, a
 
 Do not silently pass these cases and do not file duplicates without checking whether the referenced finding has been closed.
 
-The current baseline has closed and retested the following historical findings: `AUDIT-API-001`, `AUDIT-CONTRACT-001`, `AUDIT-API-002`, `AUDIT-MATCH-003`, `AUDIT-TEST-003`, `AUDIT-CON-001`, `AUDIT-NOTIF-001`, `AUDIT-TEAM-002`, and `AUDIT-PERF-004`. A recurrence is a new regression, not a known expected failure.
+The current baseline has closed and retested the browser/API, notification consistency, realtime authorization/recovery, session, abuse-control, request-security, wallet-refresh, invitation-token, and upload-containment findings. This includes `AUDIT-RT-001`, `AUDIT-RT-002`, `AUDIT-RT-003`, `AUDIT-NOTIF-002`, `AUDIT-FIN-004`, `AUDIT-TEAM-001`, `AUDIT-SEC-001`, `AUDIT-AUTH-001`, `AUDIT-AUTH-002`, `AUDIT-CFG-001`, `AUDIT-SEC-002`, `AUDIT-SEC-003`, `AUDIT-SEC-004`, and `AUDIT-UPLOAD-001`. A recurrence is a new regression, not a known expected failure.
 
 | Finding                             | Severity | Manual case(s)                              | Current expected result                                                                                                   | Intended retest result                                                                     |
 | ----------------------------------- | -------: | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `AUDIT-RT-001`                      |       P1 | RT-003, RT-004                              | Revoked room member can passively receive events until disconnect                                                         | Revoked sockets are evicted or reauthorized immediately                                    |
-| `AUDIT-RT-002` / `AUDIT-FE-002`     |    P1/P2 | RT-002                                      | Reconnected socket does not rejoin Match/Team rooms                                                                       | Reconnect rejoins and refetches authorized room state                                      |
-| `AUDIT-SEC-001`                     |       P1 | SEC-001                                     | No stable rate-limit response                                                                                             | Tiered limits return safe 429 responses at documented thresholds                           |
-| `AUDIT-FIN-004`                     |       P2 | WAL-005, QLB-009, QLB-011                   | Asynchronous credit notification may not refresh header balance                                                           | Header wallet state invalidates immediately                                                |
 | `AUDIT-MATCH-002`                   |       P2 | QLB-013                                     | Historical LEFT/REMOVED participant may be accepted as scorer                                                             | Product attendance policy is explicit and enforced                                         |
 | `AUDIT-MATCH-004`                   |       P2 | QLB-013                                     | Concurrent losing result request can expose an unmapped conflict                                                          | Idempotent authoritative result/conflict response                                          |
-| `AUDIT-TEAM-001`                    |       P2 | TEM-006                                     | Role-change UI can remain stale                                                                                           | Targeted event refreshes role and capabilities                                             |
-| `AUDIT-RT-003`                      |       P2 | QCK-005, QLB-007                            | Some Match/Team changes refresh late or only after reload                                                                 | Targeted invalidation updates authorized clients                                           |
 | `AUDIT-CHAT-002`                    |       P2 | QLB-006, MSG-003                            | A transport retry can duplicate a message                                                                                 | Client message ID/idempotency prevents duplicates                                          |
-| `AUDIT-UPLOAD-001`                  |       P2 | TEM-002, TEM-011                            | Linux can retain replaced/deleted generated images                                                                        | Cross-platform containment allows safe deletion                                            |
 | `AUDIT-TEAM-003`                    |       P3 | TEM-010                                     | Empty optional Team strings may not clear                                                                                 | Explicit null/clear semantics work                                                         |
 
 Notification transaction failure is covered by automated tests and `smoke:atomic-notifications`; corrupting a database or application module is not an acceptable manual-test procedure.
@@ -1164,6 +1167,7 @@ These scripts are not substitutes for the browser cases, but they validate datab
 ```bash
 npm run smoke:api-contract --workspace=@footy-finder/api
 npm run smoke:atomic-notifications --workspace=@footy-finder/api
+npm run smoke:security-sessions --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1178,7 +1182,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | Audited capability                          | Manual coverage                                  |
 | ------------------------------------------- | ------------------------------------------------ |
 | npm workspaces/tooling and environment      | Sections 3, 5, 17                                |
-| Registration/login/session/logout           | AUTH-001–AUTH-004                                |
+| Registration/login/session/logout           | AUTH-001–AUTH-005                                |
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
 | Personal wallet/demo deposits               | WAL-001–WAL-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |

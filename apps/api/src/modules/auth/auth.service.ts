@@ -36,6 +36,12 @@ export class AuthService {
     if (!user || !(await argon2.verify(user.passwordHash, input.password))) {
       throw new AppError(401, 'Email/username or password is incorrect.', 'INVALID_CREDENTIALS');
     }
+    if (user.accountStatus !== 'ACTIVE')
+      throw new AppError(
+        403,
+        'This account is currently restricted. Contact support if you need help.',
+        'ACCOUNT_RESTRICTED',
+      );
     return toAuthenticatedUser(user);
   }
 }

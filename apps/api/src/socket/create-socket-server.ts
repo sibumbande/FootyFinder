@@ -3,10 +3,12 @@ import { Server } from 'socket.io';
 import { SocketEvents } from '@footy-finder/shared';
 import { allowedOrigins } from '../config/cors.js';
 import { domainEvents } from '../events/domain-events.js';
-import { AUTH_COOKIE_NAME, TokenService } from '../modules/auth/token.service.js';
+import { AUTH_COOKIE_NAME } from '../modules/auth/token.service.js';
+import { SessionsService } from '../modules/auth/sessions.service.js';
 import { registerChatGateway } from '../modules/chat/chat.gateway.js';
 import { registerTeamGateway } from '../modules/teams/team.gateway.js';
-const tokens = new TokenService();
+import { socketSessionRegistry } from './socket-session-registry.js';
+const sessions = new SessionsService();
 const cookieValue = (header: string | undefined, name: string) =>
   header
     ?.split(';')
@@ -16,27 +18,35 @@ export function createSocketServer(server: HttpServer) {
   const io = new Server(server, {
     cors: { origin: allowedOrigins, credentials: true, methods: ['GET', 'POST'] },
   });
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const token =
         typeof socket.handshake.auth.token === 'string'
           ? socket.handshake.auth.token
           : cookieValue(socket.handshake.headers.cookie, AUTH_COOKIE_NAME);
       if (!token) throw new Error('Missing session');
-      socket.data.userId = tokens.verify(token).sub;
+      const session = await sessions.verify(token);
+      if (session.accountStatus !== 'ACTIVE') throw new Error('Restricted account');
+      socket.data.userId = session.userId;
+      socket.data.sessionId = session.sessionId;
       next();
     } catch {
       next(new Error('Authentication required.'));
     }
+  });
+  io.on('connection', (socket) => {
+    socketSessionRegistry.register(socket);
+    void socket.join(`user:${String(socket.data.userId)}`);
   });
   registerChatGateway(io);
   registerTeamGateway(io);
   domainEvents.on('participant:joined', (payload) =>
     io.to(`match:${payload.matchId}`).emit(SocketEvents.participantJoined, payload.participant),
   );
-  domainEvents.on('participant:left', (payload) =>
-    io.to(`match:${payload.matchId}`).emit(SocketEvents.participantLeft, payload),
-  );
+  domainEvents.on('participant:left', (payload) => {
+    io.to(`match:${payload.matchId}`).emit(SocketEvents.participantLeft, payload);
+    void socketSessionRegistry.leaveUserRoom(io, payload.userId, `match:${payload.matchId}`);
+  });
   domainEvents.on('participant:team-changed', (payload) =>
     io
       .to(`match:${payload.matchId}`)
@@ -95,17 +105,49 @@ export function createSocketServer(server: HttpServer) {
   domainEvents.on('notification:created', (payload) =>
     io.to(`user:${payload.userId}`).emit(SocketEvents.notificationCreated, payload.notification),
   );
+  domainEvents.on('wallet:updated', (payload) =>
+    io.to(`user:${payload.userId}`).emit(SocketEvents.walletUpdated, { userId: payload.userId }),
+  );
   domainEvents.on('team:member-joined', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamMemberJoined, payload.member),
   );
-  domainEvents.on('team:member-removed', (payload) =>
-    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamMemberRemoved, payload),
-  );
+  domainEvents.on('team:member-removed', (payload) => {
+    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamMemberRemoved, payload);
+    void socketSessionRegistry.leaveUserRoom(io, payload.userId, `team:${payload.teamId}`);
+  });
   domainEvents.on('team:details-updated', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamDetailsUpdated, payload.team),
   );
   domainEvents.on('team:formation-updated', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamFormationUpdated, payload),
+  );
+  domainEvents.on('team:member-role-updated', (payload) =>
+    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamMemberRoleUpdated, {
+      teamId: payload.teamId,
+      userId: payload.userId,
+    }),
+  );
+  domainEvents.on('team:deleted', (payload) =>
+    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamDeleted, { teamId: payload.teamId }),
+  );
+  domainEvents.on('match:updated', (payload) =>
+    io.to(`match:${payload.matchId}`).emit(SocketEvents.matchUpdated, {
+      matchId: payload.matchId,
+    }),
+  );
+  domainEvents.on('match:ready', (payload) =>
+    io.to(`match:${payload.matchId}`).emit(SocketEvents.matchReady, { matchId: payload.matchId }),
+  );
+  domainEvents.on('match:cancelled', (payload) =>
+    io
+      .to(`match:${payload.matchId}`)
+      .emit(SocketEvents.matchCancelled, { matchId: payload.matchId }),
+  );
+  domainEvents.on('auth:session-revoked', (payload) =>
+    socketSessionRegistry.disconnectSession(io, payload.sessionId),
+  );
+  domainEvents.on('auth:user-sessions-revoked', (payload) =>
+    socketSessionRegistry.disconnectUser(io, payload.userId),
   );
   return io;
 }

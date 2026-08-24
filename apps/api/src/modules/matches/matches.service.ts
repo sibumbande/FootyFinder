@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import type {
   ChangeParticipantTeamInput,
   CreateMatchInput,
@@ -20,6 +19,7 @@ import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toMatch, toMatchParticipant } from './match.mapper.js';
+import { createMatchInviteToken, hashMatchInviteToken } from './invite-token.js';
 import {
   AlreadyJoinedError,
   InsufficientBalanceError,
@@ -99,22 +99,44 @@ export class MatchesService {
         ? match.createdById === userId
         : attachedMembership?.role === 'OWNER' || attachedMembership?.role === 'CAPTAIN';
     return toMatch(match, {
-      includeInvite: match.mode === 'QUICK_GAME' && match.createdById === userId,
       viewerCanManage,
       viewerCanChat: match.createdById === userId || isParticipant || Boolean(attachedMembership),
     });
   }
   async getByInvite(token: string) {
-    const match = await this.matches.findByInviteToken(token);
+    const match = await this.matches.findByInviteTokenHash(hashMatchInviteToken(token));
     if (!match)
       throw new AppError(404, 'Match invitation is invalid or expired.', 'INVITE_NOT_FOUND');
     return toMatch(match);
   }
   async create(input: CreateMatchInput, userId: string) {
-    const inviteToken =
-      input.visibility === 'PRIVATE' ? randomBytes(32).toString('base64url') : undefined;
-    return toMatch(await this.matches.create(input, userId, durations[input.format], inviteToken), {
-      includeInvite: true,
+    const inviteToken = input.visibility === 'PRIVATE' ? createMatchInviteToken() : undefined;
+    return toMatch(
+      await this.matches.create(
+        input,
+        userId,
+        durations[input.format],
+        inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
+      ),
+      {
+        inviteToken,
+        viewerCanManage: true,
+        viewerCanChat: true,
+      },
+    );
+  }
+  async rotateInvite(id: string, userId: string) {
+    const match = await this.assertManager(id, userId);
+    if (match.mode !== 'QUICK_GAME' || match.visibility !== 'PRIVATE')
+      throw new AppError(
+        409,
+        'Invitation links are available only for private Quick Games.',
+        'MATCH_INVITE_UNAVAILABLE',
+      );
+    this.assertMutable(match);
+    const inviteToken = createMatchInviteToken();
+    return toMatch(await this.matches.rotateInviteToken(id, hashMatchInviteToken(inviteToken)), {
+      inviteToken,
       viewerCanManage: true,
       viewerCanChat: true,
     });
@@ -128,11 +150,12 @@ export class MatchesService {
         'Choose a future date and time for kickoff.',
         'MATCH_START_TIME_INVALID',
       );
-    return toMatch(await this.matches.update(id, input), {
-      includeInvite: match.mode === 'QUICK_GAME',
+    const updated = toMatch(await this.matches.update(id, input), {
       viewerCanManage: true,
       viewerCanChat: true,
     });
+    emitDomainEventBestEffort('match:updated', { matchId: id });
+    return updated;
   }
   async ready(id: string, userId: string) {
     const match = await this.assertManager(id, userId);
@@ -143,11 +166,12 @@ export class MatchesService {
         'TEAM_MATCH_DRAFT',
       );
     this.assertMutable(match);
-    return toMatch(await this.matches.markReady(id), {
-      includeInvite: true,
+    const ready = toMatch(await this.matches.markReady(id), {
       viewerCanManage: true,
       viewerCanChat: true,
     });
+    emitDomainEventBestEffort('match:ready', { matchId: id });
+    return ready;
   }
 
   async remove(id: string, userId: string) {
@@ -156,6 +180,7 @@ export class MatchesService {
     this.assertMutable(match);
     const { notifications } = await this.matches.cancelMatch(id);
     this.notifications.publishPersistedMany(notifications);
+    emitDomainEventBestEffort('match:cancelled', { matchId: id });
   }
 
   async join(id: string, userId: string, input: JoinMatchInput, idempotencyKey: string) {
@@ -250,7 +275,6 @@ export class MatchesService {
       );
     const slots =
       toMatch(await this.matches.updateFormation(id, slotId, input), {
-        includeInvite: match.mode === 'QUICK_GAME',
         viewerCanManage: true,
         viewerCanChat: true,
       }).formationSlots ?? [];
@@ -307,7 +331,6 @@ export class MatchesService {
     try {
       const result = await this.matches.submitResult(id, userId, input);
       const completed = toMatch(result.match, {
-        includeInvite: match.mode === 'QUICK_GAME',
         viewerCanManage: true,
         viewerCanChat: true,
       });

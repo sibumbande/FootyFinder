@@ -67,8 +67,8 @@ export class MatchesRepository {
   findById(id: string) {
     return prisma.match.findUnique({ where: { id }, include: matchInclude });
   }
-  findByInviteToken(inviteToken: string) {
-    return prisma.match.findUnique({ where: { inviteToken }, include: matchInclude });
+  findByInviteTokenHash(inviteTokenHash: string) {
+    return prisma.match.findUnique({ where: { inviteTokenHash }, include: matchInclude });
   }
   hasParticipation(matchId: string, userId: string) {
     return prisma.matchParticipant.findUnique({
@@ -200,7 +200,12 @@ export class MatchesRepository {
     });
   }
 
-  create(input: CreateMatchInput, userId: string, durationMinutes: number, inviteToken?: string) {
+  create(
+    input: CreateMatchInput,
+    userId: string,
+    durationMinutes: number,
+    inviteTokenHash?: string,
+  ) {
     return serializableTransaction((tx) =>
       tx.match.create({
         data: {
@@ -213,7 +218,7 @@ export class MatchesRepository {
           rollingSubstitutes: input.rollingSubstitutes,
           rules: input.rules,
           visibility: input.visibility,
-          inviteToken,
+          inviteTokenHash,
           startsAt: new Date(input.startsAt),
           durationMinutes,
           feeCents: input.feeCents,
@@ -230,6 +235,13 @@ export class MatchesRepository {
         include: matchInclude,
       }),
     );
+  }
+  rotateInviteToken(id: string, inviteTokenHash: string) {
+    return prisma.match.update({
+      where: { id },
+      data: { inviteToken: null, inviteTokenHash },
+      include: matchInclude,
+    });
   }
   update(id: string, input: UpdateMatchInput) {
     return prisma.match.update({

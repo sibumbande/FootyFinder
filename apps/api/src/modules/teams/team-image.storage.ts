@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { basename, extname, resolve } from 'node:path';
+import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
 import { AppError } from '../../errors/app-error.js';
 
 export interface TeamImageInput {
@@ -59,7 +59,8 @@ export class LocalTeamImageStorage implements TeamImageStorage {
     const filename = basename(new URL(url).pathname);
     if (!/^[0-9a-f-]{36}\.(png|jpg|webp)$/i.test(filename) || !extname(filename)) return;
     const target = resolve(this.directory, filename);
-    if (!target.startsWith(`${this.directory}\\`) && target !== this.directory) return;
+    const relativeTarget = relative(this.directory, target);
+    if (!relativeTarget || relativeTarget.startsWith('..') || isAbsolute(relativeTarget)) return;
     await unlink(target).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error;
     });

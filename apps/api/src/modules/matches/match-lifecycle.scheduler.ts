@@ -6,6 +6,7 @@ import {
   persistNotifications,
 } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { logError } from '../../observability/logger.js';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -94,7 +95,7 @@ export function startMatchLifecycleScheduler(notifications = new NotificationsSe
     try {
       await runMatchLifecycleTick(new Date(), notifications);
     } catch (error) {
-      console.error('Match lifecycle scheduler failed:', error);
+      logError('match_lifecycle_scheduler_failed', error);
     } finally {
       running = false;
     }

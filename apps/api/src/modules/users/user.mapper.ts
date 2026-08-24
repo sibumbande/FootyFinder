@@ -4,6 +4,7 @@ type SafeUserSource = {
   id: string;
   email: string;
   username: string;
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
   createdAt: Date;
   profile?: {
     displayName: string;
@@ -57,5 +58,6 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
     email: user.email,
     balanceCents: user.walletAccount?.balanceCents ?? 0,
     currency: user.walletAccount?.currency === 'ZAR' ? 'ZAR' : 'ZAR',
+    accountStatus: user.accountStatus ?? 'ACTIVE',
   };
 }

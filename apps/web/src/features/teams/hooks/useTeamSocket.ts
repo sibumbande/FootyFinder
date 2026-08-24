@@ -20,17 +20,28 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
       });
       refresh();
     };
-    socket.emit(SocketEvents.joinTeamRoom, { teamId });
+    const joinAndRecover = () => {
+      socket.emit(SocketEvents.joinTeamRoom, { teamId });
+      refresh();
+      refreshFormation();
+    };
+    joinAndRecover();
+    socket.on('connect', joinAndRecover);
     socket.on(SocketEvents.teamMemberJoined, refresh);
     socket.on(SocketEvents.teamMemberRemoved, refresh);
     socket.on(SocketEvents.teamDetailsUpdated, refresh);
     socket.on(SocketEvents.teamFormationUpdated, refreshFormation);
+    socket.on(SocketEvents.teamMemberRoleUpdated, refresh);
+    socket.on(SocketEvents.teamDeleted, refresh);
     return () => {
       socket.emit(SocketEvents.leaveTeamRoom, { teamId });
+      socket.off('connect', joinAndRecover);
       socket.off(SocketEvents.teamMemberJoined, refresh);
       socket.off(SocketEvents.teamMemberRemoved, refresh);
       socket.off(SocketEvents.teamDetailsUpdated, refresh);
       socket.off(SocketEvents.teamFormationUpdated, refreshFormation);
+      socket.off(SocketEvents.teamMemberRoleUpdated, refresh);
+      socket.off(SocketEvents.teamDeleted, refresh);
     };
   }, [cache, format, teamId]);
 }

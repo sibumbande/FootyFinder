@@ -2,17 +2,19 @@ import { Router, type Router as ExpressRouter } from 'express';
 import { teamSideRouteParamSchema } from '@footy-finder/shared';
 import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './matches.controller.js';
+import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 export const matchesRouter: ExpressRouter = Router();
 registerUuidRouteParams(matchesRouter, ['id', 'slotId', 'participantId', 'userId']);
 registerRouteParam(matchesRouter, 'side', teamSideRouteParamSchema);
 matchesRouter.get('/', controller.list);
-matchesRouter.post('/', controller.create);
+matchesRouter.post('/', costlyMutationRateLimit, controller.create);
 matchesRouter.get('/invite/:token', controller.invite);
 matchesRouter.get('/:id', controller.get);
+matchesRouter.post('/:id/invite', costlyMutationRateLimit, controller.rotateInvite);
 matchesRouter.patch('/:id', controller.update);
 matchesRouter.delete('/:id', controller.remove);
 matchesRouter.post('/:id/ready', controller.ready);
-matchesRouter.post('/:id/join', controller.join);
+matchesRouter.post('/:id/join', costlyMutationRateLimit, controller.join);
 matchesRouter.get('/:id/cancellation-quote', controller.cancellationQuote);
 matchesRouter.get('/:id/cancellation-status', controller.cancellationStatus);
 matchesRouter.post('/:id/leave', controller.leave);
@@ -60,4 +62,4 @@ matchesRouter.post(
   controller.saveLineupAsTeamDefault,
 );
 matchesRouter.get('/:id/messages', controller.messages);
-matchesRouter.post('/:id/messages', controller.sendMessage);
+matchesRouter.post('/:id/messages', messageRateLimit, controller.sendMessage);

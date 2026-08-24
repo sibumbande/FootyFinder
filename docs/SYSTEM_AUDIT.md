@@ -13,7 +13,7 @@
 
 The evidence order used was runtime behavior, live PostgreSQL/Prisma state, source, tests, shared contracts, then documentation. Secret values were not read into or copied into this report.
 
-> **Post-audit remediation status (2026-08-24, commit `e2ba24b`):** This document remains the historical audit of commit `aa03e5b`. Browser/API Contract Restoration and Atomic Notification/Domain Consistency have since been implemented and independently retested. `AUDIT-API-001`, `AUDIT-CONTRACT-001`, `AUDIT-API-002`, `AUDIT-MATCH-003`, `AUDIT-TEST-003`, `AUDIT-CON-001`, `AUDIT-NOTIF-001`, `AUDIT-TEAM-002`, and `AUDIT-PERF-004` are closed at the current baseline. The realtime, session/security, financial, scalability, and accessibility findings remain open unless a later status note explicitly closes them.
+> **Post-audit remediation status (2026-08-24):** This document remains the historical audit of commit `aa03e5b`. Browser/API contracts, atomic notifications, and the Admin-program security foundation have since been implemented and independently retested. In addition to the earlier closures, `AUDIT-RT-001`, `AUDIT-RT-002`, `AUDIT-RT-003`, `AUDIT-NOTIF-002`, `AUDIT-FIN-004`, `AUDIT-TEAM-001`, `AUDIT-SEC-001`, `AUDIT-AUTH-001`, `AUDIT-AUTH-002`, `AUDIT-CFG-001`, `AUDIT-SEC-002`, `AUDIT-SEC-003`, `AUDIT-SEC-004`, and `AUDIT-UPLOAD-001` are closed. `AUDIT-CFG-002` is improved by request IDs and structured redacted logging but remains open pending readiness checks and operational metrics. Financial, scalability, accessibility, and policy findings remain open unless a later status note explicitly closes them.
 
 ## A. EXECUTIVE SUMMARY
 

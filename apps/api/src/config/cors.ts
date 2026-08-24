@@ -5,7 +5,9 @@ import { env } from './env.js';
  * Browser origins allowed to read API responses. Requests without an Origin
  * header are permitted so server-to-server clients and local CLI tools work.
  */
-export const allowedOrigins = [new URL(env.CLIENT_URL).origin];
+export const allowedOrigins = [
+  ...new Set([new URL(env.CLIENT_URL).origin, new URL(env.ADMIN_CLIENT_URL).origin]),
+];
 
 export const corsOptions: CorsOptions = {
   origin(origin, callback) {

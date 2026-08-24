@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
 import multer from 'multer';
+import { logError } from '../observability/logger.js';
+import { redactedRequestPath } from './request-context.js';
 
 type PrismaErrorResponse = {
   statusCode: number;
@@ -33,7 +35,7 @@ export const mapPrismaError = (error: unknown): PrismaErrorResponse | undefined 
   return undefined;
 };
 
-export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   if (error instanceof multer.MulterError)
     return res.status(400).json({
       error:
@@ -58,7 +60,12 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
       error: prismaError.error,
       code: prismaError.code,
     });
-  console.error(error);
+  logError('unhandled_http_error', error, {
+    requestId: res.locals.requestId,
+    method: req.method,
+    path: redactedRequestPath(req.originalUrl.split('?')[0] ?? req.path),
+    userId: res.locals.authUserId,
+  });
   return res
     .status(500)
     .json({ error: 'Something went wrong. Please try again.', code: 'INTERNAL_ERROR' });

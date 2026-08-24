@@ -15,6 +15,7 @@ const user = {
   balanceCents: 0,
   createdAt: now,
   updatedAt: now,
+  accountStatus: 'ACTIVE' as const,
 };
 const input = {
   email: user.email,
@@ -77,5 +78,19 @@ describe('AuthService', () => {
     await expect(
       valid.login({ identifier: user.email, password: 'incorrect' }),
     ).rejects.toMatchObject({ statusCode: 401, code: 'INVALID_CREDENTIALS' });
+  });
+
+  it('does not issue login access to a suspended or banned account', async () => {
+    const passwordHash = await argon2.hash(input.password);
+    const restricted = new AuthService(
+      repository({
+        findByIdentifier: vi
+          .fn()
+          .mockResolvedValue({ ...user, accountStatus: 'SUSPENDED', passwordHash }),
+      }),
+    );
+    await expect(
+      restricted.login({ identifier: user.email, password: input.password }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'ACCOUNT_RESTRICTED' });
   });
 });

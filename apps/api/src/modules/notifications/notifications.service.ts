@@ -18,6 +18,8 @@ export class NotificationsService {
   publishPersisted(item: Notification) {
     const notification = mapNotification(item);
     emitDomainEventBestEffort('notification:created', { userId: item.userId, notification });
+    if (item.type === 'WALLET_CREDIT' || item.type === 'DEPOSIT_SUCCEEDED')
+      emitDomainEventBestEffort('wallet:updated', { userId: item.userId });
     return notification;
   }
   publishPersistedMany(items: Notification[]) {

@@ -30,7 +30,7 @@ const toFormationSlot = (slot: MatchRecord['formationSlots'][number]): Formation
 export function toMatch(
   match: MatchRecord,
   options: {
-    includeInvite?: boolean;
+    inviteToken?: string;
     viewerCanManage?: boolean;
     viewerCanChat?: boolean;
   } = {},
@@ -64,7 +64,7 @@ export function toMatch(
     participantCount: match.participants.length,
     homeParticipantCount: match.participants.filter(({ team }) => team === 'HOME').length,
     awayParticipantCount: match.participants.filter(({ team }) => team === 'AWAY').length,
-    inviteToken: options.includeInvite ? (match.inviteToken ?? undefined) : undefined,
+    inviteToken: options.inviteToken,
     createdAt: match.createdAt.toISOString(),
     updatedAt: match.updatedAt.toISOString(),
     venue: {

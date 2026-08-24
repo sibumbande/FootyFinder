@@ -55,6 +55,13 @@ export const create: RequestHandler = async (req, res, next) => {
     next(error);
   }
 };
+export const rotateInvite: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await service.rotateInvite(matchId(req.params), userId(res.locals)) });
+  } catch (error) {
+    next(error);
+  }
+};
 export const update: RequestHandler = async (req, res, next) => {
   try {
     res.json({

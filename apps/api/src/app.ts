@@ -1,11 +1,14 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { type Express } from 'express';
+import helmet from 'helmet';
 import { resolve } from 'node:path';
 import { corsOptions } from './config/cors.js';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requireAuth } from './middleware/require-auth.js';
+import { requireTrustedCookieOrigin } from './middleware/origin-guard.js';
+import { requestContext } from './middleware/request-context.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { matchesRouter } from './modules/matches/matches.routes.js';
 import { messagingRouter } from './modules/messaging/messaging.routes.js';
@@ -15,14 +18,24 @@ import { usersRouter } from './modules/users/users.routes.js';
 import { walletRouter } from './modules/wallet/wallet.routes.js';
 import { teamInvitesRouter, teamsRouter } from './modules/teams/teams.routes.js';
 export const app: Express = express();
+app.disable('x-powered-by');
+app.set('trust proxy', env.TRUST_PROXY_HOPS || false);
+app.use(requestContext);
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    hsts: env.NODE_ENV === 'production' ? undefined : false,
+  }),
+);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
+app.use(requireTrustedCookieOrigin);
 app.use(
   '/uploads/teams',
   express.static(resolve(env.TEAM_UPLOAD_DIR), { fallthrough: false, maxAge: '1h' }),
 );
-app.use(cookieParser());
 app.get('/health', (_req, res) => res.json({ data: { status: 'ok' } }));
 app.use('/auth', authRouter);
 app.use('/players', profilesRouter);

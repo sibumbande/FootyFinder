@@ -2,12 +2,21 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { allowedOrigins } from './config/cors.js';
 import { app } from './app.js';
+import { redactedRequestPath } from './middleware/request-context.js';
 
 describe('CORS policy', () => {
   it('allows the configured web origin with credentials', async () => {
     const response = await request(app).get('/health').set('Origin', allowedOrigins[0]);
     expect(response.headers['access-control-allow-origin']).toBe(allowedOrigins[0]);
     expect(response.headers['access-control-allow-credentials']).toBe('true');
+  });
+
+  it('allows both the player and Admin browser origins', async () => {
+    expect(allowedOrigins).toHaveLength(2);
+    for (const origin of allowedOrigins) {
+      const response = await request(app).get('/health').set('Origin', origin);
+      expect(response.headers['access-control-allow-origin']).toBe(origin);
+    }
   });
 
   it('does not expose CORS headers to unknown browser origins', async () => {
@@ -33,6 +42,37 @@ describe('CORS policy', () => {
       expect(allowedHeaders).toContain('idempotency-key');
     },
   );
+});
+
+describe('request hardening', () => {
+  it('redacts secret invitation tokens from structured request paths', () => {
+    expect(redactedRequestPath('/matches/invite/secret-token')).toBe('/matches/invite/[REDACTED]');
+    expect(redactedRequestPath('/team-invites/team-secret/accept')).toBe(
+      '/team-invites/[REDACTED]/accept',
+    );
+  });
+  it('sets security and correlation headers without identifying Express', async () => {
+    const response = await request(app).get('/health');
+    expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-powered-by']).toBeUndefined();
+  });
+
+  it('rejects untrusted cookie-authenticated mutations before domain handling', async () => {
+    const response = await request(app)
+      .post('/auth/logout')
+      .set('Origin', 'https://malicious.example')
+      .set('Cookie', 'footy_finder_session=not-a-real-token');
+    expect(response.status).toBe(403);
+    expect(response.body.code).toBe('ORIGIN_NOT_ALLOWED');
+  });
+
+  it('allows bearer-authenticated server clients without an Origin header', async () => {
+    const response = await request(app)
+      .post('/auth/logout')
+      .set('Authorization', 'Bearer not-a-real-token');
+    expect(response.status).toBe(200);
+  });
 });
 
 describe('protected endpoints', () => {

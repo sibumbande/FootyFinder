@@ -62,6 +62,13 @@ export const useCancellationStatus = (id: string, enabled = true) =>
   });
 export const useLeaveMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.leave(id));
 export const useReadyMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.ready(id));
+export function useRotateMatchInvite(id: string) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: () => matchApi.rotateInvite(id),
+    onSuccess: ({ data }) => cache.setQueryData(matchKey(id), data),
+  });
+}
 export const useFormationUpdate = (id: string) =>
   lobbyMutation<{ slotId: string; input: FormationSlotUpdateInput }>(id, ({ slotId, input }) =>
     matchApi.formation(id, slotId, input),

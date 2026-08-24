@@ -28,6 +28,7 @@ import {
   useLeaveMatch,
   useMatch,
   useReadyMatch,
+  useRotateMatchInvite,
 } from '../hooks/useMatches.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
@@ -39,6 +40,7 @@ export function MatchLobbyPage() {
   const leave = useLeaveMatch(matchId);
   const deletion = useDeleteMatch(matchId);
   const ready = useReadyMatch(matchId);
+  const rotateInvite = useRotateMatchInvite(matchId);
   const formation = useFormationUpdate(matchId);
   const changeTeam = useChangeTeam(matchId);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -104,10 +106,9 @@ export function MatchLobbyPage() {
       });
   };
   const copyInvite = async () => {
-    if (!match.inviteToken) return;
-    await navigator.clipboard.writeText(
-      `${window.location.origin}/matches/invite/${match.inviteToken}`,
-    );
+    const inviteToken = match.inviteToken ?? (await rotateInvite.mutateAsync()).data.inviteToken;
+    if (!inviteToken) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/matches/invite/${inviteToken}`);
     notify({
       variant: 'success',
       title: 'Invite copied',
@@ -182,8 +183,8 @@ export function MatchLobbyPage() {
             </Button>
           )}
           {isHost && match.visibility === 'PRIVATE' && (
-            <Button variant="secondary" onClick={copyInvite}>
-              Copy invite link
+            <Button variant="secondary" onClick={copyInvite} loading={rotateInvite.isPending}>
+              {match.inviteToken ? 'Copy invite link' : 'Generate invite link'}
             </Button>
           )}
           {isHost && !['COMPLETED', 'CANCELLED'].includes(match.status) && (

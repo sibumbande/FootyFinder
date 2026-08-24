@@ -109,6 +109,12 @@ enum TeamRole {
   MEMBER
 }
 
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
 enum NotificationType {
   INFO
   DIRECT_MESSAGE
@@ -153,6 +159,23 @@ model User {
   teamMatchAvailabilities TeamMatchAvailability[]
   teamMatchSelections     TeamMatchSelection[]      @relation("TeamMatchSelectedUser")
   madeMatchSelections     TeamMatchSelection[]      @relation("TeamMatchSelectionSelector")
+  accountStatus           AccountStatus             @default(ACTIVE)
+  authSessions            AuthSession[]
+}
+
+model AuthSession {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  lastSeenAt    DateTime  @default(now())
+  userAgentHash String?
+  ipHash        String?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt])
 }
 
 model PlayerProfile {
@@ -241,6 +264,7 @@ model Match {
   rules                     MatchRule[]               @default([])
   visibility                MatchVisibility
   inviteToken               String?                   @unique
+  inviteTokenHash           String?                   @unique
   startsAt                  DateTime
   durationMinutes           Int
   feeCents                  Int

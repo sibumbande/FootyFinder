@@ -49,6 +49,8 @@ export const matchesApi = (client: ApiClient) => ({
   invite: (token: string) => client.request<{ data: Match }>(`/matches/invite/${token}`),
   create: (input: CreateMatchInput) =>
     client.request<{ data: Match }>('/matches', { method: 'POST', body: JSON.stringify(input) }),
+  rotateInvite: (id: string) =>
+    client.request<{ data: Match }>(`/matches/${id}/invite`, { method: 'POST' }),
   update: (id: string, input: UpdateMatchInput) =>
     client.request<{ data: Match }>(`/matches/${id}`, {
       method: 'PATCH',

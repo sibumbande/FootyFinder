@@ -2,6 +2,8 @@ export const FOOTBALL_POSITIONS = ['GOALKEEPER', 'DEFENDER', 'MIDFIELDER', 'FORW
 export type FootballPosition = (typeof FOOTBALL_POSITIONS)[number];
 export const DOMINANT_FEET = ['LEFT', 'RIGHT', 'BOTH'] as const;
 export type DominantFoot = (typeof DOMINANT_FEET)[number];
+export const ACCOUNT_STATUSES = ['ACTIVE', 'SUSPENDED', 'BANNED'] as const;
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
 export interface PublicPlayerProfile {
   userId: string;
@@ -32,6 +34,7 @@ export interface AuthenticatedUser extends PublicUser {
   email: string;
   balanceCents: number;
   currency: 'ZAR';
+  accountStatus: AccountStatus;
 }
 
 /** Internal database-only account shape. Never return this from the API. */
