@@ -21,6 +21,10 @@ export const envSchema = z
     RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE: z.coerce.number().int().positive().default(20),
     ADMIN_MFA_ENCRYPTION_KEY: z.string().min(32).optional(),
     ADMIN_MFA_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(720),
+    ADMIN_TEST_DATA_ENABLED: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .default('false'),
     MATCH_DURATION_FIVE_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
     MATCH_DURATION_SEVEN_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
     MATCH_DURATION_ELEVEN_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
@@ -52,6 +56,12 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['ADMIN_MFA_ENCRYPTION_KEY'],
         message: 'ADMIN_MFA_ENCRYPTION_KEY is required in production',
+      });
+    if (value.ADMIN_TEST_DATA_ENABLED)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ADMIN_TEST_DATA_ENABLED'],
+        message: 'ADMIN_TEST_DATA_ENABLED cannot be enabled in production',
       });
   })
   .transform((value) => ({ ...value, TRUST_PROXY_HOPS: value.TRUST_PROXY_HOPS ?? 0 }));

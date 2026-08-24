@@ -9,6 +9,13 @@ import type {
   ManagedFieldPriceInput,
   ManagedVenue,
   ManagedVenueInput,
+  AdminSupportListQuery,
+  AdminSupportReplyInput,
+  UpdateSupportTicketInput,
+  SupportTicket,
+  AdminTestDataStatus,
+  AdminTestDataBatch,
+  CreateAdminTestDataBatchInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -39,4 +46,19 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: ManagedVenue }>(`/admin/fields/${fieldId}/exceptions/${exceptionId}`, { method: 'DELETE' }),
   addFieldPrice: (fieldId: string, input: ManagedFieldPriceInput) =>
     client.request<{ data: ManagedVenue }>(`/admin/fields/${fieldId}/prices`, { method: 'POST', body: JSON.stringify(input) }),
+  supportTickets: (query: AdminSupportListQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.priority) params.set('priority', query.priority);
+    if (query.assignedToMe !== undefined) params.set('assignedToMe', String(query.assignedToMe));
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return client.request<{ data: SupportTicket[] }>(`/admin/support/tickets${suffix}`);
+  },
+  supportTicket: (ticketId: string) => client.request<{ data: SupportTicket }>(`/admin/support/tickets/${ticketId}`),
+  replySupportTicket: (ticketId: string, input: AdminSupportReplyInput) => client.request<{ data: SupportTicket }>(`/admin/support/tickets/${ticketId}/messages`, { method: 'POST', body: JSON.stringify(input) }),
+  updateSupportTicket: (ticketId: string, input: UpdateSupportTicketInput) => client.request<{ data: SupportTicket }>(`/admin/support/tickets/${ticketId}`, { method: 'PUT', body: JSON.stringify(input) }),
+  testDataStatus: () => client.request<{ data: AdminTestDataStatus }>('/admin/test-data/status'),
+  testDataBatches: () => client.request<{ data: AdminTestDataBatch[] }>('/admin/test-data/batches'),
+  createTestDataBatch: (input: CreateAdminTestDataBatchInput) => client.request<{ data: AdminTestDataBatch }>('/admin/test-data/batches', { method: 'POST', body: JSON.stringify(input) }),
+  removeTestDataBatch: (batchId: string) => client.request<{ data: { success: true; deletedAccounts: number } }>(`/admin/test-data/batches/${batchId}`, { method: 'DELETE' }),
 });

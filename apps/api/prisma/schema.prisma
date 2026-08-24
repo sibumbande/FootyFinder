@@ -126,6 +126,34 @@ enum ManagedFieldStatus {
   MAINTENANCE
 }
 
+enum SupportTicketCategory {
+  GENERAL
+  ACCOUNT
+  MATCH
+  TEAM
+  PAYMENT
+  SAFETY
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportMessageAuthorRole {
+  USER
+  ADMIN
+}
+
 enum NotificationType {
   INFO
   DIRECT_MESSAGE
@@ -145,6 +173,7 @@ enum NotificationType {
   TEAM_MATCH_POSITION_OPENED
   TEAM_MATCH_POSITION_CLAIMED
   TEAM_MATCH_LINEUP_FINALIZED
+  SUPPORT_REPLY
 }
 
 model User {
@@ -175,6 +204,15 @@ model User {
   authSessions            AuthSession[]
   adminMfaCredential      AdminMfaCredential?
   adminAuditActions       AdminAuditLog[]           @relation("AdminAuditActor")
+  createdSupportTickets   SupportTicket[]           @relation("SupportTicketCreator")
+  assignedSupportTickets  SupportTicket[]           @relation("SupportTicketAssignee")
+  supportMessages         SupportTicketMessage[]
+  createdTestDataBatches  TestDataBatch[]           @relation("TestDataBatchCreator")
+  testDataBatchId         String?                   @db.Uuid
+  testDataBatch           TestDataBatch?            @relation(fields: [testDataBatchId], references: [id], onDelete: Restrict)
+  isTestAccount           Boolean                   @default(false)
+
+  @@index([isTestAccount, testDataBatchId])
 }
 
 model AuthSession {
@@ -217,6 +255,55 @@ model AdminAuditLog {
   @@index([createdAt])
   @@index([actorUserId, createdAt])
   @@index([entityType, entityId, createdAt])
+}
+
+model SupportTicket {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  referenceCode       String                 @unique
+  createdByUserId     String                 @db.Uuid
+  assignedAdminUserId String?                @db.Uuid
+  subject             String
+  category            SupportTicketCategory
+  status              SupportTicketStatus    @default(OPEN)
+  priority            SupportTicketPriority  @default(NORMAL)
+  lastMessageAt       DateTime               @default(now())
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  createdBy           User                   @relation("SupportTicketCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignedAdmin       User?                  @relation("SupportTicketAssignee", fields: [assignedAdminUserId], references: [id], onDelete: SetNull)
+  messages            SupportTicketMessage[]
+
+  @@index([status, priority, lastMessageAt])
+  @@index([createdByUserId, lastMessageAt])
+  @@index([assignedAdminUserId, status, lastMessageAt])
+}
+
+model SupportTicketMessage {
+  id           String                   @id @default(uuid()) @db.Uuid
+  ticketId     String                   @db.Uuid
+  authorUserId String                   @db.Uuid
+  authorRole   SupportMessageAuthorRole
+  content      String
+  internal     Boolean                  @default(false)
+  createdAt    DateTime                 @default(now())
+  ticket       SupportTicket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author       User                     @relation(fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorUserId, createdAt])
+}
+
+model TestDataBatch {
+  id                   String   @id @default(uuid()) @db.Uuid
+  label                String
+  createdByAdminUserId String?  @db.Uuid
+  createdAt            DateTime @default(now())
+  createdByAdmin       User?    @relation("TestDataBatchCreator", fields: [createdByAdminUserId], references: [id], onDelete: SetNull)
+  users                User[]
+
+  @@index([createdAt])
 }
 
 model ManagedVenue {

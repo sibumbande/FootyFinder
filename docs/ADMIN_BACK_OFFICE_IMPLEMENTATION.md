@@ -25,8 +25,8 @@ A separate repository, API, or database is intentionally deferred until an indep
 | 0 | Baseline verification and stale audit/manual-test closure | Complete (`6531712`) |
 | 1 | Revocable sessions, realtime security, rate limits, and request hardening | Complete (`8204cad`) |
 | 2 | Platform Admin role, audit log, MFA/bootstrap, and Admin application shell | Complete (`b72bb6a`) |
-| 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Complete (current slice) |
-| 4 | Support inbox and environment-gated test-data tools | Pending |
+| 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Complete (`a1e0cc5`) |
+| 4 | Support inbox and environment-gated test-data tools | Complete (current slice) |
 | 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Pending |
 | 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Pending |
 | 7 | Moderation, suspension, bans, and enforcement review | Pending |
@@ -37,11 +37,11 @@ Each slice receives an additive migration when persistence changes, focused auto
 
 ## Current verified baseline
 
-Slice 3 verified on top of Slice 2 commit `b72bb6a`.
+Slice 4 verified on top of Slice 3 commit `a1e0cc5`.
 
-- Prisma schema formats, validates, generates, and reports all 14 migrations applied.
+- Prisma schema formats, validates, generates, and reports all 15 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 184 automated tests pass: API 113, web 20, API client 11, shared 40.
+- 190 automated tests pass: API 117, web 20, API client 13, shared 40.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
 
@@ -74,3 +74,13 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - Every catalogue mutation appends its actor, action, entity, request correlation, and safe metadata in the same database transaction.
 - The Admin application exposes the complete catalogue workflow at `/venues`; all API routes require an active Admin account, a persisted session, and recent MFA verification.
 - `smoke:admin-catalog` proves catalogue relations, database checks, price-overlap enforcement, atomic audit creation, rollback, and exact cleanup.
+
+## Slice 4 support and test-data boundary
+
+- Authenticated players can create, list, read, and reply to only their own support tickets. The support thread is a distinct domain and never exposes or searches unrelated direct messages.
+- Admins can filter the support inbox, set priority and lifecycle status, reply publicly, and record explicitly marked internal notes. Player DTOs remove internal notes entirely.
+- Public Admin replies, their audit event, and the player's persisted `SUPPORT_REPLY` notification commit atomically; realtime notification publication is best effort after commit.
+- Test accounts are grouped in tagged batches, receive ordinary USER permissions and zero-balance wallets, and reveal a generated shared batch password only in the creation response.
+- Test-data list/create/delete operations require `ADMIN_TEST_DATA_ENABLED=true` and a non-production `NODE_ENV`. Production environment validation refuses to start if the flag is enabled.
+- Batch deletion targets only accounts carrying both the batch ID and `isTestAccount=true`; linked domain activity blocks deletion with `TEST_DATA_IN_USE` instead of broad cascading cleanup.
+- `smoke:support-test-data` proves public/internal message separation, reply notification durability, batch tagging, atomic audit persistence, rollback, and exact cleanup.

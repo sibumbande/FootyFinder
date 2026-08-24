@@ -34,4 +34,19 @@ describe('environment contract', () => {
       }).success,
     ).toBe(true);
   });
+
+  it('fails closed when test-data tooling is enabled in production', () => {
+    expect(
+      envSchema.safeParse({
+        ...valid,
+        NODE_ENV: 'production',
+        CLIENT_URL: 'https://player.example.test',
+        ADMIN_CLIENT_URL: 'https://admin.example.test',
+        PUBLIC_API_URL: 'https://api.example.test',
+        TRUST_PROXY_HOPS: '1',
+        ADMIN_MFA_ENCRYPTION_KEY: 'an-independent-production-mfa-key',
+        ADMIN_TEST_DATA_ENABLED: 'true',
+      }).success,
+    ).toBe(false);
+  });
 });

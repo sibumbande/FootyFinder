@@ -72,6 +72,17 @@ fieldset { display: flex; gap: 1rem; flex-wrap: wrap; border: 1px solid #315140;
 .check input { width: auto; }
 .price-row { display: grid; grid-template-columns: 9rem 1fr; gap: 1rem; color: #b6cbbf; }
 .empty { padding: 2rem; text-align: center; border: 1px dashed #315140; border-radius: 1rem; color: #9ab0a2; }
+.support-layout { display: grid; grid-template-columns: minmax(15rem, 0.7fr) minmax(20rem, 1.3fr); gap: 1rem; align-items: start; }
+.ticket-list { display: grid; gap: 0.5rem; }
+.ticket { display: grid; gap: 0.3rem; text-align: left; color: #d7e9dd; background: #173023; }
+.ticket span, .ticket small { color: #9ab0a2; }
+.active-ticket { outline: 2px solid #54e38e; }
+.support-message { display: grid; gap: 0.6rem; padding: 1rem; border-radius: 0.8rem; background: #173023; }
+.support-message.internal { border: 1px dashed #e5b657; background: #2a2311; }
+.support-message p { white-space: pre-wrap; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.7rem; }
+.account-grid div { display: grid; gap: 0.2rem; padding: 0.8rem; border-radius: 0.7rem; background: #06130b; }
+.account-grid code { color: #8ff6b8; overflow-wrap: anywhere; }
 .center-shell {
   min-height: 100vh;
   display: grid;
@@ -207,4 +218,5 @@ nav a.active {
     margin-top: 0;
   }
   .form-grid.two, .form-grid.three, .form-grid.four { grid-template-columns: 1fr; }
+  .support-layout { grid-template-columns: 1fr; }
 }

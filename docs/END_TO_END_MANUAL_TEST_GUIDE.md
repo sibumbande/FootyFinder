@@ -57,7 +57,7 @@ The following are deliberately **not implemented** and are not failures unless a
 - Team Wallet, Team funding, venue reservations, venue pricing, and provider integrations;
 - friends, blocks, recruitment, general social chat, and persistent Team Chat;
 - Team-v-Team opponent matchmaking;
-- Admin Match loading, support, moderation, and dispute operations, age/consent gates, reports, bans, and reviews (the platform Admin shell, MFA, bootstrap, append-only audit log, and managed Venue/Field catalogue are implemented);
+- Admin Match loading, moderation, and dispute operations, age/consent gates, reports, bans, and reviews (the platform Admin shell, MFA, bootstrap, append-only audit log, managed Venue/Field catalogue, support inbox, and environment-gated test accounts are implemented);
 - guest Match discovery, cities/waitlists, tournaments, leagues, and accumulated player/Team statistics.
 
 Private Phase 1 Team fixtures are intentionally HOME-only, free, `DRAFT` planning workspaces. They do not enter the automatic Match lifecycle, debit wallets, or create historical `MatchParticipant` rows.
@@ -1192,6 +1192,27 @@ Run the following in light and dark mode at approximately 390×844, 768×1024, a
 
 **Expected:** Ordinary players receive `ADMIN_FORBIDDEN`; unverified Admin sessions receive `ADMIN_MFA_REQUIRED`; only the verified Admin can read or write. Malformed route IDs receive `INVALID_ROUTE_PARAMETER`, invalid bodies receive `VALIDATION_ERROR`, and the Origin boundary rejects the cross-site cookie mutation. No failed request partially changes the catalogue or audit log.
 
+### ADM-006 — Player support ticket privacy and replies
+
+1. As Player A, open Support from the user menu, create a ticket, and record its reference code.
+2. Confirm Player B cannot read or reply to Player A's ticket by URL/API.
+3. In the Admin Support inbox, set the ticket to High priority and In Progress, add an internal note, then send a public reply.
+4. Reload Player A's ticket and notification menu. Reply as Player A, then resolve and close it as Admin.
+5. Attempt another player reply after closure.
+
+**Expected:** Player A sees their opening message and public Admin reply but never the internal note. Player B receives `SUPPORT_TICKET_NOT_FOUND`. The public reply creates exactly one persisted `SUPPORT_REPLY` notification linked to the ticket and moves it to Waiting on User; the player reply reopens it. Admin priority/status/reply/note actions appear once in the immutable audit log. Closed tickets reject replies with `SUPPORT_TICKET_CLOSED`. Direct-message histories are never shown or searched in the inbox.
+
+### ADM-007 — Environment-gated test accounts and exact cleanup
+
+1. With `ADMIN_TEST_DATA_ENABLED=false`, open Test data and call its batch list/create endpoints.
+2. Against the explicitly disposable QA database only, set `ADMIN_TEST_DATA_ENABLED=true`, restart the API, and create a three-account batch.
+3. Save the one-time temporary password, sign in as one generated account, and verify USER permissions and an R0.00 wallet.
+4. Before creating domain activity, delete the batch and verify all three accounts, profiles, and wallets are gone while unrelated accounts remain.
+5. Create another batch, make one test account create linked activity, and attempt batch deletion.
+6. Set `NODE_ENV=production` with `ADMIN_TEST_DATA_ENABLED=true` in a throwaway configuration validation run; do not point it at production data.
+
+**Expected:** Disabled batch operations return `TEST_DATA_DISABLED`. Generated accounts are visibly tagged only in Admin tooling, never receive Admin permissions or funds, and credentials are returned only by creation. Clean batches delete exactly. A batch with linked activity returns `TEST_DATA_IN_USE` and deletes nothing. Production configuration fails validation when test data is enabled.
+
 ## 16. Known-defect register for this manual run
 
 Do not silently pass these cases and do not file duplicates without checking whether the referenced finding has been closed.
@@ -1217,6 +1238,7 @@ npm run smoke:atomic-notifications --workspace=@footy-finder/api
 npm run smoke:security-sessions --workspace=@footy-finder/api
 npm run smoke:admin-identity --workspace=@footy-finder/api
 npm run smoke:admin-catalog --workspace=@footy-finder/api
+npm run smoke:support-test-data --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1234,6 +1256,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | Registration/login/session/logout           | AUTH-001–AUTH-005                                |
 | Platform Admin identity/MFA/audit            | ADM-001–ADM-003                                  |
 | Managed Venue/Field catalogue and pricing    | ADM-004–ADM-005                                  |
+| Support inbox and disposable test data       | ADM-006–ADM-007                                  |
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
 | Personal wallet/demo deposits               | WAL-001–WAL-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |

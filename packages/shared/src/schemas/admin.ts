@@ -70,3 +70,9 @@ export const managedFieldPriceInputSchema = z
     { path: ['effectiveTo'], message: 'End must be after start.' },
   );
 export type ManagedFieldPriceInput = z.infer<typeof managedFieldPriceInputSchema>;
+
+export const createAdminTestDataBatchSchema = z.object({
+  label: z.string().trim().min(3).max(80),
+  accountCount: z.number().int().min(1).max(20),
+});
+export type CreateAdminTestDataBatchInput = z.infer<typeof createAdminTestDataBatchSchema>;

@@ -4,6 +4,8 @@ import { FormEvent, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { adminClient, authClient, usersClient } from './api.js';
 import { VenuesPage } from './VenuesPage.js';
+import { SupportPage } from './SupportPage.js';
+import { TestDataPage } from './TestDataPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -126,22 +128,23 @@ function MfaGate() {
 
 function Dashboard() {
   const modules = [
-    'Venues & fields',
-    'Match loading',
-    'Support inbox',
-    'Moderation',
-    'Disputes',
-    'Finance & reconciliation',
+    ['Venues & fields', 'Available now'],
+    ['Support inbox', 'Available now'],
+    ['Test accounts & data', 'Available when environment-gated'],
+    ['Match loading', 'Assigned to Slice 6'],
+    ['Moderation', 'Assigned to Slice 7'],
+    ['Disputes', 'Assigned to Slice 8'],
+    ['Finance & reconciliation', 'Assigned to Slice 5'],
   ];
   return (
     <section>
       <p className="eyebrow">Operations overview</p>
       <h2>Admin workspace</h2>
       <div className="module-grid">
-        {modules.map((item) => (
+        {modules.map(([item, status]) => (
           <article key={item}>
             <strong>{item}</strong>
-            <span>Arrives in its assigned delivery slice</span>
+            <span>{status}</span>
           </article>
         ))}
       </div>
@@ -193,6 +196,8 @@ function AdminShell() {
         <nav>
           <NavLink to="/">Dashboard</NavLink>
           <NavLink to="/venues">Venues & fields</NavLink>
+          <NavLink to="/support">Support inbox</NavLink>
+          <NavLink to="/test-data">Test data</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -203,6 +208,8 @@ function AdminShell() {
         <Routes>
           <Route index element={<Dashboard />} />
           <Route path="venues" element={<VenuesPage />} />
+          <Route path="support" element={<SupportPage />} />
+          <Route path="test-data" element={<TestDataPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

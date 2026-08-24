@@ -5,16 +5,24 @@ import {
   managedFieldInputSchema,
   managedFieldPriceInputSchema,
   managedVenueInputSchema,
+  adminSupportListQuerySchema,
+  adminSupportReplySchema,
+  updateSupportTicketSchema,
+  createAdminTestDataBatchSchema,
 } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { AppError } from '../../errors/app-error.js';
 import { AdminAuthService } from './admin-auth.service.js';
 import { AdminService } from './admin.service.js';
 import { AdminCatalogService } from './admin-catalog.service.js';
+import { SupportService } from '../support/support.service.js';
+import { AdminTestDataService } from './admin-test-data.service.js';
 
 const auth = new AdminAuthService();
 const admin = new AdminService();
 const catalog = new AdminCatalogService();
+const support = new SupportService();
+const testData = new AdminTestDataService();
 const actor = (locals: Record<string, unknown>) => String(locals.authUserId);
 const requestId = (locals: Record<string, unknown>) => String(locals.requestId);
 const identity = (locals: Record<string, unknown>) => {
@@ -82,4 +90,26 @@ export const removeFieldException: RequestHandler = async (req, res, next) => {
 };
 export const addFieldPrice: RequestHandler = async (req, res, next) => {
   try { res.status(201).json({ data: await catalog.addPrice(String(req.params.fieldId), managedFieldPriceInputSchema.parse(req.body), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const listSupportTickets: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await support.listAdmin(adminSupportListQuerySchema.parse(req.query), actor(res.locals)) }); } catch (error) { next(error); }
+};
+export const getSupportTicket: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await support.getAdmin(String(req.params.ticketId)) }); } catch (error) { next(error); }
+};
+export const replySupportTicket: RequestHandler = async (req, res, next) => {
+  try { res.status(201).json({ data: await support.replyAdmin(String(req.params.ticketId), actor(res.locals), adminSupportReplySchema.parse(req.body), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const updateSupportTicket: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await support.updateAdmin(String(req.params.ticketId), actor(res.locals), updateSupportTicketSchema.parse(req.body), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const testDataStatus: RequestHandler = (_req, res) => { res.json({ data: testData.status() }); };
+export const listTestData: RequestHandler = async (_req, res, next) => {
+  try { res.json({ data: await testData.list() }); } catch (error) { next(error); }
+};
+export const createTestData: RequestHandler = async (req, res, next) => {
+  try { res.status(201).json({ data: await testData.create(createAdminTestDataBatchSchema.parse(req.body), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const removeTestData: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await testData.remove(String(req.params.batchId), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
 };

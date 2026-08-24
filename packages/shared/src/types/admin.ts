@@ -77,3 +77,22 @@ export interface ManagedVenue {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface AdminTestDataStatus {
+  enabled: boolean;
+  environment: 'development' | 'test' | 'production';
+}
+export interface AdminTestAccount {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+}
+export interface AdminTestDataBatch {
+  id: string;
+  label: string;
+  createdAt: string;
+  accountCount: number;
+  accounts?: AdminTestAccount[];
+  temporaryPassword?: string;
+}

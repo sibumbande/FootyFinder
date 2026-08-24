@@ -7,6 +7,7 @@ import {
   usersApi,
   walletApi,
   teamsApi,
+  supportApi,
 } from '@footy-finder/api-client';
 
 export const apiClient = new ApiClient(import.meta.env.VITE_API_URL ?? 'http://localhost:3000');
@@ -17,3 +18,4 @@ export const walletClient = walletApi(apiClient);
 export const messagingClient = messagingApi(apiClient);
 export const notificationsClient = notificationsApi(apiClient);
 export const teamsClient = teamsApi(apiClient);
+export const supportClient = supportApi(apiClient);

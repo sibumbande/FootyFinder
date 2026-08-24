@@ -82,6 +82,14 @@ export function UserMenu() {
               </Link>
             ))}
           </nav>
+          <Link
+            role="menuitem"
+            to="/support"
+            onClick={() => setOpen(false)}
+            className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"
+          >
+            Support
+          </Link>
           <button
             role="menuitem"
             type="button"

@@ -43,4 +43,25 @@ describe('adminApi', () => {
       method: 'POST', body: JSON.stringify({ amountCents: 80000, effectiveFrom: '2026-09-01T00:00:00.000Z' }),
     });
   });
+
+  it('uses privileged support and environment-gated test-data contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.supportTickets({ status: 'OPEN', assignedToMe: true });
+    await api.supportTicket('ticket-id');
+    await api.replySupportTicket('ticket-id', { content: 'We can help.', internal: false });
+    await api.updateSupportTicket('ticket-id', { priority: 'HIGH' });
+    await api.testDataStatus();
+    await api.testDataBatches();
+    await api.createTestDataBatch({ label: 'QA batch', accountCount: 3 });
+    await api.removeTestDataBatch('batch-id');
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/support/tickets?status=OPEN&assignedToMe=true',
+      '/admin/support/tickets/ticket-id',
+      '/admin/support/tickets/ticket-id/messages',
+      '/admin/support/tickets/ticket-id',
+      '/admin/test-data/status', '/admin/test-data/batches', '/admin/test-data/batches',
+      '/admin/test-data/batches/batch-id',
+    ]);
+  });
 });

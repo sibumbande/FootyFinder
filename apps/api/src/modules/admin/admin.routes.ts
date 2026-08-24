@@ -9,7 +9,7 @@ adminAuthRouter.post('/mfa/setup', costlyMutationRateLimit, controller.setupMfa)
 adminAuthRouter.post('/mfa/verify', costlyMutationRateLimit, controller.verifyMfa);
 
 export const adminRouter: ExpressRouter = Router();
-registerUuidRouteParams(adminRouter, ['venueId', 'fieldId', 'exceptionId']);
+registerUuidRouteParams(adminRouter, ['venueId', 'fieldId', 'exceptionId', 'ticketId', 'batchId']);
 adminRouter.get('/audit-logs', controller.auditLog);
 adminRouter.get('/venues', controller.listVenues);
 adminRouter.post('/venues', costlyMutationRateLimit, controller.createVenue);
@@ -20,3 +20,11 @@ adminRouter.put('/fields/:fieldId/availability', costlyMutationRateLimit, contro
 adminRouter.post('/fields/:fieldId/exceptions', costlyMutationRateLimit, controller.addFieldException);
 adminRouter.delete('/fields/:fieldId/exceptions/:exceptionId', costlyMutationRateLimit, controller.removeFieldException);
 adminRouter.post('/fields/:fieldId/prices', costlyMutationRateLimit, controller.addFieldPrice);
+adminRouter.get('/support/tickets', controller.listSupportTickets);
+adminRouter.get('/support/tickets/:ticketId', controller.getSupportTicket);
+adminRouter.post('/support/tickets/:ticketId/messages', costlyMutationRateLimit, controller.replySupportTicket);
+adminRouter.put('/support/tickets/:ticketId', costlyMutationRateLimit, controller.updateSupportTicket);
+adminRouter.get('/test-data/status', controller.testDataStatus);
+adminRouter.get('/test-data/batches', controller.listTestData);
+adminRouter.post('/test-data/batches', costlyMutationRateLimit, controller.createTestData);
+adminRouter.delete('/test-data/batches/:batchId', costlyMutationRateLimit, controller.removeTestData);
