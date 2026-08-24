@@ -152,6 +152,7 @@ Authenticated domain routes:
 - `/admin/moderation/*` - MFA-gated report triage, player search, timed suspension, permanent bans, enforcement history, and reinstatement.
 - `/disputes` - authenticated Match-result and field-booking dispute submission, personal history, and authorized result revisions.
 - `/admin/disputes/*` - MFA-gated triage and authoritative resolution; result corrections append immutable revisions and booking decisions never mutate wallets implicitly.
+- `/admin/operations/summary` - MFA-gated live work queues, account/Match/job state, 24-hour finance totals, and process lifecycle counters.
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
@@ -165,6 +166,8 @@ Public Team invitation routes:
 
 API and Socket.IO errors use stable codes and safe messages without exposing tokens, hashes, Prisma errors, payment secrets, or stack traces. CORS allows only the exact player and Admin browser origins and explicitly supports the `Idempotency-Key` preflight header. Tiered authentication, message, and costly-mutation limits return `RATE_LIMITED`; the development in-memory limiter must be replaced by a shared store before horizontally scaling the API.
 
+Deployment probes are split by intent: `GET /health` is process liveness and `GET /ready` verifies PostgreSQL readiness. Configure the load balancer to remove an instance when `/ready` returns `503`, while retaining liveness restarts for an unresponsive process.
+
 ## Theme and motion
 
 All system colors live in `apps/web/src/app/theme.css`. Components consume semantic Tailwind tokens, including dedicated pitch and Home/Away team tokens, in both light and dark modes. Change the CSS variables there to update the palette centrally.
@@ -177,6 +180,8 @@ Page transitions are controlled in `apps/web/src/app/motion.css` and use a short
 npm run lint
 npm test
 npm run build
+npm run test:e2e:install
+npm run test:e2e
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:security-sessions --workspace=@footy-finder/api
@@ -187,8 +192,11 @@ npm run smoke:financial-integrity --workspace=@footy-finder/api
 npm run smoke:field-bookings --workspace=@footy-finder/api
 npm run smoke:moderation-enforcement --workspace=@footy-finder/api
 npm run smoke:disputes-results --workspace=@footy-finder/api
+npm run smoke:operations --workspace=@footy-finder/api
 npm run wallet:reconcile --workspace=@footy-finder/api
 ```
+
+`npm run test:e2e:install` is a one-time Chromium download on each machine or CI image. The E2E command starts player-web and API development servers, exercises real browser CORS/cookie behavior, and removes only its uniquely tagged PostgreSQL fixtures.
 
 The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data. `20260823100000_match_capacity_and_rules` backfills every existing Match to five substitutes per Team and adds the database-enforced capacity, rolling-substitution, and informational-rule fields. `20260823150000_private_team_match_foundation` backfills existing Matches as Quick Games and adds Team Match drafts plus normalized nullable Team sides and historical snapshots without rewriting older migrations.
 
@@ -212,4 +220,5 @@ The additive `20260824090000_auth_sessions_security` migration creates revocable
 - Set `NODE_ENV=production`, explicit HTTPS player/Admin/API URLs, and the correct `TRUST_PROXY_HOPS`; production configuration fails closed when these are missing.
 - Use a shared rate-limit store before running more than one API instance.
 - Run migrations during deployment. Durable jobs already use distributed database claims; operate the older Match lifecycle poller as a single logical worker until it is migrated to the durable queue.
+- Monitor readiness failures, overdue/failed durable jobs, open operational queues, 24-hour failed financial transitions, and non-zero reconciliation findings. The Admin dashboard refreshes its database-backed summary every 30 seconds.
 - External refunds, withdrawals, Team-vs-Team Match creation/payments, leagues, tournaments, Team chat, social features, and accumulated Team/player statistics are intentionally outside the current scope.

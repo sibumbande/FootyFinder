@@ -7,6 +7,7 @@ import {
 } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { logError } from '../../observability/logger.js';
+import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -38,7 +39,10 @@ export async function runMatchLifecycleTick(
       where: { id: match.id, status: 'IN_PROGRESS' },
       data: { status: 'AWAITING_RESULT' },
     });
-    if (transition.count === 1) emitDomainEventBestEffort('match:ended', { matchId: match.id });
+    if (transition.count === 1) {
+      incrementOperationalMetric('match_lifecycle_ended_total');
+      emitDomainEventBestEffort('match:ended', { matchId: match.id });
+    }
   }
 }
 
@@ -81,6 +85,7 @@ export async function transitionMatchToStarted(
     };
   });
   if (!result) return false;
+  incrementOperationalMetric('match_lifecycle_started_total');
   emitDomainEventBestEffort('match:started', { matchId: result.matchId });
   notifications.publishPersistedMany(result.notifications);
   return true;
@@ -94,7 +99,9 @@ export function startMatchLifecycleScheduler(notifications = new NotificationsSe
     running = true;
     try {
       await runMatchLifecycleTick(new Date(), notifications);
+      incrementOperationalMetric('match_lifecycle_ticks_total');
     } catch (error) {
+      incrementOperationalMetric('match_lifecycle_scheduler_failures_total');
       logError('match_lifecycle_scheduler_failed', error);
     } finally {
       running = false;

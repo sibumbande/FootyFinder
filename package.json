@@ -17,12 +17,15 @@
     "dev:admin": "npm run build:packages && npm run dev --workspace=@footy-finder/admin",
     "build": "npm run build:packages && npm run build --workspace=@footy-finder/api && npm run build --workspace=@footy-finder/web && npm run build --workspace=@footy-finder/admin",
     "test": "npm run build:packages && npm run test --workspaces --if-present",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "lint": "npm run build:packages && npm run lint --workspaces --if-present",
     "format": "prettier --write .",
     "prisma:generate": "npm run prisma:generate --workspace=@footy-finder/api",
     "prisma:migrate": "npm run prisma:migrate --workspace=@footy-finder/api"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.5",
     "concurrently": "^9.1.2",
     "prettier": "^3.4.2",

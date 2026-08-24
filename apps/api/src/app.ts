@@ -23,7 +23,10 @@ import { supportRouter } from './modules/support/support.routes.js';
 import { bookingsRouter } from './modules/bookings/bookings.routes.js';
 import { moderationRouter } from './modules/moderation/moderation.routes.js';
 import { disputesRouter } from './modules/disputes/disputes.routes.js';
+import { OperationsService } from './modules/admin/operations.service.js';
+import { logError } from './observability/logger.js';
 export const app: Express = express();
+const operations = new OperationsService();
 app.disable('x-powered-by');
 app.set('trust proxy', env.TRUST_PROXY_HOPS || false);
 app.use(requestContext);
@@ -43,6 +46,14 @@ app.use(
   express.static(resolve(env.TEAM_UPLOAD_DIR), { fallthrough: false, maxAge: '1h' }),
 );
 app.get('/health', (_req, res) => res.json({ data: { status: 'ok' } }));
+app.get('/ready', async (_req, res) => {
+  try {
+    res.json({ data: await operations.readiness() });
+  } catch (error) {
+    logError('readiness_check_failed', error);
+    res.status(503).json({ data: { status: 'not_ready', database: 'unavailable' } });
+  }
+});
 app.use('/auth', authRouter);
 app.use('/players', profilesRouter);
 app.use('/users', usersRouter);

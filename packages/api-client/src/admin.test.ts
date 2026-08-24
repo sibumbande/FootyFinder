@@ -19,28 +19,60 @@ describe('adminApi', () => {
     expect(request).toHaveBeenNthCalledWith(4, '/admin/audit-logs');
   });
 
+  it('reads the privileged operations summary', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.operationsSummary();
+    expect(request).toHaveBeenCalledWith('/admin/operations/summary');
+  });
+
   it('uses the managed venue, field, schedule, exception, and price contracts', async () => {
     const request = vi.fn().mockResolvedValue({ data: [] });
     const api = adminApi({ request } as unknown as ApiClient);
-    const venue = { name: 'Central', addressLine1: '1 Main Road', city: 'Cape Town', region: 'Western Cape', countryCode: 'ZA', timezone: 'Africa/Johannesburg', isActive: true };
-    const field = { name: 'Court A', status: 'ACTIVE' as const, supportedFormats: ['FIVE_A_SIDE' as const] };
+    const venue = {
+      name: 'Central',
+      addressLine1: '1 Main Road',
+      city: 'Cape Town',
+      region: 'Western Cape',
+      countryCode: 'ZA',
+      timezone: 'Africa/Johannesburg',
+      isActive: true,
+    };
+    const field = {
+      name: 'Court A',
+      status: 'ACTIVE' as const,
+      supportedFormats: ['FIVE_A_SIDE' as const],
+    };
     await api.venues();
     await api.createVenue(venue);
     await api.updateVenue('venue-id', venue);
     await api.createField('venue-id', field);
     await api.updateField('field-id', field);
     await api.replaceFieldAvailability('field-id', { periods: [] });
-    await api.addFieldException('field-id', { startsAt: '2026-09-01T08:00:00.000Z', endsAt: '2026-09-01T10:00:00.000Z', available: false });
+    await api.addFieldException('field-id', {
+      startsAt: '2026-09-01T08:00:00.000Z',
+      endsAt: '2026-09-01T10:00:00.000Z',
+      available: false,
+    });
     await api.removeFieldException('field-id', 'exception-id');
-    await api.addFieldPrice('field-id', { amountCents: 80000, effectiveFrom: '2026-09-01T00:00:00.000Z' });
+    await api.addFieldPrice('field-id', {
+      amountCents: 80000,
+      effectiveFrom: '2026-09-01T00:00:00.000Z',
+    });
     expect(request.mock.calls.map(([path]) => path)).toEqual([
-      '/admin/venues', '/admin/venues', '/admin/venues/venue-id',
-      '/admin/venues/venue-id/fields', '/admin/fields/field-id',
-      '/admin/fields/field-id/availability', '/admin/fields/field-id/exceptions',
-      '/admin/fields/field-id/exceptions/exception-id', '/admin/fields/field-id/prices',
+      '/admin/venues',
+      '/admin/venues',
+      '/admin/venues/venue-id',
+      '/admin/venues/venue-id/fields',
+      '/admin/fields/field-id',
+      '/admin/fields/field-id/availability',
+      '/admin/fields/field-id/exceptions',
+      '/admin/fields/field-id/exceptions/exception-id',
+      '/admin/fields/field-id/prices',
     ]);
     expect(request).toHaveBeenLastCalledWith('/admin/fields/field-id/prices', {
-      method: 'POST', body: JSON.stringify({ amountCents: 80000, effectiveFrom: '2026-09-01T00:00:00.000Z' }),
+      method: 'POST',
+      body: JSON.stringify({ amountCents: 80000, effectiveFrom: '2026-09-01T00:00:00.000Z' }),
     });
   });
 
@@ -57,16 +89,28 @@ describe('adminApi', () => {
     await api.removeTestDataBatch('batch-id');
     await api.walletReconciliation();
     await api.managedMatches();
-    await api.createManagedMatch({ managedFieldId: '11111111-1111-4111-8111-111111111111', name: 'Admin Match', format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC', startsAt: '2026-09-01T18:00:00.000Z' });
+    await api.createManagedMatch({
+      managedFieldId: '11111111-1111-4111-8111-111111111111',
+      name: 'Admin Match',
+      format: 'FIVE_A_SIDE',
+      substituteCapacityPerTeam: 5,
+      rollingSubstitutes: true,
+      rules: [],
+      visibility: 'PUBLIC',
+      startsAt: '2026-09-01T18:00:00.000Z',
+    });
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/support/tickets?status=OPEN&assignedToMe=true',
       '/admin/support/tickets/ticket-id',
       '/admin/support/tickets/ticket-id/messages',
       '/admin/support/tickets/ticket-id',
-      '/admin/test-data/status', '/admin/test-data/batches', '/admin/test-data/batches',
+      '/admin/test-data/status',
+      '/admin/test-data/batches',
+      '/admin/test-data/batches',
       '/admin/test-data/batches/batch-id',
       '/admin/finance/reconciliation',
-      '/admin/matches', '/admin/matches',
+      '/admin/matches',
+      '/admin/matches',
     ]);
   });
 
@@ -75,10 +119,17 @@ describe('adminApi', () => {
     const api = adminApi({ request } as unknown as ApiClient);
     await api.moderationReports({ status: 'OPEN', targetType: 'USER', assignedToMe: true });
     await api.moderationReport('report-id');
-    await api.updateModerationReport('report-id', { status: 'RESOLVED', resolutionSummary: 'Reviewed.' });
+    await api.updateModerationReport('report-id', {
+      status: 'RESOLVED',
+      resolutionSummary: 'Reviewed.',
+    });
     await api.moderationUsers({ search: 'player', accountStatus: 'SUSPENDED' });
     await api.moderationUser('user-id');
-    await api.enforceUser('user-id', { type: 'SUSPENSION', publicReason: 'Safety review.', endsAt: '2026-09-01T18:00:00.000Z' });
+    await api.enforceUser('user-id', {
+      type: 'SUSPENSION',
+      publicReason: 'Safety review.',
+      endsAt: '2026-09-01T18:00:00.000Z',
+    });
     await api.revokeEnforcement('user-id', 'enforcement-id', { reason: 'Review complete.' });
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/moderation/reports?status=OPEN&targetType=USER&assignedToMe=true',
@@ -97,7 +148,10 @@ describe('adminApi', () => {
     await api.disputes({ status: 'OPEN', type: 'MATCH_RESULT', assignedToMe: true });
     await api.dispute('dispute-id');
     await api.reviewDispute('dispute-id', { assignedToMe: true });
-    await api.resolveDispute('dispute-id', { outcome: 'RESULT_CONFIRMED', resolutionSummary: 'Evidence confirms the original result.' });
+    await api.resolveDispute('dispute-id', {
+      outcome: 'RESULT_CONFIRMED',
+      resolutionSummary: 'Evidence confirms the original result.',
+    });
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/disputes?status=OPEN&type=MATCH_RESULT&assignedToMe=true',
       '/admin/disputes/dispute-id',

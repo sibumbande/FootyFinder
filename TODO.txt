@@ -1,9 +1,20 @@
-We need to extract the lobby itself into its own class that can house multiple numbers of players to cater for the different match types.
-so far we have registration, match creation and lobbies.
-lobbies can be cancelled or time out and they will refund the players.
-implement using the post match stats and saving them to stats for the players to track.
-player rrefunds
-tournaments
+Footy Finder backlog
+=====================
 
-After those, the next major product area I’d design is notifications: match reminders, payment confirmation, someone joining/leaving, private invitations, cancellation, kickoff approaching, result submitted, and wallet credits.
-friend list
+Completed foundations
+- Dynamic 5v5/7v7/11v11 Match lobbies, cancellation credits, results, notifications, Teams, Match-Day availability/lineups, managed fields, pooled booking funding, Admin support/moderation/disputes, durable jobs, and operational readiness.
+- Audit remediation status is maintained in docs/AUDIT_REMEDIATION_CLOSURE.md.
+
+Next approved product phases
+- Decide Team roster/default-formation visibility and the Team-Match historical formation projection before Team-v-Team matchmaking.
+- Team social: friendships/blocks, Team chat, recruitment, and sharing.
+- Team-v-Team matchmaking and opponent lifecycle.
+- Team Wallet and fixed 50/50 opponent funding.
+- Verification, reviews, public-city discovery, tournament interest, and selected production providers.
+
+Engineering backlog
+- Cursor pagination and retry-safe client message IDs for growing chat/list endpoints.
+- Query-shaped discovery indexes and venue/geospatial redesign after recording PostgreSQL query plans.
+- Shared distributed rate-limit store before horizontal API scaling.
+- Accessible dialog/menu primitives, stable form IDs, and advanced FormationBoard keyboard movement.
+- Explicit legal retention/anonymization policy before any user hard-delete workflow.

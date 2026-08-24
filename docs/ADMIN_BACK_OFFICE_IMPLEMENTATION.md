@@ -30,20 +30,21 @@ A separate repository, API, or database is intentionally deferred until an indep
 | 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Complete (`bde7107`) |
 | 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Complete (`63c3d25`) |
 | 7 | Moderation, suspension, bans, and enforcement review | Complete (`7898c3a`) |
-| 8 | Result and booking disputes with immutable result revisions | Complete (current slice) |
-| 9 | Operations dashboard, browser E2E coverage, documentation, and final audit | Pending |
+| 8 | Result and booking disputes with immutable result revisions | Complete (`d37c903`) |
+| 9 | Operations dashboard, browser E2E coverage, documentation, and final audit | Complete (current slice) |
 
 Each slice receives an additive migration when persistence changes, focused automated tests, relevant isolated PostgreSQL smoke coverage, the complete existing regression suite, and its own Git commit before work begins on the next slice.
 
 ## Current verified baseline
 
-Slice 8 verified on top of Slice 7 commit `7898c3a`.
+Slice 9 is verified on top of Slice 8 commit `d37c903`.
 
 - Prisma schema formats, validates, generates, and reports all 22 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 203 automated tests pass: API 120, web 20, API client 18, shared 45.
+- 205 unit, component, and API-contract tests pass, plus the committed Chromium critical path.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
+- `npm audit --omit=dev` reports five transitive advisories (React Router and Prisma tooling dependency chains). They remain tracked under `AUDIT-DEP-001`; no automatic breaking dependency upgrade was folded into this feature slice.
 
 The original system audit remains a historical report of commit `aa03e5b`. Its post-audit status note identifies findings closed by the current baseline.
 
@@ -128,3 +129,13 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - Confirming an original result or upholding/rejecting a booking records an authoritative decision without inventing external refunds or wallet movements.
 - Resolution, projection changes, notification persistence, and redacted Admin audit commit atomically. Notifications and Match invalidation publish only after commit.
 - `smoke:disputes-results` proves outcome constraints, correction history, wallet isolation, append-only revisions, atomic rollback, and exact cleanup.
+
+## Slice 9 operations and release boundary
+
+- `/health` remains a dependency-free liveness probe. `/ready` verifies PostgreSQL and returns `503` when the API cannot safely receive traffic.
+- The MFA-protected `/admin/operations/summary` endpoint drives the Admin dashboard with current support, moderation, dispute, funding, account, Match, durable-job, and 24-hour financial aggregates.
+- Process counters record Match lifecycle transitions and durable-job success/retry/terminal-failure behavior. Durable database state remains the authoritative cross-instance view; in-process counters are diagnostic rather than billing records.
+- Structured redacted logs, correlation IDs, readiness, database-backed queue totals, financial reconciliation, and the live dashboard form the deployment observability baseline.
+- The Playwright Chromium critical path starts the real web/API applications and uses browser cookie/CORS behavior to verify registration, deposits, paid joining, Team invitation, availability `PUT`, lineup claims, direct messages, and notifications.
+- Browser fixtures use unique `@test.invalid` accounts and assert exact PostgreSQL cleanup. Screenshots, traces, and reports are ignored generated artifacts.
+- The closure register in `AUDIT_REMEDIATION_CLOSURE.md` distinguishes completed remediation from product-policy and scalability work that remains intentionally deferred.

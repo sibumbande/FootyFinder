@@ -1504,6 +1504,9 @@ Do not run a broad recursive delete, drop another database, remove the PostgreSQ
 | Team formations                |      |      |         |                        |         |
 | Team Match availability/lineup |      |      |         |                        |         |
 | Realtime/security/resilience   |      |      |         |                        |         |
+| Admin identity/operations      |      |      |         |                        |         |
+| Venues/bookings/funding        |      |      |         |                        |         |
+| Support/moderation/disputes    |      |      |         |                        |         |
 | **Total**                      |      |      |         |                        |         |
 
 Before approving the build, confirm:
@@ -1519,3 +1522,44 @@ Before approving the build, confirm:
 **Tester recommendation:** `APPROVE`, `APPROVE WITH KNOWN LIMITATIONS`, or `REJECT`.
 
 **Reason and blocking test IDs:**
+
+## 22. Admin back office and release operations addendum
+
+Complete the base setup in this guide, register the intended administrator as a normal player, then promote that exact account locally:
+
+```bash
+npm run admin:bootstrap --workspace=@footy-finder/api -- admin@example.com
+npm run dev
+```
+
+Open `http://localhost:5174`, sign in, configure the one-time authenticator secret, and verify a current six-digit code. Confirm a normal player account is denied and that logout invalidates only the current persisted session.
+
+Run these Admin journeys with uniquely identifiable test names:
+
+1. Dashboard: verify the database-ready indicator, support/moderation/dispute/funding queue totals, accounts, Matches, durable jobs, 24-hour finance total, and 30-second refresh.
+2. Venues: create a venue and field, set supported formats, weekly availability, a temporary exception, and non-overlapping effective ZAR prices. Confirm overlapping prices are rejected and price history cannot be edited.
+3. Match loading: create a managed-field Match and confirm its reservation/location/price snapshot remains unchanged after catalogue edits.
+4. Funding: as players, open a field booking, contribute exact wallet amounts, verify holds before completion and settled debits only when fully funded. Also let an underfunded pool expire and verify released holds.
+5. Support: submit a player ticket, send an Admin public reply and an internal note, then confirm the player receives only the public reply and notification.
+6. Test data: verify tools are unavailable by default. On a disposable database only, enable `ADMIN_TEST_DATA_ENABLED=true`, create a tagged batch, and verify deletion targets only that batch. Production must refuse this setting.
+7. Moderation: report authorized content, inspect its evidence snapshot, apply a timed suspension, verify all target sessions/sockets are revoked, then reinstate. Verify platform Admin accounts cannot be sanctioned through the player flow.
+8. Disputes: open a Match-result dispute, correct the result, verify a new immutable revision and player notification, then resolve a booking dispute and confirm it does not invent a wallet movement.
+9. Audit/finance: verify each privileged mutation has a correlated append-only audit row and that Finance reconciliation reports zero issues.
+
+Verify deployment probes independently:
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+```
+
+`/health` should remain `200` while the process is alive. `/ready` should return `200` with database status `ready`, and `503` when PostgreSQL is unavailable.
+
+The repeatable browser regression is:
+
+```bash
+npm run test:e2e:install
+npm run test:e2e
+```
+
+It uses Chromium and real cookie/CORS requests to cover authentication, demo funding, paid joining, Team invitation, availability `PUT`, lineup claims, direct messaging, and persisted notifications. It creates only uniquely tagged `@test.invalid` fixtures and asserts exact cleanup. Current known limitations must match `docs/AUDIT_REMEDIATION_CLOSURE.md`; no historical P1 item is an accepted expected failure.

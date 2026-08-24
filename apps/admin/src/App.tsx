@@ -131,27 +131,90 @@ function MfaGate() {
 }
 
 function Dashboard() {
-  const modules = [
-    ['Venues & fields', 'Available now'],
-    ['Support inbox', 'Available now'],
-    ['Test accounts & data', 'Available when environment-gated'],
-    ['Match loading', 'Available now'],
-    ['Moderation', 'Available now'],
-    ['Disputes', 'Available now'],
-    ['Finance & reconciliation', 'Assigned to Slice 5'],
-  ];
+  const summary = useQuery({
+    queryKey: ['admin', 'operations', 'summary'],
+    queryFn: async () => (await adminClient.operationsSummary()).data,
+    refetchInterval: 30_000,
+  });
+  const data = summary.data;
+  const money = (cents: number) =>
+    new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(cents / 100);
+  const metrics = data
+    ? ([
+        [
+          'Support queue',
+          data.workQueues.openSupportTickets,
+          `${data.workQueues.urgentSupportTickets} urgent`,
+        ],
+        ['Moderation queue', data.workQueues.openModerationReports, 'open reports'],
+        ['Disputes', data.workQueues.openDisputes, 'awaiting resolution'],
+        ['Funding bookings', data.workQueues.fundingReservations, 'awaiting contributions'],
+        [
+          'Active accounts',
+          data.accounts.active,
+          `${data.accounts.suspended} suspended · ${data.accounts.banned} banned`,
+        ],
+        [
+          'Live Matches',
+          data.matches.inProgress,
+          `${data.matches.open} open · ${data.matches.awaitingResult} awaiting result`,
+        ],
+        [
+          'Durable jobs',
+          data.durableJobs.pending,
+          `${data.durableJobs.overdue} overdue · ${data.durableJobs.failed} failed`,
+        ],
+        [
+          'Settled in 24h',
+          money(data.finance24Hours.settledValueCents),
+          `${data.finance24Hours.succeededTransactions} succeeded · ${data.finance24Hours.failedTransactions} failed`,
+        ],
+      ] as const)
+    : [];
   return (
     <section>
-      <p className="eyebrow">Operations overview</p>
-      <h2>Admin workspace</h2>
-      <div className="module-grid">
-        {modules.map(([item, status]) => (
-          <article key={item}>
-            <strong>{item}</strong>
-            <span>{status}</span>
-          </article>
-        ))}
+      <div className="row between">
+        <div className="stack compact-gap">
+          <p className="eyebrow">Operations overview</p>
+          <h2>Admin workspace</h2>
+        </div>
+        {data && (
+          <span className="ready-pill">Database ready · {data.database.responseTimeMs} ms</span>
+        )}
       </div>
+      {summary.isPending && <p>Loading operational state…</p>}
+      {summary.error && <p className="error">{summary.error.message}</p>}
+      {data && (
+        <>
+          <div className="module-grid metrics-grid">
+            {metrics.map(([item, value, detail]) => (
+              <article key={item}>
+                <span>{item}</span>
+                <strong className="metric-value">{value}</strong>
+                <small>{detail}</small>
+              </article>
+            ))}
+          </div>
+          <p className="muted">
+            Updated {new Date(data.generatedAt).toLocaleTimeString()} · API uptime{' '}
+            {Math.floor(data.runtime.uptimeSeconds / 60)} minutes · {data.accounts.admins}{' '}
+            administrators
+          </p>
+          <details>
+            <summary>Process counters</summary>
+            <div className="process-metrics">
+              {Object.entries(data.processMetrics).length === 0 && (
+                <span>No lifecycle transitions recorded by this process yet.</span>
+              )}
+              {Object.entries(data.processMetrics).map(([name, value]) => (
+                <code key={name}>
+                  {name}: {value}
+                </code>
+              ))}
+            </div>
+          </details>
+        </>
+      )}
     </section>
   );
 }

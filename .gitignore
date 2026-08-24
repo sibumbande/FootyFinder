@@ -4,3 +4,6 @@ dist
 *.tsbuildinfo
 coverage
 /uploads/
+/test-results/
+/playwright-report/
+/blob-report/

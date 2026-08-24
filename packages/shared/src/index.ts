@@ -9,6 +9,7 @@ export * from './types/support.js';
 export * from './types/booking.js';
 export * from './types/moderation.js';
 export * from './types/dispute.js';
+export * from './types/operations.js';
 export * from './config/match-formats.js';
 export * from './config/match-rules.js';
 export * from './config/formations.js';
