@@ -1,6 +1,10 @@
 import { Router, type Router as ExpressRouter } from 'express';
+import { teamSideRouteParamSchema } from '@footy-finder/shared';
+import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './matches.controller.js';
 export const matchesRouter: ExpressRouter = Router();
+registerUuidRouteParams(matchesRouter, ['id', 'slotId', 'participantId', 'userId']);
+registerRouteParam(matchesRouter, 'side', teamSideRouteParamSchema);
 matchesRouter.get('/', controller.list);
 matchesRouter.post('/', controller.create);
 matchesRouter.get('/invite/:token', controller.invite);

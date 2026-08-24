@@ -10,6 +10,7 @@ import type {
   UpdateMatchInput,
 } from '@footy-finder/shared';
 import {
+  CANCELLATION_CUTOFF_HOURS,
   createDefaultFormation,
   createFormationPresetSlots,
   getCancellationCreditCents,
@@ -18,6 +19,11 @@ import {
 } from '@footy-finder/shared';
 import { serializableTransaction } from '../../database/transaction.js';
 import { prisma } from '../../database/prisma.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+  type NotificationDraft,
+} from '../notifications/notification-writer.js';
 import { matchInclude, participantInclude } from './match.query.js';
 
 export class InsufficientBalanceError extends Error {}
@@ -245,7 +251,12 @@ export class MatchesRepository {
       if (replay) {
         if (replay.matchId !== matchId || replay.userId !== userId || replay.team !== input.team)
           throw new AlreadyJoinedError();
-        return { participant: replay.participant, replacement: null, replayed: true };
+        return {
+          participant: replay.participant,
+          replacement: null,
+          replayed: true,
+          notifications: [],
+        };
       }
       const match = await tx.match.findUniqueOrThrow({
         where: { id: matchId },
@@ -349,7 +360,76 @@ export class MatchesRepository {
         });
         replacement = { userId: cancellation.userId, amountCents };
       }
-      return { participant, replacement, replayed: false };
+      const notificationDrafts: NotificationDraft[] = [
+        {
+          userId,
+          type: 'MATCH_JOINED',
+          title: 'Match joined',
+          message: `Your place on the ${input.team === 'HOME' ? 'Home' : 'Away'} team is confirmed.`,
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey(
+            'match',
+            matchId,
+            'participant',
+            participant.id,
+            'joined',
+            userId,
+          ),
+        },
+      ];
+      const audience = new Set([
+        match.createdById,
+        ...match.participants.map(({ userId: participantUserId }) => participantUserId),
+      ]);
+      audience.delete(userId);
+      const displayName = participant.user.profile?.displayName ?? participant.user.username;
+      for (const recipientId of audience)
+        notificationDrafts.push({
+          userId: recipientId,
+          type: 'INFO',
+          title: 'Player joined',
+          message: `${displayName} joined the ${input.team === 'HOME' ? 'Home' : 'Away'} team.`,
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey(
+            'match',
+            matchId,
+            'participant',
+            participant.id,
+            'joined-audience',
+            recipientId,
+          ),
+        });
+      if (replacement)
+        notificationDrafts.push(
+          {
+            userId: replacement.userId,
+            type: 'REPLACEMENT_FOUND',
+            title: 'Replacement found',
+            message: 'The remaining cancellation credit was added to your wallet.',
+            targetPath: `/matches/${matchId}`,
+            dedupeKey: notificationDedupeKey(
+              'cancellation',
+              cancellation!.id,
+              'replacement-found',
+              replacement.userId,
+            ),
+          },
+          {
+            userId: replacement.userId,
+            type: 'WALLET_CREDIT',
+            title: 'Wallet credited',
+            message: `R${(replacement.amountCents / 100).toFixed(2)} was added to your balance.`,
+            targetPath: `/matches/${matchId}`,
+            dedupeKey: notificationDedupeKey(
+              'cancellation',
+              cancellation!.id,
+              'wallet-credit',
+              replacement.userId,
+            ),
+          },
+        );
+      const notifications = await persistNotifications(tx, notificationDrafts);
+      return { participant, replacement, replayed: false, notifications };
     });
   }
 
@@ -363,7 +443,11 @@ export class MatchesRepository {
         include: { payment: { include: { cancellation: true } } },
       });
       if (participant.payment?.cancellation)
-        return { cancellation: participant.payment.cancellation, replayed: true };
+        return {
+          cancellation: participant.payment.cancellation,
+          replayed: true,
+          notifications: [],
+        };
       if (participant.status !== 'JOINED') throw new AlreadyJoinedError();
       await tx.formationSlot.updateMany({
         where: { participantId: participant.id },
@@ -373,7 +457,7 @@ export class MatchesRepository {
         where: { id: participant.id },
         data: { status: 'LEFT', leftAt: now },
       });
-      if (!participant.payment) return { cancellation: null, replayed: false };
+      if (!participant.payment) return { cancellation: null, replayed: false, notifications: [] };
       const initialCreditCents = getCancellationCreditCents(
         participant.payment.amountCents,
         match.startsAt,
@@ -423,7 +507,25 @@ export class MatchesRepository {
           initialCreditCents,
         },
       });
-      return { cancellation, replayed: false };
+      const notifications = await persistNotifications(tx, [
+        {
+          userId,
+          type: 'PLAYER_CANCELLED',
+          title: 'Place cancelled',
+          message:
+            cancellation.initialCreditCents > 0
+              ? `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`
+              : `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. Your fee will be credited if a replacement joins.`,
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey(
+            'cancellation',
+            cancellation.id,
+            'player-cancelled',
+            userId,
+          ),
+        },
+      ]);
+      return { cancellation, replayed: false, notifications };
     });
   }
 
@@ -433,8 +535,10 @@ export class MatchesRepository {
         where: { id: matchId },
         include: { payments: { where: { status: 'SUCCEEDED' } } },
       });
-      if (match.status === 'CANCELLED') return { match, refundedUserIds: [] as string[] };
+      if (match.status === 'CANCELLED')
+        return { match, refundedUserIds: [] as string[], notifications: [] };
       const refundedUserIds: string[] = [];
+      const notificationDrafts: NotificationDraft[] = [];
       for (const payment of match.payments) {
         const wallet = await tx.walletAccount.findUniqueOrThrow({
           where: { userId: payment.userId },
@@ -457,13 +561,29 @@ export class MatchesRepository {
         });
         await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
         refundedUserIds.push(payment.userId);
+        notificationDrafts.push({
+          userId: payment.userId,
+          type: 'MATCH_CANCELLED',
+          title: 'Match cancelled',
+          message: 'Your full match fee was credited to your Footy Finder wallet.',
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey(
+            'match-payment',
+            payment.id,
+            'match-cancelled',
+            payment.userId,
+          ),
+        });
       }
+      const cancelled = await tx.match.update({
+        where: { id: matchId },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+      const notifications = await persistNotifications(tx, notificationDrafts);
       return {
-        match: await tx.match.update({
-          where: { id: matchId },
-          data: { status: 'CANCELLED', cancelledAt: new Date() },
-        }),
+        match: cancelled,
         refundedUserIds,
+        notifications,
       };
     });
   }
@@ -553,6 +673,10 @@ export class MatchesRepository {
 
   submitResult(matchId: string, userId: string, input: ResultInput) {
     return serializableTransaction(async (tx) => {
+      const match = await tx.match.findUniqueOrThrow({
+        where: { id: matchId },
+        select: { name: true, createdById: true },
+      });
       const participants = await tx.matchParticipant.findMany({ where: { matchId } });
       const participantMap = new Map(
         participants.map((participant) => [participant.id, participant]),
@@ -570,7 +694,7 @@ export class MatchesRepository {
         .reduce((sum, scorer) => sum + scorer.goals, 0);
       if (homeGoals !== input.homeScore || awayGoals !== input.awayScore)
         throw new Error('SCORER_TOTAL_MISMATCH');
-      await tx.matchResult.create({
+      const result = await tx.matchResult.create({
         data: {
           matchId,
           submittedById: userId,
@@ -586,7 +710,22 @@ export class MatchesRepository {
         },
       });
       await tx.match.update({ where: { id: matchId }, data: { status: 'COMPLETED' } });
-      return tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude });
+      const recipients = new Set([match.createdById, ...participants.map(({ userId }) => userId)]);
+      const notifications = await persistNotifications(
+        tx,
+        [...recipients].map((recipientId) => ({
+          userId: recipientId,
+          type: 'RESULT_SUBMITTED' as const,
+          title: 'Result submitted',
+          message: `Final score: Home ${input.homeScore}-${input.awayScore} Away.`,
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey('match-result', result.id, 'submitted', recipientId),
+        })),
+      );
+      return {
+        match: await tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude }),
+        notifications,
+      };
     });
   }
 }

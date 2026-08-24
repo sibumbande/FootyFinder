@@ -1,6 +1,8 @@
 import { Router, type Router as ExpressRouter } from 'express';
+import { registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './messaging.controller.js';
 export const messagingRouter: ExpressRouter = Router();
+registerUuidRouteParams(messagingRouter, ['id']);
 messagingRouter.get('/', controller.list);
 messagingRouter.post('/', controller.start);
 messagingRouter.get('/:id', controller.get);

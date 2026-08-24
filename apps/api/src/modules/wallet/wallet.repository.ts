@@ -1,4 +1,9 @@
+import type { Notification } from '@prisma/client';
 import { prisma } from '../../database/prisma.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+} from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
 export class WalletRepository {
@@ -35,18 +40,37 @@ export class WalletRepository {
         where: { id: transactionId, walletAccountId: account.id, status: 'PENDING' },
         data: { status: 'SUCCEEDED', providerReference },
       });
-      if (transition.count === 1)
+      let notifications: Notification[] = [];
+      if (transition.count === 1) {
+        const creditedTransaction = await tx.walletTransaction.findUniqueOrThrow({
+          where: { id: transactionId },
+        });
         await tx.walletAccount.update({
           where: { id: account.id },
           data: {
-            balanceCents: {
-              increment: (
-                await tx.walletTransaction.findUniqueOrThrow({ where: { id: transactionId } })
-              ).amountCents,
-            },
+            balanceCents: { increment: creditedTransaction.amountCents },
           },
         });
-      return tx.user.findUniqueOrThrow({ where: { id: userId }, include: safeUserInclude });
+        notifications = await persistNotifications(tx, [
+          {
+            userId,
+            type: 'DEPOSIT_SUCCEEDED',
+            title: 'Deposit received',
+            message: `R${(creditedTransaction.amountCents / 100).toFixed(2)} was added to your Footy Finder wallet.`,
+            targetPath: '/',
+            dedupeKey: notificationDedupeKey(
+              'wallet-transaction',
+              transactionId,
+              'deposit-succeeded',
+              userId,
+            ),
+          },
+        ]);
+      }
+      return {
+        user: await tx.user.findUniqueOrThrow({ where: { id: userId }, include: safeUserInclude }),
+        notifications,
+      };
     });
   }
   settle(

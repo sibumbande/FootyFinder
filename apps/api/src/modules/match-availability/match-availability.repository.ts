@@ -1,6 +1,10 @@
 import { Prisma, type TeamMatchAvailabilityStatus, type TeamSide } from '@prisma/client';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+} from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
 export class TeamMatchSideNotFoundError extends Error {}
@@ -109,21 +113,24 @@ export class MatchAvailabilityRepository {
         data: { availabilityRequestedAt: requestedAt },
       });
 
-      const notifications = [];
-      for (const member of missing) {
-        if (member.userId === userId) continue;
-        notifications.push(
-          await tx.notification.create({
-            data: {
-              userId: member.userId,
-              type: 'TEAM_MATCH_AVAILABILITY_REQUESTED',
-              title: 'Match availability requested',
-              message: `${matchTeam.teamNameSnapshot} needs your availability for ${matchTeam.match.name}.`,
-              targetPath: `/matches/${matchId}`,
-            },
-          }),
-        );
-      }
+      const notifications = await persistNotifications(
+        tx,
+        missing
+          .filter((member) => member.userId !== userId)
+          .map((member) => ({
+            userId: member.userId,
+            type: 'TEAM_MATCH_AVAILABILITY_REQUESTED' as const,
+            title: 'Match availability requested',
+            message: `${matchTeam.teamNameSnapshot} needs your availability for ${matchTeam.match.name}.`,
+            targetPath: `/matches/${matchId}`,
+            dedupeKey: notificationDedupeKey(
+              'team-match',
+              matchTeam.id,
+              'availability-requested',
+              member.userId,
+            ),
+          })),
+      );
 
       return {
         requestedAt,

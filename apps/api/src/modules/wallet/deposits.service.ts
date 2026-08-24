@@ -1,6 +1,7 @@
 import type { DepositResponse } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
 import { toAuthenticatedUser } from '../users/user.mapper.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import type { PaymentOperator } from './payment-operator.js';
 import { WalletRepository } from './wallet.repository.js';
 
@@ -8,6 +9,7 @@ export class DepositsService {
   constructor(
     private readonly operator: PaymentOperator,
     private readonly wallet = new WalletRepository(),
+    private readonly notifications = new NotificationsService(),
   ) {}
 
   async deposit(
@@ -88,11 +90,12 @@ export class DepositsService {
     }
 
     if (result.status === 'success') {
-      const user = await this.wallet.succeed(transaction.id, userId, result.providerReference);
+      const settled = await this.wallet.succeed(transaction.id, userId, result.providerReference);
+      this.notifications.publishPersistedMany(settled.notifications);
       return {
         status: 'success',
         transactionId: transaction.id,
-        user: toAuthenticatedUser(user),
+        user: toAuthenticatedUser(settled.user),
         replayed: false,
       };
     }

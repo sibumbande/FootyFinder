@@ -1,12 +1,89 @@
 import { prisma } from '../../database/prisma.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { serializableTransaction } from '../../database/transaction.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+} from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 
 const POLL_INTERVAL_MS = 15_000;
 
-const recipientsFor = (match: { createdById: string; participants: Array<{ userId: string }> }) => [
-  ...new Set([match.createdById, ...match.participants.map(({ userId }) => userId)]),
-];
+export async function runMatchLifecycleTick(
+  now = new Date(),
+  notifications = new NotificationsService(),
+) {
+  const starting = await prisma.match.findMany({
+    where: {
+      mode: 'QUICK_GAME',
+      status: { in: ['OPEN', 'READY', 'FULL'] },
+      startsAt: { lte: now },
+    },
+    select: { id: true },
+  });
+
+  for (const candidate of starting) {
+    await transitionMatchToStarted(candidate.id, notifications);
+  }
+
+  const inProgress = await prisma.match.findMany({
+    where: { mode: 'QUICK_GAME', status: 'IN_PROGRESS' },
+    select: { id: true, startsAt: true, durationMinutes: true },
+  });
+  for (const match of inProgress) {
+    const endsAt = match.startsAt.getTime() + match.durationMinutes * 60_000;
+    if (endsAt > now.getTime()) continue;
+    const transition = await prisma.match.updateMany({
+      where: { id: match.id, status: 'IN_PROGRESS' },
+      data: { status: 'AWAITING_RESULT' },
+    });
+    if (transition.count === 1) emitDomainEventBestEffort('match:ended', { matchId: match.id });
+  }
+}
+
+export async function transitionMatchToStarted(
+  matchId: string,
+  notifications = new NotificationsService(),
+) {
+  const result = await serializableTransaction(async (tx) => {
+    const transition = await tx.match.updateMany({
+      where: { id: matchId, status: { in: ['OPEN', 'READY', 'FULL'] } },
+      data: { status: 'IN_PROGRESS' },
+    });
+    if (transition.count !== 1) return null;
+    const match = await tx.match.findUniqueOrThrow({
+      where: { id: matchId },
+      select: {
+        id: true,
+        name: true,
+        createdById: true,
+        participants: { where: { status: 'JOINED' }, select: { userId: true } },
+      },
+    });
+    const recipients = new Set([
+      match.createdById,
+      ...match.participants.map(({ userId }) => userId),
+    ]);
+    return {
+      matchId: match.id,
+      notifications: await persistNotifications(
+        tx,
+        [...recipients].map((userId) => ({
+          userId,
+          type: 'MATCH_STARTED' as const,
+          title: 'Kick-off',
+          message: `${match.name} has started.`,
+          targetPath: `/matches/${match.id}`,
+          dedupeKey: notificationDedupeKey('match', match.id, 'started', userId),
+        })),
+      ),
+    };
+  });
+  if (!result) return false;
+  emitDomainEventBestEffort('match:started', { matchId: result.matchId });
+  notifications.publishPersistedMany(result.notifications);
+  return true;
+}
 
 export function startMatchLifecycleScheduler(notifications = new NotificationsService()) {
   let running = false;
@@ -15,54 +92,7 @@ export function startMatchLifecycleScheduler(notifications = new NotificationsSe
     if (running) return;
     running = true;
     try {
-      const now = new Date();
-      const starting = await prisma.match.findMany({
-        where: {
-          mode: 'QUICK_GAME',
-          status: { in: ['OPEN', 'READY', 'FULL'] },
-          startsAt: { lte: now },
-        },
-        select: {
-          id: true,
-          name: true,
-          createdById: true,
-          participants: { where: { status: 'JOINED' }, select: { userId: true } },
-        },
-      });
-
-      for (const match of starting) {
-        const transition = await prisma.match.updateMany({
-          where: { id: match.id, status: { in: ['OPEN', 'READY', 'FULL'] } },
-          data: { status: 'IN_PROGRESS' },
-        });
-        if (transition.count !== 1) continue;
-        domainEvents.emit('match:started', { matchId: match.id });
-        await Promise.all(
-          recipientsFor(match).map((userId) =>
-            notifications.create(
-              userId,
-              'MATCH_STARTED',
-              'Kick-off',
-              `${match.name} has started.`,
-              `/matches/${match.id}`,
-            ),
-          ),
-        );
-      }
-
-      const inProgress = await prisma.match.findMany({
-        where: { mode: 'QUICK_GAME', status: 'IN_PROGRESS' },
-        select: { id: true, startsAt: true, durationMinutes: true },
-      });
-      for (const match of inProgress) {
-        const endsAt = match.startsAt.getTime() + match.durationMinutes * 60_000;
-        if (endsAt > now.getTime()) continue;
-        const transition = await prisma.match.updateMany({
-          where: { id: match.id, status: 'IN_PROGRESS' },
-          data: { status: 'AWAITING_RESULT' },
-        });
-        if (transition.count === 1) domainEvents.emit('match:ended', { matchId: match.id });
-      }
+      await runMatchLifecycleTick(new Date(), notifications);
     } catch (error) {
       console.error('Match lifecycle scheduler failed:', error);
     } finally {

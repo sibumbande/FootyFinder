@@ -1,4 +1,8 @@
 import { prisma } from '../../database/prisma.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+} from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
 const conversationInclude = {
@@ -47,6 +51,10 @@ export class MessagingRepository {
         where: { conversationId_userId: { conversationId, userId: senderId } },
       });
       if (!membership) return null;
+      const recipient = await tx.conversationParticipant.findFirst({
+        where: { conversationId, userId: { not: senderId } },
+        select: { userId: true },
+      });
       const message = await tx.directMessage.create({
         data: { conversationId, senderId, content },
         include: { sender: { include: safeUserInclude } },
@@ -55,7 +63,24 @@ export class MessagingRepository {
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
-      return message;
+      const notifications = recipient
+        ? await persistNotifications(tx, [
+            {
+              userId: recipient.userId,
+              type: 'DIRECT_MESSAGE',
+              title: `Message from ${message.sender.profile?.displayName ?? message.sender.username}`,
+              message: content.slice(0, 120),
+              targetPath: `/messages/${conversationId}`,
+              dedupeKey: notificationDedupeKey(
+                'direct-message',
+                message.id,
+                'recipient',
+                recipient.userId,
+              ),
+            },
+          ])
+        : [];
+      return { message, recipientUserId: recipient?.userId, notifications };
     });
   }
   markRead(conversationId: string, userId: string) {

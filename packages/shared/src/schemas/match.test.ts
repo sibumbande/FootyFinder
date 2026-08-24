@@ -3,6 +3,7 @@ import {
   assignTeamMatchStarterSchema,
   createMatchSchema,
   createTeamMatchSchema,
+  discoveryQuerySchema,
   openTeamMatchLineupSlotSchema,
   removeTeamMatchStarterSchema,
   teamMatchAvailabilityQuerySchema,
@@ -83,6 +84,18 @@ describe('createTeamMatchSchema', () => {
     });
     expect(parsed).not.toHaveProperty('visibility');
     expect(parsed).not.toHaveProperty('feeCents');
+  });
+});
+
+describe('discoveryQuerySchema', () => {
+  it('parses availableOnly using exact true and false query strings', () => {
+    expect(discoveryQuerySchema.parse({ availableOnly: 'true' }).availableOnly).toBe(true);
+    expect(discoveryQuerySchema.parse({ availableOnly: 'false' }).availableOnly).toBe(false);
+    expect(discoveryQuerySchema.parse({}).availableOnly).toBe(false);
+  });
+
+  it.each(['1', '0', 'yes', 'FALSE', true, false])('rejects coercive boolean value %s', (value) => {
+    expect(() => discoveryQuerySchema.parse({ availableOnly: value })).toThrow();
   });
 });
 

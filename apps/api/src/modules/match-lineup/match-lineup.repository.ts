@@ -9,6 +9,11 @@ import type {
 import { getPlayersPerTeam, mapMatchHalfPositionToTeam } from '@footy-finder/shared';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+  type NotificationDraft,
+} from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
 export class LineupTeamSideNotFoundError extends Error {}
@@ -192,8 +197,7 @@ async function changed(
   return { context: await refreshed(tx, context.id), notifications, reason };
 }
 
-function notify(
-  tx: Prisma.TransactionClient,
+function notificationDraft(
   userId: string,
   type:
     | 'TEAM_MATCH_SELECTION_UPDATED'
@@ -203,10 +207,9 @@ function notify(
   title: string,
   message: string,
   matchId: string,
-) {
-  return tx.notification.create({
-    data: { userId, type, title, message, targetPath: `/matches/${matchId}` },
-  });
+  dedupeKey: string,
+): NotificationDraft {
+  return { userId, type, title, message, targetPath: `/matches/${matchId}`, dedupeKey };
 }
 
 async function selectionNotification(
@@ -217,16 +220,24 @@ async function selectionNotification(
   message: string,
 ) {
   if (actorUserId === selectedUserId) return [];
-  return [
-    await notify(
-      tx,
+  const priorVersion = findSelection(context, selectedUserId)?.updatedAt.toISOString() ?? 'new';
+  return persistNotifications(tx, [
+    notificationDraft(
       selectedUserId,
       'TEAM_MATCH_SELECTION_UPDATED',
       'Match-Day selection updated',
       message,
       context.matchId,
+      notificationDedupeKey(
+        'team-match-lineup',
+        context.id,
+        'selection',
+        selectedUserId,
+        priorVersion,
+        message,
+      ),
     ),
-  ];
+  ]);
 }
 
 async function managerNotifications(
@@ -240,8 +251,26 @@ async function managerNotifications(
   const managers = context.team!.memberships.filter(
     (member) => member.userId !== actorUserId && ['OWNER', 'CAPTAIN'].includes(member.role),
   );
-  return Promise.all(
-    managers.map((member) => notify(tx, member.userId, type, title, message, context.matchId)),
+  const actorVersion = findSelection(context, actorUserId)?.updatedAt.toISOString() ?? 'new';
+  return persistNotifications(
+    tx,
+    managers.map((member) =>
+      notificationDraft(
+        member.userId,
+        type,
+        title,
+        message,
+        context.matchId,
+        notificationDedupeKey(
+          'team-match-lineup',
+          context.id,
+          type,
+          actorUserId,
+          actorVersion,
+          member.userId,
+        ),
+      ),
+    ),
   );
 }
 
@@ -464,19 +493,30 @@ export class MatchLineupRepository {
               : `You were removed from the active lineup for ${context.match.name}.`,
           )),
         );
-      for (const member of context.team!.memberships) {
-        if (member.userId === userId) continue;
-        notifications.push(
-          await notify(
-            tx,
-            member.userId,
-            'TEAM_MATCH_POSITION_OPENED',
-            'Match-Day position available',
-            `${context.teamNameSnapshot} opened a starting position for ${context.match.name}.`,
-            context.matchId,
-          ),
-        );
-      }
+      notifications.push(
+        ...(await persistNotifications(
+          tx,
+          context
+            .team!.memberships.filter((member) => member.userId !== userId)
+            .map((member) =>
+              notificationDraft(
+                member.userId,
+                'TEAM_MATCH_POSITION_OPENED',
+                'Match-Day position available',
+                `${context.teamNameSnapshot} opened a starting position for ${context.match.name}.`,
+                context.matchId,
+                notificationDedupeKey(
+                  'team-match-lineup',
+                  context.id,
+                  'slot-opened',
+                  slot.id,
+                  slot.updatedAt.toISOString(),
+                  member.userId,
+                ),
+              ),
+            ),
+        )),
+      );
       return changed(tx, context, 'POSITION_OPENED', notifications);
     });
   }
@@ -658,20 +698,27 @@ export class MatchLineupRepository {
         where: { id: context.id },
         data: { lineupFinalizedAt: new Date() },
       });
-      const notifications: Notification[] = [];
-      for (const selectedUserId of activeUserIds) {
-        if (selectedUserId === userId) continue;
-        notifications.push(
-          await notify(
-            tx,
-            selectedUserId,
-            'TEAM_MATCH_LINEUP_FINALIZED',
-            'Match-Day lineup finalized',
-            `${context.teamNameSnapshot} finalized the lineup for ${context.match.name}.`,
-            context.matchId,
+      const notifications = await persistNotifications(
+        tx,
+        [...activeUserIds]
+          .filter((selectedUserId) => selectedUserId !== userId)
+          .map((selectedUserId) =>
+            notificationDraft(
+              selectedUserId,
+              'TEAM_MATCH_LINEUP_FINALIZED',
+              'Match-Day lineup finalized',
+              `${context.teamNameSnapshot} finalized the lineup for ${context.match.name}.`,
+              context.matchId,
+              notificationDedupeKey(
+                'team-match-lineup',
+                context.id,
+                'finalized',
+                context.updatedAt.toISOString(),
+                selectedUserId,
+              ),
+            ),
           ),
-        );
-      }
+      );
       return changed(tx, context, 'FINALIZED', notifications);
     });
   }

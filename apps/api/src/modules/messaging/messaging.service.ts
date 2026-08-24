@@ -3,7 +3,7 @@ import { AppError } from '../../errors/app-error.js';
 import { toPublicUser } from '../users/user.mapper.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { MessagingRepository } from './messaging.repository.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 
 const messageDto = (message: any): DirectMessage => ({
   id: message.id,
@@ -53,25 +53,16 @@ export class MessagingService {
     return conversationDto(conversation, userId);
   }
   async send(id: string, userId: string, content: string) {
-    const message = await this.messages.send(id, userId, content);
-    if (!message)
+    const result = await this.messages.send(id, userId, content);
+    if (!result)
       throw new AppError(403, 'You are not part of this conversation.', 'CONVERSATION_REQUIRED');
-    const conversation = await this.messages.find(id, userId);
-    const recipient = conversation?.participants.find((item) => item.userId !== userId);
-    if (recipient)
-      await this.notifications.create(
-        recipient.userId,
-        'DIRECT_MESSAGE',
-        `Message from ${message.sender.profile?.displayName ?? message.sender.username}`,
-        content.slice(0, 120),
-        `/messages/${id}`,
-      );
-    const dto = messageDto(message);
-    domainEvents.emit('direct-message:created', {
+    const dto = messageDto(result.message);
+    emitDomainEventBestEffort('direct-message:created', {
       conversationId: id,
-      recipientUserId: recipient?.userId,
+      recipientUserId: result.recipientUserId,
       message: dto,
     });
+    this.notifications.publishPersistedMany(result.notifications);
     return dto;
   }
   async markRead(id: string, userId: string) {

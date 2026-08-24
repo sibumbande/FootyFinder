@@ -9,7 +9,7 @@ import type {
 } from '@footy-finder/shared';
 import { getPlayersPerTeam } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toTeamFormation } from '../teams/team.mapper.js';
 import { toPublicUser } from '../users/user.mapper.js';
@@ -178,8 +178,12 @@ export class MatchLineupService {
       const formation = toTeamFormation(
         await this.lineups.saveAsTeamDefault(matchId, side, userId),
       );
-      domainEvents.emit('match-lineup:changed', { matchId, side, reason: 'DEFAULT_SAVED' });
-      domainEvents.emit('team:formation-updated', {
+      emitDomainEventBestEffort('match-lineup:changed', {
+        matchId,
+        side,
+        reason: 'DEFAULT_SAVED',
+      });
+      emitDomainEventBestEffort('team:formation-updated', {
         teamId: formation.teamId,
         format: formation.format,
         formation,
@@ -206,7 +210,7 @@ export class MatchLineupService {
       const result = await work();
       this.notifications.publishPersistedMany(result.notifications);
       if (result.reason)
-        domainEvents.emit('match-lineup:changed', {
+        emitDomainEventBestEffort('match-lineup:changed', {
           matchId: result.context.matchId,
           side: result.context.side,
           reason: result.reason,

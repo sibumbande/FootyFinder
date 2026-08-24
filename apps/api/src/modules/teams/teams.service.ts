@@ -11,7 +11,7 @@ import type {
 import { getFormationPreset } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toMatch } from '../matches/match.mapper.js';
 import {
@@ -63,7 +63,7 @@ export class TeamsService {
   async update(id: string, input: UpdateTeamInput, userId: string) {
     await this.assertOwner(id, userId);
     const team = toTeamDetail(await this.teams.update(id, input), userId);
-    domainEvents.emit('team:details-updated', { teamId: id, team });
+    emitDomainEventBestEffort('team:details-updated', { teamId: id, team });
     return team;
   }
   async remove(id: string, userId: string) {
@@ -110,7 +110,7 @@ export class TeamsService {
       const updated = await this.teams.update(id, { profileImageUrl });
       if (team.profileImageUrl) await this.images.delete(team.profileImageUrl);
       const dto = toTeamDetail(updated, userId);
-      domainEvents.emit('team:details-updated', { teamId: id, team: dto });
+      emitDomainEventBestEffort('team:details-updated', { teamId: id, team: dto });
       return dto;
     } catch (error) {
       await this.images.delete(profileImageUrl);
@@ -138,7 +138,7 @@ export class TeamsService {
     const existing = await this.teams.findMembership(id, memberUserId);
     if (!existing) throw new AppError(404, 'Team member not found.', 'TEAM_MEMBER_NOT_FOUND');
     await this.teams.removeMember(id, memberUserId);
-    domainEvents.emit('team:member-removed', { teamId: id, userId: memberUserId });
+    emitDomainEventBestEffort('team:member-removed', { teamId: id, userId: memberUserId });
   }
 
   async createInvite(id: string, userId: string) {
@@ -180,24 +180,11 @@ export class TeamsService {
       throw new AppError(410, 'This Team invitation has expired.', 'TEAM_INVITE_EXPIRED');
     if (result.outcome === 'USED')
       throw new AppError(409, 'This Team invitation has already been used.', 'TEAM_INVITE_USED');
-    const team = await this.load(result.invite.teamId);
+    const team = result.team;
     if (result.outcome === 'JOINED') {
       const member = toTeamMember(result.membership);
-      domainEvents.emit('team:member-joined', { teamId: team.id, member });
-      const admins = team.memberships.filter(({ role }) => role === 'OWNER' || role === 'CAPTAIN');
-      await Promise.all(
-        admins
-          .filter(({ userId: adminId }) => adminId !== userId)
-          .map(({ userId: adminId }) =>
-            this.notifications.create(
-              adminId,
-              'TEAM_MEMBER_JOINED',
-              'New team member',
-              `${member.user.displayName} joined ${team.name}.`,
-              `/teams/${team.id}`,
-            ),
-          ),
-      );
+      emitDomainEventBestEffort('team:member-joined', { teamId: team.id, member });
+      this.notifications.publishPersistedMany(result.notifications);
     }
     return {
       team: toTeamDetail(team, userId),
@@ -215,7 +202,7 @@ export class TeamsService {
     await this.assertAdmin(id, userId);
     this.assertFormation(format, formationKey);
     const formation = toTeamFormation(await this.teams.replaceFormation(id, format, formationKey));
-    domainEvents.emit('team:formation-updated', { teamId: id, format, formation });
+    emitDomainEventBestEffort('team:formation-updated', { teamId: id, format, formation });
     return formation;
   }
   async updateFormationSlot(
@@ -230,7 +217,7 @@ export class TeamsService {
       const formation = toTeamFormation(
         await this.teams.updateFormationSlot(id, format, slotId, input),
       );
-      domainEvents.emit('team:formation-updated', { teamId: id, format, formation });
+      emitDomainEventBestEffort('team:formation-updated', { teamId: id, format, formation });
       return formation;
     } catch (error) {
       if (error instanceof Error && error.message === 'TEAM_MEMBER_NOT_FOUND')

@@ -1,20 +1,20 @@
 import {
-  MATCH_FORMATS,
   createTeamMatchSchema,
   createTeamSchema,
+  matchFormatRouteParamSchema,
   saveTeamFormationSchema,
   updateTeamFormationSlotSchema,
   updateTeamMemberRoleSchema,
   updateTeamSchema,
 } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
-import { z } from 'zod';
 import { TeamsService } from './teams.service.js';
 
 const service = new TeamsService();
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 const teamId = (params: Record<string, unknown>) => String(params.teamId);
-const format = (params: Record<string, unknown>) => z.enum(MATCH_FORMATS).parse(params.format);
+const format = (params: Record<string, unknown>) =>
+  matchFormatRouteParamSchema.parse(params.format);
 
 export const create: RequestHandler = async (req, res, next) => {
   try {

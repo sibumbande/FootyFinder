@@ -499,6 +499,7 @@ model DirectMessage {
 model Notification {
   id         String           @id @default(uuid()) @db.Uuid
   userId     String           @db.Uuid
+  dedupeKey  String?          @unique
   type       NotificationType
   title      String
   message    String

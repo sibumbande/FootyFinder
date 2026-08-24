@@ -1,7 +1,9 @@
 import { Router, type Router as ExpressRouter } from 'express';
+import { matchFormatRouteParamSchema } from '@footy-finder/shared';
 import multer from 'multer';
 import { AppError } from '../../errors/app-error.js';
 import { requireAuth } from '../../middleware/require-auth.js';
+import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './teams.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
 
@@ -15,6 +17,8 @@ const upload = multer({
 });
 
 export const teamsRouter: ExpressRouter = Router();
+registerUuidRouteParams(teamsRouter, ['teamId', 'userId', 'inviteId', 'slotId']);
+registerRouteParam(teamsRouter, 'format', matchFormatRouteParamSchema);
 teamsRouter.get('/', controller.list);
 teamsRouter.post('/', controller.create);
 teamsRouter.get('/:teamId', controller.get);

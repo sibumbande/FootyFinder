@@ -1,4 +1,5 @@
 import { getDefaultFormationKey } from '@footy-finder/shared';
+import type { Notification } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { NotificationsService } from '../notifications/notifications.service.js';
 import {
@@ -60,7 +61,7 @@ const team = {
   createdAt: now,
   updatedAt: now,
 };
-const notifications = { create: vi.fn() } as unknown as NotificationsService;
+const notifications = { publishPersistedMany: vi.fn() } as unknown as NotificationsService;
 const images = { save: vi.fn(), delete: vi.fn() } as unknown as TeamImageStorage;
 const teamMatch = {
   id: 'match-1',
@@ -271,12 +272,44 @@ describe('TeamsService', () => {
         outcome: 'ALREADY_MEMBER',
         invite: { teamId: 'team-1' },
         membership: membership('member', 'MEMBER'),
+        team,
+        notifications: [],
       }),
-      findById: vi.fn().mockResolvedValue(team),
     } as unknown as TeamsRepository;
     await expect(
       new TeamsService(repository, notifications, images).acceptInvite(validToken, 'member'),
     ).resolves.toMatchObject({ alreadyMember: true });
+  });
+
+  it('publishes manager notifications returned by a committed invitation acceptance', async () => {
+    const notification: Notification = {
+      id: 'notification-1',
+      userId: 'owner',
+      dedupeKey: 'team-invite:invite-1:accepted:member:owner',
+      type: 'TEAM_MEMBER_JOINED',
+      title: 'New team member',
+      message: 'member joined Test FC.',
+      targetPath: '/teams/team-1',
+      readAt: null,
+      createdAt: now,
+    };
+    const repository = {
+      acceptInvite: vi.fn().mockResolvedValue({
+        outcome: 'JOINED',
+        invite: { id: 'invite-1', teamId: 'team-1' },
+        membership: membership('member', 'MEMBER'),
+        team,
+        notifications: [notification],
+      }),
+    } as unknown as TeamsRepository;
+    const publisher = {
+      publishPersistedMany: vi.fn(),
+    } as unknown as NotificationsService;
+
+    await expect(
+      new TeamsService(repository, publisher, images).acceptInvite(validToken, 'member'),
+    ).resolves.toMatchObject({ alreadyMember: false });
+    expect(publisher.publishPersistedMany).toHaveBeenCalledWith([notification]);
   });
 
   it('prevents removal or role mutation of the owner', async () => {

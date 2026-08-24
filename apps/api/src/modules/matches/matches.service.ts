@@ -9,7 +9,6 @@ import type {
   UpdateMatchInput,
 } from '@footy-finder/shared';
 import {
-  CANCELLATION_CUTOFF_HOURS,
   canChangeLobby,
   getCancellationCreditCents,
   getEffectiveMatchStatus,
@@ -18,7 +17,7 @@ import {
 } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toMatch, toMatchParticipant } from './match.mapper.js';
 import {
@@ -123,6 +122,12 @@ export class MatchesService {
   async update(id: string, input: UpdateMatchInput, userId: string) {
     const match = await this.assertManager(id, userId);
     this.assertMutable(match);
+    if (input.startsAt && new Date(input.startsAt).getTime() <= Date.now())
+      throw new AppError(
+        400,
+        'Choose a future date and time for kickoff.',
+        'MATCH_START_TIME_INVALID',
+      );
     return toMatch(await this.matches.update(id, input), {
       includeInvite: match.mode === 'QUICK_GAME',
       viewerCanManage: true,
@@ -149,18 +154,8 @@ export class MatchesService {
     const match = await this.assertManager(id, userId);
     if (match.status === 'CANCELLED') return;
     this.assertMutable(match);
-    const { refundedUserIds } = await this.matches.cancelMatch(id);
-    await Promise.all(
-      refundedUserIds.map((refundedUserId) =>
-        this.notifications.create(
-          refundedUserId,
-          'MATCH_CANCELLED',
-          'Match cancelled',
-          'Your full match fee was credited to your Footy Finder wallet.',
-          `/matches/${id}`,
-        ),
-      ),
-    );
+    const { notifications } = await this.matches.cancelMatch(id);
+    this.notifications.publishPersistedMany(notifications);
   }
 
   async join(id: string, userId: string, input: JoinMatchInput, idempotencyKey: string) {
@@ -172,55 +167,15 @@ export class MatchesService {
       );
     try {
       const result = await this.matches.join(id, userId, input, idempotencyKey);
+      const participant = toMatchParticipant(result.participant);
       if (!result.replayed) {
-        const participant = toMatchParticipant(result.participant);
-        domainEvents.emit('participant:joined', {
+        emitDomainEventBestEffort('participant:joined', {
           matchId: id,
           participant,
         });
-        await this.notifications.create(
-          userId,
-          'MATCH_JOINED',
-          'Match joined',
-          `Your place on the ${input.team === 'HOME' ? 'Home' : 'Away'} team is confirmed.`,
-          `/matches/${id}`,
-        );
-        const joinedMatch = await this.load(id);
-        const audience = new Set([
-          joinedMatch.createdById,
-          ...joinedMatch.participants.map(({ userId: participantUserId }) => participantUserId),
-        ]);
-        audience.delete(userId);
-        await Promise.all(
-          [...audience].map((recipientId) =>
-            this.notifications.create(
-              recipientId,
-              'INFO',
-              'Player joined',
-              `${participant.user?.displayName ?? 'A player'} joined the ${input.team === 'HOME' ? 'Home' : 'Away'} team.`,
-              `/matches/${id}`,
-            ),
-          ),
-        );
-        if (result.replacement)
-          await Promise.all([
-            this.notifications.create(
-              result.replacement.userId,
-              'REPLACEMENT_FOUND',
-              'Replacement found',
-              'The remaining cancellation credit was added to your wallet.',
-              `/matches/${id}`,
-            ),
-            this.notifications.create(
-              result.replacement.userId,
-              'WALLET_CREDIT',
-              'Wallet credited',
-              `R${(result.replacement.amountCents / 100).toFixed(2)} was added to your balance.`,
-              `/matches/${id}`,
-            ),
-          ]);
       }
-      return toMatchParticipant(result.participant);
+      this.notifications.publishPersistedMany(result.notifications);
+      return participant;
     } catch (error) {
       this.rethrowJoinError(error);
     }
@@ -257,22 +212,13 @@ export class MatchesService {
   }
   async leave(id: string, userId: string) {
     try {
-      const { cancellation, replayed } = await this.matches.cancelParticipation(
+      const { cancellation, replayed, notifications } = await this.matches.cancelParticipation(
         id,
         userId,
         new Date(),
       );
-      if (!replayed) domainEvents.emit('participant:left', { matchId: id, userId });
-      if (cancellation && !replayed)
-        await this.notifications.create(
-          userId,
-          'PLAYER_CANCELLED',
-          'Place cancelled',
-          cancellation.initialCreditCents > 0
-            ? `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`
-            : `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. Your fee will be credited if a replacement joins.`,
-          `/matches/${id}`,
-        );
+      if (!replayed) emitDomainEventBestEffort('participant:left', { matchId: id, userId });
+      this.notifications.publishPersistedMany(notifications);
       return cancellation;
     } catch (error) {
       if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
@@ -308,7 +254,7 @@ export class MatchesService {
         viewerCanManage: true,
         viewerCanChat: true,
       }).formationSlots ?? [];
-    domainEvents.emit('formation:updated', { matchId: id, slots });
+    emitDomainEventBestEffort('formation:updated', { matchId: id, slots });
     return slots;
   }
   async changeTeam(
@@ -327,7 +273,7 @@ export class MatchesService {
         input.team,
       );
       const dto = toMatchParticipant(participant);
-      domainEvents.emit('participant:team-changed', { matchId: id, participant: dto });
+      emitDomainEventBestEffort('participant:team-changed', { matchId: id, participant: dto });
       return dto;
     } catch (error) {
       if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
@@ -359,27 +305,17 @@ export class MatchesService {
         'RESULT_NOT_READY',
       );
     try {
-      const completed = toMatch(await this.matches.submitResult(id, userId, input), {
+      const result = await this.matches.submitResult(id, userId, input);
+      const completed = toMatch(result.match, {
         includeInvite: match.mode === 'QUICK_GAME',
         viewerCanManage: true,
         viewerCanChat: true,
       });
-      domainEvents.emit('match:result-submitted', { matchId: id, result: completed.result });
-      const recipients = new Set([
-        match.createdById,
-        ...match.participants.map(({ userId: participantUserId }) => participantUserId),
-      ]);
-      await Promise.all(
-        [...recipients].map((recipientId) =>
-          this.notifications.create(
-            recipientId,
-            'RESULT_SUBMITTED',
-            'Result submitted',
-            `Final score: Home ${input.homeScore}-${input.awayScore} Away.`,
-            `/matches/${id}`,
-          ),
-        ),
-      );
+      emitDomainEventBestEffort('match:result-submitted', {
+        matchId: id,
+        result: completed.result,
+      });
+      this.notifications.publishPersistedMany(result.notifications);
       return completed;
     } catch (error) {
       if (error instanceof Error && error.message === 'SCORER_TOTAL_MISMATCH')

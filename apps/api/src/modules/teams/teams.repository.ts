@@ -11,6 +11,10 @@ import {
 } from '@footy-finder/shared';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
+import {
+  notificationDedupeKey,
+  persistNotifications,
+} from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
 const memberInclude = { user: { include: safeUserInclude } } as const;
@@ -145,7 +149,17 @@ export class TeamsRepository {
         where: { teamId_userId: { teamId: invite.teamId, userId } },
         include: memberInclude,
       });
-      if (existing) return { outcome: 'ALREADY_MEMBER' as const, invite, membership: existing };
+      if (existing)
+        return {
+          outcome: 'ALREADY_MEMBER' as const,
+          invite,
+          membership: existing,
+          team: await tx.team.findUniqueOrThrow({
+            where: { id: invite.teamId },
+            include: teamInclude,
+          }),
+          notifications: [],
+        };
       if (invite.revokedAt) return { outcome: 'REVOKED' as const };
       if (invite.expiresAt <= now) return { outcome: 'EXPIRED' as const };
       const consumed = await tx.teamInvite.updateMany({
@@ -162,7 +176,27 @@ export class TeamsRepository {
         data: { teamId: invite.teamId, userId, role: 'MEMBER' },
         include: memberInclude,
       });
-      return { outcome: 'JOINED' as const, invite, membership };
+      const team = await tx.team.findUniqueOrThrow({
+        where: { id: invite.teamId },
+        include: teamInclude,
+      });
+      const notifications = await persistNotifications(
+        tx,
+        team.memberships
+          .filter(
+            ({ userId: adminId, role }) =>
+              adminId !== userId && (role === 'OWNER' || role === 'CAPTAIN'),
+          )
+          .map(({ userId: adminId }) => ({
+            userId: adminId,
+            type: 'TEAM_MEMBER_JOINED' as const,
+            title: 'New team member',
+            message: `${membership.user.profile?.displayName ?? membership.user.username} joined ${team.name}.`,
+            targetPath: `/teams/${team.id}`,
+            dedupeKey: notificationDedupeKey('team-invite', invite.id, 'accepted', userId, adminId),
+          })),
+      );
+      return { outcome: 'JOINED' as const, invite, membership, team, notifications };
     });
   }
 

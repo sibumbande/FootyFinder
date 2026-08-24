@@ -126,7 +126,10 @@ export const discoveryQuerySchema = z
     dateFrom: z.string().datetime().optional(),
     dateTo: z.string().datetime().optional(),
     maxPriceCents: z.coerce.number().int().min(0).optional(),
-    availableOnly: z.coerce.boolean().default(false),
+    availableOnly: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .default('false'),
     sort: z.enum(['nearest', 'soonest', 'lowest-price']).optional(),
   })
   .refine((value) => (value.lat === undefined) === (value.lng === undefined), {

@@ -1,30 +1,23 @@
-import type { AppNotification, NotificationType } from '@footy-finder/shared';
+import type { AppNotification } from '@footy-finder/shared';
 import type { Notification } from '@prisma/client';
 import { AppError } from '../../errors/app-error.js';
 import { NotificationsRepository } from './notifications.repository.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 
 export const mapNotification = (item: Notification): AppNotification => ({
-  ...item,
+  id: item.id,
+  type: item.type,
+  title: item.title,
+  message: item.message,
+  targetPath: item.targetPath,
   createdAt: item.createdAt.toISOString(),
   readAt: item.readAt?.toISOString(),
 });
 export class NotificationsService {
   constructor(private readonly notifications = new NotificationsRepository()) {}
-  async create(
-    userId: string,
-    type: NotificationType,
-    title: string,
-    message: string,
-    targetPath?: string,
-  ) {
-    return this.publishPersisted(
-      await this.notifications.create(userId, type, title, message, targetPath),
-    );
-  }
   publishPersisted(item: Notification) {
     const notification = mapNotification(item);
-    domainEvents.emit('notification:created', { userId: item.userId, notification });
+    emitDomainEventBestEffort('notification:created', { userId: item.userId, notification });
     return notification;
   }
   publishPersistedMany(items: Notification[]) {

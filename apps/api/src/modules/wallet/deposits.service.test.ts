@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { NotificationsService } from '../notifications/notifications.service.js';
 import type { PaymentOperator } from './payment-operator.js';
 import { DepositsService } from './deposits.service.js';
 import type { WalletRepository } from './wallet.repository.js';
@@ -50,15 +51,23 @@ function setup(result: Awaited<ReturnType<PaymentOperator['deposit']>> | Error) 
   const wallet = {
     findByIdempotencyKey: vi.fn().mockResolvedValue(null),
     createPending: vi.fn().mockResolvedValue(transaction),
-    succeed: vi.fn().mockResolvedValue(user),
+    succeed: vi.fn().mockResolvedValue({ user, notifications: [] }),
     settle: vi.fn().mockResolvedValue({ count: 1 }),
   } as unknown as WalletRepository;
-  return { operator, wallet, service: new DepositsService(operator, wallet) };
+  const notifications = {
+    publishPersistedMany: vi.fn(),
+  } as unknown as NotificationsService;
+  return {
+    operator,
+    wallet,
+    notifications,
+    service: new DepositsService(operator, wallet, notifications),
+  };
 }
 
 describe('DepositsService', () => {
   it('credits a successful payment only through the success transition', async () => {
-    const { service, wallet } = setup({
+    const { service, wallet, notifications } = setup({
       status: 'success',
       providerReference: 'provider-payment-1',
     });
@@ -67,6 +76,7 @@ describe('DepositsService', () => {
       user: { balanceCents: 50_000 },
     });
     expect(wallet.succeed).toHaveBeenCalledWith(transaction.id, user.id, 'provider-payment-1');
+    expect(notifications.publishPersistedMany).toHaveBeenCalledWith([]);
     expect(wallet.settle).not.toHaveBeenCalled();
   });
 

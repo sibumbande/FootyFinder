@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ApiClient } from './client.js';
 import { matchesApi } from './matches.js';
 
+describe('matchesApi discovery', () => {
+  it('preserves availableOnly=false in the query contract', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = matchesApi({ request } as unknown as ApiClient);
+
+    await api.list({ availableOnly: false });
+
+    expect(request).toHaveBeenCalledWith('/matches?availableOnly=false');
+  });
+});
+
 describe('matchesApi Team availability', () => {
   it('encodes strict availability filters including selected=false', async () => {
     const request = vi.fn().mockResolvedValue({ data: {} });
@@ -68,5 +79,24 @@ describe('matchesApi Team lineup', () => {
     expect(request).toHaveBeenNthCalledWith(4, '/matches/match-1/team-sides/HOME/lineup/finalize', {
       method: 'POST',
     });
+  });
+
+  it('uses PUT for every lineup endpoint that replaces selection state', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = matchesApi({ request } as unknown as ApiClient);
+
+    await api.inviteLineupPlayer('match-1', 'HOME', 'user-1');
+    await api.selectLineupSubstitute('match-1', 'HOME', 'user-1');
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      '/matches/match-1/team-sides/HOME/lineup/selections/user-1/invite',
+      { method: 'PUT' },
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      '/matches/match-1/team-sides/HOME/lineup/substitutes/user-1',
+      { method: 'PUT' },
+    );
   });
 });

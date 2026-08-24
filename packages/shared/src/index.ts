@@ -12,6 +12,7 @@ export * from './schemas/match.js';
 export * from './schemas/profile.js';
 export * from './schemas/messaging.js';
 export * from './schemas/team.js';
+export * from './schemas/route-params.js';
 export * from './constants/socket-events.js';
 export * from './utils/api.js';
 export * from './utils/match-lifecycle.js';

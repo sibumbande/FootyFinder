@@ -7,7 +7,7 @@ import type {
   UpdateMyTeamMatchAvailabilityInput,
 } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
-import { domainEvents } from '../../events/domain-events.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toPublicUser } from '../users/user.mapper.js';
 import {
@@ -52,7 +52,7 @@ export class MatchAvailabilityService {
       const result = await this.availability.request(matchId, side, userId);
       this.notifications.publishPersistedMany(result.notifications);
       const requestedAt = result.requestedAt.toISOString();
-      domainEvents.emit('match-availability:requested', { matchId, side, requestedAt });
+      emitDomainEventBestEffort('match-availability:requested', { matchId, side, requestedAt });
       return {
         requestedAt,
         addedMemberCount: result.addedMemberCount,
@@ -114,7 +114,7 @@ export class MatchAvailabilityService {
       const row = toAvailabilityRow(
         await this.availability.updateMine(matchId, side, userId, input.status),
       );
-      domainEvents.emit('match-availability:updated', { matchId, side });
+      emitDomainEventBestEffort('match-availability:updated', { matchId, side });
       return row;
     } catch (error) {
       this.rethrowRepositoryError(error);
