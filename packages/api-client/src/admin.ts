@@ -17,6 +17,8 @@ import type {
   AdminTestDataBatch,
   CreateAdminTestDataBatchInput,
   WalletReconciliationReport,
+  FieldBooking,
+  ManagedMatchBookingInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -63,4 +65,6 @@ export const adminApi = (client: ApiClient) => ({
   createTestDataBatch: (input: CreateAdminTestDataBatchInput) => client.request<{ data: AdminTestDataBatch }>('/admin/test-data/batches', { method: 'POST', body: JSON.stringify(input) }),
   removeTestDataBatch: (batchId: string) => client.request<{ data: { success: true; deletedAccounts: number } }>(`/admin/test-data/batches/${batchId}`, { method: 'DELETE' }),
   walletReconciliation: () => client.request<{ data: WalletReconciliationReport }>('/admin/finance/reconciliation'),
+  managedMatches: () => client.request<{ data: FieldBooking[] }>('/admin/matches'),
+  createManagedMatch: (input: ManagedMatchBookingInput) => client.request<{ data: FieldBooking }>('/admin/matches', { method: 'POST', body: JSON.stringify(input) }),
 });

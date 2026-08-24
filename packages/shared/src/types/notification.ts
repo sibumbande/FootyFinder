@@ -18,6 +18,8 @@ export const NOTIFICATION_TYPES = [
   'TEAM_MATCH_POSITION_CLAIMED',
   'TEAM_MATCH_LINEUP_FINALIZED',
   'SUPPORT_REPLY',
+  'BOOKING_CONFIRMED',
+  'BOOKING_EXPIRED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

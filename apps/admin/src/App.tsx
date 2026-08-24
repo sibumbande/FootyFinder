@@ -7,6 +7,7 @@ import { VenuesPage } from './VenuesPage.js';
 import { SupportPage } from './SupportPage.js';
 import { TestDataPage } from './TestDataPage.js';
 import { FinancePage } from './FinancePage.js';
+import { MatchLoadingPage } from './MatchLoadingPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -200,6 +201,7 @@ function AdminShell() {
           <NavLink to="/support">Support inbox</NavLink>
           <NavLink to="/test-data">Test data</NavLink>
           <NavLink to="/finance">Finance</NavLink>
+          <NavLink to="/matches">Load Matches</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -213,6 +215,7 @@ function AdminShell() {
           <Route path="support" element={<SupportPage />} />
           <Route path="test-data" element={<TestDataPage />} />
           <Route path="finance" element={<FinancePage />} />
+          <Route path="matches" element={<MatchLoadingPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

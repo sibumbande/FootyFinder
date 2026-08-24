@@ -20,6 +20,7 @@ import { teamInvitesRouter, teamsRouter } from './modules/teams/teams.routes.js'
 import { adminAuthRouter, adminRouter } from './modules/admin/admin.routes.js';
 import { requireAdminMfa, requirePlatformAdmin } from './middleware/require-admin.js';
 import { supportRouter } from './modules/support/support.routes.js';
+import { bookingsRouter } from './modules/bookings/bookings.routes.js';
 export const app: Express = express();
 app.disable('x-powered-by');
 app.set('trust proxy', env.TRUST_PROXY_HOPS || false);
@@ -48,6 +49,7 @@ app.use('/wallet', requireAuth, walletRouter);
 app.use('/conversations', requireAuth, messagingRouter);
 app.use('/notifications', requireAuth, notificationsRouter);
 app.use('/support', requireAuth, supportRouter);
+app.use('/bookings', requireAuth, bookingsRouter);
 app.use('/teams', requireAuth, teamsRouter);
 app.use('/team-invites', teamInvitesRouter);
 app.use('/admin/auth', requireAuth, requirePlatformAdmin, adminAuthRouter);

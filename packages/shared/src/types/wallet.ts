@@ -25,7 +25,7 @@ export interface WalletHold {
 }
 
 export interface WalletReconciliationIssue {
-  code: 'BALANCE_LEDGER_MISMATCH' | 'PAYMENT_LEDGER_MISSING' | 'NEGATIVE_AVAILABLE_BALANCE' | 'TERMINAL_DEPOSIT_INCONSISTENT';
+  code: 'BALANCE_LEDGER_MISMATCH' | 'PAYMENT_LEDGER_MISSING' | 'BOOKING_CONTRIBUTION_LEDGER_MISSING' | 'NEGATIVE_AVAILABLE_BALANCE' | 'TERMINAL_DEPOSIT_INCONSISTENT';
   walletAccountId?: string;
   userId?: string;
   referenceId?: string;

@@ -5,10 +5,12 @@ import { createSocketServer } from './socket/create-socket-server.js';
 import { startMatchLifecycleScheduler } from './modules/matches/match-lifecycle.scheduler.js';
 import { startDurableJobScheduler } from './jobs/durable-jobs.js';
 import { registerWalletHoldJobHandlers } from './modules/wallet/wallet-hold.jobs.js';
+import { registerBookingJobHandlers } from './modules/bookings/booking.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
 startMatchLifecycleScheduler();
 registerWalletHoldJobHandlers();
+registerBookingJobHandlers();
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

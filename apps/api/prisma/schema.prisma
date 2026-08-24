@@ -88,6 +88,7 @@ enum WalletTransactionType {
   PLAYER_CANCELLATION_FULL_CREDIT
   PLAYER_CANCELLATION_PARTIAL_CREDIT
   REPLACEMENT_CREDIT
+  FIELD_BOOKING_DEBIT
 }
 
 enum WalletTransactionStatus {
@@ -109,6 +110,31 @@ enum DurableJobStatus {
   RUNNING
   SUCCEEDED
   FAILED
+}
+
+enum FieldReservationSource {
+  ADMIN_LOADED
+  PLAYER_BOOKING
+}
+
+enum FieldReservationStatus {
+  FUNDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum FundingObligationStatus {
+  PENDING
+  FUNDED
+  CAPTURED
+  RELEASED
+}
+
+enum FundingContributionStatus {
+  HELD
+  CAPTURED
+  RELEASED
 }
 
 enum MatchPaymentStatus {
@@ -188,6 +214,8 @@ enum NotificationType {
   TEAM_MATCH_POSITION_CLAIMED
   TEAM_MATCH_LINEUP_FINALIZED
   SUPPORT_REPLY
+  BOOKING_CONFIRMED
+  BOOKING_EXPIRED
 }
 
 model User {
@@ -225,6 +253,7 @@ model User {
   testDataBatchId         String?                   @db.Uuid
   testDataBatch           TestDataBatch?            @relation(fields: [testDataBatchId], references: [id], onDelete: Restrict)
   isTestAccount           Boolean                   @default(false)
+  fundingContributions    FundingContribution[]
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -353,6 +382,7 @@ model ManagedField {
   availabilityPeriods ManagedFieldAvailability[]
   exceptions          ManagedFieldException[]
   prices              ManagedFieldPrice[]
+  reservations        FieldReservation[]
 
   @@unique([venueId, name])
   @@index([venueId, status])
@@ -393,14 +423,15 @@ model ManagedFieldException {
 }
 
 model ManagedFieldPrice {
-  id            String       @id @default(uuid()) @db.Uuid
-  fieldId       String       @db.Uuid
+  id            String             @id @default(uuid()) @db.Uuid
+  fieldId       String             @db.Uuid
   amountCents   Int
-  currency      String       @default("ZAR")
+  currency      String             @default("ZAR")
   effectiveFrom DateTime
   effectiveTo   DateTime?
-  createdAt     DateTime     @default(now())
-  field         ManagedField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  createdAt     DateTime           @default(now())
+  field         ManagedField       @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  reservations  FieldReservation[]
 
   @@index([fieldId, effectiveFrom])
 }
@@ -462,21 +493,22 @@ model WalletTransaction {
 }
 
 model WalletHold {
-  id              String           @id @default(uuid()) @db.Uuid
-  walletAccountId String           @db.Uuid
-  amountCents     Int
-  currency        String           @default("ZAR")
-  status          WalletHoldStatus @default(ACTIVE)
-  idempotencyKey  String           @unique
-  referenceType   String
-  referenceId     String
-  description     String?
-  expiresAt       DateTime?
-  capturedAt      DateTime?
-  releasedAt      DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  walletAccount   WalletAccount    @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  id                  String               @id @default(uuid()) @db.Uuid
+  walletAccountId     String               @db.Uuid
+  amountCents         Int
+  currency            String               @default("ZAR")
+  status              WalletHoldStatus     @default(ACTIVE)
+  idempotencyKey      String               @unique
+  referenceType       String
+  referenceId         String
+  description         String?
+  expiresAt           DateTime?
+  capturedAt          DateTime?
+  releasedAt          DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  walletAccount       WalletAccount        @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  fundingContribution FundingContribution?
 
   @@index([walletAccountId, status, expiresAt])
   @@index([referenceType, referenceId, status])
@@ -550,9 +582,76 @@ model Match {
   payments                  MatchPayment[]
   cancellations             ParticipantCancellation[]
   teamSides                 MatchTeam[]
+  fieldReservation          FieldReservation?
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
+}
+
+model FieldReservation {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  fieldId            String                 @db.Uuid
+  fieldPriceId       String                 @db.Uuid
+  matchId            String                 @unique @db.Uuid
+  source             FieldReservationSource
+  status             FieldReservationStatus
+  startsAt           DateTime
+  endsAt             DateTime
+  fundingDeadline    DateTime?
+  priceCentsSnapshot Int
+  currencySnapshot   String                 @default("ZAR")
+  venueNameSnapshot  String
+  fieldNameSnapshot  String
+  addressSnapshot    String
+  citySnapshot       String
+  desiredVisibility  MatchVisibility        @default(PUBLIC)
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  field              ManagedField           @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  fieldPrice         ManagedFieldPrice      @relation(fields: [fieldPriceId], references: [id], onDelete: Restrict)
+  match              Match                  @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  obligations        FundingObligation[]
+
+  @@index([fieldId, status, startsAt, endsAt])
+  @@index([status, fundingDeadline])
+}
+
+model FundingObligation {
+  id            String                  @id @default(uuid()) @db.Uuid
+  reservationId String                  @db.Uuid
+  obligationKey String
+  requiredCents Int
+  status        FundingObligationStatus @default(PENDING)
+  capturedAt    DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  reservation   FieldReservation        @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  contributions FundingContribution[]
+
+  @@unique([reservationId, obligationKey])
+  @@index([reservationId, status])
+}
+
+model FundingContribution {
+  id             String                    @id @default(uuid()) @db.Uuid
+  obligationId   String                    @db.Uuid
+  userId         String                    @db.Uuid
+  walletHoldId   String                    @unique @db.Uuid
+  amountCents    Int
+  status         FundingContributionStatus @default(HELD)
+  idempotencyKey String                    @unique
+  capturedAt     DateTime?
+  releasedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  obligation     FundingObligation         @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+  user           User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  walletHold     WalletHold                @relation(fields: [walletHoldId], references: [id], onDelete: Restrict)
+
+  @@index([obligationId, status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model MatchTeam {

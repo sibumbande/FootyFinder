@@ -146,6 +146,8 @@ Authenticated domain routes:
 - `/admin/support/tickets` - MFA-gated support inbox, status/priority management, public replies, and Admin-only internal notes.
 - `/admin/test-data/*` - MFA-gated disposable account batches; unavailable unless explicitly enabled outside production.
 - `/admin/finance/reconciliation` - MFA-gated read-only wallet/ledger/hold/Match-payment integrity report.
+- `/bookings` and `/bookings/fields` - authenticated managed-field discovery, player booking funding pools, booking detail, and idempotent wallet-hold contributions.
+- `/admin/matches` - MFA-gated Match loading from the managed field catalogue with immediate reservation and immutable price snapshots.
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
@@ -178,6 +180,7 @@ npm run smoke:admin-identity --workspace=@footy-finder/api
 npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:support-test-data --workspace=@footy-finder/api
 npm run smoke:financial-integrity --workspace=@footy-finder/api
+npm run smoke:field-bookings --workspace=@footy-finder/api
 npm run wallet:reconcile --workspace=@footy-finder/api
 ```
 
@@ -194,6 +197,8 @@ The additive `20260824090000_auth_sessions_security` migration creates revocable
 `20260824200000_support_test_data` adds private support tickets/messages, support reply notifications, and explicitly tagged disposable test-account batches. Test tooling is disabled by default; set `ADMIN_TEST_DATA_ENABLED=true` only against a disposable development/test database. Production configuration rejects that setting.
 
 `20260824230000_financial_integrity_jobs` adds wallet holds, durable jobs, balance/sign checks, and immutable terminal financial transitions. Existing deposits and Quick Game debit/credit flows use the shared locked financial repository. The reconciliation command is read-only and returns a nonzero exit code when it finds an integrity issue.
+
+`20260825010000_booking_enum_values` and `20260825020000_field_reservations_funding` add the booking financial types, atomic managed-field reservations, immutable price/location snapshots, funding obligations, and personal-wallet contributions. PostgreSQL prevents active time overlaps. Underfunded reservations expire through the durable worker and release holds; confirmed contribution ledgers are included in reconciliation.
 
 - Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
 - Replace local Team image storage with a durable object-storage provider before multi-instance deployment.

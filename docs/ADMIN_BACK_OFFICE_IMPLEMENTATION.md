@@ -27,8 +27,8 @@ A separate repository, API, or database is intentionally deferred until an indep
 | 2 | Platform Admin role, audit log, MFA/bootstrap, and Admin application shell | Complete (`b72bb6a`) |
 | 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Complete (`a1e0cc5`) |
 | 4 | Support inbox and environment-gated test-data tools | Complete (`050ffc8`) |
-| 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Complete (current slice) |
-| 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Pending |
+| 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Complete (`bde7107`) |
+| 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Complete (current slice) |
 | 7 | Moderation, suspension, bans, and enforcement review | Pending |
 | 8 | Result and booking disputes with immutable result revisions | Pending |
 | 9 | Operations dashboard, browser E2E coverage, documentation, and final audit | Pending |
@@ -37,11 +37,11 @@ Each slice receives an additive migration when persistence changes, focused auto
 
 ## Current verified baseline
 
-Slice 5 verified on top of Slice 4 commit `050ffc8`.
+Slice 6 verified on top of Slice 5 commit `bde7107`.
 
-- Prisma schema formats, validates, generates, and reports all 16 migrations applied.
+- Prisma schema formats, validates, generates, and reports all 18 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 191 automated tests pass: API 118, web 20, API client 13, shared 40.
+- 194 automated tests pass: API 120, web 20, API client 14, shared 40.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
 
@@ -94,3 +94,15 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - The durable worker claims jobs with `FOR UPDATE SKIP LOCKED`, recovers stale locks, retries with bounded exponential backoff, records safe error codes, and has terminal failure state.
 - The Admin Finance page and `wallet:reconcile` command compare wallet balances, settled ledger totals, active holds, and Match payment ledgers without mutating or repairing data.
 - `smoke:financial-integrity` uses real simultaneous holds and deposit creation, proves one hold winner, terminal-state and nonnegative database constraints, idempotent capture, reconciliation, durable execution, and exact cleanup.
+
+## Slice 6 reservation and funding boundary
+
+- PostgreSQL exclusion constraints prevent overlapping `FUNDING` or `CONFIRMED` reservations for the same managed field, including simultaneous requests.
+- Every reservation stores immutable field, venue, address, city, effective-price, currency, kickoff, and end-time snapshots. Later catalogue changes never rewrite an obligation.
+- Admins can load an immediately confirmed public or private Quick Game from the managed catalogue. This records one atomic Admin audit event and never reads or mutates a personal wallet.
+- Players can open a public field booking. Its Match remains `DRAFT` and undiscoverable while a 15-minute funding pool is open.
+- Any authenticated player with access may contribute an exact amount. Contributions create personal wallet holds; no balance is debited until held contributions exactly equal the snapped price.
+- Final funding captures every hold, opens the Match, persists contributor notifications, and refreshes contributor wallet caches. Idempotency keys prevent duplicate holds or captures.
+- A deduplicated durable deadline job expires underfunded bookings, releases all holds, cancels the draft Match, persists notifications, and makes the field available again.
+- Current private HOME-only Team planning fixtures remain free and outside reservation/funding flows; Team Wallet and opponent obligations are not inferred early.
+- `smoke:field-bookings` proves pricing/availability, pool capture/replay, overlap exclusion, immutable snapshots, expiry/release, Admin audit rollback, and exact cleanup.

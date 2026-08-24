@@ -56,6 +56,8 @@ describe('adminApi', () => {
     await api.createTestDataBatch({ label: 'QA batch', accountCount: 3 });
     await api.removeTestDataBatch('batch-id');
     await api.walletReconciliation();
+    await api.managedMatches();
+    await api.createManagedMatch({ managedFieldId: '11111111-1111-4111-8111-111111111111', name: 'Admin Match', format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC', startsAt: '2026-09-01T18:00:00.000Z' });
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/support/tickets?status=OPEN&assignedToMe=true',
       '/admin/support/tickets/ticket-id',
@@ -64,6 +66,7 @@ describe('adminApi', () => {
       '/admin/test-data/status', '/admin/test-data/batches', '/admin/test-data/batches',
       '/admin/test-data/batches/batch-id',
       '/admin/finance/reconciliation',
+      '/admin/matches', '/admin/matches',
     ]);
   });
 });

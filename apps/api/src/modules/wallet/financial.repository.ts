@@ -153,9 +153,10 @@ export class FinancialRepository {
   }
 
   async captureHold(tx: Prisma.TransactionClient, holdId: string, ledger: Pick<LedgerInput, 'type' | 'idempotencyKey' | 'description'>) {
-    const current = await tx.walletHold.findUnique({ where: { id: holdId }, include: { walletAccount: true } });
-    if (!current) throw new AppError(404, 'Wallet hold not found.', 'WALLET_HOLD_NOT_FOUND');
-    await this.lockAccount(tx, current.walletAccount.userId);
+    const found = await tx.walletHold.findUnique({ where: { id: holdId }, include: { walletAccount: true } });
+    if (!found) throw new AppError(404, 'Wallet hold not found.', 'WALLET_HOLD_NOT_FOUND');
+    const account = await this.lockAccount(tx, found.walletAccount.userId);
+    const current = await tx.walletHold.findUniqueOrThrow({ where: { id: holdId } });
     if (current.status === 'CAPTURED') {
       const transaction = await tx.walletTransaction.findUnique({ where: { idempotencyKey: ledger.idempotencyKey } });
       if (!transaction) throw new AppError(409, 'Captured hold ledger is missing.', 'FINANCIAL_INTEGRITY_ERROR');
@@ -165,7 +166,7 @@ export class FinancialRepository {
     if (current.expiresAt && current.expiresAt <= new Date()) {
       throw new AppError(409, 'Wallet hold has expired.', 'WALLET_HOLD_EXPIRED');
     }
-    if (current.walletAccount.balanceCents < current.amountCents) throw new FinancialInsufficientFundsError();
+    if (account.balanceCents < current.amountCents) throw new FinancialInsufficientFundsError();
     const transaction = await tx.walletTransaction.create({ data: {
       walletAccountId: current.walletAccountId, type: ledger.type, amountCents: -current.amountCents,
       status: 'SUCCEEDED', idempotencyKey: ledger.idempotencyKey,
@@ -177,9 +178,10 @@ export class FinancialRepository {
   }
 
   async releaseHold(tx: Prisma.TransactionClient, holdId: string, expired = false) {
-    const current = await tx.walletHold.findUnique({ where: { id: holdId }, include: { walletAccount: true } });
-    if (!current) throw new AppError(404, 'Wallet hold not found.', 'WALLET_HOLD_NOT_FOUND');
-    await this.lockAccount(tx, current.walletAccount.userId);
+    const found = await tx.walletHold.findUnique({ where: { id: holdId }, include: { walletAccount: true } });
+    if (!found) throw new AppError(404, 'Wallet hold not found.', 'WALLET_HOLD_NOT_FOUND');
+    await this.lockAccount(tx, found.walletAccount.userId);
+    const current = await tx.walletHold.findUniqueOrThrow({ where: { id: holdId } });
     if (current.status === 'RELEASED' || current.status === 'EXPIRED') return { hold: current, replayed: true };
     if (current.status === 'CAPTURED') throw new AppError(409, 'A captured hold cannot be released.', 'WALLET_HOLD_CAPTURED');
     return { hold: await tx.walletHold.update({ where: { id: holdId }, data: { status: expired ? 'EXPIRED' : 'RELEASED', releasedAt: new Date() } }), replayed: false };

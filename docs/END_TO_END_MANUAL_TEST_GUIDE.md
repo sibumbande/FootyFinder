@@ -428,6 +428,49 @@ Stop and repair unexpected environment failures before continuing. Every configu
 
 **Expected:** Two simultaneous holds larger than the available balance produce exactly one winner. Held funds cannot be spent by a competing debit. Capture changes the balance exactly once; replay is a no-op. Concurrent deposit creation yields one operation. Database constraints reject terminal reversal and negative balance, the durable job reaches `SUCCEEDED`, reconciliation passes, and cleanup is exact.
 
+## 7A. Managed-field booking and pooled funding
+
+### BKG-001 — Admin-loaded Match and immutable snapshots
+
+1. Configure an active field with Monday operating hours, 5-a-side support, and a future effective R800 price.
+2. In **Load Matches**, create a public Match within those hours. Record the reservation, Match, field price, and wallet balances.
+3. Change the catalogue price for a later non-overlapping effective period and rename the field.
+4. Reload the loaded Match/reservation and inspect the Admin audit log.
+
+**Expected:** The field is reserved immediately and the Quick Game is `OPEN` and discoverable. The reservation still shows the original venue/field/location and R800 obligation snapshots after catalogue changes. One `MATCH_LOADED` audit exists. No personal wallet changed and no participant was created.
+
+### BKG-002 — Availability, format, pricing, and overlap validation
+
+1. Attempt an unsupported format, a time outside weekly hours, a closure exception, and a time without an effective price.
+2. Attempt a second reservation overlapping BKG-001, including two simultaneous requests if API tooling is available.
+3. Create an adjacent reservation whose start equals the first reservation's end.
+
+**Expected:** Stable errors are `FIELD_FORMAT_UNSUPPORTED`, `FIELD_UNAVAILABLE`, `FIELD_PRICE_UNAVAILABLE`, and `FIELD_TIME_CONFLICT`. Exactly one simultaneous overlapping reservation can win. Adjacent half-open intervals are allowed. Failed requests create no Match, reservation, funding row, wallet hold, or audit event.
+
+### BKG-003 — Player booking funding pool
+
+1. As Player A, choose **Book a field**, create a public booking at least 30 minutes ahead, and open its funding page.
+2. Confirm the linked Match is `DRAFT` and absent from public Match discovery.
+3. Have Player A fund half the snapped price and Player B fund the exact remainder. Record balances before each action.
+4. Retry both contribution requests with the same `Idempotency-Key` values.
+
+**Expected:** The reservation initially enters `FUNDING` with a 15-minute deadline. Each contribution is visible as `HELD` while balances are not yet debited, but held money cannot be spent elsewhere. The exact final contribution atomically captures every hold, changes contributions to `CAPTURED`, confirms the reservation, opens the Match for discovery, debits each contributor exactly once, and persists `BOOKING_CONFIRMED` notifications. Retries are no-ops.
+
+### BKG-004 — Funding limits, expiry, and durable recovery
+
+1. Attempt a contribution above the displayed remaining amount and one above the user's available wallet balance.
+2. Create a disposable booking, partially fund it, and let its deadline job run without completing the pool.
+3. Restart the API once while a disposable deadline job is pending, then wait for recovery.
+
+**Expected:** Excess funding returns `FUNDING_AMOUNT_EXCEEDS_REMAINING`; insufficient available funds return `INSUFFICIENT_BALANCE`. Expiry releases every hold, marks contributions `RELEASED`, marks the reservation `EXPIRED`, cancels its draft Match, notifies contributors, and frees the field. A restart does not lose the database-backed job or execute its effects twice.
+
+### BKG-005 — Reservation database smoke and reconciliation
+
+1. Run `npm run smoke:field-bookings --workspace=@footy-finder/api` against the isolated QA database.
+2. Run wallet reconciliation again after a confirmed pooled booking.
+
+**Expected:** The smoke passes price snapshots, pooled capture/replay, overlap, expiry, audit rollback, and exact cleanup. Reconciliation includes every captured funding contribution and reports zero issues.
+
 ## 8. Quick Game creation and discovery
 
 ### QCK-001 — Create wizard formats and capacity
@@ -1256,6 +1299,7 @@ npm run smoke:admin-identity --workspace=@footy-finder/api
 npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:support-test-data --workspace=@footy-finder/api
 npm run smoke:financial-integrity --workspace=@footy-finder/api
+npm run smoke:field-bookings --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1276,6 +1320,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | Support inbox and disposable test data       | ADM-006–ADM-007                                  |
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
 | Personal wallet/demo deposits and integrity | WAL-001–WAL-007                                  |
+| Managed field booking and pooled funding     | BKG-001–BKG-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |
 | Quick Game wizard/capacity/rules            | QCK-001–QCK-002                                  |
 | Discovery/public-private invitations        | QCK-003–QCK-004                                  |

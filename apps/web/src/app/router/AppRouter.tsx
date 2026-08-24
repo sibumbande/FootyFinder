@@ -19,6 +19,7 @@ import { TeamInvitePage } from '@/features/teams/pages/TeamInvitePage.js';
 import { CreateTeamMatchPage } from '@/features/teams/pages/CreateTeamMatchPage.js';
 import { PageTransition } from './PageTransition.js';
 import { SupportPage } from '@/features/support/pages/SupportPage.js';
+import { BookingsPage } from '@/features/bookings/pages/BookingsPage.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
@@ -47,6 +48,8 @@ export function AppRouter() {
             <Route path="/teams/:teamId" element={animated(<TeamPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />
             <Route path="/support/:ticketId" element={animated(<SupportPage />)} />
+            <Route path="/bookings" element={animated(<BookingsPage />)} />
+            <Route path="/bookings/:bookingId" element={animated(<BookingsPage />)} />
           </Route>
         </Route>
         <Route path="/teams/invite/:token" element={animated(<TeamInvitePage />)} />

@@ -53,7 +53,7 @@ export class MatchesRepository {
       where: {
         mode: 'QUICK_GAME',
         visibility: 'PUBLIC',
-        status: { notIn: ['CANCELLED', 'COMPLETED'] },
+        status: { in: ['OPEN', 'READY', 'FULL'] },
         startsAt: {
           gte: query.dateFrom ? new Date(query.dateFrom) : new Date(),
           lte: query.dateTo ? new Date(query.dateTo) : undefined,

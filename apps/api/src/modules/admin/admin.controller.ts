@@ -9,6 +9,7 @@ import {
   adminSupportReplySchema,
   updateSupportTicketSchema,
   createAdminTestDataBatchSchema,
+  managedMatchBookingSchema,
 } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { AppError } from '../../errors/app-error.js';
@@ -18,6 +19,7 @@ import { AdminCatalogService } from './admin-catalog.service.js';
 import { SupportService } from '../support/support.service.js';
 import { AdminTestDataService } from './admin-test-data.service.js';
 import { WalletReconciliationService } from '../wallet/wallet-reconciliation.service.js';
+import { BookingsService } from '../bookings/bookings.service.js';
 
 const auth = new AdminAuthService();
 const admin = new AdminService();
@@ -25,6 +27,7 @@ const catalog = new AdminCatalogService();
 const support = new SupportService();
 const testData = new AdminTestDataService();
 const reconciliation = new WalletReconciliationService();
+const bookings = new BookingsService();
 const actor = (locals: Record<string, unknown>) => String(locals.authUserId);
 const requestId = (locals: Record<string, unknown>) => String(locals.requestId);
 const identity = (locals: Record<string, unknown>) => {
@@ -117,4 +120,10 @@ export const removeTestData: RequestHandler = async (req, res, next) => {
 };
 export const walletReconciliation: RequestHandler = async (_req, res, next) => {
   try { res.json({ data: await reconciliation.report() }); } catch (error) { next(error); }
+};
+export const listManagedMatches: RequestHandler = async (_req, res, next) => {
+  try { res.json({ data: await bookings.listAdmin() }); } catch (error) { next(error); }
+};
+export const createManagedMatch: RequestHandler = async (req, res, next) => {
+  try { res.status(201).json({ data: await bookings.createAdmin(managedMatchBookingSchema.parse(req.body), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
 };
