@@ -81,6 +81,7 @@ export function toMatch(
           homeScore: match.result.homeScore,
           awayScore: match.result.awayScore,
           submittedAt: match.result.submittedAt.toISOString(),
+          revisionNumber: match.result.revisions[0]?.revisionNumber ?? 1,
           scorers: match.result.scorers.map((scorer) => ({
             id: scorer.id,
             participantId: scorer.participantId,

@@ -3,6 +3,7 @@ import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
 import { registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './admin.controller.js';
 import * as moderation from '../moderation/moderation.controller.js';
+import * as disputes from '../disputes/disputes.controller.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
 adminAuthRouter.get('/status', controller.status);
@@ -10,7 +11,7 @@ adminAuthRouter.post('/mfa/setup', costlyMutationRateLimit, controller.setupMfa)
 adminAuthRouter.post('/mfa/verify', costlyMutationRateLimit, controller.verifyMfa);
 
 export const adminRouter: ExpressRouter = Router();
-registerUuidRouteParams(adminRouter, ['venueId', 'fieldId', 'exceptionId', 'ticketId', 'batchId', 'reportId', 'userId', 'enforcementId']);
+registerUuidRouteParams(adminRouter, ['venueId', 'fieldId', 'exceptionId', 'ticketId', 'batchId', 'reportId', 'userId', 'enforcementId', 'disputeId']);
 adminRouter.get('/audit-logs', controller.auditLog);
 adminRouter.get('/venues', controller.listVenues);
 adminRouter.post('/venues', costlyMutationRateLimit, controller.createVenue);
@@ -39,3 +40,7 @@ adminRouter.get('/moderation/users', moderation.listUsers);
 adminRouter.get('/moderation/users/:userId', moderation.getUser);
 adminRouter.post('/moderation/users/:userId/enforcements', costlyMutationRateLimit, moderation.enforceUser);
 adminRouter.post('/moderation/users/:userId/enforcements/:enforcementId/revoke', costlyMutationRateLimit, moderation.revokeEnforcement);
+adminRouter.get('/disputes', disputes.listAdmin);
+adminRouter.get('/disputes/:disputeId', disputes.getAdmin);
+adminRouter.put('/disputes/:disputeId/review', costlyMutationRateLimit, disputes.review);
+adminRouter.post('/disputes/:disputeId/resolve', costlyMutationRateLimit, disputes.resolve);

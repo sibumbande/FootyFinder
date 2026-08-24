@@ -193,6 +193,7 @@ export interface MatchResult {
   homeScore: number;
   awayScore: number;
   submittedAt: string;
+  revisionNumber: number;
   scorers: MatchScorer[];
 }
 

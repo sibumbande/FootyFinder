@@ -22,6 +22,7 @@ import { requireAdminMfa, requirePlatformAdmin } from './middleware/require-admi
 import { supportRouter } from './modules/support/support.routes.js';
 import { bookingsRouter } from './modules/bookings/bookings.routes.js';
 import { moderationRouter } from './modules/moderation/moderation.routes.js';
+import { disputesRouter } from './modules/disputes/disputes.routes.js';
 export const app: Express = express();
 app.disable('x-powered-by');
 app.set('trust proxy', env.TRUST_PROXY_HOPS || false);
@@ -52,6 +53,7 @@ app.use('/notifications', requireAuth, notificationsRouter);
 app.use('/support', requireAuth, supportRouter);
 app.use('/bookings', requireAuth, bookingsRouter);
 app.use('/moderation', requireAuth, moderationRouter);
+app.use('/disputes', requireAuth, disputesRouter);
 app.use('/teams', requireAuth, teamsRouter);
 app.use('/team-invites', teamInvitesRouter);
 app.use('/admin/auth', requireAuth, requirePlatformAdmin, adminAuthRouter);

@@ -16,7 +16,12 @@ export const matchInclude = Prisma.validator<Prisma.MatchInclude>()({
     include: { participant: { include: participantInclude } },
     orderBy: [{ team: 'asc' }, { slotIndex: 'asc' }],
   },
-  result: { include: { scorers: { include: { participant: { include: participantInclude } } } } },
+  result: {
+    include: {
+      scorers: { include: { participant: { include: participantInclude } } },
+      revisions: { orderBy: { revisionNumber: 'desc' }, take: 1 },
+    },
+  },
   teamSides: { orderBy: { side: 'asc' } },
 });
 

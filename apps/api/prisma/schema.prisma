@@ -230,6 +230,40 @@ enum AccountEnforcementStatus {
   REVOKED
 }
 
+enum DisputeType {
+  MATCH_RESULT
+  FIELD_BOOKING
+}
+
+enum DisputeReason {
+  INCORRECT_SCORE
+  INCORRECT_SCORERS
+  FIELD_UNAVAILABLE
+  FIELD_QUALITY
+  BOOKING_SERVICE
+  PAYMENT
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeResolutionOutcome {
+  RESULT_CONFIRMED
+  RESULT_CORRECTED
+  BOOKING_UPHELD
+  BOOKING_REJECTED
+}
+
+enum ResultRevisionReason {
+  INITIAL_SUBMISSION
+  ADMIN_CORRECTION
+}
+
 enum NotificationType {
   INFO
   DIRECT_MESSAGE
@@ -252,6 +286,7 @@ enum NotificationType {
   SUPPORT_REPLY
   BOOKING_CONFIRMED
   BOOKING_EXPIRED
+  DISPUTE_RESOLVED
 }
 
 model User {
@@ -295,6 +330,9 @@ model User {
   accountEnforcements     AccountEnforcement[]      @relation("EnforcedUser")
   createdEnforcements     AccountEnforcement[]      @relation("EnforcementCreator")
   revokedEnforcements     AccountEnforcement[]      @relation("EnforcementRevoker")
+  openedDisputes          Dispute[]                 @relation("DisputeOpener")
+  assignedDisputes        Dispute[]                 @relation("DisputeAssignee")
+  createdResultRevisions  MatchResultRevision[]     @relation("ResultRevisionCreator")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -385,6 +423,30 @@ model AccountEnforcement {
   @@index([userId, status, createdAt])
   @@index([status, endsAt])
   @@index([createdByAdminUserId, createdAt])
+}
+
+model Dispute {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  openedByUserId      String                    @db.Uuid
+  assignedAdminUserId String?                   @db.Uuid
+  type                DisputeType
+  referenceId         String                    @db.Uuid
+  reason              DisputeReason
+  details             String
+  evidenceSnapshot    Json
+  status              DisputeStatus             @default(OPEN)
+  resolutionOutcome   DisputeResolutionOutcome?
+  resolutionSummary   String?
+  resolvedAt          DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  openedBy            User                      @relation("DisputeOpener", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  assignedAdmin       User?                     @relation("DisputeAssignee", fields: [assignedAdminUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([type, referenceId, createdAt])
+  @@index([openedByUserId, createdAt])
+  @@index([assignedAdminUserId, status, createdAt])
 }
 
 model SupportTicket {
@@ -902,15 +964,34 @@ model ParticipantCancellation {
 }
 
 model MatchResult {
-  id            String        @id @default(uuid()) @db.Uuid
-  matchId       String        @unique @db.Uuid
+  id            String                @id @default(uuid()) @db.Uuid
+  matchId       String                @unique @db.Uuid
   homeScore     Int
   awayScore     Int
-  submittedById String        @db.Uuid
-  submittedAt   DateTime      @default(now())
-  match         Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  submittedBy   User          @relation("ResultSubmitter", fields: [submittedById], references: [id])
+  submittedById String                @db.Uuid
+  submittedAt   DateTime              @default(now())
+  match         Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  submittedBy   User                  @relation("ResultSubmitter", fields: [submittedById], references: [id])
   scorers       MatchScorer[]
+  revisions     MatchResultRevision[]
+}
+
+model MatchResultRevision {
+  id                   String               @id @default(uuid()) @db.Uuid
+  matchResultId        String               @db.Uuid
+  revisionNumber       Int
+  homeScore            Int
+  awayScore            Int
+  scorersSnapshot      Json
+  reason               ResultRevisionReason
+  createdByAdminUserId String?              @db.Uuid
+  createdAt            DateTime             @default(now())
+  matchResult          MatchResult          @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
+  createdByAdmin       User?                @relation("ResultRevisionCreator", fields: [createdByAdminUserId], references: [id], onDelete: Restrict)
+
+  @@unique([matchResultId, revisionNumber])
+  @@index([matchResultId, createdAt])
+  @@index([createdByAdminUserId, createdAt])
 }
 
 model MatchScorer {

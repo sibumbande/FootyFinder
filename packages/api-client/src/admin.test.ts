@@ -90,4 +90,19 @@ describe('adminApi', () => {
       '/admin/moderation/users/user-id/enforcements/enforcement-id/revoke',
     ]);
   });
+
+  it('uses dispute review and authoritative resolution contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.disputes({ status: 'OPEN', type: 'MATCH_RESULT', assignedToMe: true });
+    await api.dispute('dispute-id');
+    await api.reviewDispute('dispute-id', { assignedToMe: true });
+    await api.resolveDispute('dispute-id', { outcome: 'RESULT_CONFIRMED', resolutionSummary: 'Evidence confirms the original result.' });
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/disputes?status=OPEN&type=MATCH_RESULT&assignedToMe=true',
+      '/admin/disputes/dispute-id',
+      '/admin/disputes/dispute-id/review',
+      '/admin/disputes/dispute-id/resolve',
+    ]);
+  });
 });

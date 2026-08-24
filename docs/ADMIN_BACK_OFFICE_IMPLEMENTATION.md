@@ -29,19 +29,19 @@ A separate repository, API, or database is intentionally deferred until an indep
 | 4 | Support inbox and environment-gated test-data tools | Complete (`050ffc8`) |
 | 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Complete (`bde7107`) |
 | 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Complete (`63c3d25`) |
-| 7 | Moderation, suspension, bans, and enforcement review | Complete (current slice) |
-| 8 | Result and booking disputes with immutable result revisions | Pending |
+| 7 | Moderation, suspension, bans, and enforcement review | Complete (`7898c3a`) |
+| 8 | Result and booking disputes with immutable result revisions | Complete (current slice) |
 | 9 | Operations dashboard, browser E2E coverage, documentation, and final audit | Pending |
 
 Each slice receives an additive migration when persistence changes, focused automated tests, relevant isolated PostgreSQL smoke coverage, the complete existing regression suite, and its own Git commit before work begins on the next slice.
 
 ## Current verified baseline
 
-Slice 7 verified on top of Slice 6 commit `63c3d25`.
+Slice 8 verified on top of Slice 7 commit `7898c3a`.
 
-- Prisma schema formats, validates, generates, and reports all 19 migrations applied.
+- Prisma schema formats, validates, generates, and reports all 22 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 199 automated tests pass: API 120, web 20, API client 16, shared 43.
+- 203 automated tests pass: API 120, web 20, API client 18, shared 45.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
 
@@ -117,3 +117,14 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - A partial unique database constraint permits only one active enforcement per player. Ban upgrades revoke an active suspension; Admin accounts cannot be sanctioned through the player workflow.
 - Suspension expiry is handled by the distributed durable-job worker. Reinstatement and expiry preserve all Match, Team, messaging, report, wallet, and ledger history.
 - `smoke:moderation-enforcement` proves evidence privacy, self-report rejection, active-enforcement uniqueness, session revocation, atomic audit rollback, and exact cleanup.
+
+## Slice 8 dispute and result-history boundary
+
+- Match participants and attached Team members can dispute a result they did not submit. Booking creators, participants, and contributors can dispute a field reservation without exposing it to outsiders.
+- Dispute intake snapshots the current score/scorers or immutable reservation/price/funding facts. Personal dispute history omits internal evidence, assignment, and reporter metadata.
+- PostgreSQL permits only one open/review dispute per user and reference. Cross-domain result/booking reasons and outcomes are rejected by shared validation and database checks.
+- Every new result now writes immutable revision 1 in the result transaction. Existing results receive a data-preserving revision-1 backfill.
+- Admin result correction validates real Match participants and scorer totals, appends the next revision, and updates the current result/scorer projection. A PostgreSQL trigger forbids direct revision update or deletion while parent-result cascades remain available for isolated test cleanup and any future explicit retention workflow.
+- Confirming an original result or upholding/rejecting a booking records an authoritative decision without inventing external refunds or wallet movements.
+- Resolution, projection changes, notification persistence, and redacted Admin audit commit atomically. Notifications and Match invalidation publish only after commit.
+- `smoke:disputes-results` proves outcome constraints, correction history, wallet isolation, append-only revisions, atomic rollback, and exact cleanup.

@@ -9,6 +9,7 @@ import { TestDataPage } from './TestDataPage.js';
 import { FinancePage } from './FinancePage.js';
 import { MatchLoadingPage } from './MatchLoadingPage.js';
 import { ModerationPage } from './ModerationPage.js';
+import { DisputesPage } from './DisputesPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -136,7 +137,7 @@ function Dashboard() {
     ['Test accounts & data', 'Available when environment-gated'],
     ['Match loading', 'Available now'],
     ['Moderation', 'Available now'],
-    ['Disputes', 'Assigned to Slice 8'],
+    ['Disputes', 'Available now'],
     ['Finance & reconciliation', 'Assigned to Slice 5'],
   ];
   return (
@@ -204,6 +205,7 @@ function AdminShell() {
           <NavLink to="/finance">Finance</NavLink>
           <NavLink to="/matches">Load Matches</NavLink>
           <NavLink to="/moderation">Moderation</NavLink>
+          <NavLink to="/disputes">Disputes</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -219,6 +221,7 @@ function AdminShell() {
           <Route path="finance" element={<FinancePage />} />
           <Route path="matches" element={<MatchLoadingPage />} />
           <Route path="moderation" element={<ModerationPage />} />
+          <Route path="disputes" element={<DisputesPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

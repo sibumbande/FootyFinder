@@ -20,6 +20,7 @@ export const NOTIFICATION_TYPES = [
   'SUPPORT_REPLY',
   'BOOKING_CONFIRMED',
   'BOOKING_EXPIRED',
+  'DISPUTE_RESOLVED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

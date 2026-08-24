@@ -694,6 +694,16 @@ export class MatchesRepository {
           },
         },
       });
+      await tx.matchResultRevision.create({
+        data: {
+          matchResultId: result.id,
+          revisionNumber: 1,
+          homeScore: input.homeScore,
+          awayScore: input.awayScore,
+          scorersSnapshot: scorerRows.map(({ participantId, team, goals }) => ({ participantId, team, goals })),
+          reason: 'INITIAL_SUBMISSION',
+        },
+      });
       await tx.match.update({ where: { id: matchId }, data: { status: 'COMPLETED' } });
       const recipients = new Set([match.createdById, ...participants.map(({ userId }) => userId)]);
       const notifications = await persistNotifications(

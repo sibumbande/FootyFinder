@@ -513,6 +513,50 @@ Stop and repair unexpected environment failures before continuing. Every configu
 
 **Expected:** Evidence privacy, self-report rejection, unique active enforcement, session revocation, append-only audit rollback, and exact cleanup all pass.
 
+## 7C. Result and field-booking disputes
+
+### DSP-001 — Authorized dispute intake and privacy
+
+1. Complete a Quick Game with Player A as host/result submitter and Player B as a participant.
+2. As Player B, choose **Dispute result**, select an applicable reason, and explain the discrepancy.
+3. As the host, try to dispute the result you submitted; as an outsider, call the same endpoint with the result ID.
+4. Open **My disputes** as Player B and the Admin **Disputes** page.
+
+**Expected:** Player B's dispute is `OPEN` with a server-snapshotted score/scorer revision. The submitter gets `DISPUTE_SELF_NOT_ALLOWED`; the outsider gets `DISPUTE_TARGET_NOT_FOUND`. Player history omits evidence and assignment, while Admin receives the preserved evidence.
+
+### DSP-002 — Result confirmation and immutable correction
+
+1. As Admin, assign the result dispute to yourself and inspect revision 1.
+2. Confirm the original result with a resolution summary; repeat with a second disposable Match and choose **Correct result**.
+3. For correction, enter real participant IDs and scorer goals that exactly equal the corrected Home/Away scores.
+4. Reload the Match, the dispute, notifications, and audit log.
+
+**Expected:** Confirmation closes the dispute without changing the score. Correction appends revision 2, changes the current result projection, and preserves revision 1 unchanged. Invalid participants return `INVALID_SCORER`; bad totals return `SCORER_TOTAL_MISMATCH`. The opener and affected Match users receive one persisted decision notification, and the Match refreshes after commit.
+
+### DSP-003 — Booking dispute and wallet isolation
+
+1. As a booking creator, participant, or contributor, open a field-booking dispute from its booking detail.
+2. Record every contributor balance, ledger entry, hold, and reservation snapshot.
+3. As Admin, uphold the dispute with a summary; repeat on a disposable booking and reject it.
+4. Compare all financial records and reservation snapshots.
+
+**Expected:** Both decisions persist and notify the opener. Neither outcome changes a wallet, hold, contribution, ledger, price snapshot, or reservation status. Any refund/credit remains a separate explicit financial operation rather than an inferred dispute side effect.
+
+### DSP-004 — Conflicts, constraints, and retries
+
+1. Submit two simultaneous open disputes from the same player for the same reference.
+2. Attempt a result outcome on a booking dispute and a booking outcome on a result dispute.
+3. Retry an already resolved dispute and attempt to update or delete a stored result revision directly in disposable QA data.
+
+**Expected:** Exactly one active dispute succeeds; the loser receives `DISPUTE_ALREADY_OPEN`. Cross-domain outcomes return `DISPUTE_OUTCOME_INVALID` and are blocked by PostgreSQL as well. Closed disputes return `DISPUTE_CLOSED`. Revision mutation/deletion is rejected as append-only.
+
+### DSP-005 — Dispute database smoke
+
+1. Run `npm run smoke:disputes-results --workspace=@footy-finder/api` against the isolated QA database.
+2. Confirm the smoke's users, Matches, managed field, reservation, result, revisions, disputes, notification, and audit event are absent afterward.
+
+**Expected:** Outcome constraints, two-version history, current projection, wallet isolation, append-only enforcement, atomic rollback, and exact cleanup pass.
+
 ## 8. Quick Game creation and discovery
 
 ### QCK-001 — Create wizard formats and capacity
@@ -1343,6 +1387,7 @@ npm run smoke:support-test-data --workspace=@footy-finder/api
 npm run smoke:financial-integrity --workspace=@footy-finder/api
 npm run smoke:field-bookings --workspace=@footy-finder/api
 npm run smoke:moderation-enforcement --workspace=@footy-finder/api
+npm run smoke:disputes-results --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1365,6 +1410,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | Personal wallet/demo deposits and integrity | WAL-001–WAL-007                                  |
 | Managed field booking and pooled funding     | BKG-001–BKG-005                                  |
 | Safety reports and player enforcement         | MOD-001–MOD-005                                  |
+| Result and field-booking disputes              | DSP-001–DSP-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |
 | Quick Game wizard/capacity/rules            | QCK-001–QCK-002                                  |
 | Discovery/public-private invitations        | QCK-003–QCK-004                                  |

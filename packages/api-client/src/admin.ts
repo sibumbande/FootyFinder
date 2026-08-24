@@ -27,6 +27,10 @@ import type {
   CreateAccountEnforcementInput,
   RevokeAccountEnforcementInput,
   PublicUser,
+  Dispute,
+  AdminDisputeQuery,
+  ReviewDisputeInput,
+  ResolveDisputeInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -98,4 +102,15 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: ModerationUserSummary }>(`/admin/moderation/users/${userId}/enforcements`, { method: 'POST', body: JSON.stringify(input) }),
   revokeEnforcement: (userId: string, enforcementId: string, input: RevokeAccountEnforcementInput) =>
     client.request<{ data: ModerationUserSummary }>(`/admin/moderation/users/${userId}/enforcements/${enforcementId}/revoke`, { method: 'POST', body: JSON.stringify(input) }),
+  disputes: (query: AdminDisputeQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.type) params.set('type', query.type);
+    if (query.assignedToMe !== undefined) params.set('assignedToMe', String(query.assignedToMe));
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return client.request<{ data: Dispute[] }>(`/admin/disputes${suffix}`);
+  },
+  dispute: (disputeId: string) => client.request<{ data: Dispute }>(`/admin/disputes/${disputeId}`),
+  reviewDispute: (disputeId: string, input: ReviewDisputeInput) => client.request<{ data: Dispute }>(`/admin/disputes/${disputeId}/review`, { method: 'PUT', body: JSON.stringify(input) }),
+  resolveDispute: (disputeId: string, input: ResolveDisputeInput) => client.request<{ data: Dispute }>(`/admin/disputes/${disputeId}/resolve`, { method: 'POST', body: JSON.stringify(input) }),
 });

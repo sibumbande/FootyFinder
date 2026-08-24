@@ -330,6 +330,7 @@ export function MatchLobbyPage() {
               </p>
             ))}
           </div>
+          {!isHost && <Link className="button-secondary mt-5 inline-flex" to={`/disputes/new/MATCH_RESULT/${match.result.id}`}>Dispute result</Link>}
         </section>
       )}
       <JoinTeamDialog match={match} open={joinOpen} onClose={() => setJoinOpen(false)} />
