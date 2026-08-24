@@ -148,6 +148,8 @@ Authenticated domain routes:
 - `/admin/finance/reconciliation` - MFA-gated read-only wallet/ledger/hold/Match-payment integrity report.
 - `/bookings` and `/bookings/fields` - authenticated managed-field discovery, player booking funding pools, booking detail, and idempotent wallet-hold contributions.
 - `/admin/matches` - MFA-gated Match loading from the managed field catalogue with immediate reservation and immutable price snapshots.
+- `/moderation/reports` - authenticated private report submission/history with server-side evidence snapshots.
+- `/admin/moderation/*` - MFA-gated report triage, player search, timed suspension, permanent bans, enforcement history, and reinstatement.
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
@@ -181,6 +183,7 @@ npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:support-test-data --workspace=@footy-finder/api
 npm run smoke:financial-integrity --workspace=@footy-finder/api
 npm run smoke:field-bookings --workspace=@footy-finder/api
+npm run smoke:moderation-enforcement --workspace=@footy-finder/api
 npm run wallet:reconcile --workspace=@footy-finder/api
 ```
 

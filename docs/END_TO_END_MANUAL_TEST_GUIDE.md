@@ -57,7 +57,7 @@ The following are deliberately **not implemented** and are not failures unless a
 - Team Wallet, Team funding, venue reservations, venue pricing, and provider integrations;
 - friends, blocks, recruitment, general social chat, and persistent Team Chat;
 - Team-v-Team opponent matchmaking;
-- Admin Match loading, moderation, and dispute operations, age/consent gates, reports, bans, and reviews (the platform Admin shell, MFA, bootstrap, append-only audit log, managed Venue/Field catalogue, support inbox, and environment-gated test accounts are implemented);
+- dispute operations, age/consent gates, and reviews (Admin Match loading, reports, moderation, suspensions, and bans are implemented);
 - guest Match discovery, cities/waitlists, tournaments, leagues, and accumulated player/Team statistics.
 
 Private Phase 1 Team fixtures are intentionally HOME-only, free, `DRAFT` planning workspaces. They do not enter the automatic Match lifecycle, debit wallets, or create historical `MatchParticipant` rows.
@@ -470,6 +470,48 @@ Stop and repair unexpected environment failures before continuing. Every configu
 2. Run wallet reconciliation again after a confirmed pooled booking.
 
 **Expected:** The smoke passes price snapshots, pooled capture/replay, overlap, expiry, audit rollback, and exact cleanup. Reconciliation includes every captured funding contribution and reports zero issues.
+
+## 7B. Safety reports and player enforcement
+
+### MOD-001 — Private report and evidence snapshot
+
+1. As Player A, report Player B from a player card and submit a reason plus notes.
+2. Report a direct message from Player B and a lobby message in a Match Player A can access.
+3. Open Player A's report history through `GET /moderation/reports`, then sign in to the MFA-verified Admin application and open **Moderation**.
+
+**Expected:** Each report persists with `OPEN` status. Player history shows status and submitted details but never evidence, reporter metadata, assignment, or internal Admin data. Admin sees a server-generated snapshot of the target/content as it existed at submission.
+
+### MOD-002 — Report authorization and triage
+
+1. Attempt to report your own account, your own message, a direct message from a conversation you do not belong to, and a lobby message from an inaccessible Match.
+2. As Admin, filter reports, take one for review, then resolve or dismiss it without a summary and again with a summary.
+
+**Expected:** Self-reporting returns `REPORT_SELF_NOT_ALLOWED`; inaccessible targets return `REPORT_TARGET_NOT_FOUND` without confirming their existence. Terminal report status requires a resolution summary. Assignment, status, resolution, and one append-only audit event commit together.
+
+### MOD-003 — Timed suspension and realtime eviction
+
+1. Keep Player B signed in in two browser profiles and connected to a Match/Team room.
+2. In Admin **Moderation**, apply a short timed suspension with a public reason and optional internal note.
+3. Try an authenticated HTTP action and Socket.IO reconnect from both profiles.
+4. After the expiry job runs, log in again.
+
+**Expected:** Account status, enforcement history, all-session revocation, expiry job, and Admin audit commit atomically. Both sockets disconnect immediately; old cookies cannot reconnect or call protected routes. After expiry, the account is active and can create a new session, while the expired enforcement remains in history.
+
+### MOD-004 — Ban, upgrade, review, and retention
+
+1. Suspend a disposable player, then upgrade the active suspension to a permanent ban.
+2. Attempt a second simultaneous enforcement and attempt to sanction the current or another Admin account.
+3. Reinstate the banned player with a review reason.
+4. Confirm their prior Matches, messages, Teams, reports, wallet, and ledger history remain.
+
+**Expected:** A ban supersedes the suspension, and the database permits only one active enforcement. Competing enforcement returns a conflict; Admin targets return `ADMIN_ENFORCEMENT_FORBIDDEN`. Reinstatement records who reviewed it and why, returns the account to `ACTIVE`, and deletes no domain or financial history.
+
+### MOD-005 — Moderation database smoke
+
+1. Run `npm run smoke:moderation-enforcement --workspace=@footy-finder/api` against the isolated QA database.
+2. Confirm its unique report, users, enforcement transaction, job, and audit fixtures are absent afterward.
+
+**Expected:** Evidence privacy, self-report rejection, unique active enforcement, session revocation, append-only audit rollback, and exact cleanup all pass.
 
 ## 8. Quick Game creation and discovery
 
@@ -1300,6 +1342,7 @@ npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:support-test-data --workspace=@footy-finder/api
 npm run smoke:financial-integrity --workspace=@footy-finder/api
 npm run smoke:field-bookings --workspace=@footy-finder/api
+npm run smoke:moderation-enforcement --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1321,6 +1364,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
 | Personal wallet/demo deposits and integrity | WAL-001–WAL-007                                  |
 | Managed field booking and pooled funding     | BKG-001–BKG-005                                  |
+| Safety reports and player enforcement         | MOD-001–MOD-005                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |
 | Quick Game wizard/capacity/rules            | QCK-001–QCK-002                                  |
 | Discovery/public-private invitations        | QCK-003–QCK-004                                  |

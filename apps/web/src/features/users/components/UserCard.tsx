@@ -16,7 +16,7 @@ export function UserCard({ user }: { user: PublicUser }) {
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Link className="button min-h-10 text-sm" to={`/players/${user.id}`}>
           View profile
         </Link>
@@ -25,6 +25,9 @@ export function UserCard({ user }: { user: PublicUser }) {
           to={`/messages/new/${user.id}`}
         >
           Message
+        </Link>
+        <Link className="inline-flex min-h-10 items-center justify-center rounded-xl text-sm font-semibold text-content-muted hover:bg-danger-50 hover:text-danger-700" to={`/report/USER/${user.id}`}>
+          Report
         </Link>
       </div>
     </article>

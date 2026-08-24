@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar.js';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { formatDate } from '@/utils/format-date.js';
 import { useLobbyMessages, useSendLobbyMessage } from '@/features/matches/hooks/useMatches.js';
+import { useAuth } from '@/features/auth/hooks/useAuth.js';
 export function ChatPanel({ matchId, enabled = true }: { matchId: string; enabled?: boolean }) {
+  const { user } = useAuth();
   const [content, setContent] = useState('');
   const messages = useLobbyMessages(matchId, enabled);
   const send = useSendLobbyMessage(matchId);
@@ -40,6 +43,7 @@ export function ChatPanel({ matchId, enabled = true }: { matchId: string; enable
                 </span>
               </div>
               <p className="mt-1 break-words text-sm text-content">{message.content}</p>
+              {message.senderId !== user?.id && <Link className="mt-1 inline-block text-[10px] text-content-subtle hover:text-danger-700" to={`/report/LOBBY_MESSAGE/${message.id}`}>Report message</Link>}
             </div>
           </div>
         ))}

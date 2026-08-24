@@ -194,6 +194,42 @@ enum SupportMessageAuthorRole {
   ADMIN
 }
 
+enum ModerationReportTargetType {
+  USER
+  DIRECT_MESSAGE
+  LOBBY_MESSAGE
+  TEAM
+  MATCH
+}
+
+enum ModerationReportReason {
+  HARASSMENT
+  ABUSE
+  CHEATING
+  SPAM
+  IMPERSONATION
+  SAFETY
+  OTHER
+}
+
+enum ModerationReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum AccountEnforcementType {
+  SUSPENSION
+  BAN
+}
+
+enum AccountEnforcementStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
 enum NotificationType {
   INFO
   DIRECT_MESSAGE
@@ -254,6 +290,11 @@ model User {
   testDataBatch           TestDataBatch?            @relation(fields: [testDataBatchId], references: [id], onDelete: Restrict)
   isTestAccount           Boolean                   @default(false)
   fundingContributions    FundingContribution[]
+  moderationReports       ModerationReport[]        @relation("ModerationReporter")
+  assignedReports         ModerationReport[]        @relation("ModerationReportAssignee")
+  accountEnforcements     AccountEnforcement[]      @relation("EnforcedUser")
+  createdEnforcements     AccountEnforcement[]      @relation("EnforcementCreator")
+  revokedEnforcements     AccountEnforcement[]      @relation("EnforcementRevoker")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -298,6 +339,52 @@ model AdminAuditLog {
   @@index([createdAt])
   @@index([actorUserId, createdAt])
   @@index([entityType, entityId, createdAt])
+}
+
+model ModerationReport {
+  id                  String                     @id @default(uuid()) @db.Uuid
+  reporterUserId      String                     @db.Uuid
+  assignedAdminUserId String?                    @db.Uuid
+  targetType          ModerationReportTargetType
+  targetId            String                     @db.Uuid
+  reason              ModerationReportReason
+  details             String?
+  evidenceSnapshot    Json
+  status              ModerationReportStatus     @default(OPEN)
+  resolutionSummary   String?
+  resolvedAt          DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  reporter            User                       @relation("ModerationReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  assignedAdmin       User?                      @relation("ModerationReportAssignee", fields: [assignedAdminUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([reporterUserId, createdAt])
+  @@index([assignedAdminUserId, status, createdAt])
+}
+
+model AccountEnforcement {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  userId               String                   @db.Uuid
+  type                 AccountEnforcementType
+  status               AccountEnforcementStatus @default(ACTIVE)
+  publicReason         String
+  internalNote         String?
+  startsAt             DateTime                 @default(now())
+  endsAt               DateTime?
+  revokedAt            DateTime?
+  createdByAdminUserId String                   @db.Uuid
+  revokedByAdminUserId String?                  @db.Uuid
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  user                 User                     @relation("EnforcedUser", fields: [userId], references: [id], onDelete: Restrict)
+  createdByAdmin       User                     @relation("EnforcementCreator", fields: [createdByAdminUserId], references: [id], onDelete: Restrict)
+  revokedByAdmin       User?                    @relation("EnforcementRevoker", fields: [revokedByAdminUserId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status, createdAt])
+  @@index([status, endsAt])
+  @@index([createdByAdminUserId, createdAt])
 }
 
 model SupportTicket {

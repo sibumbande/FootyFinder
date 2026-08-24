@@ -2,6 +2,7 @@ import { Router, type Router as ExpressRouter } from 'express';
 import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
 import { registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './admin.controller.js';
+import * as moderation from '../moderation/moderation.controller.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
 adminAuthRouter.get('/status', controller.status);
@@ -9,7 +10,7 @@ adminAuthRouter.post('/mfa/setup', costlyMutationRateLimit, controller.setupMfa)
 adminAuthRouter.post('/mfa/verify', costlyMutationRateLimit, controller.verifyMfa);
 
 export const adminRouter: ExpressRouter = Router();
-registerUuidRouteParams(adminRouter, ['venueId', 'fieldId', 'exceptionId', 'ticketId', 'batchId']);
+registerUuidRouteParams(adminRouter, ['venueId', 'fieldId', 'exceptionId', 'ticketId', 'batchId', 'reportId', 'userId', 'enforcementId']);
 adminRouter.get('/audit-logs', controller.auditLog);
 adminRouter.get('/venues', controller.listVenues);
 adminRouter.post('/venues', costlyMutationRateLimit, controller.createVenue);
@@ -31,3 +32,10 @@ adminRouter.delete('/test-data/batches/:batchId', costlyMutationRateLimit, contr
 adminRouter.get('/finance/reconciliation', controller.walletReconciliation);
 adminRouter.get('/matches', controller.listManagedMatches);
 adminRouter.post('/matches', costlyMutationRateLimit, controller.createManagedMatch);
+adminRouter.get('/moderation/reports', moderation.listReports);
+adminRouter.get('/moderation/reports/:reportId', moderation.getReport);
+adminRouter.put('/moderation/reports/:reportId', costlyMutationRateLimit, moderation.updateReport);
+adminRouter.get('/moderation/users', moderation.listUsers);
+adminRouter.get('/moderation/users/:userId', moderation.getUser);
+adminRouter.post('/moderation/users/:userId/enforcements', costlyMutationRateLimit, moderation.enforceUser);
+adminRouter.post('/moderation/users/:userId/enforcements/:enforcementId/revoke', costlyMutationRateLimit, moderation.revokeEnforcement);

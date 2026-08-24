@@ -8,6 +8,7 @@ import { SupportPage } from './SupportPage.js';
 import { TestDataPage } from './TestDataPage.js';
 import { FinancePage } from './FinancePage.js';
 import { MatchLoadingPage } from './MatchLoadingPage.js';
+import { ModerationPage } from './ModerationPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -133,8 +134,8 @@ function Dashboard() {
     ['Venues & fields', 'Available now'],
     ['Support inbox', 'Available now'],
     ['Test accounts & data', 'Available when environment-gated'],
-    ['Match loading', 'Assigned to Slice 6'],
-    ['Moderation', 'Assigned to Slice 7'],
+    ['Match loading', 'Available now'],
+    ['Moderation', 'Available now'],
     ['Disputes', 'Assigned to Slice 8'],
     ['Finance & reconciliation', 'Assigned to Slice 5'],
   ];
@@ -202,6 +203,7 @@ function AdminShell() {
           <NavLink to="/test-data">Test data</NavLink>
           <NavLink to="/finance">Finance</NavLink>
           <NavLink to="/matches">Load Matches</NavLink>
+          <NavLink to="/moderation">Moderation</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -216,6 +218,7 @@ function AdminShell() {
           <Route path="test-data" element={<TestDataPage />} />
           <Route path="finance" element={<FinancePage />} />
           <Route path="matches" element={<MatchLoadingPage />} />
+          <Route path="moderation" element={<ModerationPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

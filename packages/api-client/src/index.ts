@@ -9,3 +9,4 @@ export * from './teams.js';
 export * from './admin.js';
 export * from './support.js';
 export * from './bookings.js';
+export * from './moderation.js';

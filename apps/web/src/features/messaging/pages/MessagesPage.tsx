@@ -116,6 +116,7 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
                 >
                   <p className="text-sm">{message.content}</p>
                   <p className="mt-1 text-[10px] opacity-70">{formatDate(message.createdAt)}</p>
+                  {message.senderId !== user?.id && <Link className="mt-1 block text-[10px] opacity-70 hover:opacity-100" to={`/report/DIRECT_MESSAGE/${message.id}`}>Report message</Link>}
                 </div>
               ))}
             </div>

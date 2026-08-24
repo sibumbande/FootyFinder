@@ -69,4 +69,25 @@ describe('adminApi', () => {
       '/admin/matches', '/admin/matches',
     ]);
   });
+
+  it('uses moderation report and account enforcement contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.moderationReports({ status: 'OPEN', targetType: 'USER', assignedToMe: true });
+    await api.moderationReport('report-id');
+    await api.updateModerationReport('report-id', { status: 'RESOLVED', resolutionSummary: 'Reviewed.' });
+    await api.moderationUsers({ search: 'player', accountStatus: 'SUSPENDED' });
+    await api.moderationUser('user-id');
+    await api.enforceUser('user-id', { type: 'SUSPENSION', publicReason: 'Safety review.', endsAt: '2026-09-01T18:00:00.000Z' });
+    await api.revokeEnforcement('user-id', 'enforcement-id', { reason: 'Review complete.' });
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/moderation/reports?status=OPEN&targetType=USER&assignedToMe=true',
+      '/admin/moderation/reports/report-id',
+      '/admin/moderation/reports/report-id',
+      '/admin/moderation/users?search=player&accountStatus=SUSPENDED',
+      '/admin/moderation/users/user-id',
+      '/admin/moderation/users/user-id/enforcements',
+      '/admin/moderation/users/user-id/enforcements/enforcement-id/revoke',
+    ]);
+  });
 });

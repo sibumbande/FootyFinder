@@ -28,8 +28,8 @@ A separate repository, API, or database is intentionally deferred until an indep
 | 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Complete (`a1e0cc5`) |
 | 4 | Support inbox and environment-gated test-data tools | Complete (`050ffc8`) |
 | 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Complete (`bde7107`) |
-| 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Complete (current slice) |
-| 7 | Moderation, suspension, bans, and enforcement review | Pending |
+| 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Complete (`63c3d25`) |
+| 7 | Moderation, suspension, bans, and enforcement review | Complete (current slice) |
 | 8 | Result and booking disputes with immutable result revisions | Pending |
 | 9 | Operations dashboard, browser E2E coverage, documentation, and final audit | Pending |
 
@@ -37,11 +37,11 @@ Each slice receives an additive migration when persistence changes, focused auto
 
 ## Current verified baseline
 
-Slice 6 verified on top of Slice 5 commit `bde7107`.
+Slice 7 verified on top of Slice 6 commit `63c3d25`.
 
-- Prisma schema formats, validates, generates, and reports all 18 migrations applied.
+- Prisma schema formats, validates, generates, and reports all 19 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 194 automated tests pass: API 120, web 20, API client 14, shared 40.
+- 199 automated tests pass: API 120, web 20, API client 16, shared 43.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
 
@@ -106,3 +106,14 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - A deduplicated durable deadline job expires underfunded bookings, releases all holds, cancels the draft Match, persists notifications, and makes the field available again.
 - Current private HOME-only Team planning fixtures remain free and outside reservation/funding flows; Team Wallet and opponent obligations are not inferred early.
 - `smoke:field-bookings` proves pricing/availability, pool capture/replay, overlap exclusion, immutable snapshots, expiry/release, Admin audit rollback, and exact cleanup.
+
+## Slice 7 moderation and enforcement boundary
+
+- Authenticated players can report users, direct messages, lobby messages, Teams, or Matches. Message reports require existing conversation or Match access, and users cannot report themselves or their own messages.
+- Report creation stores a server-generated evidence snapshot. Player report history never returns evidence, reporter identity, internal assignment, or Admin-only notes.
+- MFA-verified Admins can filter and assign reports, inspect preserved evidence, move a report through review, and resolve or dismiss it only with a resolution summary.
+- Admin player search exposes only the operational identity fields required for moderation. Enforcement history is retained separately from the mutable current `AccountStatus`.
+- A timed suspension or permanent ban atomically writes immutable enforcement history, updates account status, revokes every persisted session, queues expiry where applicable, and appends the Admin audit record. Socket eviction occurs only after commit.
+- A partial unique database constraint permits only one active enforcement per player. Ban upgrades revoke an active suspension; Admin accounts cannot be sanctioned through the player workflow.
+- Suspension expiry is handled by the distributed durable-job worker. Reinstatement and expiry preserve all Match, Team, messaging, report, wallet, and ledger history.
+- `smoke:moderation-enforcement` proves evidence privacy, self-report rejection, active-enforcement uniqueness, session revocation, atomic audit rollback, and exact cleanup.

@@ -19,6 +19,14 @@ import type {
   WalletReconciliationReport,
   FieldBooking,
   ManagedMatchBookingInput,
+  ModerationReport,
+  AdminModerationReportQuery,
+  UpdateModerationReportInput,
+  AdminModerationUserQuery,
+  ModerationUserSummary,
+  CreateAccountEnforcementInput,
+  RevokeAccountEnforcementInput,
+  PublicUser,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -67,4 +75,27 @@ export const adminApi = (client: ApiClient) => ({
   walletReconciliation: () => client.request<{ data: WalletReconciliationReport }>('/admin/finance/reconciliation'),
   managedMatches: () => client.request<{ data: FieldBooking[] }>('/admin/matches'),
   createManagedMatch: (input: ManagedMatchBookingInput) => client.request<{ data: FieldBooking }>('/admin/matches', { method: 'POST', body: JSON.stringify(input) }),
+  moderationReports: (query: AdminModerationReportQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.targetType) params.set('targetType', query.targetType);
+    if (query.assignedToMe !== undefined) params.set('assignedToMe', String(query.assignedToMe));
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return client.request<{ data: ModerationReport[] }>(`/admin/moderation/reports${suffix}`);
+  },
+  moderationReport: (reportId: string) => client.request<{ data: ModerationReport }>(`/admin/moderation/reports/${reportId}`),
+  updateModerationReport: (reportId: string, input: UpdateModerationReportInput) =>
+    client.request<{ data: ModerationReport }>(`/admin/moderation/reports/${reportId}`, { method: 'PUT', body: JSON.stringify(input) }),
+  moderationUsers: (query: AdminModerationUserQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.search) params.set('search', query.search);
+    if (query.accountStatus) params.set('accountStatus', query.accountStatus);
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return client.request<{ data: Array<PublicUser & { email: string; accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED'; platformRole: 'USER' | 'ADMIN' }> }>(`/admin/moderation/users${suffix}`);
+  },
+  moderationUser: (userId: string) => client.request<{ data: ModerationUserSummary }>(`/admin/moderation/users/${userId}`),
+  enforceUser: (userId: string, input: CreateAccountEnforcementInput) =>
+    client.request<{ data: ModerationUserSummary }>(`/admin/moderation/users/${userId}/enforcements`, { method: 'POST', body: JSON.stringify(input) }),
+  revokeEnforcement: (userId: string, enforcementId: string, input: RevokeAccountEnforcementInput) =>
+    client.request<{ data: ModerationUserSummary }>(`/admin/moderation/users/${userId}/enforcements/${enforcementId}/revoke`, { method: 'POST', body: JSON.stringify(input) }),
 });
