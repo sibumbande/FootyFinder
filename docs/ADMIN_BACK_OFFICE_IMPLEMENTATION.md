@@ -26,8 +26,8 @@ A separate repository, API, or database is intentionally deferred until an indep
 | 1 | Revocable sessions, realtime security, rate limits, and request hardening | Complete (`8204cad`) |
 | 2 | Platform Admin role, audit log, MFA/bootstrap, and Admin application shell | Complete (`b72bb6a`) |
 | 3 | Managed Venue/Field catalogue, schedules, exceptions, and pricing | Complete (`a1e0cc5`) |
-| 4 | Support inbox and environment-gated test-data tools | Complete (current slice) |
-| 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Pending |
+| 4 | Support inbox and environment-gated test-data tools | Complete (`050ffc8`) |
+| 5 | Central wallet integrity, holds, reconciliation, and durable jobs | Complete (current slice) |
 | 6 | Field reservations, pooled funding, Admin Match loading, and player booking | Pending |
 | 7 | Moderation, suspension, bans, and enforcement review | Pending |
 | 8 | Result and booking disputes with immutable result revisions | Pending |
@@ -37,11 +37,11 @@ Each slice receives an additive migration when persistence changes, focused auto
 
 ## Current verified baseline
 
-Slice 4 verified on top of Slice 3 commit `a1e0cc5`.
+Slice 5 verified on top of Slice 4 commit `050ffc8`.
 
-- Prisma schema formats, validates, generates, and reports all 15 migrations applied.
+- Prisma schema formats, validates, generates, and reports all 16 migrations applied.
 - TypeScript lint gates pass in all workspaces.
-- 190 automated tests pass: API 117, web 20, API client 13, shared 40.
+- 191 automated tests pass: API 118, web 20, API client 13, shared 40.
 - Production builds pass.
 - `smoke:api-contract`, `smoke:atomic-notifications`, `smoke:security-sessions`, and Phase 1A–1E PostgreSQL smokes pass with fixture cleanup.
 
@@ -84,3 +84,13 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - Test-data list/create/delete operations require `ADMIN_TEST_DATA_ENABLED=true` and a non-production `NODE_ENV`. Production environment validation refuses to start if the flag is enabled.
 - Batch deletion targets only accounts carrying both the batch ID and `isTestAccount=true`; linked domain activity blocks deletion with `TEST_DATA_IN_USE` instead of broad cascading cleanup.
 - `smoke:support-test-data` proves public/internal message separation, reply notification durability, batch tagging, atomic audit persistence, rollback, and exact cleanup.
+
+## Slice 5 financial integrity boundary
+
+- All current balance and settled-ledger mutations—deposits, Quick Match entry debits, cancellation credits, and replacement credits—now pass through one transaction-capable financial repository.
+- Wallet accounts lock before mutations. Spendability is `balance - active holds`; simultaneous holds cannot reserve the same money and idempotent debit/credit/capture operations never change a balance twice.
+- PostgreSQL rejects negative wallet balances, infeasible ledger signs, financial-identity edits, and reversals from terminal transaction states.
+- Wallet holds support active, captured, released, and expired states. Expiring holds enqueue a deduplicated durable job in the same transaction.
+- The durable worker claims jobs with `FOR UPDATE SKIP LOCKED`, recovers stale locks, retries with bounded exponential backoff, records safe error codes, and has terminal failure state.
+- The Admin Finance page and `wallet:reconcile` command compare wallet balances, settled ledger totals, active holds, and Match payment ledgers without mutating or repairing data.
+- `smoke:financial-integrity` uses real simultaneous holds and deposit creation, proves one hold winner, terminal-state and nonnegative database constraints, idempotent capture, reconciliation, durable execution, and exact cleanup.

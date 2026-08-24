@@ -89,8 +89,8 @@ async function main() {
 
   const wallet = new WalletRepository();
   const pending = await wallet.createPending(owner.id, 50_000, marker, `${marker}-deposit`);
-  const firstSettlement = await wallet.succeed(pending.id, owner.id, `${marker}-provider-ref`);
-  const replayedSettlement = await wallet.succeed(pending.id, owner.id, `${marker}-provider-ref`);
+  const firstSettlement = await wallet.succeed(pending.transaction.id, owner.id, `${marker}-provider-ref`);
+  const replayedSettlement = await wallet.succeed(pending.transaction.id, owner.id, `${marker}-provider-ref`);
   assert(
     firstSettlement.notifications.length === 1,
     'Deposit success notification was not atomic.',

@@ -50,7 +50,7 @@ function setup(result: Awaited<ReturnType<PaymentOperator['deposit']>> | Error) 
   };
   const wallet = {
     findByIdempotencyKey: vi.fn().mockResolvedValue(null),
-    createPending: vi.fn().mockResolvedValue(transaction),
+    createPending: vi.fn().mockResolvedValue({ transaction, created: true }),
     succeed: vi.fn().mockResolvedValue({ user, notifications: [] }),
     settle: vi.fn().mockResolvedValue({ count: 1 }),
   } as unknown as WalletRepository;

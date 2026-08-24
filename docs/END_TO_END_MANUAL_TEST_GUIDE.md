@@ -412,6 +412,22 @@ Stop and repair unexpected environment failures before continuing. Every configu
 
 **Expected:** The credit and notification persist, and the live header updates promptly from the wallet-credit invalidation event without a manual reload.
 
+### WAL-006 — Admin financial reconciliation
+
+1. In the MFA-verified Admin app, open **Finance** after completing the deposit, paid join, cancellation, and replacement cases.
+2. Run `npm run wallet:reconcile --workspace=@footy-finder/api` against the same QA database.
+3. Compare the wallet, transaction, and active-hold counts and retain the JSON output with the test evidence.
+
+**Expected:** Both read-only reports show zero issues and do not change balances, ledger rows, payments, holds, or timestamps. A clean command exits zero. Any mismatch identifies only safe record IDs and cent values, exits nonzero, and requires investigation rather than automatic repair.
+
+### WAL-007 — Holds, concurrency, and terminal-state protection
+
+1. Run `npm run smoke:financial-integrity --workspace=@footy-finder/api` against the isolated QA database.
+2. Review its output and confirm its unique fixture account and durable job are absent afterward.
+3. If inspecting SQL manually, confirm a captured hold cannot be released, a succeeded ledger row cannot become failed/pending, and a wallet cannot be set below zero. Do not mutate nondisposable records.
+
+**Expected:** Two simultaneous holds larger than the available balance produce exactly one winner. Held funds cannot be spent by a competing debit. Capture changes the balance exactly once; replay is a no-op. Concurrent deposit creation yields one operation. Database constraints reject terminal reversal and negative balance, the durable job reaches `SUCCEEDED`, reconciliation passes, and cleanup is exact.
+
 ## 8. Quick Game creation and discovery
 
 ### QCK-001 — Create wizard formats and capacity
@@ -1239,6 +1255,7 @@ npm run smoke:security-sessions --workspace=@footy-finder/api
 npm run smoke:admin-identity --workspace=@footy-finder/api
 npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:support-test-data --workspace=@footy-finder/api
+npm run smoke:financial-integrity --workspace=@footy-finder/api
 npm run smoke:match-capacity --workspace=@footy-finder/api
 npm run smoke:team-match --workspace=@footy-finder/api
 npm run smoke:team-match-availability --workspace=@footy-finder/api
@@ -1258,7 +1275,7 @@ Expected: every script reports success and removes its own temporary users, Team
 | Managed Venue/Field catalogue and pricing    | ADM-004–ADM-005                                  |
 | Support inbox and disposable test data       | ADM-006–ADM-007                                  |
 | Public/private player DTO separation        | PROF-001–PROF-002, 13.5, SEC-002                 |
-| Personal wallet/demo deposits               | WAL-001–WAL-005                                  |
+| Personal wallet/demo deposits and integrity | WAL-001–WAL-007                                  |
 | Persisted notifications/toasts              | UX-004, WAL-001–WAL-002, TMD-014                 |
 | Quick Game wizard/capacity/rules            | QCK-001–QCK-002                                  |
 | Discovery/public-private invitations        | QCK-003–QCK-004                                  |

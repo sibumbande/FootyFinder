@@ -25,6 +25,8 @@ export const envSchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .default('false'),
+    DURABLE_JOB_POLL_INTERVAL_MS: z.coerce.number().int().min(250).default(5000),
+    DURABLE_JOB_LOCK_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(300),
     MATCH_DURATION_FIVE_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
     MATCH_DURATION_SEVEN_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),
     MATCH_DURATION_ELEVEN_A_SIDE_MINUTES: z.coerce.number().int().positive().default(90),

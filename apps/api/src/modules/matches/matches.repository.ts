@@ -25,6 +25,10 @@ import {
   type NotificationDraft,
 } from '../notifications/notification-writer.js';
 import { matchInclude, participantInclude } from './match.query.js';
+import {
+  FinancialInsufficientFundsError,
+  FinancialRepository,
+} from '../wallet/financial.repository.js';
 
 export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
@@ -43,6 +47,7 @@ const isLobbyOpen = (
   now < match.startsAt;
 
 export class MatchesRepository {
+  constructor(private readonly financial = new FinancialRepository()) {}
   listPublic(query: DiscoveryQuery) {
     return prisma.match.findMany({
       where: {
@@ -292,13 +297,20 @@ export class MatchesRepository {
       )
         throw new TeamFullError();
 
-      const wallet = await tx.walletAccount.findUniqueOrThrow({ where: { userId } });
-      if (match.feeCents > 0) {
-        const charged = await tx.walletAccount.updateMany({
-          where: { id: wallet.id, balanceCents: { gte: match.feeCents } },
-          data: { balanceCents: { decrement: match.feeCents } },
+      let debit;
+      try {
+        debit = await this.financial.debit(tx, {
+          userId,
+          amountCents: match.feeCents,
+          type: 'MATCH_ENTRY_DEBIT',
+          idempotencyKey: `match-payment:${idempotencyKey}`,
+          referenceType: 'MATCH',
+          referenceId: matchId,
+          description: `Entry fee for ${match.name}`,
         });
-        if (charged.count !== 1) throw new InsufficientBalanceError();
+      } catch (error) {
+        if (error instanceof FinancialInsufficientFundsError) throw new InsufficientBalanceError();
+        throw error;
       }
       const participant = await tx.matchParticipant.upsert({
         where: { matchId_userId: { matchId, userId } },
@@ -306,18 +318,7 @@ export class MatchesRepository {
         update: { status: 'JOINED', team: input.team, joinedAt: new Date(), leftAt: null },
         include: participantInclude,
       });
-      const walletTransaction = await tx.walletTransaction.create({
-        data: {
-          walletAccountId: wallet.id,
-          type: 'MATCH_ENTRY_DEBIT',
-          amountCents: -match.feeCents,
-          status: 'SUCCEEDED',
-          idempotencyKey: `match-payment:${idempotencyKey}`,
-          referenceType: 'MATCH',
-          referenceId: matchId,
-          description: `Entry fee for ${match.name}`,
-        },
-      });
+      const walletTransaction = debit.transaction;
       await tx.matchPayment.create({
         data: {
           matchId,
@@ -343,24 +344,14 @@ export class MatchesRepository {
       let replacement: { userId: string; amountCents: number } | null = null;
       if (cancellation && cancellation.initialCreditCents < cancellation.originalAmountCents) {
         const amountCents = cancellation.originalAmountCents - cancellation.initialCreditCents;
-        const cancelledWallet = await tx.walletAccount.findUniqueOrThrow({
-          where: { userId: cancellation.userId },
-        });
-        await tx.walletAccount.update({
-          where: { id: cancelledWallet.id },
-          data: { balanceCents: { increment: amountCents } },
-        });
-        await tx.walletTransaction.create({
-          data: {
-            walletAccountId: cancelledWallet.id,
-            type: 'REPLACEMENT_CREDIT',
-            amountCents,
-            status: 'SUCCEEDED',
-            idempotencyKey: `replacement-credit:${cancellation.id}`,
-            referenceType: 'CANCELLATION',
-            referenceId: cancellation.id,
-            description: 'Remaining cancellation credit after replacement joined',
-          },
+        await this.financial.credit(tx, {
+          userId: cancellation.userId,
+          amountCents,
+          type: 'REPLACEMENT_CREDIT',
+          idempotencyKey: `replacement-credit:${cancellation.id}`,
+          referenceType: 'CANCELLATION',
+          referenceId: cancellation.id,
+          description: 'Remaining cancellation credit after replacement joined',
         });
         await tx.participantCancellation.update({
           where: { id: cancellation.id },
@@ -477,25 +468,17 @@ export class MatchesRepository {
       );
       if (initialCreditCents === null) throw new MatchClosedError();
       if (initialCreditCents > 0) {
-        const wallet = await tx.walletAccount.findUniqueOrThrow({ where: { userId } });
-        await tx.walletAccount.update({
-          where: { id: wallet.id },
-          data: { balanceCents: { increment: initialCreditCents } },
-        });
-        await tx.walletTransaction.create({
-          data: {
-            walletAccountId: wallet.id,
-            type:
-              initialCreditCents === participant.payment.amountCents
-                ? 'PLAYER_CANCELLATION_FULL_CREDIT'
-                : 'PLAYER_CANCELLATION_PARTIAL_CREDIT',
-            amountCents: initialCreditCents,
-            status: 'SUCCEEDED',
-            idempotencyKey: `player-cancellation:${participant.payment.id}`,
-            referenceType: 'MATCH_PAYMENT',
-            referenceId: participant.payment.id,
-            description: 'Player cancellation wallet credit',
-          },
+        await this.financial.credit(tx, {
+          userId,
+          amountCents: initialCreditCents,
+          type:
+            initialCreditCents === participant.payment.amountCents
+              ? 'PLAYER_CANCELLATION_FULL_CREDIT'
+              : 'PLAYER_CANCELLATION_PARTIAL_CREDIT',
+          idempotencyKey: `player-cancellation:${participant.payment.id}`,
+          referenceType: 'MATCH_PAYMENT',
+          referenceId: participant.payment.id,
+          description: 'Player cancellation wallet credit',
         });
       }
       await tx.matchPayment.update({
@@ -552,24 +535,14 @@ export class MatchesRepository {
       const refundedUserIds: string[] = [];
       const notificationDrafts: NotificationDraft[] = [];
       for (const payment of match.payments) {
-        const wallet = await tx.walletAccount.findUniqueOrThrow({
-          where: { userId: payment.userId },
-        });
-        await tx.walletAccount.update({
-          where: { id: wallet.id },
-          data: { balanceCents: { increment: payment.amountCents } },
-        });
-        await tx.walletTransaction.create({
-          data: {
-            walletAccountId: wallet.id,
-            type: 'MATCH_CANCELLATION_CREDIT',
-            amountCents: payment.amountCents,
-            status: 'SUCCEEDED',
-            idempotencyKey: `match-cancellation:${payment.id}`,
-            referenceType: 'MATCH_PAYMENT',
-            referenceId: payment.id,
-            description: 'Full credit for cancelled match',
-          },
+        await this.financial.credit(tx, {
+          userId: payment.userId,
+          amountCents: payment.amountCents,
+          type: 'MATCH_CANCELLATION_CREDIT',
+          idempotencyKey: `match-cancellation:${payment.id}`,
+          referenceType: 'MATCH_PAYMENT',
+          referenceId: payment.id,
+          description: 'Full credit for cancelled match',
         });
         await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
         refundedUserIds.push(payment.userId);

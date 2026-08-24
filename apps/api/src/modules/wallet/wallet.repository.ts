@@ -5,8 +5,11 @@ import {
   persistNotifications,
 } from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
+import { serializableTransaction } from '../../database/transaction.js';
+import { FinancialRepository } from './financial.repository.js';
 
 export class WalletRepository {
+  constructor(private readonly financial = new FinancialRepository()) {}
   findByIdempotencyKey(idempotencyKey: string) {
     return prisma.walletTransaction.findUnique({
       where: { idempotencyKey },
@@ -19,38 +22,39 @@ export class WalletRepository {
     provider: string,
     idempotencyKey: string,
   ) {
-    const account = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
-    return prisma.walletTransaction.create({
-      data: {
-        walletAccountId: account.id,
-        amountCents,
-        provider,
-        idempotencyKey,
-        type: 'DEPOSIT_CREDIT',
-        status: 'PENDING',
-        referenceType: 'DEPOSIT',
-        description: 'Wallet deposit',
-      },
+    return serializableTransaction(async (tx) => {
+      const account = await tx.walletAccount.findUniqueOrThrow({ where: { userId } });
+      const inserted = await tx.walletTransaction.createMany({
+        data: [{
+          walletAccountId: account.id,
+          amountCents,
+          provider,
+          idempotencyKey,
+          type: 'DEPOSIT_CREDIT',
+          status: 'PENDING',
+          referenceType: 'DEPOSIT',
+          description: 'Wallet deposit',
+        }],
+        skipDuplicates: true,
+      });
+      const transaction = await tx.walletTransaction.findUniqueOrThrow({
+        where: { idempotencyKey },
+        include: { walletAccount: { include: { user: { include: safeUserInclude } } } },
+      });
+      return { transaction, created: inserted.count === 1 };
     });
   }
   async succeed(transactionId: string, userId: string, providerReference: string) {
     return prisma.$transaction(async (tx) => {
-      const account = await tx.walletAccount.findUniqueOrThrow({ where: { userId } });
-      const transition = await tx.walletTransaction.updateMany({
-        where: { id: transactionId, walletAccountId: account.id, status: 'PENDING' },
-        data: { status: 'SUCCEEDED', providerReference },
-      });
+      const transition = await this.financial.succeedPendingCredit(
+        tx,
+        transactionId,
+        userId,
+        providerReference,
+      );
       let notifications: Notification[] = [];
-      if (transition.count === 1) {
-        const creditedTransaction = await tx.walletTransaction.findUniqueOrThrow({
-          where: { id: transactionId },
-        });
-        await tx.walletAccount.update({
-          where: { id: account.id },
-          data: {
-            balanceCents: { increment: creditedTransaction.amountCents },
-          },
-        });
+      if (!transition.replayed) {
+        const creditedTransaction = transition.transaction;
         notifications = await persistNotifications(tx, [
           {
             userId,
@@ -79,9 +83,14 @@ export class WalletRepository {
     failureReason: string,
     providerReference?: string,
   ) {
-    return prisma.walletTransaction.updateMany({
-      where: { id: transactionId, status: 'PENDING' },
-      data: { status, failureReason, providerReference },
-    });
+    return serializableTransaction((tx) =>
+      this.financial.settlePending(
+        tx,
+        transactionId,
+        status,
+        failureReason,
+        providerReference,
+      ),
+    );
   }
 }

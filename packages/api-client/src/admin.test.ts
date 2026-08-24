@@ -55,6 +55,7 @@ describe('adminApi', () => {
     await api.testDataBatches();
     await api.createTestDataBatch({ label: 'QA batch', accountCount: 3 });
     await api.removeTestDataBatch('batch-id');
+    await api.walletReconciliation();
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/support/tickets?status=OPEN&assignedToMe=true',
       '/admin/support/tickets/ticket-id',
@@ -62,6 +63,7 @@ describe('adminApi', () => {
       '/admin/support/tickets/ticket-id',
       '/admin/test-data/status', '/admin/test-data/batches', '/admin/test-data/batches',
       '/admin/test-data/batches/batch-id',
+      '/admin/finance/reconciliation',
     ]);
   });
 });

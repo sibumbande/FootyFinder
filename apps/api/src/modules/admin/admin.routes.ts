@@ -28,3 +28,4 @@ adminRouter.get('/test-data/status', controller.testDataStatus);
 adminRouter.get('/test-data/batches', controller.listTestData);
 adminRouter.post('/test-data/batches', costlyMutationRateLimit, controller.createTestData);
 adminRouter.delete('/test-data/batches/:batchId', costlyMutationRateLimit, controller.removeTestData);
+adminRouter.get('/finance/reconciliation', controller.walletReconciliation);

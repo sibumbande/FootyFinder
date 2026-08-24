@@ -68,12 +68,26 @@ export class DepositsService {
       throw new AppError(409, 'This deposit is still being processed.', 'DEPOSIT_PENDING');
     }
 
-    const transaction = await this.wallet.createPending(
+    const pending = await this.wallet.createPending(
       userId,
       amountCents,
       this.operator.name,
       idempotencyKey,
     );
+    const transaction = pending.transaction;
+    if (!pending.created) {
+      if (
+        transaction.walletAccount.userId !== userId ||
+        transaction.amountCents !== amountCents ||
+        transaction.provider !== this.operator.name
+      )
+        throw new AppError(409, 'That idempotency key was used for a different deposit.', 'IDEMPOTENCY_KEY_REUSED');
+      if (transaction.status === 'SUCCEEDED')
+        return { status: 'success', transactionId: transaction.id, user: toAuthenticatedUser(transaction.walletAccount.user), replayed: true };
+      if (transaction.status === 'FAILED' || transaction.status === 'ERROR')
+        return { status: transaction.status === 'FAILED' ? 'failure' : 'error', transactionId: transaction.id, message: transaction.failureReason ?? 'Payment could not be completed.' };
+      throw new AppError(409, 'This deposit is still being processed.', 'DEPOSIT_PENDING');
+    }
     let result;
     try {
       result = await this.operator.deposit({

@@ -145,6 +145,7 @@ Authenticated domain routes:
 - `/support/tickets` - authenticated player-owned support threads, isolated from direct messages.
 - `/admin/support/tickets` - MFA-gated support inbox, status/priority management, public replies, and Admin-only internal notes.
 - `/admin/test-data/*` - MFA-gated disposable account batches; unavailable unless explicitly enabled outside production.
+- `/admin/finance/reconciliation` - MFA-gated read-only wallet/ledger/hold/Match-payment integrity report.
 - `/teams/:teamId/members` - privacy-safe roster, role changes, and member removal.
 - `/teams/:teamId/invites` - create, list metadata, and revoke Team invitations.
 - `/teams/:teamId/formations/:format` - read or save the Team's normalized 5v5, 7v7, or 11v11 formation; slot updates use the nested `/slots/:slotId` route.
@@ -176,6 +177,8 @@ npm run smoke:security-sessions --workspace=@footy-finder/api
 npm run smoke:admin-identity --workspace=@footy-finder/api
 npm run smoke:admin-catalog --workspace=@footy-finder/api
 npm run smoke:support-test-data --workspace=@footy-finder/api
+npm run smoke:financial-integrity --workspace=@footy-finder/api
+npm run wallet:reconcile --workspace=@footy-finder/api
 ```
 
 The committed `20260811100000_master_domain_foundation` migration normalizes profiles, wallets, venues, formats, formations, payments, cancellations, results, conversations, messages, and notifications while migrating legacy rows. `20260820100000_create_teams` adds Teams, memberships, hashed invitations, saved formations, slots, role constraints, and Team notification types without resetting existing data. `20260823100000_match_capacity_and_rules` backfills every existing Match to five substitutes per Team and adds the database-enforced capacity, rolling-substitution, and informational-rule fields. `20260823150000_private_team_match_foundation` backfills existing Matches as Quick Games and adds Team Match drafts plus normalized nullable Team sides and historical snapshots without rewriting older migrations.
@@ -190,10 +193,12 @@ The additive `20260824090000_auth_sessions_security` migration creates revocable
 
 `20260824200000_support_test_data` adds private support tickets/messages, support reply notifications, and explicitly tagged disposable test-account batches. Test tooling is disabled by default; set `ADMIN_TEST_DATA_ENABLED=true` only against a disposable development/test database. Production configuration rejects that setting.
 
+`20260824230000_financial_integrity_jobs` adds wallet holds, durable jobs, balance/sign checks, and immutable terminal financial transitions. Existing deposits and Quick Game debit/credit flows use the shared locked financial repository. The reconciliation command is read-only and returns a nonzero exit code when it finds an integrity issue.
+
 - Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
 - Replace local Team image storage with a durable object-storage provider before multi-instance deployment.
 - Serve the web and API over HTTPS in a compatible same-site deployment so secure authentication cookies work correctly.
 - Set `NODE_ENV=production`, explicit HTTPS player/Admin/API URLs, and the correct `TRUST_PROXY_HOPS`; production configuration fails closed when these are missing.
 - Use a shared rate-limit store before running more than one API instance.
-- Run migrations during deployment and operate the lifecycle scheduler as a single logical worker, or add distributed job coordination before horizontally scaling the API.
+- Run migrations during deployment. Durable jobs already use distributed database claims; operate the older Match lifecycle poller as a single logical worker until it is migrated to the durable queue.
 - External refunds, withdrawals, Team-vs-Team Match creation/payments, leagues, tournaments, Team chat, social features, and accumulated Team/player statistics are intentionally outside the current scope.

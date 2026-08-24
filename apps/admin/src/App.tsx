@@ -6,6 +6,7 @@ import { adminClient, authClient, usersClient } from './api.js';
 import { VenuesPage } from './VenuesPage.js';
 import { SupportPage } from './SupportPage.js';
 import { TestDataPage } from './TestDataPage.js';
+import { FinancePage } from './FinancePage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -198,6 +199,7 @@ function AdminShell() {
           <NavLink to="/venues">Venues & fields</NavLink>
           <NavLink to="/support">Support inbox</NavLink>
           <NavLink to="/test-data">Test data</NavLink>
+          <NavLink to="/finance">Finance</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -210,6 +212,7 @@ function AdminShell() {
           <Route path="venues" element={<VenuesPage />} />
           <Route path="support" element={<SupportPage />} />
           <Route path="test-data" element={<TestDataPage />} />
+          <Route path="finance" element={<FinancePage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
