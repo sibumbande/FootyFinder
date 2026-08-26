@@ -256,9 +256,14 @@ function AdminShell() {
   return (
     <div className="app-shell">
       <aside>
-        <div>
-          <p className="eyebrow">Footy Finder</p>
-          <h1>Operations</h1>
+        <div className="admin-brand">
+          <span className="admin-brand-mark" aria-hidden="true">
+            88
+          </span>
+          <div>
+            <p className="eyebrow">Footy Finder</p>
+            <h1>Operations</h1>
+          </div>
         </div>
         <nav>
           <NavLink to="/">Dashboard</NavLink>

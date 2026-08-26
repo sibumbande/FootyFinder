@@ -10,7 +10,7 @@ import { UserMenu } from './UserMenu.js';
 import { Button } from './ui/Button.js';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-lg px-3 py-2 text-sm font-semibold transition ${isActive ? 'bg-brand-50 text-brand-700' : 'text-content-muted hover:bg-surface-hover hover:text-content-strong'}`;
+  `relative rounded-md px-3 py-2 text-xs font-black uppercase tracking-[0.08em] transition ${isActive ? 'bg-brand-600 text-content-inverse shadow-[3px_3px_0_rgb(var(--theme-accent-gold))]' : 'text-content-muted hover:-translate-y-0.5 hover:bg-surface-hover hover:text-content-strong'}`;
 
 export function Layout() {
   const { user } = useAuth();
@@ -30,8 +30,8 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 border-b-2 border-line-strong bg-surface/95 shadow-[0_5px_0_rgb(var(--theme-accent-scarlet)/0.85)] backdrop-blur">
+        <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
           <Logo />
           <nav className="ml-auto hidden items-center gap-1 sm:flex">
             <NavLink end to="/" className={navClass}>
@@ -71,13 +71,13 @@ export function Layout() {
                 <span className="hidden sm:inline">Add funds</span>
               </Button>
               <div
-                className="rounded-xl bg-brand-50 px-2.5 py-2 text-right sm:px-3"
+                className="rounded-md border border-line-strong bg-brand-900 px-2.5 py-2 text-right text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] sm:px-3"
                 title="Wallet balance"
               >
-                <span className="hidden text-[10px] font-bold uppercase tracking-wide text-brand-700 sm:block">
+                <span className="hidden text-[9px] font-black uppercase tracking-[0.14em] text-warning-200 sm:block">
                   Balance
                 </span>
-                <span className="block whitespace-nowrap text-sm font-bold text-brand-700">
+                <span className="block whitespace-nowrap text-sm font-black text-content-inverse">
                   {formatRands(user.balanceCents)}
                 </span>
               </div>
@@ -87,7 +87,7 @@ export function Layout() {
           )}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <Outlet />
       </main>
     </div>

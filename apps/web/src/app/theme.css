@@ -1,112 +1,107 @@
 /*
- * Footy Finder color system
- * -------------------------
- * This is the single source of truth for application colors. Components use
- * semantic Tailwind tokens (canvas, surface, content, line, brand, danger),
- * never mode-specific color values.
+ * Footy Finder visual system: Matchday '88
+ * -----------------------------------------
+ * The single source of truth for system colors. Components consume semantic
+ * Tailwind tokens, keeping both daylight and floodlit themes consistent.
  */
 :root {
   color-scheme: light;
-
-  --theme-canvas: 248 250 252;
-  --theme-surface: 255 255 255;
-  --theme-surface-muted: 241 245 249;
-  --theme-surface-hover: 241 245 249;
-  --theme-content: 51 65 85;
-  --theme-content-strong: 20 32 25;
-  --theme-content-muted: 71 85 105;
-  --theme-content-subtle: 148 163 184;
-  --theme-content-inverse: 255 255 255;
-  --theme-line: 226 232 240;
-  --theme-line-strong: 203 213 225;
-
-  --theme-brand-50: 242 248 244;
-  --theme-brand-100: 220 239 226;
-  --theme-brand-200: 187 222 198;
-  --theme-brand-500: 39 138 75;
-  --theme-brand-600: 29 113 59;
-  --theme-brand-700: 24 91 50;
-  --theme-brand-900: 18 53 34;
-
-  --theme-danger-50: 254 242 242;
-  --theme-danger-200: 254 202 202;
-  --theme-danger-400: 248 113 113;
-  --theme-danger-600: 220 38 38;
-  --theme-danger-700: 185 28 28;
-
-  --theme-info-50: 239 246 255;
-  --theme-info-200: 191 219 254;
-  --theme-info-600: 37 99 235;
-  --theme-info-700: 29 78 216;
-
-  --theme-warning-50: 255 251 235;
-  --theme-warning-200: 253 230 138;
-  --theme-warning-600: 217 119 6;
-  --theme-warning-700: 180 83 9;
-
-  --theme-team-home: 37 99 235;
-  --theme-team-home-muted: 239 246 255;
-  --theme-team-home-border: 147 197 253;
-  --theme-team-away: 220 38 38;
-  --theme-team-away-muted: 254 242 242;
-  --theme-team-away-border: 252 165 165;
-  --theme-pitch: 35 125 67;
-  --theme-pitch-alt: 42 139 76;
-  --theme-pitch-line: 220 239 226;
-  --theme-pitch-border: 24 91 50;
-
-  --theme-shadow: 20 32 25;
+  --theme-canvas: 247 240 218;
+  --theme-surface: 255 252 239;
+  --theme-surface-muted: 240 232 205;
+  --theme-surface-hover: 255 244 203;
+  --theme-content: 33 49 77;
+  --theme-content-strong: 12 28 57;
+  --theme-content-muted: 76 87 105;
+  --theme-content-subtle: 130 126 114;
+  --theme-content-inverse: 255 251 230;
+  --theme-line: 211 194 151;
+  --theme-line-strong: 22 48 89;
+  --theme-brand-50: 232 240 255;
+  --theme-brand-100: 198 217 255;
+  --theme-brand-200: 130 168 242;
+  --theme-brand-500: 27 88 204;
+  --theme-brand-600: 15 67 169;
+  --theme-brand-700: 18 51 124;
+  --theme-brand-900: 10 31 70;
+  --theme-danger-50: 255 235 218;
+  --theme-danger-200: 255 179 147;
+  --theme-danger-400: 239 91 56;
+  --theme-danger-600: 202 48 33;
+  --theme-danger-700: 151 35 28;
+  --theme-info-50: 228 246 249;
+  --theme-info-200: 144 221 226;
+  --theme-info-600: 0 128 145;
+  --theme-info-700: 0 91 107;
+  --theme-warning-50: 255 248 211;
+  --theme-warning-200: 255 218 102;
+  --theme-warning-600: 220 137 0;
+  --theme-warning-700: 154 86 0;
+  --theme-team-home: 25 78 190;
+  --theme-team-home-muted: 222 234 255;
+  --theme-team-home-border: 64 117 216;
+  --theme-team-away: 204 48 33;
+  --theme-team-away-muted: 255 225 210;
+  --theme-team-away-border: 237 102 68;
+  --theme-pitch: 30 125 76;
+  --theme-pitch-alt: 38 145 85;
+  --theme-pitch-line: 255 247 203;
+  --theme-pitch-border: 9 49 51;
+  --theme-accent-scarlet: 225 55 38;
+  --theme-accent-gold: 255 190 46;
+  --theme-accent-sky: 72 166 224;
+  --theme-paper: 255 247 218;
+  --theme-ink: 10 31 70;
+  --theme-shadow: 10 31 70;
 }
 
 .dark {
   color-scheme: dark;
-
-  --theme-canvas: 9 14 11;
-  --theme-surface: 17 25 20;
-  --theme-surface-muted: 24 35 28;
-  --theme-surface-hover: 30 43 35;
-  --theme-content: 203 213 207;
-  --theme-content-strong: 241 245 242;
-  --theme-content-muted: 156 170 161;
-  --theme-content-subtle: 105 120 111;
-  --theme-content-inverse: 255 255 255;
-  --theme-line: 42 56 47;
-  --theme-line-strong: 61 78 67;
-
-  --theme-brand-50: 20 48 31;
-  --theme-brand-100: 25 67 40;
-  --theme-brand-200: 37 92 55;
-  --theme-brand-500: 70 180 104;
-  --theme-brand-600: 56 158 89;
-  --theme-brand-700: 106 205 134;
-  --theme-brand-900: 13 42 25;
-
-  --theme-danger-50: 64 24 27;
-  --theme-danger-200: 102 38 42;
-  --theme-danger-400: 248 113 113;
-  --theme-danger-600: 248 113 113;
-  --theme-danger-700: 252 165 165;
-
-  --theme-info-50: 20 38 69;
-  --theme-info-200: 30 64 115;
-  --theme-info-600: 96 165 250;
-  --theme-info-700: 147 197 253;
-
-  --theme-warning-50: 66 43 14;
-  --theme-warning-200: 113 75 18;
-  --theme-warning-600: 251 191 36;
-  --theme-warning-700: 252 211 77;
-
-  --theme-team-home: 96 165 250;
-  --theme-team-home-muted: 20 38 69;
-  --theme-team-home-border: 59 130 246;
-  --theme-team-away: 248 113 113;
-  --theme-team-away-muted: 64 24 27;
-  --theme-team-away-border: 220 38 38;
-  --theme-pitch: 22 91 48;
-  --theme-pitch-alt: 27 108 57;
-  --theme-pitch-line: 187 222 198;
-  --theme-pitch-border: 70 180 104;
-
+  --theme-canvas: 6 16 35;
+  --theme-surface: 13 28 52;
+  --theme-surface-muted: 22 40 65;
+  --theme-surface-hover: 29 52 82;
+  --theme-content: 222 226 214;
+  --theme-content-strong: 255 247 218;
+  --theme-content-muted: 170 181 190;
+  --theme-content-subtle: 111 129 147;
+  --theme-content-inverse: 255 251 230;
+  --theme-line: 43 67 94;
+  --theme-line-strong: 112 145 181;
+  --theme-brand-50: 17 43 85;
+  --theme-brand-100: 24 59 112;
+  --theme-brand-200: 45 90 163;
+  --theme-brand-500: 76 139 238;
+  --theme-brand-600: 55 113 216;
+  --theme-brand-700: 150 188 255;
+  --theme-brand-900: 5 23 54;
+  --theme-danger-50: 66 30 29;
+  --theme-danger-200: 115 47 39;
+  --theme-danger-400: 255 113 77;
+  --theme-danger-600: 255 121 84;
+  --theme-danger-700: 255 173 138;
+  --theme-info-50: 10 49 64;
+  --theme-info-200: 20 92 106;
+  --theme-info-600: 67 202 211;
+  --theme-info-700: 141 230 233;
+  --theme-warning-50: 67 50 16;
+  --theme-warning-200: 125 87 16;
+  --theme-warning-600: 255 190 46;
+  --theme-warning-700: 255 221 118;
+  --theme-team-home: 115 168 255;
+  --theme-team-home-muted: 16 47 94;
+  --theme-team-home-border: 66 125 222;
+  --theme-team-away: 255 123 89;
+  --theme-team-away-muted: 71 31 31;
+  --theme-team-away-border: 208 68 48;
+  --theme-pitch: 20 91 59;
+  --theme-pitch-alt: 24 108 66;
+  --theme-pitch-line: 241 232 184;
+  --theme-pitch-border: 102 181 137;
+  --theme-accent-scarlet: 255 100 67;
+  --theme-accent-gold: 255 190 46;
+  --theme-accent-sky: 82 174 231;
+  --theme-paper: 255 247 218;
+  --theme-ink: 5 17 39;
   --theme-shadow: 0 0 0;
 }

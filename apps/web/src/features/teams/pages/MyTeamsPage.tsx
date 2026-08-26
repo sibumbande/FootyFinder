@@ -9,8 +9,10 @@ export function MyTeamsPage() {
     <section className="grid gap-7">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">My Teams</p>
-          <h1 className="mt-2 text-3xl font-black text-content-strong">Your football clubs</h1>
+          <p className="anime-kicker">My Teams</p>
+          <h1 className="mt-3 text-4xl font-black uppercase leading-none text-content-strong">
+            Your football clubs
+          </h1>
           <p className="mt-2 text-content-muted">
             Create squads, invite players, and save a formation for every format.
           </p>

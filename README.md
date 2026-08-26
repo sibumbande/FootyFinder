@@ -18,6 +18,12 @@ Footy Finder is an npm-workspaces TypeScript monorepo for discovering football m
 
 The repository uses standard npm workspaces. Do not use pnpm commands or create a pnpm lockfile.
 
+## Visual system
+
+The player app uses the original **Matchday '88** art direction: late-1980s sports-animation energy, printed match-programme textures, bold broadcast graphics, and daylight/floodlit themes. Central semantic colors live in `apps/web/src/app/theme.css`; reusable surface and typography treatments live in `apps/web/src/app/styles.css`. The Admin console uses a related night-stadium control-room treatment in `apps/admin/src/styles.css`.
+
+The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`. Keep new UI colors semantic, preserve both themes and reduced-motion behavior, and do not add third-party team marks or copyrighted characters.
+
 ## Local setup
 
 1. Install all workspace dependencies:

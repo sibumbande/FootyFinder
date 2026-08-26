@@ -57,10 +57,11 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
     send.mutate(content, { onSuccess: () => setContent('') });
   };
   return (
-    <section className="grid min-h-[70vh] overflow-hidden rounded-3xl border border-line bg-surface shadow-soft md:grid-cols-[20rem_1fr]">
+    <section className="anime-panel grid min-h-[70vh] md:grid-cols-[20rem_1fr]">
       <aside className={`${conversationId ? 'hidden md:block' : 'block'} border-r border-line`}>
         <div className="border-b border-line p-5">
-          <h1 className="text-2xl font-bold text-content-strong">Messages</h1>
+          <p className="anime-kicker">Team radio</p>
+          <h1 className="mt-2 text-3xl font-black uppercase text-content-strong">Messages</h1>
         </div>
         <div>
           {conversations.data?.map((item) => (
@@ -116,7 +117,14 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
                 >
                   <p className="text-sm">{message.content}</p>
                   <p className="mt-1 text-[10px] opacity-70">{formatDate(message.createdAt)}</p>
-                  {message.senderId !== user?.id && <Link className="mt-1 block text-[10px] opacity-70 hover:opacity-100" to={`/report/DIRECT_MESSAGE/${message.id}`}>Report message</Link>}
+                  {message.senderId !== user?.id && (
+                    <Link
+                      className="mt-1 block text-[10px] opacity-70 hover:opacity-100"
+                      to={`/report/DIRECT_MESSAGE/${message.id}`}
+                    >
+                      Report message
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>

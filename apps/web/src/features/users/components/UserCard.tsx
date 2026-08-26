@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar.js';
 export function UserCard({ user }: { user: PublicUser }) {
   return (
-    <article className="flex min-w-0 flex-col gap-4 rounded-2xl border border-line bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-soft">
+    <article className="anime-panel flex min-w-0 flex-col gap-4 p-4 transition hover:-translate-y-1 hover:border-brand-500">
       <div className="flex min-w-0 items-center gap-4">
         <Avatar user={user} size="lg" />
         <div className="min-w-0">
-          <h3 className="truncate font-bold text-content-strong">{user.displayName}</h3>
+          <h3 className="truncate text-lg font-bold uppercase text-content-strong">
+            {user.displayName}
+          </h3>
           <p className="truncate text-sm font-medium text-brand-700">@{user.username}</p>
           <p className="mt-1 truncate text-xs text-content-muted">
             {user.homeArea || 'Area not set'} ·{' '}
@@ -26,7 +28,10 @@ export function UserCard({ user }: { user: PublicUser }) {
         >
           Message
         </Link>
-        <Link className="inline-flex min-h-10 items-center justify-center rounded-xl text-sm font-semibold text-content-muted hover:bg-danger-50 hover:text-danger-700" to={`/report/USER/${user.id}`}>
+        <Link
+          className="inline-flex min-h-10 items-center justify-center rounded-xl text-sm font-semibold text-content-muted hover:bg-danger-50 hover:text-danger-700"
+          to={`/report/USER/${user.id}`}
+        >
           Report
         </Link>
       </div>

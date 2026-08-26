@@ -82,10 +82,8 @@ export function CreateMatchPage() {
   return (
     <section className="mx-auto grid max-w-5xl gap-7">
       <div>
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">
-          Create a match
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-content-strong">
+        <p className="anime-kicker">Create a match</p>
+        <h1 className="mt-3 text-4xl font-black uppercase leading-none text-content-strong">
           Build your next football lobby.
         </h1>
         <p className="mt-2 text-content-muted">
@@ -99,14 +97,14 @@ export function CreateMatchPage() {
           </span>
           <span>{steps[step]}</span>
         </div>
-        <div className="h-2 rounded-full bg-line">
+        <div className="h-3 -skew-x-12 overflow-hidden rounded-sm border border-line-strong bg-line">
           <div
-            className="h-full rounded-full bg-brand-600 transition-all"
+            className="h-full bg-danger-600 shadow-[inset_0_-3px_0_rgb(var(--theme-accent-gold)/0.5)] transition-all"
             style={{ width: `${((step + 1) / steps.length) * 100}%` }}
           />
         </div>
       </div>
-      <div className="rounded-3xl border border-line bg-surface p-5 shadow-soft sm:p-8">
+      <div className="anime-panel p-5 sm:p-8">
         {step === 0 && (
           <Step
             title="Choose a match format"

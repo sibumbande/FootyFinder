@@ -9,23 +9,20 @@ export function AuthLayout({
 }: PropsWithChildren<{ eyebrow: string; title: string; description: string }>) {
   return (
     <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(30rem,0.82fr)]">
-      <aside className="relative hidden overflow-hidden bg-brand-900 p-12 text-content-inverse lg:flex lg:flex-col lg:justify-between">
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 20%, rgb(var(--theme-content-inverse)) 0 1px, transparent 1.5px)',
-            backgroundSize: '28px 28px',
-          }}
-        />
+      <aside
+        className="relative hidden overflow-hidden border-r-8 border-danger-600 bg-brand-900 bg-cover bg-center p-12 text-content-inverse lg:flex lg:flex-col lg:justify-between"
+        style={{ backgroundImage: "url('/art/matchday-heroes.png')" }}
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--theme-brand-900)/0.72),rgb(var(--theme-brand-900)/0.95))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle,rgb(var(--theme-content-inverse)/0.18)_0_1px,transparent_1.5px)] bg-[length:9px_9px]" />
         <div className="relative">
           <Logo light />
         </div>
         <div className="relative max-w-lg">
-          <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-brand-100">
-            Your game starts here
+          <p className="mb-5 inline-flex -skew-x-6 bg-danger-600 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-content-inverse shadow-[4px_4px_0_rgb(var(--theme-accent-gold))]">
+            Your game starts here!
           </p>
-          <h2 className="text-4xl font-bold leading-tight">
+          <h2 className="text-5xl font-black uppercase leading-[0.94] drop-shadow-[3px_3px_0_rgb(var(--theme-brand-900))]">
             Find players. Build a squad. Get on the pitch.
           </h2>
           <p className="mt-5 text-lg leading-8 text-brand-100">
@@ -37,7 +34,8 @@ export function AuthLayout({
           Built for football communities, everywhere.
         </p>
       </aside>
-      <main className="relative flex min-h-screen items-center justify-center p-5 sm:p-8">
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-5 sm:p-8">
+        <div className="pointer-events-none absolute -right-28 top-20 size-72 rounded-full border-[2.5rem] border-warning-200/30" />
         <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
           <ThemeToggle />
         </div>
@@ -46,10 +44,8 @@ export function AuthLayout({
             <Logo />
           </div>
           <div className="mb-7">
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">
-              {eyebrow}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-content-strong sm:text-4xl">
+            <p className="anime-kicker">{eyebrow}</p>
+            <h1 className="mt-3 text-4xl font-black uppercase leading-none tracking-tight text-content-strong sm:text-5xl">
               {title}
             </h1>
             <p className="mt-3 leading-7 text-content-muted">{description}</p>

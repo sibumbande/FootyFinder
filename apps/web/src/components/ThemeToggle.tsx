@@ -8,7 +8,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface text-content-muted transition hover:bg-surface-hover hover:text-content-strong focus:outline-none focus:ring-4 focus:ring-brand-100"
+      className="grid size-10 shrink-0 place-items-center rounded-md border-2 border-line-strong bg-surface text-content-muted shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] transition hover:-translate-y-0.5 hover:bg-surface-hover hover:text-content-strong focus:outline-none focus:ring-4 focus:ring-brand-100"
       aria-label={`Switch to ${nextTheme} mode`}
       title={`Switch to ${nextTheme} mode`}
     >

@@ -15,13 +15,13 @@ export function Button({
 }: Props) {
   const styles =
     variant === 'primary'
-      ? 'bg-brand-600 text-content-inverse shadow-sm hover:bg-brand-700 focus:ring-brand-100'
+      ? 'border-2 border-brand-900 bg-brand-600 text-content-inverse shadow-[3px_4px_0_rgb(var(--theme-accent-gold))] hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-[4px_5px_0_rgb(var(--theme-accent-scarlet))] focus:ring-brand-100'
       : variant === 'secondary'
-        ? 'border border-line-strong bg-surface text-content hover:bg-surface-hover focus:ring-line'
-        : 'text-content-muted hover:bg-surface-hover hover:text-content-strong focus:ring-line';
+        ? 'border-2 border-line-strong bg-surface text-content shadow-[2px_3px_0_rgb(var(--theme-ink)/0.16)] hover:-translate-y-0.5 hover:bg-surface-hover focus:ring-line'
+        : 'border border-transparent text-content-muted hover:bg-surface-hover hover:text-content-strong focus:ring-line';
   return (
     <button
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${styles} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-black uppercase tracking-[0.045em] transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${styles} ${className}`}
       disabled={disabled || loading}
       {...props}
     >

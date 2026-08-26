@@ -36,7 +36,7 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex min-h-11 items-center gap-2 rounded-xl px-1.5 py-1 text-content transition hover:bg-surface-hover focus:outline-none focus:ring-4 focus:ring-line"
+        className="flex min-h-11 items-center gap-2 rounded-md px-1.5 py-1 text-content transition hover:bg-surface-hover focus:outline-none focus:ring-4 focus:ring-line"
       >
         <span className="hidden max-w-32 truncate text-sm font-semibold md:block">
           {user.username}
@@ -56,10 +56,7 @@ export function UserMenu() {
         </svg>
       </button>
       {open && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border border-line bg-surface p-2 shadow-soft"
-        >
+        <div role="menu" className="anime-panel absolute right-0 mt-2 w-64 origin-top-right p-2">
           <div className="border-b border-line px-3 py-3">
             <p className="truncate text-sm font-bold text-content-strong">{user.username}</p>
             <p className="mt-0.5 truncate text-xs text-content-muted">{user.email}</p>

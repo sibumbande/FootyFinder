@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, useId } from 'react';
 
 type Props = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
@@ -9,24 +9,37 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
   { label, error, hint, id, className = '', ...props },
   ref,
 ) {
-  const inputId = id ?? props.name;
+  const generatedId = useId();
+  const inputId = id ?? props.name ?? generatedId;
+  const hintId = hint ? `${inputId}-hint` : undefined;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
   return (
-    <label className="grid gap-2 text-sm font-semibold text-content" htmlFor={inputId}>
-      {label}
+    <div className="grid gap-2">
+      <label
+        className="text-xs font-black uppercase tracking-[0.08em] text-content"
+        htmlFor={inputId}
+      >
+        {label}
+      </label>
       <input
         ref={ref}
         id={inputId}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${inputId}-error` : undefined}
-        className={`min-h-12 w-full rounded-xl border bg-surface px-3.5 py-3 font-normal text-content-strong outline-none transition placeholder:text-content-subtle focus:border-brand-500 focus:ring-4 focus:ring-brand-100 ${error ? 'border-danger-400' : 'border-line-strong'} ${className}`}
+        aria-describedby={describedBy}
+        className={`min-h-12 w-full rounded-md border-2 bg-surface px-3.5 py-3 text-sm font-semibold normal-case tracking-normal text-content-strong shadow-[inset_3px_3px_0_rgb(var(--theme-ink)/0.04)] outline-none transition placeholder:text-content-subtle focus:-translate-y-0.5 focus:border-brand-500 focus:ring-4 focus:ring-brand-100 ${error ? 'border-danger-400' : 'border-line-strong'} ${className}`}
         {...props}
       />
-      {hint && !error && <span className="font-normal text-content-muted">{hint}</span>}
+      {hint && (
+        <span id={hintId} className="font-normal normal-case tracking-normal text-content-muted">
+          {hint}
+        </span>
+      )}
       {error && (
-        <span id={`${inputId}-error`} className="font-normal text-danger-600">
+        <span id={errorId} className="font-normal normal-case tracking-normal text-danger-600">
           {error}
         </span>
       )}
-    </label>
+    </div>
   );
 });

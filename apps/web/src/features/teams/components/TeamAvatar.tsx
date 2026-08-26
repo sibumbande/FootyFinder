@@ -21,13 +21,13 @@ export function TeamAvatar({
       <img
         src={team.profileImageUrl}
         alt={`${team.name} badge`}
-        className={`${sizeClass} shrink-0 rounded-2xl border border-line object-cover shadow-sm`}
+        className={`${sizeClass} shrink-0 rounded-[0.35rem_1rem_1rem_1rem] border-2 border-line-strong object-cover shadow-[3px_3px_0_rgb(var(--theme-accent-gold))]`}
       />
     );
   return (
     <span
       aria-label={`${team.name} initials`}
-      className={`${sizeClass} grid shrink-0 place-items-center rounded-2xl border border-brand-200 bg-brand-100 font-black uppercase text-brand-700 shadow-sm`}
+      className={`${sizeClass} grid shrink-0 place-items-center rounded-[0.35rem_1rem_1rem_1rem] border-2 border-line-strong bg-brand-100 font-black uppercase text-brand-700 shadow-[3px_3px_0_rgb(var(--theme-accent-gold))]`}
     >
       {initials}
     </span>

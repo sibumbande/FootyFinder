@@ -72,7 +72,7 @@ export function NotificationsMenu() {
     <div className="relative">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="relative grid size-11 place-items-center rounded-xl text-content-muted hover:bg-surface-hover"
+        className="relative grid size-11 place-items-center rounded-md text-content-muted hover:bg-surface-hover"
         aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
       >
         <svg
@@ -91,9 +91,11 @@ export function NotificationsMenu() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-2 shadow-soft">
+        <div className="anime-panel absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] p-2">
           <div className="flex items-center justify-between px-3 py-2">
-            <strong className="text-content-strong">Notifications</strong>
+            <strong className="font-black uppercase tracking-wide text-content-strong">
+              Notifications
+            </strong>
             {unread > 0 && (
               <button onClick={() => markAll.mutate()} className="text-xs font-bold text-brand-700">
                 Mark all read

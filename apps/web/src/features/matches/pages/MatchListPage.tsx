@@ -38,17 +38,17 @@ export function MatchListPage() {
     <section className="grid gap-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">
-            Match discovery
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-content-strong">Find your next game</h1>
+          <p className="anime-kicker">Match discovery</p>
+          <h1 className="mt-3 text-4xl font-black uppercase leading-none text-content-strong">
+            Find your next game
+          </h1>
           <p className="mt-2 text-content-muted">Only public, upcoming matches appear here.</p>
         </div>
         <Link className="button" to="/matches/new">
           Create Match!
         </Link>
       </div>
-      <div className="grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="anime-panel grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="grid gap-1 text-xs font-bold text-content-muted">
           Format
           <select

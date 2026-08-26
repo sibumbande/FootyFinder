@@ -8,6 +8,7 @@ export default {
       colors: {
         canvas: 'rgb(var(--theme-canvas) / <alpha-value>)',
         surface: 'rgb(var(--theme-surface) / <alpha-value>)',
+        'surface-raised': 'rgb(var(--theme-surface-muted) / <alpha-value>)',
         'surface-muted': 'rgb(var(--theme-surface-muted) / <alpha-value>)',
         'surface-hover': 'rgb(var(--theme-surface-hover) / <alpha-value>)',
         content: {
@@ -64,7 +65,9 @@ export default {
           border: 'rgb(var(--theme-pitch-border) / <alpha-value>)',
         },
       },
-      boxShadow: { soft: '0 16px 40px -20px rgb(var(--theme-shadow) / 0.35)' },
+      boxShadow: {
+        soft: '5px 6px 0 rgb(var(--theme-ink) / 0.13), 0 18px 48px -28px rgb(var(--theme-shadow) / 0.52)',
+      },
     },
   },
   plugins: [],

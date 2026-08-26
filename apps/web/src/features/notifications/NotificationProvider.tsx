@@ -100,11 +100,11 @@ export function NotificationProvider({ children }: PropsWithChildren) {
           <article
             key={notification.id}
             role={notification.variant === 'error' ? 'alert' : 'status'}
-            className={`notification-toast pointer-events-auto relative flex w-full items-start gap-3 overflow-visible rounded-2xl border p-4 shadow-soft ${variantClasses[notification.variant]} ${notification.exiting ? 'notification-toast--exiting' : ''}`}
+            className={`notification-toast pointer-events-auto relative flex w-full items-start gap-3 overflow-visible rounded-[0.35rem_1rem_1rem_1rem] border-2 border-line-strong p-4 shadow-soft ${variantClasses[notification.variant]} ${notification.exiting ? 'notification-toast--exiting' : ''}`}
           >
             <NotificationIcon variant={notification.variant} />
             <div className="min-w-0 flex-1">
-              <p className="font-bold">{notification.title}</p>
+              <p className="font-black uppercase tracking-wide">{notification.title}</p>
               {notification.message && (
                 <p className="mt-1 text-sm leading-5 opacity-90">{notification.message}</p>
               )}
