@@ -1,0 +1,1208 @@
+FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
+=================================================================
+
+Created: 2026-09-24
+Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
+Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
+Purpose: execution backlog only. This document does not authorize implementation of more than one ticket at a time.
+
+
+1. HOW TO USE THIS BACKLOG
+==========================
+
+1. Complete decision tickets before any implementation ticket that depends on them.
+2. Select exactly one READY ticket.
+3. Implement only that ticket, including its tests and documentation.
+4. Stop after verification and provide a completion report.
+5. Review/approve the result before selecting the next ticket.
+6. Do not combine tickets because they touch the same files.
+7. If a ticket reveals required work outside its scope, record a follow-up ticket instead of silently expanding scope.
+8. High-risk migrations and financial changes use expand-migrate-contract and feature flags.
+9. Preserve existing user changes and never rewrite committed migrations.
+10. A ticket is not complete because UI or an endpoint merely exists; trace and verify the complete path in its acceptance criteria.
+
+Suggested board states:
+
+BACKLOG -> BLOCKED -> READY -> IN PROGRESS -> IN REVIEW -> VERIFIED -> RELEASED
+
+Required labels:
+
+- gate-0 through gate-9
+- frontend, backend, database, realtime, payment, security, test, documentation
+- risk-low, risk-medium, risk-high, risk-critical
+- decision-required where applicable
+
+
+2. TICKET COMPLETION REPORT FORMAT
+==================================
+
+Every ticket implementation should end with this report:
+
+Ticket: <ID and title>
+Outcome: COMPLETE | PARTIAL | BLOCKED
+
+Implemented:
+- <behavior delivered>
+
+Files changed:
+- <path and purpose>
+
+Database/migrations:
+- <none, or additive migration and transition details>
+
+API/contracts:
+- <contract changes and compatibility impact>
+
+Authorization/security:
+- <positive and negative cases covered>
+
+Tests run:
+- <exact command>: PASS | FAIL
+
+Manual verification:
+- <journey checked, or why not run>
+
+Risks/follow-ups:
+- <remaining issue; do not implement it automatically>
+
+Recommended next ticket:
+- <ID only; wait for user approval>
+
+
+3. DECISION TICKETS - COMPLETE THESE FIRST
+===========================================
+
+DEC-001 - Quick-match R80 policy
+Depends on: none
+Objective: Confirm whether R80 applies to all newly created QUICK_GAME matches and identify allowed exceptions.
+Deliverable: Written rule covering free/promotional games, formats, legacy matches, and team fixtures.
+Recommended default: R80 for new QUICK_GAME records; historical records unchanged; team fixtures governed separately.
+Blocks: TKT-103, TKT-304, TKT-603.
+
+DEC-002 - Sixty-minute transition policy
+Depends on: none
+Objective: Decide how completed, active, and future scheduled 90-minute matches are treated.
+Deliverable: Written prospective/backfill rule.
+Recommended default: New matches use 60; completed/history unchanged; future scheduled matches changed only through an approved operation.
+Blocks: TKT-104, TKT-303.
+
+DEC-003 - Team short-name remediation
+Depends on: none
+Objective: Decide how existing names longer than four characters will be corrected.
+Deliverable: Owner/admin/fallback remediation procedure and deadline.
+Blocks: TKT-107, TKT-108.
+
+DEC-004 - Public match preview privacy
+Depends on: none
+Objective: Define data visible before authentication.
+Deliverable: Approved anonymous DTO.
+Recommended default: venue, kickoff, format, fee, rules summary, and aggregate capacity; no email/contact/wallet/chat/private participant data.
+Blocks: TKT-401 through TKT-405.
+
+DEC-005 - Venue facts and prices
+Depends on: none
+Objective: Approve canonical venue/field names, addresses, coordinates, timezone, formats, images, prices, units, tax, cancellation, and effective dates.
+Deliverable: Approved import sheet for Queens Park, Cape Town City FC, and Italian Club.
+Blocks: TKT-302 through TKT-308, TKT-607.
+
+DEC-006 - Slot policy
+Depends on: DEC-002, DEC-005
+Objective: Define slot granularity, lead time, booking horizon, buffers, and overlapping format behavior.
+Deliverable: Slot calculation rules with examples.
+Blocks: TKT-303, TKT-305, TKT-306.
+
+DEC-007 - Legal content and legacy consent
+Depends on: none
+Objective: Provide approved legal/company content and determine how existing users complete missing consent.
+Deliverable: Approved Terms, Privacy/POPIA, participation acknowledgement, company disclosures, code of conduct, versions, and legacy policy.
+Blocks: TKT-201, TKT-202, TKT-209, TKT-210.
+
+DEC-008 - Selfie and media policy
+Depends on: none
+Objective: Decide whether the requirement is a profile image or identity verification and define retention/moderation.
+Deliverable: Upload, replacement, deletion, privacy, and legacy requirements.
+Blocks: TKT-205, TKT-209.
+
+DEC-009 - Supported cities and waiting list
+Depends on: none
+Objective: Define launch cities, normalized city values, and whether unauthenticated people can join the waiting list.
+Deliverable: Supported-city and city-interest policy.
+Blocks: TKT-204, TKT-209.
+
+DEC-010 - Verification and password-recovery provider
+Depends on: none
+Objective: Choose email and/or SMS provider and token rules.
+Deliverable: Channel, expiry, resend/attempt limits, unverified permissions, provider credentials/ownership, and recovery policy.
+Blocks: TKT-206 through TKT-208.
+
+DEC-011 - Deposit and provider rules
+Depends on: none
+Objective: Choose payment provider, min/max amount, methods, fees, callbacks, chargebacks, and withdrawal/refund policy.
+Deliverable: Approved personal-payment policy.
+Blocks: TKT-603 through TKT-606.
+
+DEC-012 - Venue settlement policy
+Depends on: DEC-005, DEC-011
+Objective: Define manual payout ownership, cadence, evidence, approval, beneficiary data, adjustments, and refund treatment.
+Deliverable: Approved settlement workflow.
+Blocks: TKT-607 through TKT-609.
+
+DEC-013 - Position claim and organiser override policy
+Depends on: none
+Objective: Define collision handling, claim deadline, side rules, and organiser override/notification behavior.
+Deliverable: Position-claim transition rules.
+Recommended default: first committed claim wins; organiser may move/remove with notification.
+Blocks: TKT-501 through TKT-506.
+
+DEC-014 - Team-wallet governance
+Depends on: DEC-011
+Objective: Define ownership, contributions, spenders, captain departure, refunds, quorum, negative balances, and audit visibility.
+Deliverable: Team-wallet policy and invariants.
+Blocks: TKT-701 through TKT-703, TKT-709.
+
+DEC-015 - Challenge lifecycle
+Depends on: DEC-014
+Objective: Define challenge eligibility, multiple pending challenges, expiry, withdrawal, acceptance, funding, and cancellation.
+Deliverable: Approved state diagram and role matrix.
+Blocks: TKT-704 through TKT-709.
+
+DEC-016 - Result confirmation policy
+Depends on: DEC-015
+Objective: Define submitter/confirmer roles, timeout, corrections, disagreement, scorer confirmation, and admin escalation.
+Deliverable: Approved result state diagram.
+Blocks: TKT-801 through TKT-804.
+
+DEC-017 - Team review policy
+Depends on: DEC-016
+Objective: Define eligible authors, duplicate rule, anonymity, edits, deletion, visibility, moderation, and aggregation.
+Deliverable: Approved review policy.
+Blocks: TKT-805 through TKT-807.
+
+
+4. GATE 0 - REPRODUCIBLE BASELINE
+==================================
+
+TKT-001 - Make Prisma generation an explicit build prerequisite
+Depends on: none
+Risk: Low
+Scope:
+- Update package/CI scripts so a clean checkout generates Prisma before API type-check/build/test.
+- Document the supported command sequence.
+Acceptance:
+- A clean install no longer produces missing Prisma-type build errors.
+- Existing build and unit/component tests pass.
+Verify:
+- npm ci
+- npm run build
+- npm run lint
+- npm test
+Not in scope: schema or feature changes.
+
+TKT-002 - Provide a disposable PostgreSQL development/test setup
+Depends on: none
+Risk: Medium
+Scope:
+- Define a local/CI test database setup with non-production safeguards.
+- Document configuration without committing secrets.
+- Prevent smoke/test-data tools from targeting production.
+Acceptance:
+- A contributor can create the disposable database, apply migrations, and remove only test fixtures.
+- Production-like URLs are rejected by destructive test tooling.
+Verify:
+- Migration deployment/status against the disposable database.
+- Readiness endpoint and one database smoke script.
+Not in scope: production database operations.
+
+TKT-003 - Add database smoke and browser E2E CI tiers
+Depends on: TKT-001, TKT-002
+Risk: Medium
+Scope:
+- Separate fast unit/component checks from database smoke and Playwright checks.
+- Run the existing critical-path spec and committed smoke scripts in the appropriate tier.
+Acceptance:
+- Failures identify the failing tier.
+- Cleanup is scoped to tagged fixtures.
+Verify: CI-equivalent local commands complete on the disposable environment.
+Not in scope: new product E2E scenarios.
+
+TKT-004 - Review and triage dependency advisories
+Depends on: none
+Risk: High
+Scope:
+- With explicit approval, obtain the advisory graph.
+- Classify production/dev and reachable/non-reachable vulnerabilities.
+- Create upgrade tickets or time-bounded exceptions.
+Acceptance: All 14 currently reported advisories have an owner and disposition.
+Verify: Build/tests after any approved non-feature upgrades.
+Not in scope: npm audit force fixes or unrelated major upgrades.
+
+TKT-005 - Document match state machines and authorization matrix
+Depends on: DEC-001, DEC-002, DEC-013, DEC-015, DEC-016
+Risk: Medium
+Scope:
+- Document quick-match and team-match states.
+- Map user/participant/host/member/captain/owner/challenger/admin capabilities.
+Acceptance: Every current and planned sensitive command has an allowed role/side and valid source states.
+Verify: Review against routes/services in the audit.
+Not in scope: code changes.
+
+TKT-006 - Define stable errors and observability events
+Depends on: TKT-005
+Risk: Low
+Scope:
+- Define error/event names for auth return, slot/reservation conflict, position claim, payment, challenge, confirmation, and durable-job failure.
+- Define metrics and alert ownership.
+Acceptance: Later tickets can reuse stable codes instead of parsing message text.
+Verify: Design review only.
+Not in scope: implementing every event.
+
+
+5. GATE 1 - ALIGN CURRENT BEHAVIOR
+=================================
+
+TKT-101 - Standardize safe authentication returnTo behavior
+Depends on: TKT-001
+Risk: Low
+Scope:
+- Use one internal returnTo contract in ProtectedRoute, login, registration, quick-match invite, and team invite.
+- Preserve approved query/hash components.
+- Reject absolute/external destinations.
+Acceptance:
+- Logged-out direct match/invite opens login, then returns to the intended route.
+- Open-redirect attempts return to a safe default.
+Tests: route/component tests plus focused Playwright flow.
+Not in scope: public anonymous match preview.
+
+TKT-102 - Add direct My Profile navigation
+Depends on: none
+Risk: Low
+Scope: Add a clear self-profile link to primary/user navigation using the authenticated user ID.
+Acceptance: User can navigate to, edit, save, refresh, and see their profile; other users cannot mutate it.
+Tests: navigation/render test and existing API authorization regression.
+Not in scope: new profile fields/statistics.
+
+TKT-103 - Enforce fixed R80 for new quick matches
+Depends on: DEC-001
+Risk: Medium
+Scope:
+- Make the backend authoritative for 8,000 cents.
+- Remove editable fee input from normal quick-match creation.
+- Align shared schema, API client, display, tests, and documentation.
+- Preserve existing stored match fees.
+Acceptance:
+- New quick match always stores/charges R80.
+- Manipulated payload cannot create another amount.
+- Existing historical match displays its stored amount.
+Tests: schema, API/service, create-page, join/debit, cancellation-credit tests.
+Not in scope: team-match payment or provider integration.
+
+TKT-104 - Change new match duration to 60 minutes
+Depends on: DEC-002
+Risk: Medium
+Scope:
+- Change runtime defaults/policy, documentation, and stale tests/smokes.
+- Validate end-time, result readiness, booking overlap, and post-match chat behavior.
+- Apply only the approved scheduled-match transition.
+Acceptance: New 5/7/11 matches persist 60 minutes; completed/history is preserved.
+Tests: env, lifecycle, match creation, booking, scheduler, chat.
+Not in scope: changing unrelated minute/millisecond constants.
+
+TKT-105 - Remove maximum-price discovery behavior
+Depends on: none
+Risk: Low
+Scope:
+- Remove the UI control.
+- Remove/deprecate API/query support only after checking consumers.
+Acceptance: Normal discovery does not request or require maxPriceCents.
+Tests: match-list component/query contract.
+Not in scope: venue price display.
+
+TKT-106 - Remove Find Nearby behavior
+Depends on: none
+Risk: Low
+Scope:
+- Remove geolocation/radius UI and calls from current discovery.
+- Remove/deprecate contract only after checking consumers.
+Acceptance: Browser no longer requests location for match discovery.
+Tests: match-list component/query contract.
+Not in scope: venue address/coordinate storage.
+
+TKT-107 - Enforce four-character team short names in application layers
+Depends on: DEC-003
+Risk: Low
+Scope:
+- Update shared schema, backend, UI max length/copy, and tests.
+- Add a read-only preflight for existing violations.
+Acceptance: New/update requests reject five characters; existing rows remain readable.
+Tests: 4/5 character schema/API/UI boundaries.
+Not in scope: automatic data changes or DB constraint.
+
+TKT-108 - Remediate existing short names and add DB constraint
+Depends on: TKT-107 and approved DEC-003 remediation
+Risk: Medium
+Scope:
+- Apply the separately approved data remediation.
+- Add an additive database check constraint after all rows comply.
+Acceptance: No row exceeds four characters and database rejects future violations.
+Tests: migration against production-shaped fixtures and rollback/forward-fix notes.
+Not in scope: silent truncation.
+
+TKT-109 - Align FULL match status semantics
+Depends on: TKT-005
+Risk: Medium
+Scope:
+- Choose persisted or capacity-derived FULL semantics.
+- Align Prisma, shared type, mapper, queries, UI, and tests.
+Acceptance: All layers expose one meaning; discovery excludes unavailable matches consistently.
+Tests: capacity boundaries, mapper, discovery, existing record compatibility.
+Not in scope: changing match capacity rules.
+
+
+6. GATE 2 - LEGAL AND PLAYER ONBOARDING
+========================================
+
+TKT-201 - Publish approved legal and disclosure pages
+Depends on: DEC-007
+Risk: Medium
+Scope:
+- Add public About/Legal, Terms, Privacy/POPIA, participation, and Code of Conduct routes/pages.
+- Link them from registration and global navigation/footer.
+Acceptance: Approved content is accessible without authentication and version/effective date is visible.
+Tests: routing, links, public access, basic accessibility.
+Not in scope: inventing or editing legal wording.
+
+TKT-202 - Add legal document versions and acceptance records
+Depends on: DEC-007, TKT-201
+Risk: High
+Scope:
+- Add additive LegalDocument/LegalAcceptance representation.
+- Record user, type, exact version, acceptedAt, and approved evidence metadata.
+- Never fabricate legacy acceptance.
+Acceptance: Acceptance is immutable/auditable and required versions can be queried.
+Tests: migration, uniqueness/version behavior, server rejection when evidence is missing.
+Not in scope: full registration UI.
+
+TKT-203 - Add onboarding profile fields and position ordering
+Depends on: DEC-009
+Risk: Medium
+Scope:
+- Add nullable DOB, experience, structured city, and profile-completion state.
+- Reuse preferred-position rows; add ordering/primary semantics only if approved.
+Acceptance: Old users remain readable; new values validate and persist through service/API.
+Tests: migration, age/date boundaries, experience/city/position validation.
+Not in scope: onboarding wizard or legal acceptance.
+
+TKT-204 - Implement supported cities and waiting-list backend
+Depends on: DEC-009, TKT-203
+Risk: Medium
+Scope:
+- Add city catalogue/status and separate city-interest/wait-list entity.
+- Add deduped join/status API with consent/source/timestamps.
+Acceptance: Unsupported-city interest is stored without falsely creating an active Cape Town player profile.
+Tests: supported/unsupported, duplicate, authenticated/anonymous policy, authorization/admin visibility.
+Not in scope: home/registration presentation.
+
+TKT-205 - Implement player profile photo/selfie upload
+Depends on: DEC-008
+Risk: High
+Scope:
+- Add player-specific upload/storage/metadata and self-only replacement.
+- Validate signature, MIME, size, and approved dimensions/orientation.
+- Define safe serving and deletion/replacement lifecycle.
+Acceptance: Spoofed/oversized/unauthorized files fail; valid image appears on profile.
+Tests: storage/service/API plus UI upload states.
+Not in scope: biometric identity verification unless explicitly approved.
+
+TKT-206 - Add verification token/OTP persistence and service
+Depends on: DEC-010
+Risk: High
+Scope:
+- Store hashed single-use token/OTP, purpose, expiry, attempts, resend and delivery state.
+- Add provider abstraction and test adapter.
+Acceptance: Expired/reused/excess-attempt tokens fail without account enumeration.
+Tests: token lifecycle, hashing, delivery failure, rate limits, suspended users.
+Not in scope: user-facing screens.
+
+TKT-207 - Add verification API and UI
+Depends on: TKT-206
+Risk: Medium
+Scope:
+- Add send/resend/verify routes and onboarding screens.
+- Enforce approved unverified-user restrictions.
+Acceptance: New user can verify and resume intended onboarding destination.
+Tests: controller/API client/component/E2E success and failure paths.
+Not in scope: password reset.
+
+TKT-208 - Add password reset flow
+Depends on: TKT-206
+Risk: High
+Scope:
+- Add request/reset commands with generic responses and rate limits.
+- Revoke/rotate sessions according to policy after success.
+Acceptance: Valid token resets password once; enumeration and token reuse are prevented.
+Tests: service/API/UI/session invalidation.
+Not in scope: changing normal login/session architecture.
+
+TKT-209 - Extend registration wizard
+Depends on: TKT-202, TKT-203, TKT-204, TKT-205, TKT-207
+Risk: High
+Scope:
+- Collect DOB/18+, experience, city, positions, selfie, and mandatory legal versions.
+- Route unsupported cities to approved waiting-list behavior.
+- Support resumable/retry-safe onboarding.
+Acceptance: Required fields cannot be bypassed server-side; successful user has complete profile/evidence/verification.
+Tests: shared schema, API transaction behavior, component steps, full E2E.
+Not in scope: backfilling legacy users.
+
+TKT-210 - Implement legacy profile-completion journey
+Depends on: TKT-209, DEC-007, DEC-008
+Risk: High
+Scope:
+- Prompt/gate existing users according to approved policy.
+- Preserve their current matches, teams, wallet, and sessions.
+Acceptance: Legacy user supplies missing data/consent without a duplicate account or lost state.
+Tests: fixtures for every legacy-field combination and route-access policy.
+Not in scope: fabricating values.
+
+TKT-211 - Add supported profile statistics
+Depends on: TKT-109
+Risk: Medium
+Scope:
+- Query/display matches played, wins, draws, losses, goals, and current teams.
+- Use finalized, non-overturned results and defined cancellation/dispute rules.
+Acceptance: Known fixtures reconcile exactly; unsupported metrics are not displayed.
+Tests: repository/service/API/profile component and result-revision behavior.
+Not in scope: assists, attendance, POTM, historical captaincy, or ratings.
+
+
+7. GATE 3 - VENUES, SLOTS, AND HOME
+====================================
+
+TKT-301 - Add public managed-venue metadata and read API
+Depends on: DEC-005
+Risk: Medium
+Scope:
+- Add slug, public description/media/display fields as approved.
+- Add active public venue/field DTOs and list/detail endpoints.
+- Exclude admin-only data.
+Acceptance: Public response contains only approved active venue facts and supported formats.
+Tests: migration, mapper, filtering, authorization/privacy.
+Not in scope: venue seed or slot calculation.
+
+TKT-302 - Import approved real venue catalogue and prices
+Depends on: TKT-301, DEC-005
+Risk: Medium
+Scope:
+- Add idempotent environment-appropriate import/seed for the approved venues/fields/rates/images.
+- Use effective-dated prices with units represented according to policy.
+Acceptance: Queens Park, Cape Town City FC, and Italian Club data is reproducible and not hardcoded in player UI.
+Tests: idempotency, effective prices, required formats/fields.
+Not in scope: synthetic production facts.
+
+TKT-303 - Implement calculated availability-slot service and API
+Depends on: TKT-104, TKT-301, DEC-006
+Risk: High
+Scope:
+- Calculate bounded date-range slots from recurring availability, exceptions, duration, buffers, horizon, and active reservations in venue timezone.
+- Keep DB exclusion constraint as final booking protection.
+Acceptance: Returned slots are valid and unavailable periods are excluded.
+Tests: timezone/DST, exceptions, formats, boundaries, reservations, bounded query size.
+Not in scope: calendar UI or slot persistence unless justified.
+
+TKT-304 - Implement venue cards on home
+Depends on: TKT-301, TKT-302
+Risk: Low
+Scope:
+- Add Airbnb-style database venue cards with image, name, location, formats, and effective price unit.
+- Add loading/empty/error states.
+Acceptance: Home no longer presents player cards as primary discovery and uses no placeholder venues.
+Tests: component/query/navigation/accessibility.
+Not in scope: calendar or match creation.
+
+TKT-305 - Implement venue detail and availability calendar
+Depends on: TKT-303, TKT-304
+Risk: Medium
+Scope:
+- Add venue/field detail and accessible date/slot selection UI.
+- Carry field, format, kickoff, and price context forward.
+Acceptance: User can browse only server-calculated selectable slots.
+Tests: keyboard/mobile calendar, timezone display, empty/error/refetch states.
+Not in scope: reservation creation.
+
+TKT-306 - Replace placeholder match creation with managed-field reservation
+Depends on: TKT-103, TKT-104, TKT-305
+Risk: High
+Scope:
+- Retire player-facing BOOKABLE_FIELDS use.
+- Create/book new quick matches through managed field/reservation logic.
+- Preserve immutable historical venue/price snapshots.
+Acceptance: Selected slot is revalidated atomically and conflicting creation fails safely.
+Tests: service/repository concurrency, API client, creation UI, historical display.
+Not in scope: deleting historical Venue data.
+
+TKT-307 - Add Upcoming Matches to home
+Depends on: TKT-109, TKT-304
+Risk: Low
+Scope:
+- Reuse public match discovery with a bounded kickoff-sorted homepage query.
+- Show only future public joinable matches needing players.
+Acceptance: Cancelled/completed/private/full matches never appear; cards navigate correctly.
+Tests: query filtering/sort and home component states.
+Not in scope: anonymous preview route.
+
+TKT-308 - Add venue-to-match E2E and reservation race test
+Depends on: TKT-306, TKT-307
+Risk: Medium
+Scope:
+- Test home venue -> calendar -> create/book -> home upcoming match.
+- Test two concurrent reservations for one field/time.
+Acceptance: One reservation succeeds, one receives a stable conflict, and historical snapshots remain correct.
+Not in scope: real payment provider.
+
+
+8. GATE 4 - PUBLIC SHARING
+==========================
+
+TKT-401 - Add stable public match slug/identifier
+Depends on: DEC-004, TKT-109
+Risk: Medium
+Scope:
+- Add unique stable public identity for public matches.
+- Keep private invite tokens separate, hashed, rotatable, and secret.
+- Define canonical URL generation and alias/redirect behavior.
+Acceptance: Eligible public match resolves consistently; private match cannot be exposed by slug.
+Tests: migration/backfill policy, uniqueness, lifecycle, private/public boundaries.
+Not in scope: preview UI.
+
+TKT-402 - Add anonymous public match preview API
+Depends on: TKT-401
+Risk: High
+Scope:
+- Mount a minimal resolver outside authenticated /matches routes.
+- Return exactly the DEC-004 DTO.
+- Handle private/not-found/cancelled/completed/full states safely.
+Acceptance: No private participant/contact/wallet/chat data is leaked.
+Tests: DTO snapshot/privacy, enumeration behavior, rate limiting, statuses.
+Not in scope: joining without authentication.
+
+TKT-403 - Add public preview page and auth continuation
+Depends on: TKT-101, TKT-402
+Risk: Medium
+Scope:
+- Render public match facts and join CTA.
+- Send logged-out user through login/register and back to the same match.
+Acceptance: Refresh/direct link/auth completion returns correctly and unsafe returnTo is rejected.
+Tests: routing/components and browser flow.
+Not in scope: share actions.
+
+TKT-404 - Add Web Share and WhatsApp actions
+Depends on: TKT-403
+Risk: Low
+Scope:
+- Add share button to every public lobby/preview.
+- Use Web Share API plus WhatsApp/copy fallback.
+- Generate content from live venue/time/capacity/fee data.
+Acceptance: Shared URL is canonical and copy reflects current match.
+Tests: supported/unsupported browser behavior, encoding, copy fallback.
+Not in scope: QR codes or analytics.
+
+TKT-405 - Add public-share acquisition E2E
+Depends on: TKT-404, TKT-209, TKT-603 or approved seeded funding path
+Risk: Medium
+Scope: Anonymous share -> preview -> register/login -> return -> fund -> join.
+Acceptance: Journey passes for open match and handles full/cancelled/private safely.
+Not in scope: position claim, covered by TKT-506.
+
+
+9. GATE 5 - POSITION CLAIMS AND FORMATION UX
+=============================================
+
+TKT-501 - Implement atomic quick-match self-claim service/API
+Depends on: DEC-013, TKT-109
+Risk: High
+Scope:
+- Add explicit claim command for an authenticated participant's own side.
+- Check match mutability, participation, side, slot vacancy, and current assignment in one transaction.
+- Return stable conflict errors.
+Acceptance: First committed claimant wins; unauthorized/invalid claims cannot mutate formation.
+Tests: service/API/PostgreSQL concurrency and role matrix.
+Not in scope: organiser generic movement changes.
+
+TKT-502 - Add position-claim UI and conflict recovery
+Depends on: TKT-501
+Risk: Medium
+Scope:
+- Make eligible empty slots actionable.
+- Add deterministic optimistic state/rollback or loading behavior.
+- Explain conflicts and refresh authoritative state.
+Acceptance: Joined player can claim; reserve remains separate until claim succeeds.
+Tests: component success/conflict/wrong-side/immutable states.
+Not in scope: drag optimization.
+
+TKT-503 - Narrow realtime formation updates and cache invalidation
+Depends on: TKT-501, TKT-502
+Risk: Medium
+Scope:
+- Emit committed slot updates after transaction.
+- Update/refetch only relevant formation/match cache.
+- Add version/timestamp handling if race tests require it.
+Acceptance: Two clients converge without broad unrelated refetches or stale overwrite.
+Tests: socket integration, duplicate/missed/out-of-order event recovery.
+Not in scope: presentation redesign.
+
+TKT-504 - Improve team-side and player-marker presentation
+Depends on: DEC-013
+Risk: Low
+Scope:
+- Implement approved separate Team A/Team B presentation.
+- Show readable name and avatar in/adjacent to assigned position.
+- Preserve separate reserves and accessible non-color distinction.
+Acceptance: Sides and assigned identities are clear on mobile/desktop/keyboard.
+Tests: component/accessibility/responsive snapshots where appropriate.
+Not in scope: claim backend.
+
+TKT-505 - Measure and stabilize formation drag/drop
+Depends on: TKT-503
+Risk: High
+Scope:
+- Instrument pointer-to-render/drop-to-confirm timing.
+- Separate transient drag state from server props.
+- Prevent refetch overwrite during drag and serialize/cancel conflicting mutations.
+- Cover mouse/touch/cancel/slow network/rejection/socket echo.
+Acceptance: Agreed latency budget is met and failure restores authoritative position.
+Tests: component interaction, simulated latency, multi-client/socket integration.
+Not in scope: changing formation rules.
+
+TKT-506 - Add complete public join-and-claim E2E
+Depends on: TKT-405, TKT-505
+Risk: Medium
+Scope: Shared public match -> auth -> pay/join -> claim -> second-user conflict -> realtime convergence.
+Acceptance: Entire core position journey passes in a real browser with database/API/socket.
+Not in scope: team fixture lineup.
+
+
+10. GATE 6 - PERSONAL PAYMENTS AND VENUE SETTLEMENT
+===================================================
+
+TKT-601 - Add paginated wallet transaction-history API
+Depends on: TKT-001
+Risk: Medium
+Scope:
+- Add self-only paginated ledger read endpoint and normalized display DTO.
+- Include deposits, match debits/credits, booking holds/capture/release as approved.
+Acceptance: Results reconcile to balance and no other wallet is readable.
+Tests: pagination/order/type/sign/auth/privacy.
+Not in scope: team transactions or external refund state.
+
+TKT-602 - Add wallet page and navigation
+Depends on: TKT-601
+Risk: Low
+Scope:
+- Add wallet page from header/Profile/next to Teams as approved.
+- Show balance, history, loading/empty/error/pagination states.
+Acceptance: User can understand each credit/debit and navigate to related entity where safe.
+Tests: components/API client/navigation.
+Not in scope: flexible deposit initiation.
+
+TKT-603 - Add flexible deposit contract using demo/test operator
+Depends on: DEC-011
+Risk: Medium
+Scope:
+- Replace fixed no-body deposit with validated amount input and approved limits.
+- Restrict demo auto-success operator to development/test.
+- Update UI to enter/confirm amount.
+Acceptance: Any valid amount succeeds in test; invalid amount is rejected server-side; fixed R500 copy is gone.
+Tests: boundaries, currency, idempotency reuse, UI validation.
+Not in scope: production provider.
+
+TKT-604 - Integrate production payment initiation
+Depends on: TKT-603, DEC-011
+Risk: Critical
+Scope:
+- Implement provider adapter/initiation, provider references, redirect/checkout result handling, and secrets configuration.
+- Keep internal deposit pending until authoritative confirmation.
+Acceptance: Initiation is idempotent and no wallet credit occurs from client-only success.
+Tests: provider sandbox/contract adapter, failures/retries, secret/log hygiene.
+Not in scope: webhook processing.
+
+TKT-605 - Implement authenticated idempotent payment webhooks
+Depends on: TKT-604
+Risk: Critical
+Scope:
+- Verify webhook signature/source.
+- Handle duplicate/out-of-order success/failure callbacks transactionally.
+- Credit exactly once and publish notification after commit.
+Acceptance: Replay cannot duplicate credit; invalid webhook is rejected/audited.
+Tests: signature, replay, ordering, timeout/retry, reconciliation.
+Not in scope: refunds/chargebacks.
+
+TKT-606 - Implement external refund and chargeback lifecycle
+Depends on: TKT-605, DEC-011
+Risk: Critical
+Scope:
+- Distinguish wallet credits/releases from provider refunds.
+- Persist provider refund/chargeback state and compensation policy.
+- Extend admin/reconciliation behavior.
+Acceptance: Refund and chargeback are idempotent, traceable, and financially reconciled.
+Tests: all terminal/retry/out-of-order states and account restriction policy.
+Not in scope: team wallets.
+
+TKT-607 - Add venue payable and beneficiary model
+Depends on: DEC-012, TKT-302
+Risk: Critical
+Scope:
+- Add protected beneficiary details and payable linked to eligible reservation.
+- Store amount, adjustments, due state, approval, payout reference, actor, and timestamps.
+Acceptance: Eligible reservation creates at most one payable; player APIs/logs expose no sensitive beneficiary data.
+Tests: migration, uniqueness, adjustments/refunds, admin authorization/audit.
+Not in scope: automatic bank payout.
+
+TKT-608 - Add admin manual-settlement queue
+Depends on: TKT-607
+Risk: High
+Scope:
+- Add MFA-gated list/detail/approve/mark-paid operations and UI.
+- Require payout evidence/reference and audit every transition.
+Acceptance: Payable cannot be paid twice or changed by non-admin/expired-MFA session.
+Tests: authorization, transition matrix, audit immutability, UI states.
+Not in scope: automated payouts.
+
+TKT-609 - Extend financial reconciliation and E2E
+Depends on: TKT-606, TKT-608
+Risk: High
+Scope:
+- Reconcile wallet ledgers, holds, provider payments/refunds, reservations, and venue payables.
+- Add real-provider sandbox critical path where feasible.
+Acceptance: Known fixtures reconcile to zero issues and injected inconsistencies are detected.
+Tests: reconciliation service/command and payment-to-settlement E2E.
+Not in scope: team-wallet reconciliation.
+
+
+11. GATE 7 - TEAM FINANCE, CHALLENGES, AND CHAT
+================================================
+
+TKT-701 - Add team-wallet ledger and reconciliation foundation
+Depends on: DEC-014, TKT-609
+Risk: Critical
+Scope:
+- Add separate team account/transaction aggregate or approved generalized wallet-owner design.
+- Start teams at zero and preserve immutable ledger/reference/idempotency rules.
+- Extend reconciliation.
+Acceptance: Team balance derives from ledger and cannot be mutated directly.
+Tests: migration, balance invariant, idempotency, concurrent ledger writes.
+Not in scope: contributions or match payment.
+
+TKT-702 - Implement personal-to-team contributions and refunds
+Depends on: TKT-701
+Risk: Critical
+Scope:
+- Atomically debit personal wallet and credit team wallet with linked references.
+- Implement approved refund provenance and permissions.
+Acceptance: No partial transfer; retries do not duplicate; refund follows policy.
+Tests: insufficient balance, concurrency, duplicate request, member removal/captain departure.
+Not in scope: team match spending.
+
+TKT-703 - Add team wallet UI/history/contribution flow
+Depends on: TKT-702
+Risk: Medium
+Scope:
+- Show team balance and authorized history.
+- Add contribution/refund UI according to role policy.
+Acceptance: Member/captain/owner see only approved details and actions.
+Tests: role-based component/API client behavior.
+Not in scope: challenge payment.
+
+TKT-704 - Extend team fixture creation to public managed venues
+Depends on: TKT-306, DEC-015
+Risk: High
+Scope:
+- Allow captain to select managed venue/slot and load saved HOME squad/formation.
+- Keep private/free planning mode only if explicitly supported.
+- Add publish readiness state.
+Acceptance: Public team fixture has valid reservation, HOME team snapshot/lineup, and no arbitrary venue.
+Tests: role/format/slot/state behavior.
+Not in scope: challenger or team payment.
+
+TKT-705 - Add challenge schema and state machine
+Depends on: TKT-704, DEC-015
+Risk: High
+Scope:
+- Add challenge entity/status, host/challenger teams/captains, target match, terms, expiry, timestamps.
+- Add database uniqueness/checks for allowed concurrent/pending/accepted states.
+Acceptance: State transitions are explicit and invalid transitions fail.
+Tests: migration and transition table tests.
+Not in scope: endpoints/UI.
+
+TKT-706 - Add challenge commands and notifications
+Depends on: TKT-705
+Risk: High
+Scope:
+- Create/list/decline/withdraw/expire challenge commands.
+- Persist notifications after commit and use durable expiry jobs.
+Acceptance: Only eligible captains act; expiry/withdrawal is idempotent.
+Tests: role matrix, transitions, notification dedupe, durable retry.
+Not in scope: acceptance and AWAY attachment.
+
+TKT-707 - Atomically accept challenge and attach AWAY team
+Depends on: TKT-706
+Risk: Critical
+Scope:
+- Serialize acceptance so one challenger wins.
+- Attach AWAY and copy matching saved formation/eligible squad.
+- Reject invalid format/roster/state.
+Acceptance: Exactly one AWAY team is attached and both sides remain consistent.
+Tests: concurrent acceptance, format mismatch, removed member, rollback.
+Not in scope: funding capture.
+
+TKT-708 - Implement side-scoped captain authorization
+Depends on: TKT-707, TKT-005
+Risk: High
+Scope:
+- Replace broad attached-manager permission with command-specific HOME/AWAY checks.
+- Cover publish/cancel/challenge/lineup/result/payment permissions.
+Acceptance: Correct-side captain acts only on approved commands; wrong-side captain cannot.
+Tests: exhaustive authorization matrix including admin/MFA.
+Not in scope: result confirmation logic.
+
+TKT-709 - Add team-wallet funding to publish/accept
+Depends on: TKT-702, TKT-707, TKT-708
+Risk: Critical
+Scope:
+- Reserve/capture host/challenger team funds at approved transitions.
+- Release/compensate on expiry, decline, cancellation, or failed attachment.
+- Extend reconciliation.
+Acceptance: Match never reaches funded-ready state without required committed funds; no orphan hold exists.
+Tests: every transition/retry/concurrency/insufficient-balance path.
+Not in scope: optional advanced multi-party escrow beyond minimum policy.
+
+TKT-710 - Add persistent team chat model and API
+Depends on: TKT-708
+Risk: Medium
+Scope:
+- Implement approved team-owned conversation/message representation.
+- Add membership-authorized history/send/read behavior and removal policy.
+Acceptance: Current member can use team chat; outsider/removed member cannot access new messages.
+Tests: repository/service/API role and pagination tests.
+Not in scope: socket/UI.
+
+TKT-711 - Add team chat realtime UI
+Depends on: TKT-710
+Risk: Medium
+Scope:
+- Add team room join/leave, shared events, message UI/history/read state, and approved notifications.
+- Keep match lobby chat separate.
+Acceptance: Authorized clients converge; removal/suspension revokes room access.
+Tests: socket authorization, components, multi-client behavior.
+Not in scope: social navigation.
+
+TKT-712 - Add full team challenge E2E
+Depends on: TKT-709, TKT-711
+Risk: High
+Scope:
+- Fund HOME -> publish -> challenge -> fund/accept AWAY -> load both lineups -> chat.
+Acceptance: Journey passes with role/privacy/financial assertions and reconciliation.
+Not in scope: result confirmation.
+
+
+12. GATE 8 - RESULTS AND REVIEWS
+=================================
+
+TKT-801 - Add result proposal/confirmation persistence
+Depends on: DEC-016, TKT-708
+Risk: High
+Scope:
+- Add proposal/pending-confirmation/rejected/finalization facts without rewriting existing final results.
+- Store actors, sides, timestamps, deadline, revisions, and finalization source.
+Acceptance: Existing results remain final; new team result can be pending without completing match.
+Tests: migration and state-transition invariants.
+Not in scope: endpoints/UI.
+
+TKT-802 - Implement result propose/confirm/reject commands
+Depends on: TKT-801
+Risk: High
+Scope:
+- Host-side authorized proposal and opposing-side confirmation/rejection.
+- Deterministic concurrency and scorer/score validation.
+- Notify after commit.
+Acceptance: Host cannot self-confirm as opponent; wrong roles cannot act; finalization occurs once.
+Tests: role/state/concurrency/notification tests.
+Not in scope: UI or admin dispute changes.
+
+TKT-803 - Add result confirmation UI
+Depends on: TKT-802
+Risk: Medium
+Scope:
+- Add proposal, pending confirmation, confirm/reject/correction states for correct captains.
+- Show ordinary players read-only status.
+Acceptance: UI exposes only role-appropriate actions and refreshes through realtime/notifications.
+Tests: components, API client, socket update behavior.
+Not in scope: reviews.
+
+TKT-804 - Integrate result timeout/disagreement with disputes and statistics
+Depends on: TKT-803
+Risk: High
+Scope:
+- Implement approved timeout/escalation.
+- Reuse admin result revision/dispute workflow.
+- Update stats only from finalized non-overturned result.
+Acceptance: Disagreement never silently finalizes and approved admin resolution finalizes once.
+Tests: durable job, dispute/revision, stats invalidation, notification dedupe.
+Not in scope: ratings/reviews.
+
+TKT-805 - Add team review/rating persistence and service
+Depends on: DEC-017, TKT-804
+Risk: High
+Scope:
+- Add author, target team, match, rating 1-5, comment, visibility/moderation, timestamps, and uniqueness.
+- Enforce eligibility and opposing-team target.
+Acceptance: No duplicate/self/unrelated/pre-finalization review.
+Tests: migration, service, authorization, rating boundaries, moderation state.
+Not in scope: UI.
+
+TKT-806 - Add review UI, team review section, and moderation
+Depends on: TKT-805
+Risk: Medium
+Scope:
+- Add create form, team list/summary, report/moderation controls, and notifications as approved.
+Acceptance: Only visible/moderated reviews affect public display/aggregate.
+Tests: components, API client, admin moderation, aggregation.
+Not in scope: social friends.
+
+TKT-807 - Add team result/review E2E
+Depends on: TKT-806
+Risk: Medium
+Scope: Host proposes -> opponent confirms -> eligible review -> duplicate rejected -> public team section reflects moderation policy.
+Acceptance: Entire journey passes and stats/notifications update once.
+Not in scope: advanced player statistics.
+
+
+13. GATE 9 - SOCIAL, QR, AND LATER WORK
+=======================================
+
+TKT-901 - Add friendship/request persistence and service
+Depends on: approved social/privacy rules
+Risk: Medium
+Scope:
+- Add request/accepted/declined/cancelled/remove behavior with uniqueness and abuse limits.
+- Add list/request/respond/remove APIs and notifications.
+Acceptance: State transitions are symmetric where required and duplicates/races are safe.
+Tests: transition/concurrency/auth/privacy/rate-limit tests.
+Not in scope: blocking or UI.
+
+TKT-902 - Add Social shell while preserving DMs
+Depends on: TKT-901
+Risk: Medium
+Scope:
+- Add Social navigation with Friends, Requests, and existing Messages.
+- Reuse current conversation/message persistence and routes.
+Acceptance: Existing DM history/realtime remains intact and friends lifecycle is usable.
+Tests: routing/components/DM regressions.
+Not in scope: blocking/team invites.
+
+TKT-903 - Add blocking and enforce it across domains
+Depends on: TKT-901
+Risk: High
+Scope:
+- Add block/unblock persistence/API.
+- Enforce server-side in discovery, friend requests, DMs, team invites, and notifications.
+Acceptance: Blocked users cannot bypass restrictions through direct API/socket calls.
+Tests: cross-domain authorization and socket tests.
+Not in scope: content moderation policy.
+
+TKT-904 - Add friend-assisted team invitations
+Depends on: TKT-902, TKT-903
+Risk: Medium
+Scope:
+- Add friend picker and targeted team invite while retaining revocable link invites.
+- Respect blocking/privacy and team permissions.
+Acceptance: Authorized captain invites eligible friend; blocked/ineligible user is not exposed/invitable.
+Tests: API/UI/notification/privacy.
+Not in scope: replacing link invites.
+
+TKT-905 - Add QR codes for canonical public URLs
+Depends on: TKT-401, TKT-404, stable venue URLs
+Risk: Low
+Scope:
+- Generate site/public-match/venue QR codes with accessible link fallback.
+- Do not encode private invite secrets as public QR content.
+Acceptance: Codes scan to canonical HTTPS routes on supported devices.
+Tests: encoded URL, scan/decode test, access behavior.
+Not in scope: referrals/analytics unless separately approved.
+
+TKT-906 - Add advanced challenge escrow
+Depends on: TKT-709 and explicit product approval
+Risk: Critical
+Scope:
+- Model multi-party funding conditions, partial funding, expiry, capture, release, cancellation, and compensation.
+- Reuse durable jobs, holds, ledger, and reconciliation.
+Acceptance: Every state has balanced financial invariants and idempotent retry behavior.
+Tests: property/state-machine/concurrency/reconciliation tests.
+Not in scope: changing the minimum Gate 7 funded-acceptance behavior unless required.
+
+TKT-907 - Add advanced player statistics capture
+Depends on: explicit metric definitions and TKT-804/TKT-806
+Risk: High
+Scope:
+- Add authoritative capture/correction for approved assists, attendance, POTM, ratings, or historical captaincy.
+- Integrate privacy/disputes/stat projections.
+Acceptance: Each displayed metric has a persisted authoritative fact and correction path.
+Tests: capture authorization, revisions, disputes, projections.
+Not in scope: inferring unsupported historical facts.
+
+
+14. STRICT EXECUTION ORDER
+==========================
+
+Foundation sequence:
+
+TKT-001 -> TKT-002 -> TKT-003 -> TKT-004 -> TKT-005 -> TKT-006
+
+Current-behavior sequence:
+
+TKT-101 -> TKT-102 -> TKT-103 -> TKT-104 -> TKT-105 -> TKT-106 -> TKT-107 -> TKT-108 -> TKT-109
+
+After Gate 1, these streams may run in parallel if separate people own them:
+
+Onboarding:
+TKT-201 -> TKT-202 -> TKT-203 -> TKT-204 -> TKT-205 -> TKT-206 -> TKT-207 -> TKT-208 -> TKT-209 -> TKT-210 -> TKT-211
+
+Venues:
+TKT-301 -> TKT-302 -> TKT-303 -> TKT-304 -> TKT-305 -> TKT-306 -> TKT-307 -> TKT-308
+
+Sharing:
+TKT-401 -> TKT-402 -> TKT-403 -> TKT-404 -> TKT-405
+
+Formation:
+TKT-501 -> TKT-502 -> TKT-503 -> TKT-504 -> TKT-505 -> TKT-506
+
+Personal finance:
+TKT-601 -> TKT-602 -> TKT-603 -> TKT-604 -> TKT-605 -> TKT-606 -> TKT-607 -> TKT-608 -> TKT-609
+
+Team competition:
+TKT-701 -> TKT-702 -> TKT-703 -> TKT-704 -> TKT-705 -> TKT-706 -> TKT-707 -> TKT-708 -> TKT-709 -> TKT-710 -> TKT-711 -> TKT-712
+
+Results/reviews:
+TKT-801 -> TKT-802 -> TKT-803 -> TKT-804 -> TKT-805 -> TKT-806 -> TKT-807
+
+Later:
+TKT-901 -> TKT-902 -> TKT-903 -> TKT-904 -> TKT-905 -> TKT-906 -> TKT-907
+
+Important cross-stream dependencies:
+
+- TKT-209 needs legal, onboarding schema, city, media, and verification foundations.
+- TKT-306 needs fixed fee/duration plus venue calendar.
+- TKT-405 needs public preview, completed auth return, onboarding, and a test funding path.
+- TKT-506 needs the public acquisition E2E and stabilized formation path.
+- TKT-704 needs managed venue match creation.
+- TKT-701 begins only after personal finance/reconciliation patterns are proven.
+- TKT-801 begins only after side-scoped team captain roles exist.
+- TKT-905 begins only after canonical public URLs are stable.
+
+If working alone, follow this order:
+
+1. Gate 0
+2. Gate 1
+3. Gate 2
+4. Gate 3
+5. Gate 4
+6. Gate 5
+7. Gate 6
+8. Gate 7
+9. Gate 8
+10. Gate 9
+
+
+15. REUSABLE ONE-TICKET IMPLEMENTATION PROMPT
+=============================================
+
+Copy the prompt below into a new request and replace <TICKET_ID> with one ticket, for example TKT-101.
+
+-------------------- PROMPT START --------------------
+
+Implement exactly one Footy Finder implementation ticket: <TICKET_ID>.
+
+Use these documents as the source of truth:
+
+- docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
+- docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
+- docs/PRODUCT_REQUIREMENTS_TICKET_BREAKDOWN_2026-09-24.txt
+
+Before making changes:
+
+1. Read the selected ticket completely.
+2. Inspect its dependencies and confirm they are already satisfied in the repository.
+3. Inspect the current implementation end-to-end before editing.
+4. Check the working tree and preserve unrelated user changes.
+5. If a required product decision is missing, or a dependency is not implemented, stop and report the blocker. Do not guess policy.
+
+Execution rules:
+
+- Implement only <TICKET_ID>.
+- Do not begin, partially implement, or bundle the next ticket.
+- Do not perform unrelated refactoring or cleanup.
+- Follow existing repository patterns and shared contracts.
+- Keep business rules server-authoritative.
+- Enforce authorization server-side and test negative cases.
+- Use additive migrations only; never rewrite an existing migration.
+- Preserve historical data and compatibility as required by the ticket.
+- Keep financial operations ledger-backed, atomic, idempotent, and reconcilable.
+- Persist state/notifications before emitting realtime events.
+- Add or update all tests required by the ticket's acceptance criteria.
+- Run verification proportional to the risk, including build, type-check, focused tests, and any relevant database/E2E tests that can run safely.
+- Do not modify production data, reset databases, or create/edit environment secrets.
+
+When the ticket is complete, stop. Do not continue to another ticket.
+
+Provide feedback using exactly this structure:
+
+Ticket: <ID and title>
+Outcome: COMPLETE | PARTIAL | BLOCKED
+
+Implemented:
+- ...
+
+Files changed:
+- ...
+
+Database/migrations:
+- ...
+
+API/contracts:
+- ...
+
+Authorization/security:
+- ...
+
+Tests run:
+- <exact command>: PASS | FAIL
+
+Manual verification:
+- ...
+
+Risks/follow-ups:
+- ...
+
+Recommended next ticket:
+- <ID only>
+
+Wait for my explicit approval before implementing the recommended next ticket.
+
+--------------------- PROMPT END ---------------------
+
+
+16. OPTIONAL NEXT-READY-TICKET PROMPT
+=====================================
+
+Use this only if the backlog status has been kept current and you want the agent to choose the next ticket. It still implements only one ticket.
+
+-------------------- PROMPT START --------------------
+
+Read docs/PRODUCT_REQUIREMENTS_TICKET_BREAKDOWN_2026-09-24.txt and the audit/implementation-plan documents it references. Identify the first ticket in strict execution order whose decision gates and implementation dependencies are satisfied by the current repository.
+
+Tell me which ticket you selected and why, then implement exactly that one ticket. Do not implement any other ticket or adjacent cleanup. If no ticket is ready, stop and list the unmet decision/dependency blockers.
+
+Follow the selected ticket's scope, exclusions, acceptance criteria, and verification requirements. Preserve unrelated changes, use additive migrations only, enforce authorization server-side, and run proportionate tests.
+
+After finishing, stop and provide the standard ticket completion report from the ticket-breakdown document. Recommend the next ticket by ID, but wait for my explicit approval before starting it.
+
+--------------------- PROMPT END ---------------------
