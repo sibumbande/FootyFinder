@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fast-checks:
+    name: Fast checks (lint, unit, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  database-smoke:
+    name: Database smoke
+    needs: fast-checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: footy_finder_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d footy_finder_ci"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy_finder_ci?schema=public
+      JWT_SECRET: ci-test-secret-that-is-at-least-thirty-two-characters
+      CLIENT_URL: http://localhost:5173
+      ADMIN_CLIENT_URL: http://localhost:5174
+      PUBLIC_API_URL: http://localhost:3000
+      ADMIN_MFA_ENCRYPTION_KEY: ci-mfa-key-that-is-at-least-thirty-two-characters
+      ADMIN_TEST_DATA_ENABLED: 'true'
+      TEAM_UPLOAD_DIR: uploads/ci-test-teams
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:deploy
+      - run: npm run prisma:status
+      - run: npm run test:smoke
+
+  browser-e2e:
+    name: Browser E2E
+    needs: fast-checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: footy_finder_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d footy_finder_ci"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy_finder_ci?schema=public
+      JWT_SECRET: ci-test-secret-that-is-at-least-thirty-two-characters
+      CLIENT_URL: http://localhost:5173
+      ADMIN_CLIENT_URL: http://localhost:5174
+      PUBLIC_API_URL: http://localhost:3000
+      ADMIN_MFA_ENCRYPTION_KEY: ci-mfa-key-that-is-at-least-thirty-two-characters
+      ADMIN_TEST_DATA_ENABLED: 'true'
+      TEAM_UPLOAD_DIR: uploads/ci-test-teams
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:deploy
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

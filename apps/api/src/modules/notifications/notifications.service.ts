@@ -1,5 +1,5 @@
 import type { AppNotification } from '@footy-finder/shared';
-import type { Notification } from '@prisma/client';
+import type { Notification } from '../../generated/prisma/client.js';
 import { AppError } from '../../errors/app-error.js';
 import { NotificationsRepository } from './notifications.repository.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';

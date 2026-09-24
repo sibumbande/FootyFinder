@@ -1,6 +1,7 @@
+import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { getDefaultFormationKey } from '@footy-finder/shared';
-import type { Notification } from '@prisma/client';
+import type { Notification } from '../src/generated/prisma/client.js';
 import { prisma } from '../src/database/prisma.js';
 import { serializableTransaction } from '../src/database/transaction.js';
 import { MessagingRepository } from '../src/modules/messaging/messaging.repository.js';

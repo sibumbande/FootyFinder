@@ -1,3 +1,4 @@
+import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
 import { serializableTransaction } from '../src/database/transaction.js';

@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "prisma generate",
     "dev": "cross-env NODE_ENV=development tsx watch src/server.ts",
+    "prebuild": "prisma generate",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "wallet:reconcile": "tsx scripts/reconcile-wallets.ts",
-    "test": "vitest run",
+    "pretest": "prisma generate",
+    "test": "vitest run --configLoader runner",
     "smoke:api-contract": "tsc scripts/smoke-api-contract.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-api-contract.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-api-contract.mjs && cross-env NODE_ENV=test node dist/smoke-api-contract.mjs",
     "smoke:atomic-notifications": "tsc scripts/smoke-atomic-notifications.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-atomic-notifications.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-atomic-notifications.mjs && cross-env NODE_ENV=test node dist/smoke-atomic-notifications.mjs",
     "smoke:security-sessions": "tsc scripts/smoke-security-sessions.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-security-sessions.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-security-sessions.mjs && cross-env NODE_ENV=test node dist/smoke-security-sessions.mjs",
@@ -26,13 +29,18 @@
     "smoke:team-match-availability": "tsc scripts/smoke-team-match-availability.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-team-match-availability.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-team-match-availability.mjs && cross-env NODE_ENV=test node dist/smoke-team-match-availability.mjs",
     "smoke:team-match-lineup": "tsc scripts/smoke-team-match-lineup.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-team-match-lineup.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-team-match-lineup.mjs && cross-env NODE_ENV=test node dist/smoke-team-match-lineup.mjs",
     "smoke:team-match-ui": "tsc scripts/smoke-team-match-ui.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-team-match-ui.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-team-match-ui.mjs && cross-env NODE_ENV=test node dist/smoke-team-match-ui.mjs",
+    "smoke:all": "npm run smoke:api-contract && npm run smoke:atomic-notifications && npm run smoke:security-sessions && npm run smoke:admin-identity && npm run smoke:admin-catalog && npm run smoke:support-test-data && npm run smoke:financial-integrity && npm run smoke:field-bookings && npm run smoke:moderation-enforcement && npm run smoke:disputes-results && npm run smoke:operations && npm run smoke:match-capacity && npm run smoke:team-match && npm run smoke:team-match-availability && npm run smoke:team-match-lineup && npm run smoke:team-match-ui",
+    "prelint": "prisma generate",
     "lint": "tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:status": "prisma migrate status"
   },
   "dependencies": {
     "@footy-finder/shared": "*",
-    "@prisma/client": "^6.1.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "argon2": "^0.41.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -41,6 +49,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
+    "pg": "^8.23.0",
     "socket.io": "^4.8.1",
     "zod": "^3.24.1"
   },
@@ -50,12 +59,13 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/multer": "^2.2.0",
+    "@types/pg": "^8.15.5",
     "@types/supertest": "^6.0.2",
     "cross-env": "^7.0.3",
-    "prisma": "^6.1.0",
+    "prisma": "^7.10.0",
     "socket.io-client": "^4.8.1",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.1"
   }
 }

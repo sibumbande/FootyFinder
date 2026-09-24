@@ -1,5 +1,5 @@
 import { getDefaultFormationKey } from '@footy-finder/shared';
-import type { Notification } from '@prisma/client';
+import type { Notification } from '../../generated/prisma/client.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { NotificationsService } from '../notifications/notifications.service.js';
 import {

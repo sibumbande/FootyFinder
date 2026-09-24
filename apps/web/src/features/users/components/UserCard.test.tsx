@@ -5,7 +5,7 @@ import { UserCard } from './UserCard.js';
 describe('UserCard', () => {
   it('renders a database user and falls back to their username for the display name', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <UserCard
           user={{
             id: '1',

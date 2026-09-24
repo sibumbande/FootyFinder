@@ -1,7 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
+import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
 
-const prisma = new PrismaClient();
+assertDisposableTestDatabase({
+  databaseUrl: process.env.DATABASE_URL,
+  nodeEnv: process.env.NODE_ENV,
+});
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+});
 const marker = `e2e-${Date.now().toString(36)}`;
 const emails = [`${marker}-captain@test.invalid`, `${marker}-player@test.invalid`];
 
@@ -85,7 +94,11 @@ test.describe('browser critical path', () => {
     const playerContext = await browser.newContext();
     const captainPage = await captainContext.newPage();
     const playerPage = await playerContext.newPage();
-    await Promise.all([captainPage.goto('/'), playerPage.goto('/')]);
+    const protectedDestination = '/matches?format=FIVE_A_SIDE#available';
+    await Promise.all([captainPage.goto(protectedDestination), playerPage.goto('/')]);
+    await expect(captainPage).toHaveURL(
+      `/login?returnTo=${encodeURIComponent(protectedDestination)}`,
+    );
 
     const ready = await api<{ status: string; database: string }>(captainPage, '/ready');
     expect(ready).toMatchObject({
@@ -95,6 +108,12 @@ test.describe('browser critical path', () => {
 
     const captain = await register(captainPage, 'captain');
     const player = await register(playerPage, 'player');
+    await captainPage.reload();
+    await expect(captainPage).toHaveURL(protectedDestination);
+
+    await captainPage.goto(`/login?returnTo=${encodeURIComponent('/\\attacker.invalid/steal')}`);
+    await expect(captainPage).toHaveURL('/');
+
     for (const [index, page] of [captainPage, playerPage].entries()) {
       const deposit = await api(page, '/wallet/deposits/demo', {
         method: 'POST',

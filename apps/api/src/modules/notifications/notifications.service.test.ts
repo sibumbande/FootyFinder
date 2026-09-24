@@ -1,4 +1,4 @@
-import type { Notification } from '@prisma/client';
+import type { Notification } from '../../generated/prisma/client.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { domainEvents } from '../../events/domain-events.js';
 import { mapNotification, NotificationsService } from './notifications.service.js';

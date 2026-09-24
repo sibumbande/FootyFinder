@@ -1,4 +1,4 @@
-import type { Prisma, WalletTransactionType } from '@prisma/client';
+import type { Prisma, WalletTransactionType } from '../../generated/prisma/client.js';
 import { AppError } from '../../errors/app-error.js';
 import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
 

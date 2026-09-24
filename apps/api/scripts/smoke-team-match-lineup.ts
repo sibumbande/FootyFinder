@@ -1,3 +1,4 @@
+import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import type { MatchFormat } from '@footy-finder/shared';
 import { getDefaultFormationKey, getPlayersPerTeam } from '@footy-finder/shared';

@@ -5,7 +5,7 @@ import {
   getMaxParticipantsPerTeam,
 } from '@footy-finder/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { Notification } from '@prisma/client';
+import type { Notification } from '../../generated/prisma/client.js';
 import type { NotificationsService } from '../notifications/notifications.service.js';
 import type { MatchesRepository } from './matches.repository.js';
 import { MatchesService } from './matches.service.js';

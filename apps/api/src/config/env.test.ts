@@ -49,4 +49,28 @@ describe('environment contract', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('allows test-data tooling only on approved local disposable databases', () => {
+    expect(
+      envSchema.safeParse({
+        ...valid,
+        ADMIN_TEST_DATA_ENABLED: 'true',
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/footy_finder_manual_qa',
+      }).success,
+    ).toBe(true);
+    expect(
+      envSchema.safeParse({
+        ...valid,
+        ADMIN_TEST_DATA_ENABLED: 'true',
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/footy_finder',
+      }).success,
+    ).toBe(false);
+    expect(
+      envSchema.safeParse({
+        ...valid,
+        ADMIN_TEST_DATA_ENABLED: 'true',
+        DATABASE_URL: 'postgresql://postgres:postgres@db.example.test/footy_finder_test',
+      }).success,
+    ).toBe(false);
+  });
 });

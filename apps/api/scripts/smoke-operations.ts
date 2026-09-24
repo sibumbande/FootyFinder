@@ -1,3 +1,4 @@
+import './assert-disposable-test-database.js';
 import assert from 'node:assert/strict';
 import { prisma } from '../src/database/prisma.js';
 import { OperationsService } from '../src/modules/admin/operations.service.js';

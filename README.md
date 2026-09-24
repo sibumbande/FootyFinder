@@ -4,9 +4,10 @@ Footy Finder is an npm-workspaces TypeScript monorepo for discovering football m
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 20.19+, 22.12+, or 24+ (required by Prisma 7)
 - npm 10 or newer
 - PostgreSQL 14 or newer
+- Docker with Compose (optional, for the disposable test database)
 
 ## Applications and packages
 
@@ -31,6 +32,10 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
    ```bash
    npm install
    ```
+
+   Installation generates Prisma Client automatically. The API also regenerates the client before
+   its development, build, lint, and test scripts, so a clean checkout cannot type-check against the
+   placeholder Prisma package.
 
 2. Copy `apps/api/.env.example` to `apps/api/.env`, then set the database connection and a private JWT secret:
 
@@ -58,12 +63,14 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
 
 3. If the API does not run at `http://localhost:3000`, copy the `.env.example` files in `apps/web` and `apps/admin` to `.env` and set `VITE_API_URL`.
 
-4. Generate Prisma Client and apply the committed migrations:
+4. Apply the committed migrations:
 
    ```bash
-   npm run prisma:generate
    npm run prisma:migrate
    ```
+
+   `npm run prisma:generate` remains available as an explicit recovery command after editing the
+   Prisma schema or when diagnosing generated-client issues.
 
 5. Start the web app and API:
 
@@ -72,6 +79,10 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
    ```
 
 The player app runs at `http://localhost:5173`, the Admin app at `http://localhost:5174`, and the API at `http://localhost:3000`. Individual commands are `npm run dev:web`, `npm run dev:admin`, and `npm run dev:api`.
+
+Database smoke tests and browser E2E tests must use a disposable database. See
+[`docs/TEST_DATABASE.md`](docs/TEST_DATABASE.md) for the guarded Docker/native setup, migration
+commands, test tiers, and cleanup procedure.
 
 To create the first platform administrator, register an ordinary account and run:
 
@@ -214,7 +225,7 @@ The additive `20260824090000_auth_sessions_security` migration creates revocable
 
 `20260824170000_managed_fields_pricing` adds the Admin-managed venue and field catalogue without changing historical Match venues. It includes supported formats, weekly operating periods, availability exceptions, immutable effective-dated ZAR prices, database checks, and PostgreSQL-enforced non-overlapping price history.
 
-`20260824200000_support_test_data` adds private support tickets/messages, support reply notifications, and explicitly tagged disposable test-account batches. Test tooling is disabled by default; set `ADMIN_TEST_DATA_ENABLED=true` only against a disposable development/test database. Production configuration rejects that setting.
+`20260824200000_support_test_data` adds private support tickets/messages, support reply notifications, and explicitly tagged disposable test-account batches. Test tooling is disabled by default; set `ADMIN_TEST_DATA_ENABLED=true` only against an approved local disposable development/test database. Configuration validation rejects production, remote, shared, and ordinarily named development databases when that setting is enabled.
 
 `20260824230000_financial_integrity_jobs` adds wallet holds, durable jobs, balance/sign checks, and immutable terminal financial transitions. Existing deposits and Quick Game debit/credit flows use the shared locked financial repository. The reconciliation command is read-only and returns a nonzero exit code when it finds an integrity issue.
 

@@ -12,7 +12,7 @@ describe('CreateTeamPage', () => {
   it('moves through identity, football setup, and review using shared presets', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter>
           <CreateTeamPage />
         </MemoryRouter>
       </QueryClientProvider>,

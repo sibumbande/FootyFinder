@@ -1,3 +1,4 @@
+import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';

@@ -27,7 +27,7 @@ const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
 export function AppRouter() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       <Routes>
         <Route element={<GuestRoute />}>
           <Route path="/login" element={animated(<LoginPage />)} />

@@ -1,5 +1,5 @@
 import type { ErrorRequestHandler } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client.js';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
 import multer from 'multer';
@@ -36,10 +36,16 @@ export const mapPrismaError = (error: unknown): PrismaErrorResponse | undefined 
 };
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
-  if (error instanceof multer.MulterError)
+  const isMalformedMultipart =
+    error instanceof Error &&
+    Boolean(req.is('multipart/form-data')) &&
+    ['Unexpected end of form', 'Malformed part header', 'Unexpected end of file'].includes(
+      error.message,
+    );
+  if (error instanceof multer.MulterError || isMalformedMultipart)
     return res.status(400).json({
       error:
-        error.code === 'LIMIT_FILE_SIZE'
+        error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE'
           ? 'Team images must be 5 MB or smaller.'
           : 'Invalid image upload.',
       code: 'TEAM_IMAGE_INVALID',

@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../generated/prisma/client.js';
 import { env } from '../config/env.js';
 import { prisma } from '../database/prisma.js';
 import { logError, logInfo } from '../observability/logger.js';

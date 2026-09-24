@@ -1,10 +1,10 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
-export const participantInclude = Prisma.validator<Prisma.MatchParticipantInclude>()({
+export const participantInclude = {
   user: { include: safeUserInclude },
-});
-export const matchInclude = Prisma.validator<Prisma.MatchInclude>()({
+} satisfies Prisma.MatchParticipantInclude;
+export const matchInclude = {
   venue: true,
   createdBy: { include: safeUserInclude },
   participants: {
@@ -23,7 +23,7 @@ export const matchInclude = Prisma.validator<Prisma.MatchInclude>()({
     },
   },
   teamSides: { orderBy: { side: 'asc' } },
-});
+} satisfies Prisma.MatchInclude;
 
 export type MatchRecord = Prisma.MatchGetPayload<{ include: typeof matchInclude }>;
 export type ParticipantRecord = Prisma.MatchParticipantGetPayload<{

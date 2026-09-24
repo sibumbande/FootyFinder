@@ -1,4 +1,4 @@
-import { Prisma, type MatchFormat, type TeamRole } from '@prisma/client';
+import { Prisma, type MatchFormat, type TeamRole } from '../../generated/prisma/client.js';
 import type {
   CreateTeamInput,
   UpdateTeamFormationSlotInput,
@@ -18,11 +18,11 @@ import {
 import { safeUserInclude } from '../users/users.repository.js';
 
 const memberInclude = { user: { include: safeUserInclude } } as const;
-export const teamInclude = Prisma.validator<Prisma.TeamInclude>()({
+export const teamInclude = {
   owner: { include: safeUserInclude },
   memberships: { include: memberInclude, orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }] },
   _count: { select: { memberships: true } },
-});
+} satisfies Prisma.TeamInclude;
 const inviteInclude = {
   createdBy: { include: safeUserInclude },
   team: { include: { _count: { select: { memberships: true } } } },

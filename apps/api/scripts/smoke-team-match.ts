@@ -1,3 +1,4 @@
+import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { getDefaultFormationKey } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';

@@ -8,9 +8,16 @@ import * as controller from './teams.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
 import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
 
-const upload = multer({
+export const teamImageUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: TEAM_IMAGE_MAX_BYTES, files: 1 },
+  limits: {
+    fileSize: TEAM_IMAGE_MAX_BYTES,
+    files: 1,
+    fields: 0,
+    parts: 1,
+    fieldNameSize: 100,
+    fieldNestingDepth: 0,
+  },
   fileFilter: (_req, file, done) =>
     ['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype)
       ? done(null, true)
@@ -30,7 +37,7 @@ teamsRouter.get('/:teamId/matches', controller.matches);
 teamsRouter.post(
   '/:teamId/image',
   costlyMutationRateLimit,
-  upload.single('image'),
+  teamImageUpload.single('image'),
   controller.uploadImage,
 );
 teamsRouter.get('/:teamId/members', controller.members);

@@ -1,4 +1,4 @@
-import type { Notification } from '@prisma/client';
+import type { Notification } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import {
   notificationDedupeKey,

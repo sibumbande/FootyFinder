@@ -1,4 +1,8 @@
-import { Prisma, type TeamMatchAvailabilityStatus, type TeamSide } from '@prisma/client';
+import {
+  Prisma,
+  type TeamMatchAvailabilityStatus,
+  type TeamSide,
+} from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import {
@@ -12,16 +16,16 @@ export class TeamAvailabilityForbiddenError extends Error {}
 export class TeamMatchClosedError extends Error {}
 export class AvailabilityNotRequestedError extends Error {}
 
-const availabilityInclude = Prisma.validator<Prisma.TeamMatchAvailabilityInclude>()({
+const availabilityInclude = {
   user: { include: safeUserInclude },
-});
+} satisfies Prisma.TeamMatchAvailabilityInclude;
 
 export type TeamMatchAvailabilityRecord = Prisma.TeamMatchAvailabilityGetPayload<{
   include: typeof availabilityInclude;
 }>;
 
 const contextInclude = (userId: string) =>
-  Prisma.validator<Prisma.MatchTeamInclude>()({
+  ({
     match: { select: { mode: true, status: true } },
     team: {
       select: {
@@ -29,7 +33,7 @@ const contextInclude = (userId: string) =>
         memberships: { where: { userId }, select: { userId: true, role: true } },
       },
     },
-  });
+  }) satisfies Prisma.MatchTeamInclude;
 
 export class MatchAvailabilityRepository {
   findContext(matchId: string, side: TeamSide, userId: string) {

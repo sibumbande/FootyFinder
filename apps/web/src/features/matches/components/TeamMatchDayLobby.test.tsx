@@ -82,7 +82,7 @@ const match: Match = {
 describe('TeamMatchDayLobby', () => {
   it('provides dedicated availability, lineup, and chat navigation', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TeamMatchDayLobby match={match} />
       </MemoryRouter>,
     );

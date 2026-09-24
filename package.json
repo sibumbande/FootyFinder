@@ -1,15 +1,21 @@
 {
   "name": "footy-finder",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "engines": {
-    "node": ">=20",
+    "node": "^20.19 || ^22.12 || >=24",
     "npm": ">=10"
   },
+  "overrides": {
+    "deepmerge-ts": "8.0.2",
+    "mysql2": "3.24.4"
+  },
   "scripts": {
+    "postinstall": "npm run prisma:generate",
     "build:packages": "npm run build --workspace=@footy-finder/shared && npm run build --workspace=@footy-finder/api-client",
     "dev": "npm run build:packages && concurrently -n web,admin,api -c blue,magenta,green \"npm run dev --workspace=@footy-finder/web\" \"npm run dev --workspace=@footy-finder/admin\" \"npm run dev --workspace=@footy-finder/api\"",
     "dev:web": "npm run build:packages && npm run dev --workspace=@footy-finder/web",
@@ -17,12 +23,17 @@
     "dev:admin": "npm run build:packages && npm run dev --workspace=@footy-finder/admin",
     "build": "npm run build:packages && npm run build --workspace=@footy-finder/api && npm run build --workspace=@footy-finder/web && npm run build --workspace=@footy-finder/admin",
     "test": "npm run build:packages && npm run test --workspaces --if-present",
+    "test:smoke": "npm run smoke:all --workspace=@footy-finder/api",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "lint": "npm run build:packages && npm run lint --workspaces --if-present",
     "format": "prettier --write .",
     "prisma:generate": "npm run prisma:generate --workspace=@footy-finder/api",
-    "prisma:migrate": "npm run prisma:migrate --workspace=@footy-finder/api"
+    "prisma:migrate": "npm run prisma:migrate --workspace=@footy-finder/api",
+    "prisma:deploy": "npm run prisma:deploy --workspace=@footy-finder/api",
+    "prisma:status": "npm run prisma:status --workspace=@footy-finder/api",
+    "db:test:up": "docker compose -f compose.test.yml up -d --wait",
+    "db:test:down": "docker compose -f compose.test.yml down -v"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

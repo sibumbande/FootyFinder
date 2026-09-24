@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client.js';
 
 export interface AdminAuditDraft {
   actorUserId?: string;

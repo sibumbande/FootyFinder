@@ -1,4 +1,4 @@
-import { Prisma, type AccountStatus } from '@prisma/client';
+import { Prisma, type AccountStatus } from '../../generated/prisma/client.js';
 import type {
   AdminModerationReportQuery,
   AdminModerationUserQuery,

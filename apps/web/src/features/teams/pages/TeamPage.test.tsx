@@ -73,7 +73,6 @@ const renderPage = () =>
   render(
     <MemoryRouter
       initialEntries={['/teams/team-1']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Routes>
         <Route path="/teams/:teamId" element={<TeamPage />} />

@@ -1,4 +1,4 @@
-import { Prisma, type Notification } from '@prisma/client';
+import { Prisma, type Notification } from '../../generated/prisma/client.js';
 import type {
   AdminDisputeQuery,
   CreateDisputeInput,

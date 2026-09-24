@@ -97,6 +97,10 @@ npm install
 
 If the repository is already present, open a terminal at its root and run `npm install`.
 
+The install automatically generates Prisma Client. API development, build, lint, and test scripts
+also regenerate it before they run, which keeps a clean checkout and schema edits from using the
+placeholder client package.
+
 On Windows, if PowerShell blocks `npm.ps1` or `npx.ps1`, use `npm.cmd` and `npx.cmd` for the same command. This is a shell-policy issue, not an application failure.
 
 ### 3.3 Create an isolated test database
@@ -170,12 +174,14 @@ Do not reuse the example JWT secret outside local testing. The API requires a se
 From the repository root:
 
 ```bash
-npm run prisma:generate
 npm run prisma:migrate
 npm run lint
 npm test
 npm run build
 ```
+
+`npm run prisma:generate` is still available as a manual recovery/diagnostic command, but it is not
+required before the API development, build, lint, or test scripts.
 
 Record every result. The baseline audited at commit `aa03e5bad7be6fa7f7c0fc4b6bf1c14d60aa38d5` had 129 passing tests, zero failures, and zero skipped tests. A later commit may legitimately have a different count, but it must still have no unexplained failures.
 

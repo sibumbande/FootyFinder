@@ -5,7 +5,7 @@ import type {
   PlayerFieldBookingInput,
 } from '@footy-finder/shared';
 import { createDefaultFormation } from '@footy-finder/shared';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';

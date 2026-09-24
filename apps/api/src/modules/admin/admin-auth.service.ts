@@ -1,5 +1,5 @@
 import { env } from '../../config/env.js';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';

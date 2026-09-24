@@ -16,7 +16,7 @@ vi.mock('../hooks/useMatches.js', () => ({
 describe('CreateMatchPage', () => {
   it('persists match-specific capacity, rolling substitutions, and rules', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <CreateMatchPage />
       </MemoryRouter>,
     );

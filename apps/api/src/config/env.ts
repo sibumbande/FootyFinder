@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { assertDisposableDevelopmentOrTestDatabase } from '../database/test-database-safety.js';
 const optionalDate = z
   .string()
   .datetime()
@@ -36,6 +37,20 @@ export const envSchema = z
     TEAM_UPLOAD_DIR: z.string().min(1).default('uploads/teams'),
   })
   .superRefine((value, context) => {
+    if (value.ADMIN_TEST_DATA_ENABLED) {
+      try {
+        assertDisposableDevelopmentOrTestDatabase({
+          databaseUrl: value.DATABASE_URL,
+          nodeEnv: value.NODE_ENV,
+        });
+      } catch (error) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ADMIN_TEST_DATA_ENABLED'],
+          message: error instanceof Error ? error.message : 'Unsafe test-data configuration.',
+        });
+      }
+    }
     if (value.NODE_ENV !== 'production') return;
     for (const [name, url] of [
       ['CLIENT_URL', value.CLIENT_URL],

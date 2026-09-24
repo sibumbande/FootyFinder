@@ -6,7 +6,7 @@ import type {
   ManagedVenueInput,
 } from '@footy-finder/shared';
 import type { ManagedVenue } from '@footy-finder/shared';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';

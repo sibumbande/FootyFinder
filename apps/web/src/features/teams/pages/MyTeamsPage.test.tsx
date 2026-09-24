@@ -27,7 +27,7 @@ vi.mock('../hooks/useTeams.js', () => ({
 describe('MyTeamsPage', () => {
   it('renders the authenticated user Team summary and create action', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <MyTeamsPage />
       </MemoryRouter>,
     );

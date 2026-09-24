@@ -68,7 +68,6 @@ describe('TeamInvitePage', () => {
     render(
       <MemoryRouter
         initialEntries={['/teams/invite/raw-token']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <Routes>
           <Route path="/teams/invite/:token" element={<TeamInvitePage />} />

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client.js';
 import { describe, expect, it } from 'vitest';
 import { mapPrismaError } from './error-handler.js';
 

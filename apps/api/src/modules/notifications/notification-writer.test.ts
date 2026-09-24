@@ -1,4 +1,4 @@
-import type { Notification, Prisma } from '@prisma/client';
+import type { Notification, Prisma } from '../../generated/prisma/client.js';
 import { describe, expect, it, vi } from 'vitest';
 import { persistNotifications, type NotificationDraft } from './notification-writer.js';
 

@@ -1,4 +1,8 @@
-import { type Notification, type NotificationType, Prisma } from '@prisma/client';
+import {
+  type Notification,
+  type NotificationType,
+  Prisma,
+} from '../../generated/prisma/client.js';
 
 export interface NotificationDraft {
   userId: string;

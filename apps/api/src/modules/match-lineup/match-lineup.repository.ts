@@ -1,4 +1,4 @@
-import { Prisma, type Notification, type TeamSide } from '@prisma/client';
+import { Prisma, type Notification, type TeamSide } from '../../generated/prisma/client.js';
 import type {
   AssignTeamMatchStarterInput,
   LineupPlayerAction,
@@ -33,10 +33,10 @@ export class LineupIncompleteError extends Error {}
 export class LineupMemberIneligibleError extends Error {}
 export class PositionOutsideTeamHalfError extends Error {}
 
-const selectionInclude = Prisma.validator<Prisma.TeamMatchSelectionInclude>()({
+const selectionInclude = {
   user: { include: safeUserInclude },
-});
-const lineupInclude = Prisma.validator<Prisma.MatchTeamInclude>()({
+} satisfies Prisma.TeamMatchSelectionInclude;
+const lineupInclude = {
   match: {
     select: {
       id: true,
@@ -58,8 +58,8 @@ const lineupInclude = Prisma.validator<Prisma.MatchTeamInclude>()({
     orderBy: { slotIndex: 'asc' },
   },
   selections: { include: selectionInclude, orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }] },
-});
-const teamFormationInclude = Prisma.validator<Prisma.TeamFormationInclude>()({
+} satisfies Prisma.MatchTeamInclude;
+const teamFormationInclude = {
   slots: {
     include: {
       membership: {
@@ -68,7 +68,7 @@ const teamFormationInclude = Prisma.validator<Prisma.TeamFormationInclude>()({
     },
     orderBy: { slotIndex: 'asc' },
   },
-});
+} satisfies Prisma.TeamFormationInclude;
 
 export type TeamMatchLineupRecord = Prisma.MatchTeamGetPayload<{ include: typeof lineupInclude }>;
 export type TeamMatchSelectionRecord = Prisma.TeamMatchSelectionGetPayload<{
