@@ -8,7 +8,7 @@ import type {
   UpdateTeamFormationSlotInput,
   UpdateTeamInput,
 } from '@footy-finder/shared';
-import { getFormationPreset } from '@footy-finder/shared';
+import { getFormationPreset, MATCH_DURATION_MINUTES } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
@@ -18,7 +18,6 @@ import {
   MatchesRepository,
   TeamFixtureForbiddenError,
   TeamFixtureTeamNotFoundError,
-  durationForFormat,
 } from '../matches/matches.repository.js';
 import {
   LocalTeamImageStorage,
@@ -51,6 +50,7 @@ export class TeamsService {
 
   async create(input: CreateTeamInput, userId: string) {
     this.assertFormation(input.primaryFormat, input.formationKey);
+    await this.assertShortNameAvailable(input.shortName);
     return toTeamDetail(await this.teams.create(input, userId), userId);
   }
   async list(userId: string) {
@@ -62,6 +62,7 @@ export class TeamsService {
   }
   async update(id: string, input: UpdateTeamInput, userId: string) {
     await this.assertOwner(id, userId);
+    await this.assertShortNameAvailable(input.shortName, id);
     const team = toTeamDetail(await this.teams.update(id, input), userId);
     emitDomainEventBestEffort('team:details-updated', { teamId: id, team });
     return team;
@@ -80,11 +81,7 @@ export class TeamsService {
           id,
           input,
           userId,
-          durationForFormat(input.format, {
-            FIVE_A_SIDE: env.MATCH_DURATION_FIVE_A_SIDE_MINUTES,
-            SEVEN_A_SIDE: env.MATCH_DURATION_SEVEN_A_SIDE_MINUTES,
-            ELEVEN_A_SIDE: env.MATCH_DURATION_ELEVEN_A_SIDE_MINUTES,
-          }),
+          MATCH_DURATION_MINUTES,
         ),
         { viewerCanManage: true, viewerCanChat: true },
       );
@@ -243,6 +240,12 @@ export class TeamsService {
         'That formation is not valid for this format.',
         'TEAM_FORMATION_INVALID',
       );
+  }
+  private async assertShortNameAvailable(shortName?: string, excludingTeamId?: string) {
+    if (!shortName) return;
+    const existing = await this.teams.findByShortName(shortName, excludingTeamId);
+    if (existing)
+      throw new AppError(409, 'That Team short name is already in use.', 'TEAM_SHORT_NAME_TAKEN');
   }
   private async load(id: string) {
     const team = await this.teams.findById(id);

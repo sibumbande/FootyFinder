@@ -5,6 +5,11 @@ import {
   MAX_SUBSTITUTES_PER_TEAM,
 } from '../config/match-formats.js';
 import {
+  DEFAULT_QUICK_GAME_FEE_CENTS,
+  MAX_QUICK_GAME_FEE_CENTS,
+  MIN_QUICK_GAME_FEE_CENTS,
+} from '../types/wallet.js';
+import {
   MATCH_RULES,
   MATCH_VISIBILITIES,
   DISPLACED_PLAYER_ACTIONS,
@@ -64,7 +69,13 @@ export const createMatchSchema = z.object({
     .string()
     .datetime()
     .refine((value) => new Date(value).getTime() > Date.now(), 'Choose a future date and time'),
-  feeCents: z.number().int().min(0).max(1_000_000),
+  feeCents: z
+    .number()
+    .int()
+    .min(MIN_QUICK_GAME_FEE_CENTS)
+    .max(MAX_QUICK_GAME_FEE_CENTS)
+    .refine((value) => value % 100 === 0, 'Player fee must be a whole-rand amount')
+    .default(DEFAULT_QUICK_GAME_FEE_CENTS),
 });
 export const createTeamMatchSchema = createMatchSchema
   .omit({ visibility: true, feeCents: true })
@@ -119,22 +130,15 @@ export const resultInputSchema = z.object({
 });
 export const discoveryQuerySchema = z
   .object({
-    lat: z.coerce.number().min(-90).max(90).optional(),
-    lng: z.coerce.number().min(-180).max(180).optional(),
-    radiusKm: z.coerce.number().positive().max(500).default(50),
     format: z.enum(MATCH_FORMATS).optional(),
     dateFrom: z.string().datetime().optional(),
     dateTo: z.string().datetime().optional(),
-    maxPriceCents: z.coerce.number().int().min(0).optional(),
     availableOnly: z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .default('false'),
-    sort: z.enum(['nearest', 'soonest', 'lowest-price']).optional(),
   })
-  .refine((value) => (value.lat === undefined) === (value.lng === undefined), {
-    message: 'Latitude and longitude must be supplied together.',
-  });
+  .strict();
 
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 export type CreateTeamMatchInput = z.infer<typeof createTeamMatchSchema>;

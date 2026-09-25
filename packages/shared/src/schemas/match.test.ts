@@ -68,6 +68,19 @@ describe('createMatchSchema', () => {
       }),
     ).toThrow();
   });
+
+  it('defaults the Quick Game fee to R80 when omitted', () => {
+    const { feeCents: _feeCents, ...withoutFee } = validMatch;
+    expect(createMatchSchema.parse(withoutFee).feeCents).toBe(8_000);
+  });
+
+  it.each([0, 8_000, 50_000])('accepts whole-rand Quick Game fee %i cents', (feeCents) => {
+    expect(createMatchSchema.parse({ ...validMatch, feeCents }).feeCents).toBe(feeCents);
+  });
+
+  it.each([-100, 1, 8_050, 50_100])('rejects invalid Quick Game fee %i cents', (feeCents) => {
+    expect(() => createMatchSchema.parse({ ...validMatch, feeCents })).toThrow();
+  });
 });
 
 describe('createTeamMatchSchema', () => {
@@ -97,6 +110,13 @@ describe('discoveryQuerySchema', () => {
   it.each(['1', '0', 'yes', 'FALSE', true, false])('rejects coercive boolean value %s', (value) => {
     expect(() => discoveryQuerySchema.parse({ availableOnly: value })).toThrow();
   });
+
+  it.each(['maxPriceCents', 'lat', 'lng', 'radiusKm', 'sort'])(
+    'rejects removed discovery query parameter %s',
+    (key) => {
+      expect(() => discoveryQuerySchema.parse({ [key]: '1' })).toThrow();
+    },
+  );
 });
 
 describe('Team Match availability schemas', () => {

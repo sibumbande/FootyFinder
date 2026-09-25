@@ -14,6 +14,19 @@ describe('match lifecycle', () => {
     );
   });
 
+  it('preserves a derived FULL status until kickoff', () => {
+    expect(
+      getEffectiveMatchStatus(
+        {
+          status: 'FULL',
+          startsAt: new Date('2026-01-02T13:00:00.000Z'),
+          durationMinutes: 60,
+        },
+        new Date('2026-01-02T12:00:00.000Z'),
+      ),
+    ).toBe('FULL');
+  });
+
   it('keeps Team planning drafts in DRAFT even after their provisional kickoff', () => {
     expect(
       getEffectiveMatchStatus(

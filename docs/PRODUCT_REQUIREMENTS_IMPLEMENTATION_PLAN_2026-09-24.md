@@ -2,7 +2,7 @@
 
 Plan date: 2026-09-24  
 Source: `docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md`  
-Status: planning only; no feature implementation, migration, environment change, or production-data operation is included in this document.
+Status: active delivery plan. Gate 1 application changes were implemented on 2026-09-25; database migration and focused Playwright runtime verification remain pending in a disposable environment.
 
 ## 1. Goal and delivery strategy
 
@@ -23,7 +23,7 @@ The roadmap is organized as release gates. Workstreams inside a gate may proceed
 ## 2. Delivery principles
 
 1. **Preserve historical records.** Keep the existing `Venue`/match snapshots and current transactions immutable. New managed-field links or policies apply prospectively unless a separately approved backfill is safe.
-2. **Make business rules server-authoritative.** R80, 60 minutes, age restrictions, captain authority, payment status, and position claims must be enforced in the API/database path, not only by UI controls.
+2. **Make business rules server-authoritative.** The R0-R500 whole-rand Quick Game fee range (R80 default), 60-minute duration, age restrictions, captain authority, payment status, and position claims must be enforced in the API/database path, not only by UI controls.
 3. **Use additive migrations.** Do not rewrite committed migrations. Introduce nullable fields/tables, backfill where necessary, validate, then add constraints in a later migration.
 4. **Keep money movements ledger-based and idempotent.** Reuse the financial repository, transaction references, holds, and reconciliation patterns. Never update balances without a corresponding ledger transaction.
 5. **Separate personal and team money.** A booking contribution is not a team wallet. Team balances and authorization need their own aggregate and audit trail.
@@ -33,15 +33,15 @@ The roadmap is organized as release gates. Workstreams inside a gate may proceed
 9. **Ship vertical slices.** Each work package should include schema, migration, service, route, API client, UI, authorization, notifications where needed, tests, and operational notes.
 10. **Use feature flags or access gates for high-risk domains.** Real payments, team challenges, reviews, and new onboarding enforcement should be independently deployable and reversible.
 
-## 3. Product decisions required before engineering locks contracts
+## 3. Approved decisions and remaining external inputs
 
-These decisions do not prevent all planning work, but the named release gate cannot close without them.
+DEC-001 through DEC-017 are approved in `docs/PRODUCT_REQUIREMENTS_TICKET_BREAKDOWN_2026-09-24.txt`; that register is authoritative when an older recommendation below differs. The remaining blockers in this table are externally supplied facts, content, credentials, and operating ownership rather than unresolved product design.
 
 | Decision | Recommended default | Blocks |
 | --- | --- | --- |
-| R80 scope | Enforce R80 for newly created `QUICK_GAME` matches; team fixtures use a separate team-price/funding policy. Grandfather existing matches. | Gate 1 |
-| 60-minute transition | New matches use 60 minutes. Preserve completed/history; decide explicitly whether already-scheduled future matches are migrated. | Gate 1 |
-| Team short-name cleanup | Reject new values over 4 immediately; identify existing values and require owners/admins to shorten them before adding a DB constraint. | Gate 1 |
+| Quick Game fee | Approved: whole-rand R0-R500 per player, R80 creation default, snapshotted per Match; Team fixtures use their separate funding policy and historical fees remain unchanged. | Implemented in Gate 1 |
+| 60-minute transition | Approved: all new formats use 60 minutes; migrate future not-started 90-minute records with audit/notification and preserve active/history. | Implemented in Gate 1; runtime migration check pending |
+| Team short-name cleanup | Approved: uppercase alphanumeric, one to four characters, unique when supplied; deterministic meaningful remediation with audit/owner notification. | Implemented in Gate 1; runtime migration check pending |
 | Real venue facts | Confirm canonical names, addresses, coordinates, timezone, fields, supported formats, images, and effective prices for Queens Park, Cape Town City FC, and Italian Club. | Gate 3 |
 | Venue price unit | Record whether each price is per game or per hour, tax treatment, overtime, cancellation, and effective dates. | Gates 3 and 6 |
 | Slot policy | Define slot interval/granularity, booking lead time, horizon, buffers, and whether a field can expose overlapping format options. | Gate 3 |
@@ -168,13 +168,17 @@ No feature gate starts a schema-changing slice without its policy decision, data
 
 Correct low-complexity discrepancies before larger features build on inconsistent contracts.
 
+### Implementation status (2026-09-25)
+
+The application, shared contracts, tests, preflight, and migration are implemented. Prisma generation, the complete automated test suite, lint, and all workspace builds pass. Release verification still requires applying `20260925090000_gate_1_alignment` and running database smoke plus the focused Playwright return flow in the disposable PostgreSQL environment. See `docs/GATE_1_MIGRATION_RUNBOOK_2026-09-25.md`.
+
 ### Work packages
 
-#### RULE-01: Fixed quick-match fee
+#### RULE-01: Configurable bounded Quick Game fee
 
-- Centralize R80 as the server-authoritative policy for new quick matches.
-- Remove fee entry from normal match creation; display the fixed fee.
-- Reject conflicting API payloads rather than silently accepting them.
+- Enforce a server-authoritative whole-rand range of R0 through R500 for new Quick Games.
+- Keep R80 as the creation default while allowing the organiser to select another valid amount.
+- Reject fractional, negative, and above-range API payloads.
 - Keep historical match fees unchanged.
 - Update shared schemas, API client, tests, E2E fixtures, and copy.
 
@@ -183,20 +187,19 @@ Correct low-complexity discrepancies before larger features build on inconsisten
 - Change all three format defaults/policies to 60 minutes.
 - Update README/environment examples and stale tests/smoke fixtures.
 - Confirm effects on computed match end, result readiness, post-match chat, bookings, and overlap validation.
-- Apply the approved transition rule to already-scheduled future matches; do not alter completed historical matches without a specific migration decision.
+- Migrate already-scheduled, future, not-started 90-minute matches with audit and participant/organiser notifications; leave active and historical records unchanged.
 
 #### RULE-03: Discovery simplification
 
 - Remove maximum-price and Find Nearby controls from `MatchListPage`.
-- Remove or deprecate unused query parameters only after confirming no external client depends on them.
-- Retain repository capability only if deliberately kept for future use; otherwise remove dead contract surface in the same versioned change.
+- Remove maximum-price, geolocation, radius, distance-sort, and distance-response contract surface after confirming repository consumers.
 
 #### TEAM-01: Four-character short names
 
 - Change shared/API/UI validation to maximum four characters.
-- Query existing data for violations before adding a database constraint.
-- Use the approved remediation path: owner prompt, admin correction, or deterministic temporary fallback.
-- Add a database constraint only after all rows comply.
+- Provide a read-only preflight for existing violations.
+- Deterministically replace invalid or duplicate non-null values with meaningful uppercase alphanumeric codes, audit each change, and notify the Team owner.
+- Add uniqueness and format database constraints after remediation.
 
 #### UX-01: Profile reachability
 
@@ -212,13 +215,13 @@ Correct low-complexity discrepancies before larger features build on inconsisten
 
 #### MATCH-01: Status contract cleanup
 
-- Decide whether `FULL` remains a persisted status or capacity-derived state.
-- Align Prisma, shared types, mapper, repository queries, and UI semantics.
-- Avoid rewriting historical migration files.
+- Treat `FULL` as an API-only capacity-derived state, never a separately writable lifecycle state.
+- Audit and migrate legacy persisted `FULL` rows, remove it from the database enum, and align Prisma, shared types, mapper, repository queries, lifecycle code, UI, and tests.
+- Keep historical migration files unchanged; use the additive Gate 1 migration.
 
 ### Verification
 
-- API tests prove callers cannot create a new quick match at a fee other than R80 or a duration other than 60.
+- API/schema tests prove callers can create a Quick Game only with a whole-rand R0-R500 fee and a 60-minute duration; omission uses the R80 fee default.
 - Existing historical match records still display their stored fee/duration.
 - No max-price/geolocation UI is rendered.
 - Short-name boundary tests cover 4/5 characters and the DB constraint when enabled.
@@ -787,7 +790,7 @@ Authorization must be checked against current database membership/ownership, not
 
 | Layer | Purpose | Required examples |
 | --- | --- | --- |
-| Shared schema/unit | Boundary and policy behavior | R80, 60 minutes, age calculation, short name, deposit ranges, ratings 1-5 |
+| Shared schema/unit | Boundary and policy behavior | Quick Game fee range/default, 60 minutes, age calculation, short name, deposit ranges, ratings 1-5 |
 | Service unit | Business decisions and authorization | verification expiry, claim eligibility, challenge transitions, result confirmation |
 | Repository/PostgreSQL integration | Concurrency and constraints | overlapping reservations, simultaneous claims, one accepted challenger, ledger idempotency |
 | API contract | Route/auth/error/DTO compatibility | public preview privacy, wallet history, unsafe returnTo, role matrix |
@@ -806,7 +809,7 @@ Authorization must be checked against current database membership/ownership, not
 3. Registers with age/legal/city/positions/photo and verifies contact.
 4. Returns to the same match.
 5. Adds a valid flexible amount or uses seeded test funding.
-6. Joins and is debited exactly R80 once.
+6. Joins and is debited exactly the Match's snapshotted per-player fee once.
 7. Claims an empty same-side position.
 8. Second player cannot claim that occupied position.
 9. Both clients see committed formation state.
@@ -911,7 +914,7 @@ Every discrepancy from the audit is assigned to at least one work package.
 | 6.1 | RULE-03 | Maximum-price UI/contract is removed or deliberately deprecated. |
 | 6.2 | RULE-03 | Find Nearby is removed from current product UI/contract. |
 | 6.3 | VEN-02, VEN-05 | Match creation uses approved real managed venues. |
-| 6.4 | RULE-01 | New normal quick matches charge exactly R80 server-side. |
+| 6.4 | RULE-01 | New Quick Matches enforce a whole-rand R0-R500 fee server-side and default creation to R80. |
 | 7.1 | FORM-04 | Team sides are independently and accessibly distinguished. |
 | 7.2 | FORM-01, FORM-02 | Joined participant can atomically claim an eligible position. |
 | 7.3 | FORM-03, FORM-05 | Measured drag/realtime performance meets budget. |
@@ -977,11 +980,11 @@ A work package is complete only when:
 
 The first implementation increment should contain only Gate 0 plus the low-risk portions of Gate 1:
 
-1. Approve R80/60-minute/short-name transition policies and public-preview privacy.
+1. Record the approved configurable-fee, 60-minute, short-name transition, and public-preview policies.
 2. Make clean install/build/test/DB smoke execution reproducible.
 3. Fix the `returnTo` contract and add browser coverage.
 4. Add My Profile navigation.
-5. Centralize/enforce R80 and 60 minutes prospectively.
+5. Centralize/enforce the R0-R500 whole-rand Quick Game fee policy (R80 default) and 60-minute duration.
 6. Remove max-price and Find Nearby from the current experience.
 7. Enforce four-character short names after a data preflight.
 8. Resolve `FULL` status semantics.

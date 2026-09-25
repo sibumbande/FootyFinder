@@ -31,7 +31,6 @@ enum MatchStatus {
   DRAFT
   OPEN
   READY
-  FULL
   IN_PROGRESS
   AWAITING_RESULT
   COMPLETED
@@ -1073,7 +1072,7 @@ model Notification {
 model Team {
   id              String           @id @default(uuid()) @db.Uuid
   name            String
-  shortName       String?
+  shortName       String?          @unique
   description     String?
   profileImageUrl String?
   locationText    String?

@@ -9,6 +9,13 @@ const optionalText = (max: number) =>
     .max(max)
     .transform((value) => value || undefined)
     .optional();
+export const teamShortNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4)
+  .regex(/^[A-Za-z0-9]+$/, 'Use letters and numbers only')
+  .transform((value) => value.toUpperCase());
 const color = z
   .string()
   .regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex color')
@@ -16,7 +23,7 @@ const color = z
 
 export const createTeamSchema = z.object({
   name: z.string().trim().min(2).max(100),
-  shortName: optionalText(12),
+  shortName: teamShortNameSchema.optional(),
   description: optionalText(1000),
   locationText: optionalText(160),
   primaryFormat: z.enum(MATCH_FORMATS),

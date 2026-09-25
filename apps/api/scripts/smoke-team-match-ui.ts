@@ -72,7 +72,7 @@ async function main() {
       },
     },
     owner.id,
-    90,
+    60,
   );
   const side = fixture.teamSides[0]!;
   const events: Array<{ matchId: string; side: string; reason: string }> = [];

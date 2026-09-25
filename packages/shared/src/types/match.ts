@@ -5,6 +5,7 @@ export const MATCH_STATUSES = [
   'DRAFT',
   'OPEN',
   'READY',
+  'FULL',
   'IN_PROGRESS',
   'AWAITING_RESULT',
   'COMPLETED',
@@ -215,7 +216,6 @@ export interface Match {
   currency: 'ZAR';
   status: MatchStatus;
   participantCount: number;
-  distanceKm?: number;
   homeParticipantCount: number;
   awayParticipantCount: number;
   inviteToken?: string;

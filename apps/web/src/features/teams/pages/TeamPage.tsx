@@ -242,6 +242,7 @@ function Squad({ team }: { team: TeamDetail }) {
 }
 function TeamSettings({ team }: { team: TeamDetail }) {
   const [name, setName] = useState(team.name);
+  const [shortName, setShortName] = useState(team.shortName ?? '');
   const [description, setDescription] = useState(team.description ?? '');
   const [locationText, setLocation] = useState(team.locationText ?? '');
   const update = useUpdateTeam(team.id);
@@ -249,11 +250,21 @@ function TeamSettings({ team }: { team: TeamDetail }) {
   const deletion = useDeleteTeam(team.id);
   const navigate = useNavigate();
   const { notify } = useNotifications();
+  const shortNameValid = !shortName || /^[A-Z0-9]{1,4}$/.test(shortName);
   return (
     <div className="grid gap-7">
       <div className="grid gap-4">
         <h2 className="text-xl font-bold text-content-strong">Team settings</h2>
         <Input label="Team name" value={name} onChange={(event) => setName(event.target.value)} />
+        <Input
+          label="Short name"
+          value={shortName}
+          maxLength={4}
+          pattern="[A-Z0-9]{1,4}"
+          onChange={(event) => setShortName(event.target.value.toUpperCase())}
+          error={shortName && !shortNameValid ? 'Use up to four letters or numbers.' : undefined}
+          hint="Unique, uppercase, and no more than four letters or numbers."
+        />
         <Input
           label="Location"
           value={locationText}
@@ -269,9 +280,10 @@ function TeamSettings({ team }: { team: TeamDetail }) {
         </label>
         <Button
           loading={update.isPending}
+          disabled={!shortNameValid}
           onClick={() =>
             update.mutate(
-              { name, description, locationText },
+              { name, shortName: shortName || undefined, description, locationText },
               {
                 onSuccess: () =>
                   notify({

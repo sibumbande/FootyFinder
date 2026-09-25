@@ -5,7 +5,6 @@ import type {
   DiscoveryQuery,
   FormationSlotUpdateInput,
   JoinMatchInput,
-  MatchFormat,
   ResultInput,
   UpdateMatchInput,
 } from '@footy-finder/shared';
@@ -43,7 +42,7 @@ const isLobbyOpen = (
   now: Date,
 ) =>
   match.mode === 'QUICK_GAME' &&
-  ['OPEN', 'READY', 'FULL'].includes(match.status) &&
+  ['OPEN', 'READY'].includes(match.status) &&
   now < match.startsAt;
 
 export class MatchesRepository {
@@ -53,19 +52,15 @@ export class MatchesRepository {
       where: {
         mode: 'QUICK_GAME',
         visibility: 'PUBLIC',
-        status: { in: ['OPEN', 'READY', 'FULL'] },
+        status: { in: ['OPEN', 'READY'] },
         startsAt: {
           gte: query.dateFrom ? new Date(query.dateFrom) : new Date(),
           lte: query.dateTo ? new Date(query.dateTo) : undefined,
         },
         format: query.format,
-        feeCents: query.maxPriceCents === undefined ? undefined : { lte: query.maxPriceCents },
       },
       include: matchInclude,
-      orderBy:
-        query.sort === 'lowest-price'
-          ? [{ feeCents: 'asc' }, { startsAt: 'asc' }]
-          : { startsAt: 'asc' },
+      orderBy: { startsAt: 'asc' },
       take: 200,
     });
   }
@@ -724,6 +719,3 @@ export class MatchesRepository {
     });
   }
 }
-
-export const durationForFormat = (format: MatchFormat, values: Record<MatchFormat, number>) =>
-  values[format];

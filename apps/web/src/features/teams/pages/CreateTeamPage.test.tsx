@@ -25,4 +25,18 @@ describe('CreateTeamPage', () => {
     expect(screen.getByText('Footy Finder FC')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create Team' })).toBeInTheDocument();
   });
+
+  it('normalizes and limits the Team short name to four alphanumeric characters', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <CreateTeamPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const shortName = screen.getByLabelText('Short name');
+    fireEvent.change(shortName, { target: { value: 'ff24' } });
+    expect(shortName).toHaveValue('FF24');
+    expect(shortName).toHaveAttribute('maxlength', '4');
+  });
 });

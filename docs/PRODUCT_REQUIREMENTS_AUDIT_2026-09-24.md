@@ -4,6 +4,8 @@ Audit date: 2026-09-24
 Repository: `footyfinder`  
 Scope: read-only product, architecture, data-model, authorization, realtime, payment, and test audit. No product code, migration, environment file, or production data was changed.
 
+> **Post-audit Gate 1 status (2026-09-25):** This document remains the historical audit snapshot. Gate 1 application remediation is now implemented: configurable whole-rand Quick Game fees from R0-R500 with an R80 default, a 60-minute duration invariant, removal of max-price/geolocation discovery, direct My Profile navigation, four-character uppercase alphanumeric unique Team short names, and capacity-derived `FULL`. Migration `20260925090000_gate_1_alignment` handles eligible 90-minute matches, existing Team short names, and legacy stored `FULL` values. Automated tests, lint, Prisma generation, and builds pass; disposable-PostgreSQL migration/smoke and focused Playwright verification remain pending. Current status is tracked in `docs/PRODUCT_REQUIREMENTS_TICKET_BREAKDOWN_2026-09-24.txt` and the deployment procedure is in `docs/GATE_1_MIGRATION_RUNBOOK_2026-09-25.md`.
+
 ## 1. Executive summary
 
 Footy Finder is a substantial working application, but it is not yet the product described by the supplied requirements. Its strongest implemented areas are authenticated quick-match creation/joining, wallet-ledger-backed match charges and cancellation credits, team administration and saved formations, team match-day availability/lineup management, direct and match-lobby messaging, persisted realtime notifications, managed-field administration, field-booking funding holds, moderation/support/dispute tooling, session security, and automated unit/component coverage.

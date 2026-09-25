@@ -4,15 +4,15 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog only. This document does not authorize implementation of more than one ticket at a time.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 to be implemented as a single batch on 2026-09-25; that exception does not apply to later gates.
 
 
 1. HOW TO USE THIS BACKLOG
 ==========================
 
 1. Apply the approved decision record before any implementation ticket that depends on it; do not reopen policy inside an implementation ticket.
-2. Select exactly one READY ticket.
-3. Implement only that ticket, including its tests and documentation.
+2. Select exactly one READY ticket unless an explicit recorded batch exception applies.
+3. Implement only that ticket, including its tests and documentation. The completed Gate 1 batch is the sole recorded exception.
 4. Stop after verification and provide a completion report.
 5. Review/approve the result before selecting the next ticket.
 6. Do not combine tickets because they touch the same files.
@@ -293,8 +293,8 @@ Blocks resolved by policy: TKT-805 through TKT-807.
 ============================================
 
 - All DEC-001 through DEC-017 product choices are approved and have been translated into the dependent ticket scopes below.
-- Immediate Gate 0 closeout is runtime verification of the already-implemented TKT-002 and TKT-003; do not reimplement them unless verification exposes a defect. TKT-005 is the next READY implementation ticket and TKT-006 follows it.
-- Before starting new Gate 1 work, execute the already-authored TKT-101 focused browser flow in its disposable database/CI environment. Once verified, TKT-102 is the first new Gate 1 implementation ticket.
+- Immediate Gate 0 closeout is runtime verification of the already-implemented TKT-002 and TKT-003; do not reimplement them unless verification exposes a defect. TKT-005 is verified and TKT-006 is the next READY Gate 0 ticket.
+- Gate 1 application work was implemented as one approved batch on 2026-09-25. Unit/component tests, lint, Prisma generation, and all workspace builds pass. TKT-104, TKT-108, and TKT-109 still require the committed migration to be exercised against a disposable PostgreSQL database; TKT-101 still requires its focused Playwright flow there. Do not call Gate 1 release-verified until those checks pass.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
@@ -402,7 +402,7 @@ Target/exception expiry: 2026-10-24
 Source: docs/DEPENDENCY_SECURITY_TRIAGE_2026-09-24.md
 
 TKT-005 - Document match state machines and authorization matrix
-Status: READY - REQUIRED PRODUCT POLICIES APPROVED (2026-09-24)
+Status: VERIFIED - CURRENT AND APPROVED TARGET CONTRACTS DOCUMENTED (2026-09-25)
 Depends on: DEC-001, DEC-002, DEC-013, DEC-015, DEC-016
 Risk: Medium
 Scope:
@@ -414,7 +414,7 @@ Verify: Review against routes/services in the audit.
 Not in scope: code changes.
 
 TKT-006 - Define stable errors and observability events
-Status: READY AFTER TKT-005 (2026-09-24)
+Status: READY (2026-09-25)
 Depends on: TKT-005
 Risk: Low
 Scope:
@@ -427,6 +427,8 @@ Not in scope: implementing every event.
 
 5. GATE 1 - ALIGN CURRENT BEHAVIOR
 =================================
+
+Implementation summary (2026-09-25): TKT-102, TKT-103, TKT-105, TKT-106, and TKT-107 are verified by automated tests. TKT-104, TKT-108, and TKT-109 are implemented with migration `20260925090000_gate_1_alignment` and the runbook `docs/GATE_1_MIGRATION_RUNBOOK_2026-09-25.md`, but require disposable-database execution before release verification. TKT-101 remains code-verified with its focused Playwright scenario pending that same runtime environment.
 
 TKT-101 - Standardize safe authentication returnTo behavior
 Status: IMPLEMENTED - UNIT/ROUTE TESTS VERIFIED; FOCUSED PLAYWRIGHT RETURN FLOW ADDED FOR CI/DISPOSABLE DB (2026-09-24)
@@ -447,6 +449,7 @@ Implementation record:
 Not in scope: public anonymous match preview.
 
 TKT-102 - Add direct My Profile navigation
+Status: VERIFIED - ACCOUNT MENU ROUTE AND COMPONENT TEST PASS (2026-09-25)
 Depends on: none
 Risk: Low
 Scope: Add My Profile to the authenticated header/avatar account menu using the authenticated user ID; keep Matches and Teams as primary navigation.
@@ -455,6 +458,7 @@ Tests: navigation/render test and existing API authorization regression.
 Not in scope: new profile fields/statistics.
 
 TKT-103 - Implement configurable Quick Game per-player fees
+Status: VERIFIED - R0-R500 WHOLE-RAND POLICY, R80 DEFAULT, AND BOUNDARY TESTS PASS (2026-09-25)
 Depends on: DEC-001
 Risk: Medium
 Scope:
@@ -470,6 +474,7 @@ Tests: schema, API/service, create-page, join/debit, cancellation-credit tests.
 Not in scope: team-match payment, provider integration, or managed-venue guarantee/fair-share logic; TKT-306 completes the latter once a venue price and paid capacity exist.
 
 TKT-104 - Standardize scheduled matches on a 60-minute duration
+Status: IMPLEMENTED - UNIT/BUILD VERIFIED; DATABASE MIGRATION RUNTIME VERIFICATION PENDING (2026-09-25)
 Depends on: DEC-002
 Risk: Medium
 Scope:
@@ -482,6 +487,7 @@ Tests: env, lifecycle, match creation, migration fixtures/idempotency, notificat
 Not in scope: changing unrelated minute/millisecond constants.
 
 TKT-105 - Remove maximum-price discovery behavior
+Status: VERIFIED - UI AND STRICT QUERY CONTRACT REMOVED; COMPONENT/SCHEMA TESTS PASS (2026-09-25)
 Depends on: none
 Risk: Low
 Scope:
@@ -492,6 +498,7 @@ Tests: match-list component/query contract.
 Not in scope: venue price display.
 
 TKT-106 - Remove Find Nearby behavior
+Status: VERIFIED - GEOLOCATION UI/CALLS AND QUERY CONTRACT REMOVED; TESTS PASS (2026-09-25)
 Depends on: none
 Risk: Low
 Scope:
@@ -502,6 +509,7 @@ Tests: match-list component/query contract.
 Not in scope: venue address/coordinate storage.
 
 TKT-107 - Enforce four-character team short names in application layers
+Status: VERIFIED - UPPERCASE ALPHANUMERIC 1-4 POLICY, PREFLIGHT, AND TESTS PASS (2026-09-25)
 Depends on: DEC-003
 Risk: Low
 Scope:
@@ -512,6 +520,7 @@ Tests: 4/5 character schema/API/UI boundaries.
 Not in scope: automatic data changes or DB constraint.
 
 TKT-108 - Remediate existing short names and add DB constraint
+Status: IMPLEMENTED - MIGRATION/RUNBOOK COMMITTED; DATABASE RUNTIME VERIFICATION PENDING (2026-09-25)
 Depends on: TKT-107, DEC-003
 Risk: Medium
 Scope:
@@ -523,6 +532,7 @@ Tests: migration against production-shaped fixtures and rollback/forward-fix not
 Not in scope: silent truncation.
 
 TKT-109 - Align FULL match status semantics
+Status: IMPLEMENTED - DERIVED API STATE VERIFIED; DATABASE ENUM MIGRATION RUNTIME VERIFICATION PENDING (2026-09-25)
 Depends on: TKT-005
 Risk: Medium
 Scope:
@@ -1263,7 +1273,7 @@ Not in scope: inferring unsupported historical facts.
 14. DEPENDENCY-AWARE EXECUTION ORDER
 ====================================
 
-Within each sequence, select only the first unverified ticket whose explicit dependencies and external inputs are satisfied. After Gate 1, independent streams may proceed in parallel; a blocked stream does not authorize skipping dependencies inside that stream.
+Within each sequence, select only the first unverified ticket whose explicit dependencies and external inputs are satisfied. Gate 1 was implemented under the recorded 2026-09-25 batch exception, but its database/Playwright runtime checks remain required. After Gate 1, independent streams may proceed in parallel; a blocked stream does not authorize skipping dependencies inside that stream.
 
 Foundation sequence:
 

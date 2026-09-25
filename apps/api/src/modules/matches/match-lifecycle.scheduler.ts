@@ -18,7 +18,7 @@ export async function runMatchLifecycleTick(
   const starting = await prisma.match.findMany({
     where: {
       mode: 'QUICK_GAME',
-      status: { in: ['OPEN', 'READY', 'FULL'] },
+      status: { in: ['OPEN', 'READY'] },
       startsAt: { lte: now },
     },
     select: { id: true },
@@ -52,7 +52,7 @@ export async function transitionMatchToStarted(
 ) {
   const result = await serializableTransaction(async (tx) => {
     const transition = await tx.match.updateMany({
-      where: { id: matchId, status: { in: ['OPEN', 'READY', 'FULL'] } },
+      where: { id: matchId, status: { in: ['OPEN', 'READY'] } },
       data: { status: 'IN_PROGRESS' },
     });
     if (transition.count !== 1) return null;

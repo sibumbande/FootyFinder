@@ -55,9 +55,6 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
    ADMIN_MFA_MAX_AGE_MINUTES=720
    PUBLIC_API_URL=http://localhost:3000
    TEAM_UPLOAD_DIR=uploads/teams
-   MATCH_DURATION_FIVE_A_SIDE_MINUTES=90
-   MATCH_DURATION_SEVEN_A_SIDE_MINUTES=90
-   MATCH_DURATION_ELEVEN_A_SIDE_MINUTES=90
    POST_MATCH_CHAT_DURATION_MINUTES=25
    ```
 
@@ -68,6 +65,8 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
    ```bash
    npm run prisma:migrate
    ```
+
+   All newly created 5-, 7-, and 11-a-side matches use the server-authoritative 60-minute product duration; it is intentionally not environment-configurable.
 
    `npm run prisma:generate` remains available as an explicit recovery command after editing the
    Prisma schema or when diagnosing generated-client issues.
@@ -104,7 +103,7 @@ Authentication is stored in an HTTP-only same-site JWT cookie bound to a persist
 
 The create wizard supports public or invitation-only 5-a-side, 7-a-side, and 11-a-side matches. Starter counts and default formation coordinates are centralized in `packages/shared/src/config`; each Match persists its own 0–10 substitute capacity per Team, rolling-substitution setting, and typed informational rules. Existing and unspecified Matches use five substitutes per Team.
 
-Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, price, availability, distance, and sorting filters; private matches are excluded and require their secure invitation token. Quick Match invitation tokens are stored only as SHA-256 digests; a plaintext link is delivered once when the Match is created or the host rotates it.
+Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, and availability filters; private matches are excluded and require their secure invitation token. Quick Match invitation tokens are stored only as SHA-256 digests; a plaintext link is delivered once when the Match is created or the host rotates it.
 
 The host can ready or cancel the match, move participants between teams, assign or swap formation slots, and reposition pitch markers. Players may switch teams only from the reserves while capacity remains. The responsive lobby provides a pitch, reserves, participant list, timer, persisted chat, and result form.
 

@@ -44,6 +44,7 @@ describe('CreateMatchPage', () => {
 
     expect(mocks.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
+        feeCents: 8_000,
         substituteCapacityPerTeam: 10,
         rollingSubstitutes: true,
         rules: ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'],

@@ -83,13 +83,13 @@ async function main() {
     team.id,
     fixtureInput('owner-fixture'),
     owner.id,
-    90,
+    60,
   );
   const captainFixture = await matches.createTeamFixture(
     team.id,
     fixtureInput('captain-fixture', new Date(Date.now() - 86_400_000)),
     captain.id,
-    90,
+    60,
   );
 
   for (const blockedUserId of [member.id, outsider.id]) {
@@ -99,7 +99,7 @@ async function main() {
         team.id,
         fixtureInput(`blocked-${blockedUserId}`),
         blockedUserId,
-        90,
+        60,
       );
     } catch (error) {
       forbidden = error instanceof TeamFixtureForbiddenError;

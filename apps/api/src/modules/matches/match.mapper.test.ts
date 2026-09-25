@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest';
+import type { MatchRecord } from './match.query.js';
+import { toMatch } from './match.mapper.js';
+
+const now = new Date('2026-09-25T10:00:00.000Z');
+const user = (id: string) => ({
+  id,
+  email: `${id}@private.invalid`,
+  username: id,
+  passwordHash: 'private',
+  createdAt: now,
+  updatedAt: now,
+  profile: null,
+  walletAccount: null,
+  teamMemberships: [],
+});
+const record = (participantCount: number) =>
+  ({
+    id: '11111111-1111-4111-8111-111111111111',
+    name: 'Capacity test',
+    description: null,
+    createdById: 'host',
+    venueId: 'venue',
+    mode: 'QUICK_GAME',
+    format: 'FIVE_A_SIDE',
+    substituteCapacityPerTeam: 0,
+    rollingSubstitutes: false,
+    rules: [],
+    visibility: 'PUBLIC',
+    inviteToken: null,
+    inviteTokenHash: null,
+    startsAt: new Date('2099-01-01T18:00:00.000Z'),
+    durationMinutes: 60,
+    feeCents: 8_000,
+    currency: 'ZAR',
+    status: 'OPEN',
+    cancelledAt: null,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: user('host'),
+    venue: {
+      id: 'venue',
+      name: 'Test venue',
+      addressLine1: '1 Test Road',
+      addressLine2: null,
+      locality: null,
+      city: 'Cape Town',
+      region: 'Western Cape',
+      postalCode: null,
+      countryCode: 'ZA',
+      latitude: null,
+      longitude: null,
+      externalPlaceId: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    participants: Array.from({ length: participantCount }, (_, index) => ({
+      id: `participant-${index}`,
+      matchId: '11111111-1111-4111-8111-111111111111',
+      userId: `user-${index}`,
+      status: 'JOINED',
+      team: index % 2 ? 'AWAY' : 'HOME',
+      joinedAt: now,
+      leftAt: null,
+      user: user(`user-${index}`),
+    })),
+    formationSlots: [],
+    result: null,
+    teamSides: [],
+  }) as unknown as MatchRecord;
+
+describe('match mapper capacity status', () => {
+  it('derives FULL when confirmed participants reach paid capacity', () => {
+    expect(toMatch(record(10)).status).toBe('FULL');
+  });
+
+  it('reopens the DTO when a confirmed place is released', () => {
+    expect(toMatch(record(9)).status).toBe('OPEN');
+  });
+});

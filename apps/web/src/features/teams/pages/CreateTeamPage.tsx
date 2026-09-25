@@ -46,7 +46,9 @@ export function CreateTeamPage() {
     primaryColor,
     secondaryColor,
   };
-  const identityValid = name.trim().length >= 2 && (!image || image.size <= 5 * 1024 * 1024);
+  const shortNameValid = !shortName || /^[A-Z0-9]{1,4}$/.test(shortName);
+  const identityValid =
+    name.trim().length >= 2 && shortNameValid && (!image || image.size <= 5 * 1024 * 1024);
   const submit = () => {
     const parsed = createTeamSchema.safeParse(draft);
     if (!parsed.success) return;
@@ -92,9 +94,12 @@ export function CreateTeamPage() {
               <Input
                 label="Short name"
                 value={shortName}
-                maxLength={12}
-                onChange={(event) => setShortName(event.target.value)}
+                maxLength={4}
+                pattern="[A-Z0-9]{1,4}"
+                onChange={(event) => setShortName(event.target.value.toUpperCase())}
                 placeholder="FFC"
+                error={shortName && !shortNameValid ? 'Use up to four letters or numbers.' : undefined}
+                hint="Unique, uppercase, and no more than four letters or numbers."
               />
               <label className="grid gap-2 text-sm font-semibold text-content">
                 Description

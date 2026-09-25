@@ -11,10 +11,10 @@ import {
   canChangeLobby,
   getCancellationCreditCents,
   getEffectiveMatchStatus,
-  getMaxMatchParticipants,
+  isMatchAtCapacity,
+  MATCH_DURATION_MINUTES,
   getMaxParticipantsPerTeam,
 } from '@footy-finder/shared';
-import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -29,19 +29,6 @@ import {
   TeamMatchPlanningError,
 } from './matches.repository.js';
 
-const durations = {
-  FIVE_A_SIDE: env.MATCH_DURATION_FIVE_A_SIDE_MINUTES,
-  SEVEN_A_SIDE: env.MATCH_DURATION_SEVEN_A_SIDE_MINUTES,
-  ELEVEN_A_SIDE: env.MATCH_DURATION_ELEVEN_A_SIDE_MINUTES,
-} as const;
-const distanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-  const rad = Math.PI / 180;
-  const a =
-    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
-    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
 export class MatchesService {
   constructor(
     private readonly matches = new MatchesRepository(),
@@ -49,31 +36,17 @@ export class MatchesService {
   ) {}
 
   async list(query: DiscoveryQuery) {
-    let matches = (await this.matches.listPublic(query)).map((match) => ({
-      match: toMatch(match),
-      distance:
-        query.lat !== undefined && match.venue.latitude !== null
-          ? distanceKm(
-              query.lat,
-              query.lng!,
-              Number(match.venue.latitude),
-              Number(match.venue.longitude),
-            )
-          : undefined,
-    }));
-    if (query.lat !== undefined)
-      matches = matches.filter(
-        ({ distance }) => distance !== undefined && distance <= query.radiusKm,
-      );
+    let matches = (await this.matches.listPublic(query)).map((match) => toMatch(match));
     if (query.availableOnly)
       matches = matches.filter(
-        ({ match }) =>
-          match.participantCount <
-          getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam),
+        (match) =>
+          !isMatchAtCapacity(
+            match.format,
+            match.substituteCapacityPerTeam,
+            match.participantCount,
+          ),
       );
-    if ((query.sort ?? (query.lat === undefined ? 'soonest' : 'nearest')) === 'nearest')
-      matches.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-    return matches.map(({ match, distance }) => ({ ...match, distanceKm: distance }));
+    return matches;
   }
   async get(id: string, userId: string) {
     const match = await this.load(id);
@@ -115,7 +88,7 @@ export class MatchesService {
       await this.matches.create(
         input,
         userId,
-        durations[input.format],
+        MATCH_DURATION_MINUTES,
         inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
       ),
       {
@@ -318,7 +291,7 @@ export class MatchesService {
     const match = await this.assertManager(id, userId);
     if (
       getEffectiveMatchStatus({
-        status: match.status === 'FULL' ? 'OPEN' : match.status,
+        status: match.status,
         startsAt: match.startsAt,
         durationMinutes: match.durationMinutes,
       }) !== 'AWAITING_RESULT'
@@ -385,7 +358,7 @@ export class MatchesService {
     if (
       !match ||
       !canChangeLobby({
-        status: match.status === 'FULL' ? 'OPEN' : match.status,
+        status: match.status,
         startsAt: match.startsAt,
         durationMinutes: match.durationMinutes,
       })

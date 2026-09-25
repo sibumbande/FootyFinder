@@ -1,11 +1,13 @@
 import {
   DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+  DEFAULT_QUICK_GAME_FEE_CENTS,
   getMaxMatchParticipants,
   MATCH_FORMAT_CONFIG,
   MATCH_FORMATS,
   MATCH_RULE_CONFIG,
   MATCH_RULES,
   MAX_SUBSTITUTES_PER_TEAM,
+  MAX_QUICK_GAME_FEE_CENTS,
   type MatchFormat,
   type MatchRule,
   type MatchVisibility,
@@ -41,18 +43,24 @@ export function CreateMatchPage() {
   const [fieldId, setFieldId] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [feeRands, setFeeRands] = useState('80');
+  const [feeRands, setFeeRands] = useState(String(DEFAULT_QUICK_GAME_FEE_CENTS / 100));
   const navigate = useNavigate();
   const creation = useCreateMatch();
   const field = useMemo(() => AVAILABLE_FIELDS.find((item) => item.id === fieldId), [fieldId]);
   const config = MATCH_FORMAT_CONFIG[format];
+  const feeValue = Number(feeRands);
+  const feeIsValid =
+    feeRands.trim() !== '' &&
+    Number.isInteger(feeValue) &&
+    feeValue >= 0 &&
+    feeValue <= MAX_QUICK_GAME_FEE_CENTS / 100;
   const valid = [
     true,
     substituteCapacityPerTeam >= 0 && substituteCapacityPerTeam <= MAX_SUBSTITUTES_PER_TEAM,
     true,
     name.trim().length >= 3,
     Boolean(field),
-    Boolean(date && time && Number(feeRands) >= 0),
+    Boolean(date && time && feeIsValid),
     true,
   ][step];
   const submit = () => {
@@ -67,7 +75,7 @@ export function CreateMatchPage() {
         rules,
         visibility,
         startsAt: new Date(`${date}T${time}:00`).toISOString(),
-        feeCents: Math.round(Number(feeRands) * 100),
+        feeCents: feeValue * 100,
         venue: {
           name: field.name,
           addressLine1: field.address,
@@ -259,7 +267,7 @@ export function CreateMatchPage() {
         {step === 5 && (
           <Step
             title="Schedule and player fee"
-            detail="The saved duration is configured by format. Players pay only when they join a team."
+            detail="Every match lasts 60 minutes. Players pay only when they join a team."
           >
             <Input
               label="Match date"
@@ -282,10 +290,16 @@ export function CreateMatchPage() {
               label="Entry fee (rands)"
               type="number"
               min="0"
+              max={MAX_QUICK_GAME_FEE_CENTS / 100}
               step="1"
               value={feeRands}
               onChange={(event) => setFeeRands(event.target.value)}
-              hint="Set this to R0 for a free match."
+              error={
+                feeRands.length > 0 && !feeIsValid
+                  ? 'Use a whole-rand amount from R0 to R500.'
+                  : undefined
+              }
+              hint="Choose a whole-rand amount from R0 to R500. The default is R80."
             />
           </Step>
         )}

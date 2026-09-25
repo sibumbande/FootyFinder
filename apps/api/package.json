@@ -11,6 +11,7 @@
     "start": "node dist/server.js",
     "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "wallet:reconcile": "tsx scripts/reconcile-wallets.ts",
+    "gate1:preflight": "tsx scripts/check-gate1-data.ts",
     "pretest": "prisma generate",
     "test": "vitest run --configLoader runner",
     "smoke:api-contract": "tsc scripts/smoke-api-contract.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-api-contract.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-api-contract.mjs && cross-env NODE_ENV=test node dist/smoke-api-contract.mjs",

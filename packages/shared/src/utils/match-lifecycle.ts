@@ -15,11 +15,12 @@ export function getEffectiveMatchStatus(match: LifecycleSource, now = new Date()
   if (match.status === 'DRAFT') return 'DRAFT';
   if (now >= getMatchEndsAt(match)) return 'AWAITING_RESULT';
   if (now >= new Date(match.startsAt)) return 'IN_PROGRESS';
+  if (match.status === 'FULL') return 'FULL';
   return match.status === 'READY' ? 'READY' : 'OPEN';
 }
 
 export const canChangeLobby = (match: LifecycleSource, now = new Date()) =>
-  ['DRAFT', 'OPEN', 'READY'].includes(getEffectiveMatchStatus(match, now));
+  ['DRAFT', 'OPEN', 'READY', 'FULL'].includes(getEffectiveMatchStatus(match, now));
 
 export const CANCELLATION_CUTOFF_HOURS = 12;
 

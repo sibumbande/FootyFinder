@@ -155,9 +155,6 @@ JWT_EXPIRES_IN_SECONDS=604800
 CLIENT_URL=http://localhost:5173
 PUBLIC_API_URL=http://localhost:3000
 TEAM_UPLOAD_DIR=uploads/teams
-MATCH_DURATION_FIVE_A_SIDE_MINUTES=90
-MATCH_DURATION_SEVEN_A_SIDE_MINUTES=90
-MATCH_DURATION_ELEVEN_A_SIDE_MINUTES=90
 POST_MATCH_CHAT_DURATION_MINUTES=25
 ```
 
@@ -580,7 +577,7 @@ Create or step through three Matches, covering 5v5, 7v7, and 11v11. Across them 
 
 ### QCK-002 — Visibility, details, venues, kickoff, and fee
 
-1. Create the main public Quick Match with a unique name, description, a future date at least two days away, and R80 fee.
+1. Create the main public Quick Match with a unique name, description, a future date at least two days away, and the default R80 fee. Also confirm R0 and R500 are accepted while fractional rand, negative, and above-R500 values are rejected.
 2. Select one of the three dummy venues.
 3. Confirm the Review page and submit.
 4. Create a second invitation-only Match using another venue and R0 fee.
@@ -593,7 +590,7 @@ Create or step through three Matches, covering 5v5, 7v7, and 11v11. Across them 
 
 1. Open Matches and find the public Match.
 2. Confirm the private Match is absent.
-3. Exercise format, date, price, availability, distance, and sort controls with values that include and exclude the public Match.
+3. Exercise format, date, and availability controls with values that include and exclude the public Match. Confirm no maximum-price, distance, sort-by-distance, or Find Nearby control is present and the browser does not request geolocation.
 4. Clear every filter.
 
 **Expected:** Public Matches respond correctly to filters/sort and open the right lobby. Private Matches never appear. Clearing a filter restores otherwise eligible Matches.
@@ -631,13 +628,13 @@ Invoke-RestMethod -Uri "$qaApi/matches/$quickMatchId" -Method Patch -WebSession 
 
 ### QLB-001 — Join HOME/AWAY and participant visibility
 
-**Precondition:** Main public R80 Match exists; Captain and Members A/B each have funds.
+**Precondition:** Main public Match exists; Captain and Members A/B each have funds for its snapshotted fee.
 
 1. Join Captain to HOME, Member A to AWAY, and Member B to HOME.
 2. Watch all open lobby sessions during each join.
 3. Reload and open the Players tab on mobile width.
 
-**Expected:** Each join deducts exactly R80 once and creates one participant on the selected side. Counts, capacity, reserves, and player cards update and persist. Player names link to privacy-safe profiles. Host remains separate unless they explicitly join.
+**Expected:** Each join deducts exactly the Match's snapshotted fee once and creates one participant on the selected side. Counts, capacity, reserves, and player cards update and persist. Player names link to privacy-safe profiles. Host remains separate unless they explicitly join.
 
 ### QLB-002 — Team switching and role boundaries
 
@@ -746,7 +743,7 @@ Use a low-capacity 5v5 Match with zero substitutes if enough disposable accounts
 2. Wait for the scheduler after kickoff.
 3. Wait for the configured Match duration to end.
 
-**Expected:** Only a Quick Match progresses automatically from `OPEN`, `READY`, or `FULL` to `IN_PROGRESS`, then `AWAITING_RESULT`. Team `DRAFT` fixtures never progress. Start/end notifications are persisted and sent to intended participants. Allow one scheduler interval before declaring a failure.
+**Expected:** Only a Quick Match progresses automatically from stored `OPEN` or `READY` to `IN_PROGRESS`, then `AWAITING_RESULT`. `FULL` may be exposed by the API before kickoff when capacity is occupied but is never stored. Team `DRAFT` fixtures never progress. Start/end notifications are persisted and sent to intended participants. Allow one scheduler interval before declaring a failure.
 
 ### QLB-013 — Result and scorers
 
@@ -1137,7 +1134,7 @@ UPDATE "Match"
 SET "startsAt" = NOW() + INTERVAL '11 hours'
 WHERE id = '<quick-match-uuid>'
   AND mode = 'QUICK_GAME'
-  AND status IN ('OPEN', 'READY', 'FULL');
+  AND status IN ('OPEN', 'READY');
 ```
 
 To observe `IN_PROGRESS` followed by `AWAITING_RESULT`, set kickoff ten seconds in the past and duration to one minute:

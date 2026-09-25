@@ -77,6 +77,12 @@ export class TeamsRepository {
   findById(id: string) {
     return prisma.team.findUnique({ where: { id }, include: teamInclude });
   }
+  findByShortName(shortName: string, excludingTeamId?: string) {
+    return prisma.team.findFirst({
+      where: { shortName, id: excludingTeamId ? { not: excludingTeamId } : undefined },
+      select: { id: true },
+    });
+  }
   findMembership(teamId: string, userId: string) {
     return prisma.teamMembership.findUnique({
       where: { teamId_userId: { teamId, userId } },

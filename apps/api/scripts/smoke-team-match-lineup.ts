@@ -115,7 +115,7 @@ async function main() {
       team.id,
       fixtureInput(`capacity-${capacity}`, format, capacity),
       owner.id,
-      90,
+      60,
     );
     const lineup = await lineups.get(fixture.id, 'HOME', owner.id);
     assert(
@@ -138,7 +138,7 @@ async function main() {
     team.id,
     fixtureInput('operations', 'FIVE_A_SIDE', 5),
     owner.id,
-    90,
+    60,
   );
   let lineup = await lineups.get(fixture.id, 'HOME', owner.id);
   assert(lineup.slots.length === 5, '5v5 lineup did not initialize five slots.');
@@ -328,7 +328,7 @@ async function main() {
     team.id,
     fixtureInput('legacy-backfill', 'SEVEN_A_SIDE', 5),
     owner.id,
-    90,
+    60,
   );
   const legacySideId = legacy.teamSides[0]!.id;
   await prisma.teamMatchLineupSlot.deleteMany({ where: { matchTeamId: legacySideId } });
@@ -356,7 +356,7 @@ async function main() {
   const quick = await matches.create(
     { ...fixtureInput('quick', 'FIVE_A_SIDE', 5), visibility: 'PUBLIC', feeCents: 0 },
     outsider.id,
-    90,
+    60,
   );
   await expectCode(() => lineups.get(quick.id, 'HOME', outsider.id), 'TEAM_MATCH_SIDE_NOT_FOUND');
   assert((await balances(userIds)) === balancesBefore, 'Lineup operations mutated a wallet.');

@@ -81,6 +81,14 @@ export function UserMenu() {
           </nav>
           <Link
             role="menuitem"
+            to={`/players/${user.id}`}
+            onClick={() => setOpen(false)}
+            className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"
+          >
+            My Profile
+          </Link>
+          <Link
+            role="menuitem"
             to="/support"
             onClick={() => setOpen(false)}
             className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"

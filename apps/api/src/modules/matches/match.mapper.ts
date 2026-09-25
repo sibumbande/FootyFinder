@@ -1,5 +1,5 @@
 import type { FormationSlot, Match, MatchParticipant, MatchStatus } from '@footy-finder/shared';
-import { getEffectiveMatchStatus, getMatchEndsAt } from '@footy-finder/shared';
+import { getEffectiveMatchStatus, getMatchEndsAt, isMatchAtCapacity } from '@footy-finder/shared';
 import { toPublicUser } from '../users/user.mapper.js';
 import type { MatchRecord, ParticipantRecord } from './match.query.js';
 
@@ -35,12 +35,20 @@ export function toMatch(
     viewerCanChat?: boolean;
   } = {},
 ): Match {
-  const storedStatus = (match.status === 'FULL' ? 'OPEN' : match.status) as MatchStatus;
-  const status = getEffectiveMatchStatus({
-    status: storedStatus,
+  const lifecycleStatus = getEffectiveMatchStatus({
+    status: match.status as MatchStatus,
     startsAt: match.startsAt,
     durationMinutes: match.durationMinutes,
   });
+  const status =
+    ['OPEN', 'READY'].includes(lifecycleStatus) &&
+    isMatchAtCapacity(
+      match.format,
+      match.substituteCapacityPerTeam,
+      match.participants.length,
+    )
+      ? ('FULL' as const)
+      : lifecycleStatus;
   return {
     id: match.id,
     name: match.name,

@@ -154,7 +154,7 @@ describe('TeamsService', () => {
       teamSides: [{ side: 'HOME', teamId: 'team-1' }],
       viewerCanManage: true,
     });
-    expect(matches.createTeamFixture).toHaveBeenCalledWith('team-1', input, 'owner', 90);
+    expect(matches.createTeamFixture).toHaveBeenCalledWith('team-1', input, 'owner', 60);
     expect(Object.keys(matches)).not.toContain('wallet');
   });
 
@@ -211,6 +211,27 @@ describe('TeamsService', () => {
     });
     expect(repository.create).toHaveBeenCalledWith(input, 'owner');
     expect(Object.keys(repository)).not.toContain('wallet');
+  });
+
+  it('rejects a duplicate Team short name before persistence', async () => {
+    const repository = {
+      findByShortName: vi.fn().mockResolvedValue({ id: 'existing-team' }),
+      create: vi.fn(),
+    } as unknown as TeamsRepository;
+    const service = new TeamsService(repository, notifications, images);
+
+    await expect(
+      service.create(
+        {
+          name: 'Another Team',
+          shortName: 'TFC',
+          primaryFormat: 'FIVE_A_SIDE',
+          formationKey: getDefaultFormationKey('FIVE_A_SIDE'),
+        },
+        'owner',
+      ),
+    ).rejects.toMatchObject({ statusCode: 409, code: 'TEAM_SHORT_NAME_TAKEN' });
+    expect(repository.create).not.toHaveBeenCalled();
   });
 
   it.each([

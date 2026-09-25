@@ -33,9 +33,6 @@ export function MatchCard({ match }: { match: Match }) {
         <span className="font-bold text-content-strong">
           {match.feeCents === 0 ? 'Free' : formatCurrency(match.feeCents, match.currency)}
         </span>
-        {match.distanceKm !== undefined && (
-          <span className="text-content-muted">{match.distanceKm.toFixed(1)} km away</span>
-        )}
       </div>
       <div className="mt-auto pt-5">
         <Link className="button w-full" to={`/matches/${match.id}`}>

@@ -10,6 +10,7 @@ export interface MatchFormatConfig {
 
 export const DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM = 5;
 export const MAX_SUBSTITUTES_PER_TEAM = 10;
+export const MATCH_DURATION_MINUTES = 60;
 
 export const MATCH_FORMAT_CONFIG: Record<MatchFormat, MatchFormatConfig> = {
   FIVE_A_SIDE: {
@@ -46,3 +47,9 @@ export const getMaxMatchParticipants = (
   format: MatchFormat,
   substituteCapacityPerTeam = DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
 ) => getMaxParticipantsPerTeam(format, substituteCapacityPerTeam) * 2;
+
+export const isMatchAtCapacity = (
+  format: MatchFormat,
+  substituteCapacityPerTeam: number,
+  participantCount: number,
+) => participantCount >= getMaxMatchParticipants(format, substituteCapacityPerTeam);

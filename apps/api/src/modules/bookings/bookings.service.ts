@@ -4,7 +4,7 @@ import type {
   ManagedMatchBookingInput,
   PlayerFieldBookingInput,
 } from '@footy-finder/shared';
-import { createDefaultFormation } from '@footy-finder/shared';
+import { createDefaultFormation, MATCH_DURATION_MINUTES } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
@@ -20,11 +20,6 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { toPublicUser } from '../users/user.mapper.js';
 import { FinancialInsufficientFundsError, FinancialRepository } from '../wallet/financial.repository.js';
 
-const durations = {
-  FIVE_A_SIDE: env.MATCH_DURATION_FIVE_A_SIDE_MINUTES,
-  SEVEN_A_SIDE: env.MATCH_DURATION_SEVEN_A_SIDE_MINUTES,
-  ELEVEN_A_SIDE: env.MATCH_DURATION_ELEVEN_A_SIDE_MINUTES,
-} as const;
 const bookingInclude = {
   match: { include: matchInclude },
   obligations: {
@@ -89,7 +84,7 @@ export class BookingsService {
   }
 
   private async fieldContext(tx: Prisma.TransactionClient, fieldId: string, format: ManagedMatchBookingInput['format'], startsAt: Date) {
-    const endsAt = new Date(startsAt.getTime() + durations[format] * 60_000);
+    const endsAt = new Date(startsAt.getTime() + MATCH_DURATION_MINUTES * 60_000);
     const field = await tx.managedField.findUnique({
       where: { id: fieldId },
       include: { venue: true, supportedFormats: true, availabilityPeriods: true, exceptions: { where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }, prices: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] } } },
@@ -117,7 +112,7 @@ export class BookingsService {
           name: input.name, description: input.description, createdBy: { connect: { id: actorUserId } },
           mode: 'QUICK_GAME', format: input.format, substituteCapacityPerTeam: input.substituteCapacityPerTeam,
           rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
-          visibility: input.visibility, startsAt, durationMinutes: durations[input.format], feeCents: 0,
+          visibility: input.visibility, startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: 0,
           status: source === 'ADMIN_LOADED' ? 'OPEN' : 'DRAFT',
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },

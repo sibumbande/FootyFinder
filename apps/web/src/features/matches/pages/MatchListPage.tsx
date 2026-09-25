@@ -1,39 +1,20 @@
 import type { MatchFormat } from '@footy-finder/shared';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
-import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { MatchCard } from '../components/MatchCard.js';
 import { useMatches } from '../hooks/useMatches.js';
 export function MatchListPage() {
   const [format, setFormat] = useState<MatchFormat | ''>('');
   const [date, setDate] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
   const [availableOnly, setAvailableOnly] = useState(true);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const { notify } = useNotifications();
   const matches = useMatches({
     format: format || undefined,
     dateFrom: date ? new Date(`${date}T00:00:00`).toISOString() : undefined,
     dateTo: date ? new Date(`${date}T23:59:59`).toISOString() : undefined,
-    maxPriceCents: maxPrice ? Math.round(Number(maxPrice) * 100) : undefined,
     availableOnly,
-    lat: location?.lat,
-    lng: location?.lng,
-    sort: location ? 'nearest' : 'soonest',
   });
-  const locate = () =>
-    navigator.geolocation?.getCurrentPosition(
-      ({ coords }) => setLocation({ lat: coords.latitude, lng: coords.longitude }),
-      () =>
-        notify({
-          variant: 'warning',
-          title: 'Location unavailable',
-          message: 'You can still browse by date, format and price.',
-        }),
-    );
   return (
     <section className="grid gap-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -48,7 +29,7 @@ export function MatchListPage() {
           Create Match!
         </Link>
       </div>
-      <div className="anime-panel grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="anime-panel grid gap-3 p-4 sm:grid-cols-3">
         <label className="grid gap-1 text-xs font-bold text-content-muted">
           Format
           <select
@@ -68,13 +49,6 @@ export function MatchListPage() {
           value={date}
           onChange={(event) => setDate(event.target.value)}
         />
-        <Input
-          label="Maximum price (R)"
-          type="number"
-          min="0"
-          value={maxPrice}
-          onChange={(event) => setMaxPrice(event.target.value)}
-        />
         <label className="flex min-h-11 items-center gap-2 self-end rounded-xl border border-line px-3 text-sm font-semibold text-content">
           <input
             type="checkbox"
@@ -83,9 +57,6 @@ export function MatchListPage() {
           />
           Available spaces
         </label>
-        <Button variant="secondary" className="self-end" onClick={locate}>
-          {location ? 'Using my location' : 'Find nearby'}
-        </Button>
       </div>
       {matches.isPending && (
         <div className="match-grid">
@@ -99,7 +70,7 @@ export function MatchListPage() {
         <div className="rounded-3xl border border-dashed border-line-strong bg-surface p-12 text-center">
           <h2 className="text-xl font-bold text-content-strong">No matching games</h2>
           <p className="mt-2 text-content-muted">
-            Try widening your filters or create the first one.
+            Try another date or format, or create the first one.
           </p>
         </div>
       )}

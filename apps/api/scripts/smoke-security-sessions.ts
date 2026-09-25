@@ -76,7 +76,7 @@ try {
       visibility: 'PRIVATE',
       inviteTokenHash: hashMatchInviteToken(initialToken),
       startsAt: new Date(Date.now() + 86_400_000),
-      durationMinutes: 90,
+      durationMinutes: 60,
       feeCents: 0,
     },
   });

@@ -62,11 +62,11 @@ async function main() {
       { teamId: team.id, userId: member.id, role: 'MEMBER' },
     ],
   });
-  const fixture = await matches.createTeamFixture(team.id, fixtureInput('primary'), owner.id, 90);
+  const fixture = await matches.createTeamFixture(team.id, fixtureInput('primary'), owner.id, 60);
   const quickMatch = await matches.create(
     { ...fixtureInput('quick-game'), visibility: 'PUBLIC', feeCents: 0 },
     owner.id,
-    90,
+    60,
   );
   let quickGameRejected = false;
   try {
@@ -186,7 +186,7 @@ async function main() {
     team.id,
     fixtureInput('concurrent'),
     owner.id,
-    90,
+    60,
   );
   const concurrent = await Promise.all([
     availability.request(concurrentFixture.id, 'HOME', owner.id),
