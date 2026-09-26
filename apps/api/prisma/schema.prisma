@@ -159,6 +159,37 @@ enum PlatformRole {
   ADMIN
 }
 
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum CitySupportStatus {
+  ACTIVE
+  WAITLIST
+}
+
+enum LegalDocumentType {
+  TERMS
+  PRIVACY
+  PARTICIPATION
+  CODE_OF_CONDUCT
+  COMPANY_DISCLOSURE
+}
+
+enum VerificationPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  EMAIL_CHANGE
+}
+
+enum VerificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 enum ManagedFieldStatus {
   ACTIVE
   INACTIVE
@@ -263,6 +294,11 @@ enum ResultRevisionReason {
   ADMIN_CORRECTION
 }
 
+enum ResultOutcomeType {
+  PLAYED
+  FORFEIT
+}
+
 enum NotificationType {
   INFO
   DIRECT_MESSAGE
@@ -289,49 +325,57 @@ enum NotificationType {
 }
 
 model User {
-  id                      String                    @id @default(uuid()) @db.Uuid
-  email                   String                    @unique
-  username                String                    @unique
-  passwordHash            String
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
-  profile                 PlayerProfile?
-  walletAccount           WalletAccount?
-  createdMatches          Match[]                   @relation("MatchCreator")
-  participations          MatchParticipant[]
-  lobbyMessages           LobbyMessage[]            @relation("LobbyMessageSender")
-  submittedResults        MatchResult[]             @relation("ResultSubmitter")
-  conversationMemberships ConversationParticipant[]
-  directMessages          DirectMessage[]           @relation("DirectMessageSender")
-  notifications           Notification[]
-  ownedTeams              Team[]                    @relation("TeamOwner")
-  teamMemberships         TeamMembership[]
-  createdTeamInvites      TeamInvite[]              @relation("TeamInviteCreator")
-  organisedMatchTeams     MatchTeam[]               @relation("MatchTeamOrganiser")
-  teamMatchAvailabilities TeamMatchAvailability[]
-  teamMatchSelections     TeamMatchSelection[]      @relation("TeamMatchSelectedUser")
-  madeMatchSelections     TeamMatchSelection[]      @relation("TeamMatchSelectionSelector")
-  accountStatus           AccountStatus             @default(ACTIVE)
-  platformRole            PlatformRole              @default(USER)
-  authSessions            AuthSession[]
-  adminMfaCredential      AdminMfaCredential?
-  adminAuditActions       AdminAuditLog[]           @relation("AdminAuditActor")
-  createdSupportTickets   SupportTicket[]           @relation("SupportTicketCreator")
-  assignedSupportTickets  SupportTicket[]           @relation("SupportTicketAssignee")
-  supportMessages         SupportTicketMessage[]
-  createdTestDataBatches  TestDataBatch[]           @relation("TestDataBatchCreator")
-  testDataBatchId         String?                   @db.Uuid
-  testDataBatch           TestDataBatch?            @relation(fields: [testDataBatchId], references: [id], onDelete: Restrict)
-  isTestAccount           Boolean                   @default(false)
-  fundingContributions    FundingContribution[]
-  moderationReports       ModerationReport[]        @relation("ModerationReporter")
-  assignedReports         ModerationReport[]        @relation("ModerationReportAssignee")
-  accountEnforcements     AccountEnforcement[]      @relation("EnforcedUser")
-  createdEnforcements     AccountEnforcement[]      @relation("EnforcementCreator")
-  revokedEnforcements     AccountEnforcement[]      @relation("EnforcementRevoker")
-  openedDisputes          Dispute[]                 @relation("DisputeOpener")
-  assignedDisputes        Dispute[]                 @relation("DisputeAssignee")
-  createdResultRevisions  MatchResultRevision[]     @relation("ResultRevisionCreator")
+  id                        String                    @id @default(uuid()) @db.Uuid
+  email                     String                    @unique
+  username                  String                    @unique
+  passwordHash              String
+  emailVerifiedAt           DateTime?
+  emailVerificationRequired Boolean                   @default(true)
+  onboardingCompletedAt     DateTime?
+  passwordChangedAt         DateTime?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  profile                   PlayerProfile?
+  walletAccount             WalletAccount?
+  createdMatches            Match[]                   @relation("MatchCreator")
+  participations            MatchParticipant[]
+  lobbyMessages             LobbyMessage[]            @relation("LobbyMessageSender")
+  submittedResults          MatchResult[]             @relation("ResultSubmitter")
+  conversationMemberships   ConversationParticipant[]
+  directMessages            DirectMessage[]           @relation("DirectMessageSender")
+  notifications             Notification[]
+  ownedTeams                Team[]                    @relation("TeamOwner")
+  teamMemberships           TeamMembership[]
+  createdTeamInvites        TeamInvite[]              @relation("TeamInviteCreator")
+  organisedMatchTeams       MatchTeam[]               @relation("MatchTeamOrganiser")
+  teamMatchAvailabilities   TeamMatchAvailability[]
+  teamMatchSelections       TeamMatchSelection[]      @relation("TeamMatchSelectedUser")
+  madeMatchSelections       TeamMatchSelection[]      @relation("TeamMatchSelectionSelector")
+  accountStatus             AccountStatus             @default(ACTIVE)
+  platformRole              PlatformRole              @default(USER)
+  authSessions              AuthSession[]
+  adminMfaCredential        AdminMfaCredential?
+  adminAuditActions         AdminAuditLog[]           @relation("AdminAuditActor")
+  createdSupportTickets     SupportTicket[]           @relation("SupportTicketCreator")
+  assignedSupportTickets    SupportTicket[]           @relation("SupportTicketAssignee")
+  supportMessages           SupportTicketMessage[]
+  createdTestDataBatches    TestDataBatch[]           @relation("TestDataBatchCreator")
+  testDataBatchId           String?                   @db.Uuid
+  testDataBatch             TestDataBatch?            @relation(fields: [testDataBatchId], references: [id], onDelete: Restrict)
+  isTestAccount             Boolean                   @default(false)
+  fundingContributions      FundingContribution[]
+  moderationReports         ModerationReport[]        @relation("ModerationReporter")
+  assignedReports           ModerationReport[]        @relation("ModerationReportAssignee")
+  accountEnforcements       AccountEnforcement[]      @relation("EnforcedUser")
+  createdEnforcements       AccountEnforcement[]      @relation("EnforcementCreator")
+  revokedEnforcements       AccountEnforcement[]      @relation("EnforcementRevoker")
+  openedDisputes            Dispute[]                 @relation("DisputeOpener")
+  assignedDisputes          Dispute[]                 @relation("DisputeAssignee")
+  createdResultRevisions    MatchResultRevision[]     @relation("ResultRevisionCreator")
+  verificationTokens        VerificationToken[]
+  legalAcceptances          LegalAcceptance[]
+  cityInterests             CityInterest[]
+  moderatedPlayerPhotos     PlayerPhoto[]             @relation("PlayerPhotoModerator")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -592,18 +636,138 @@ model PlayerProfile {
   bio                String?
   dominantFoot       DominantFoot?
   homeArea           String?
+  dateOfBirth        DateTime?                 @db.Date
+  yearsExperience    Int?
+  cityId             String?                   @db.Uuid
+  onboardingStatus   OnboardingStatus          @default(NOT_STARTED)
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
   user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city               City?                     @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  photo              PlayerPhoto?
   preferredPositions PlayerPreferredPosition[]
+
+  @@index([cityId, onboardingStatus])
 }
 
 model PlayerPreferredPosition {
   profileId String           @db.Uuid
   position  FootballPosition
+  sortOrder Int
   profile   PlayerProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@id([profileId, position])
+  @@unique([profileId, sortOrder])
+}
+
+model PlayerPhoto {
+  id                String        @id @default(uuid()) @db.Uuid
+  profileId         String        @unique @db.Uuid
+  fileKey           String        @unique
+  mimeType          String
+  byteSize          Int
+  width             Int
+  height            Int
+  hiddenAt          DateTime?
+  hiddenReason      String?
+  moderatedByUserId String?       @db.Uuid
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  profile           PlayerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  moderatedBy       User?         @relation("PlayerPhotoModerator", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([hiddenAt])
+}
+
+model City {
+  id              String            @id @default(uuid()) @db.Uuid
+  code            String            @unique
+  name            String
+  countryCode     String            @default("ZA")
+  timezone        String
+  supportStatus   CitySupportStatus @default(WAITLIST)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  profiles        PlayerProfile[]
+  interestEntries CityInterest[]
+
+  @@index([supportStatus, name])
+}
+
+model CityInterest {
+  id              String    @id @default(uuid()) @db.Uuid
+  cityId          String    @db.Uuid
+  userId          String?   @db.Uuid
+  email           String
+  dedupeKey       String    @unique
+  manageTokenHash String    @unique
+  consentedAt     DateTime
+  source          String
+  unsubscribedAt  DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  city            City      @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([cityId, consentedAt])
+  @@index([userId, createdAt])
+}
+
+model LegalDocument {
+  id                   String            @id @default(uuid()) @db.Uuid
+  type                 LegalDocumentType
+  version              String
+  title                String
+  content              String
+  checksum             String
+  effectiveAt          DateTime
+  material             Boolean           @default(true)
+  reacceptanceRequired Boolean           @default(true)
+  publishedAt          DateTime?
+  createdAt            DateTime          @default(now())
+  acceptances          LegalAcceptance[]
+
+  @@unique([type, version])
+  @@index([type, publishedAt, effectiveAt])
+}
+
+model LegalAcceptance {
+  id              String        @id @default(uuid()) @db.Uuid
+  userId          String        @db.Uuid
+  legalDocumentId String        @db.Uuid
+  acceptedAt      DateTime      @default(now())
+  source          String
+  ipHash          String?
+  userAgentHash   String?
+  evidence        Json
+  user            User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  legalDocument   LegalDocument @relation(fields: [legalDocumentId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, legalDocumentId])
+  @@index([userId, acceptedAt])
+}
+
+model VerificationToken {
+  id             String                     @id @default(uuid()) @db.Uuid
+  userId         String                     @db.Uuid
+  purpose        VerificationPurpose
+  tokenHash      String                     @unique
+  email          String
+  targetEmail    String?
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  attemptCount   Int                        @default(0)
+  deliveryStatus VerificationDeliveryStatus @default(PENDING)
+  deliveryError  String?
+  createdAt      DateTime                   @default(now())
+  sentAt         DateTime?
+  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, createdAt])
+  @@index([email, purpose, createdAt])
+  @@index([expiresAt, usedAt])
 }
 
 model WalletAccount {
@@ -967,6 +1131,8 @@ model MatchResult {
   matchId       String                @unique @db.Uuid
   homeScore     Int
   awayScore     Int
+  outcomeType   ResultOutcomeType     @default(PLAYED)
+  forfeitWinner TeamSide?
   submittedById String                @db.Uuid
   submittedAt   DateTime              @default(now())
   match         Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)

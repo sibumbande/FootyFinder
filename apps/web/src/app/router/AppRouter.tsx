@@ -22,6 +22,13 @@ import { SupportPage } from '@/features/support/pages/SupportPage.js';
 import { BookingsPage } from '@/features/bookings/pages/BookingsPage.js';
 import { ReportPage } from '@/features/moderation/pages/ReportPage.js';
 import { DisputesPage } from '@/features/disputes/pages/DisputesPage.js';
+import { VerifyEmailPage } from '@/features/auth/pages/VerifyEmailPage.js';
+import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage.js';
+import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage.js';
+import { ConfirmEmailChangePage } from '@/features/auth/pages/ConfirmEmailChangePage.js';
+import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage.js';
+import { WaitingListPage } from '@/features/onboarding/pages/WaitingListPage.js';
+import { LegalPage } from '@/features/legal/pages/LegalPage.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
@@ -33,8 +40,15 @@ export function AppRouter() {
           <Route path="/login" element={animated(<LoginPage />)} />
           <Route path="/register" element={animated(<RegisterPage />)} />
         </Route>
+        <Route path="/verify-email" element={animated(<VerifyEmailPage />)} />
+        <Route path="/forgot-password" element={animated(<ForgotPasswordPage />)} />
+        <Route path="/reset-password" element={animated(<ResetPasswordPage />)} />
+        <Route path="/confirm-email-change" element={animated(<ConfirmEmailChangePage />)} />
+        <Route path="/waiting-list" element={animated(<WaitingListPage />)} />
+        <Route path="/legal/:document" element={animated(<LegalPage />)} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
+            <Route path="/onboarding" element={animated(<OnboardingPage />)} />
             <Route index element={animated(<HomePage />)} />
             <Route path="/matches" element={animated(<MatchListPage />)} />
             <Route path="/matches/new" element={animated(<CreateMatchPage />)} />

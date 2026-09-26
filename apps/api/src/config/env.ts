@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import { assertDisposableDevelopmentOrTestDatabase } from '../database/test-database-safety.js';
 const optionalDate = z
@@ -32,8 +33,18 @@ export const envSchema = z
     POST_MATCH_CHAT_DURATION_MINUTES: z.coerce.number().int().positive().default(25),
     PUBLIC_API_URL: z.string().url().default('http://localhost:3000'),
     TEAM_UPLOAD_DIR: z.string().min(1).default('uploads/teams'),
+    PLAYER_UPLOAD_DIR: z.string().min(1).default('uploads/players'),
+    EMAIL_PROVIDER: z.enum(['console', 'test', 'postmark']).default('console'),
+    EMAIL_FROM: z.string().email().default('no-reply@footyfinder.test'),
+    POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
   })
   .superRefine((value, context) => {
+    if (resolve(value.PLAYER_UPLOAD_DIR) === resolve(value.TEAM_UPLOAD_DIR))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PLAYER_UPLOAD_DIR'],
+        message: 'PLAYER_UPLOAD_DIR must be separate from the public Team upload directory',
+      });
     if (value.ADMIN_TEST_DATA_ENABLED) {
       try {
         assertDisposableDevelopmentOrTestDatabase({
@@ -77,6 +88,24 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['ADMIN_TEST_DATA_ENABLED'],
         message: 'ADMIN_TEST_DATA_ENABLED cannot be enabled in production',
+      });
+    if (value.EMAIL_PROVIDER !== 'postmark')
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMAIL_PROVIDER'],
+        message: 'EMAIL_PROVIDER must be postmark in production',
+      });
+    if (!value.POSTMARK_SERVER_TOKEN)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['POSTMARK_SERVER_TOKEN'],
+        message: 'POSTMARK_SERVER_TOKEN is required in production',
+      });
+    if (value.EMAIL_FROM.toLowerCase() === 'no-reply@footyfinder.test' || value.EMAIL_FROM.toLowerCase().endsWith('.test'))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMAIL_FROM'],
+        message: 'EMAIL_FROM must be an explicitly configured verified production sender',
       });
   })
   .transform((value) => ({ ...value, TRUST_PROXY_HOPS: value.TRUST_PROXY_HOPS ?? 0 }));

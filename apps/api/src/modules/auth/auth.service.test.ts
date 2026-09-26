@@ -2,6 +2,7 @@ import argon2 from 'argon2';
 import { describe, expect, it, vi } from 'vitest';
 import type { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
+import type { VerificationService } from './verification.service.js';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 const user = {
@@ -42,11 +43,13 @@ function repository(overrides: Record<string, unknown> = {}) {
 describe('AuthService', () => {
   it('creates a user with an Argon2 hash instead of the raw password', async () => {
     const users = repository();
-    const result = await new AuthService(users).register(input);
+    const verification = { sendEmailVerification: vi.fn().mockResolvedValue({ sent: true }) };
+    const result = await new AuthService(users, verification as unknown as VerificationService).register(input);
     const hash = vi.mocked(users.create).mock.calls[0][1];
     expect(hash).not.toBe(input.password);
     expect(await argon2.verify(hash, input.password)).toBe(true);
     expect(result).not.toHaveProperty('passwordHash');
+    expect(verification.sendEmailVerification).toHaveBeenCalledWith(user.id);
   });
 
   it('rejects a duplicate email', async () => {

@@ -15,6 +15,9 @@ export interface VerifiedSession {
   userId: string;
   sessionId?: string;
   accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  emailVerified: boolean;
+  emailVerificationRequired: boolean;
+  onboardingComplete: boolean;
 }
 
 export class SessionsService {
@@ -47,6 +50,9 @@ export class SessionsService {
         userId: session.userId,
         sessionId: session.id,
         accountStatus: session.user.accountStatus,
+        emailVerified: Boolean(session.user.emailVerifiedAt),
+        emailVerificationRequired: session.user.emailVerificationRequired,
+        onboardingComplete: Boolean(session.user.onboardingCompletedAt),
       };
     }
 
@@ -54,7 +60,13 @@ export class SessionsService {
     if (!graceUntil || now >= graceUntil) throw new Error('Legacy session has expired');
     const user = await this.sessions.findLegacyUser(payload.sub);
     if (!user) throw new Error('User no longer exists');
-    return { userId: user.id, accountStatus: user.accountStatus };
+    return {
+      userId: user.id,
+      accountStatus: user.accountStatus,
+      emailVerified: Boolean(user.emailVerifiedAt),
+      emailVerificationRequired: user.emailVerificationRequired,
+      onboardingComplete: Boolean(user.onboardingCompletedAt),
+    };
   }
 
   async revokeToken(token: string | undefined) {

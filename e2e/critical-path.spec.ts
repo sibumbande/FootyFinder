@@ -53,7 +53,28 @@ async function register(page: Page, suffix: 'captain' | 'player') {
     },
   });
   expect(response.status, JSON.stringify(response.body)).toBe(201);
+  await activateDisposableTestUser(response.body.data!.id);
   return response.body.data!;
+}
+
+async function activateDisposableTestUser(userId: string) {
+  const city = await prisma.city.findUniqueOrThrow({ where: { code: 'CAPE_TOWN' } });
+  await prisma.$transaction(async (tx) => {
+    const profile = await tx.playerProfile.update({
+      where: { userId },
+      data: {
+        dateOfBirth: new Date('1995-01-01T00:00:00Z'),
+        yearsExperience: 5,
+        cityId: city.id,
+        onboardingStatus: 'COMPLETE',
+        preferredPositions: { deleteMany: {}, create: [{ position: 'MIDFIELDER', sortOrder: 0 }] },
+      },
+    });
+    await tx.playerPhoto.create({
+      data: { profileId: profile.id, fileKey: `${userId}.webp`, mimeType: 'image/webp', byteSize: 1, width: 512, height: 512 },
+    });
+    await tx.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date(), onboardingCompletedAt: new Date(), isTestAccount: true } });
+  });
 }
 
 async function cleanFixtures() {

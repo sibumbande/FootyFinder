@@ -2,7 +2,13 @@ import type { RegisterInput, UpdatePlayerProfileInput } from '@footy-finder/shar
 import { prisma } from '../../database/prisma.js';
 
 export const safeUserInclude = {
-  profile: { include: { preferredPositions: true } },
+  profile: {
+    include: {
+      preferredPositions: { orderBy: { sortOrder: 'asc' as const } },
+      city: true,
+      photo: true,
+    },
+  },
   walletAccount: true,
   teamMemberships: {
     include: { team: true },
@@ -38,7 +44,7 @@ export class UsersRepository {
         email: input.email,
         username: input.username,
         passwordHash,
-        profile: { create: { displayName } },
+        profile: { create: { displayName, onboardingStatus: 'IN_PROGRESS' } },
         walletAccount: { create: { currency: 'ZAR' } },
       },
       include: safeUserInclude,
@@ -51,6 +57,21 @@ export class UsersRepository {
       take: 100,
     });
   }
+  async statistics(userId: string) {
+    const participations = await prisma.matchParticipant.findMany({
+      where: { userId, status: 'JOINED', match: { status: 'COMPLETED', result: { isNot: null } } },
+      include: { match: { include: { result: true } }, scoring: true },
+    });
+    const resultIds = participations.flatMap(({ match }) => match.result ? [match.result.id] : []);
+    const disputed = resultIds.length
+      ? await prisma.dispute.findMany({
+          where: { type: 'MATCH_RESULT', referenceId: { in: resultIds }, status: { in: ['OPEN', 'UNDER_REVIEW'] } },
+          select: { referenceId: true },
+        })
+      : [];
+    const disputedIds = new Set(disputed.map(({ referenceId }) => referenceId));
+    return participations.filter(({ match }) => match.result && !disputedIds.has(match.result.id));
+  }
   updateProfile(userId: string, input: UpdatePlayerProfileInput) {
     const { preferredPositions, ...profile } = input;
     return prisma.user.update({
@@ -61,13 +82,15 @@ export class UsersRepository {
             create: {
               ...profile,
               displayName: input.displayName,
-              preferredPositions: { create: preferredPositions.map((position) => ({ position })) },
+              preferredPositions: {
+                create: preferredPositions.map((position, sortOrder) => ({ position, sortOrder })),
+              },
             },
             update: {
               ...profile,
               preferredPositions: {
                 deleteMany: {},
-                create: preferredPositions.map((position) => ({ position })),
+                create: preferredPositions.map((position, sortOrder) => ({ position, sortOrder })),
               },
             },
           },

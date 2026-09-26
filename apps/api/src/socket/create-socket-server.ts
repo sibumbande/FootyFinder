@@ -27,6 +27,11 @@ export function createSocketServer(server: HttpServer) {
       if (!token) throw new Error('Missing session');
       const session = await sessions.verify(token);
       if (session.accountStatus !== 'ACTIVE') throw new Error('Restricted account');
+      if (
+        session.emailVerificationRequired &&
+        (!session.emailVerified || !session.onboardingComplete)
+      )
+        throw new Error('Onboarding required');
       socket.data.userId = session.userId;
       socket.data.sessionId = session.sessionId;
       next();

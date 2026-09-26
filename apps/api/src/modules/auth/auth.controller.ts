@@ -6,8 +6,16 @@ import { requestAuthToken } from './auth-credential.js';
 import { SessionsService } from './sessions.service.js';
 import { AUTH_COOKIE_NAME } from './token.service.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
+import {
+  requestEmailChangeSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
+  verificationTokenSchema,
+} from '@footy-finder/shared';
+import { VerificationService } from './verification.service.js';
 const service = new AuthService();
 const sessions = new SessionsService();
+const verification = new VerificationService();
 const metadata = (req: Request) => ({ ip: req.ip, userAgent: req.get('user-agent') });
 const setSession = (res: Response, token: string) =>
   res.cookie(AUTH_COOKIE_NAME, token, {
@@ -58,6 +66,50 @@ export const logout: RequestHandler = async (req, res, next) => {
       path: '/',
     });
     res.json({ data: { success: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+export const resendVerification: RequestHandler = async (_req, res, next) => {
+  try {
+    res.json({ data: await verification.sendEmailVerification(String(res.locals.authUserId)) });
+  } catch (error) {
+    next(error);
+  }
+};
+export const verifyEmail: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await verification.verifyEmail(verificationTokenSchema.parse(req.body).token) });
+  } catch (error) {
+    next(error);
+  }
+};
+export const requestPasswordReset: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await verification.requestPasswordReset(requestPasswordResetSchema.parse(req.body).email) });
+  } catch (error) {
+    next(error);
+  }
+};
+export const resetPassword: RequestHandler = async (req, res, next) => {
+  try {
+    const input = resetPasswordSchema.parse(req.body);
+    res.json({ data: await verification.resetPassword(input.token, input.password) });
+  } catch (error) {
+    next(error);
+  }
+};
+export const requestEmailChange: RequestHandler = async (req, res, next) => {
+  try {
+    const input = requestEmailChangeSchema.parse(req.body);
+    res.json({ data: await verification.requestEmailChange(String(res.locals.authUserId), input.newEmail, input.currentPassword) });
+  } catch (error) {
+    next(error);
+  }
+};
+export const confirmEmailChange: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await verification.confirmEmailChange(verificationTokenSchema.parse(req.body).token) });
   } catch (error) {
     next(error);
   }

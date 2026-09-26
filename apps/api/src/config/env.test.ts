@@ -31,6 +31,9 @@ describe('environment contract', () => {
         PUBLIC_API_URL: 'https://api.example.test',
         TRUST_PROXY_HOPS: '1',
         ADMIN_MFA_ENCRYPTION_KEY: 'an-independent-production-mfa-key',
+        EMAIL_PROVIDER: 'postmark',
+        EMAIL_FROM: 'no-reply@footyfinder.co.za',
+        POSTMARK_SERVER_TOKEN: 'production-postmark-token',
       }).success,
     ).toBe(true);
   });
@@ -72,5 +75,9 @@ describe('environment contract', () => {
         DATABASE_URL: 'postgresql://postgres:postgres@db.example.test/footy_finder_test',
       }).success,
     ).toBe(false);
+  });
+
+  it('keeps private player media outside the public Team upload directory', () => {
+    expect(envSchema.safeParse({ ...valid, TEAM_UPLOAD_DIR: 'uploads/shared', PLAYER_UPLOAD_DIR: 'uploads/shared' }).success).toBe(false);
   });
 });

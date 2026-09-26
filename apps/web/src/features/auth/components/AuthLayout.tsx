@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { Logo } from '@/components/Logo.js';
 import { ThemeToggle } from '@/components/ThemeToggle.js';
+import { Link } from 'react-router-dom';
 export function AuthLayout({
   children,
   eyebrow,
@@ -51,6 +52,9 @@ export function AuthLayout({
             <p className="mt-3 leading-7 text-content-muted">{description}</p>
           </div>
           {children}
+          <nav className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-semibold text-content-muted" aria-label="Legal">
+            <Link to="/legal/about">About</Link><Link to="/legal/terms">Terms</Link><Link to="/legal/privacy">Privacy</Link><Link to="/legal/participation">Participation</Link><Link to="/legal/conduct">Conduct</Link><Link to="/waiting-list">Other cities</Link>
+          </nav>
         </div>
       </main>
     </div>

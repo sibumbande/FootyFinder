@@ -12,6 +12,8 @@
     "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "wallet:reconcile": "tsx scripts/reconcile-wallets.ts",
     "gate1:preflight": "tsx scripts/check-gate1-data.ts",
+    "gate2:preflight": "tsx scripts/check-gate2-data.ts",
+    "legal:publish": "tsx scripts/publish-legal-documents.ts",
     "pretest": "prisma generate",
     "test": "vitest run --configLoader runner",
     "smoke:api-contract": "tsc scripts/smoke-api-contract.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-api-contract.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-api-contract.mjs && cross-env NODE_ENV=test node dist/smoke-api-contract.mjs",
@@ -51,6 +53,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pg": "^8.23.0",
+    "sharp": "^0.35.4",
     "socket.io": "^4.8.1",
     "zod": "^3.24.1"
   },

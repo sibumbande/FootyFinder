@@ -3,9 +3,13 @@ import argon2 from 'argon2';
 import { AppError } from '../../errors/app-error.js';
 import { toAuthenticatedUser } from '../users/user.mapper.js';
 import { UsersRepository } from '../users/users.repository.js';
+import { VerificationService } from './verification.service.js';
 
 export class AuthService {
-  constructor(private readonly users = new UsersRepository()) {}
+  constructor(
+    private readonly users = new UsersRepository(),
+    private readonly verification = new VerificationService(),
+  ) {}
 
   async register(input: RegisterInput) {
     if (await this.users.findByEmail(input.email)) {
@@ -17,7 +21,9 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
     try {
-      return toAuthenticatedUser(await this.users.create(input, passwordHash));
+      const user = await this.users.create(input, passwordHash);
+      await this.verification.sendEmailVerification(user.id).catch(() => undefined);
+      return toAuthenticatedUser(user);
     } catch (error) {
       if (
         typeof error === 'object' &&

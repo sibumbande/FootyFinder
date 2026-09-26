@@ -87,6 +87,16 @@ export function UserMenu() {
           >
             My Profile
           </Link>
+          {!user.onboardingComplete && (
+            <Link
+              role="menuitem"
+              to="/onboarding"
+              onClick={() => setOpen(false)}
+              className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-warning-700 hover:bg-warning-50"
+            >
+              Complete Profile
+            </Link>
+          )}
           <Link
             role="menuitem"
             to="/support"

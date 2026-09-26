@@ -55,6 +55,9 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
    ADMIN_MFA_MAX_AGE_MINUTES=720
    PUBLIC_API_URL=http://localhost:3000
    TEAM_UPLOAD_DIR=uploads/teams
+   PLAYER_UPLOAD_DIR=uploads/players
+   EMAIL_PROVIDER=console
+   EMAIL_FROM=no-reply@footyfinder.test
    POST_MATCH_CHAT_DURATION_MINUTES=25
    ```
 
@@ -95,7 +98,11 @@ Then sign in at the Admin app and configure the authenticator secret. Team OWNER
 
 ### Identity and profiles
 
-Registration creates a private account, a public `PlayerProfile`, and a ZAR `WalletAccount`. Public DTOs contain display name, avatar, bio, positions, dominant foot, and home area, but never email, password hashes, wallet balances, or payment data. Players can edit their profile and start a private one-to-one conversation from another player's profile.
+Registration creates a private account, a `PlayerProfile`, and a ZAR `WalletAccount`, then resumes through email verification and onboarding. New players must be 18+, select the active Cape Town city, provide 0-60 whole years of experience, choose up to four ordered unique positions, upload a private normalized non-biometric profile photo, and accept every current required legal version before product access. Unsupported controlled cities use the consented waiting list instead of being represented as active Cape Town profiles. Existing users retain sign-in/read access but sensitive mutations are gated until their missing requirements are complete.
+
+Verification, password reset, and email change use hashed single-use email-link tokens. Development may use the console/test provider; production fails closed unless Postmark and an approved sender are configured. Legal pages are public, but production activation requires counsel-approved document bodies and retention policy; placeholder consent text is never treated as accepted legal content.
+
+Authenticated profile DTOs expose display name, normalized photo, bio, ordered positions, dominant foot, city, experience, current Teams, and supported W/D/L/goals statistics, while DOB remains self/Admin-only. They never expose email, password hashes, wallet balances, or payment data. Players can edit their own profile/photo and start a private one-to-one conversation from another player's profile.
 
 Authentication is stored in an HTTP-only same-site JWT cookie bound to a persisted, independently revocable session. The browser never stores the credential in JavaScript. Logout revokes only the current session, restricted accounts are rejected, and Socket.IO validates the same session before joining a private per-user room. Cookie-authenticated mutations also verify the browser Origin.
 
@@ -144,8 +151,14 @@ Deleting a Team transactionally cancels its unfinished Team fixtures, nulls only
 Public authentication and profile routes:
 
 - `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`
-- `GET /players/:userId`
-- `PATCH /players/me/profile` (authenticated)
+- `POST /auth/email/verification/resend`, `POST /auth/email/verify`
+- `POST /auth/password/reset/request`, `POST /auth/password/reset`
+- `POST /auth/email/change/request`, `POST /auth/email/change/confirm`
+- `GET /legal/documents/current` and `GET /legal/documents/:type` (public approved versions)
+- `GET /cities` and city-interest join/status/unsubscribe/delete routes
+- `GET /players/:userId` and `GET /players/:userId/photo` (authenticated)
+- `PATCH /players/me/profile`, `POST /players/me/photo` (authenticated/onboarding session)
+- `/onboarding` - status, profile details, legal acceptance, and completion
 - `GET /users`, `GET /users/me` (authenticated)
 
 Authenticated domain routes:
@@ -228,10 +241,14 @@ The additive `20260824090000_auth_sessions_security` migration creates revocable
 
 `20260824230000_financial_integrity_jobs` adds wallet holds, durable jobs, balance/sign checks, and immutable terminal financial transitions. Existing deposits and Quick Game debit/credit flows use the shared locked financial repository. The reconciliation command is read-only and returns a nonzero exit code when it finds an integrity issue.
 
+`20260925120000_gate_2_onboarding` adds the controlled city catalogue/interests, nullable legacy-compatible onboarding fields, ordered positions, protected photo metadata, immutable legal versions/acceptances, hashed verification tokens, and explicit result outcome semantics. Follow `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`; do not activate the production consent gate until counsel content, retention policy, Postmark configuration, migration preflight, and focused browser verification are complete.
+
 `20260825010000_booking_enum_values` and `20260825020000_field_reservations_funding` add the booking financial types, atomic managed-field reservations, immutable price/location snapshots, funding obligations, and personal-wallet contributions. PostgreSQL prevents active time overlaps. Underfunded reservations expire through the durable worker and release holds; confirmed contribution ledgers are included in reconciliation.
 
 - Replace the demo payment operator with a trusted gateway implementation and server-verified callback flow before accepting real money.
 - Replace local Team image storage with a durable object-storage provider before multi-instance deployment.
+- Place `PLAYER_UPLOAD_DIR` on durable private storage; do not expose originals or mount that directory as a public static path.
+- Configure a verified Postmark domain/token and publish counsel-approved legal versions before enabling Gate 2 in production.
 - Serve the web and API over HTTPS in a compatible same-site deployment so secure authentication cookies work correctly.
 - Set `NODE_ENV=production`, explicit HTTPS player/Admin/API URLs, and the correct `TRUST_PROXY_HOPS`; production configuration fails closed when these are missing.
 - Use a shared rate-limit store before running more than one API instance.

@@ -1,4 +1,12 @@
-import type { AuthenticatedUser, LoginInput, RegisterInput } from '@footy-finder/shared';
+import type {
+  AuthenticatedUser,
+  LoginInput,
+  RegisterInput,
+  RequestEmailChangeInput,
+  RequestPasswordResetInput,
+  ResetPasswordInput,
+  VerificationTokenInput,
+} from '@footy-finder/shared';
 import { ApiError } from '@footy-finder/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApiClient, usersClient } from '../api/auth.js';
@@ -48,6 +56,25 @@ export function useLogout() {
     },
   });
 }
+
+export const useResendVerification = () => useMutation({ mutationFn: () => authApiClient.resendVerification() });
+export const useVerifyEmail = () => {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (input: VerificationTokenInput) => authApiClient.verifyEmail(input),
+    onSuccess: () => cache.invalidateQueries({ queryKey: currentUserKey }),
+  });
+};
+export const useRequestPasswordReset = () => useMutation({ mutationFn: (input: RequestPasswordResetInput) => authApiClient.requestPasswordReset(input) });
+export const useResetPassword = () => useMutation({ mutationFn: (input: ResetPasswordInput) => authApiClient.resetPassword(input) });
+export const useRequestEmailChange = () => useMutation({ mutationFn: (input: RequestEmailChangeInput) => authApiClient.requestEmailChange(input) });
+export const useConfirmEmailChange = () => {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (input: VerificationTokenInput) => authApiClient.confirmEmailChange(input),
+    onSuccess: () => cache.invalidateQueries({ queryKey: currentUserKey }),
+  });
+};
 
 export function useAuth() {
   const currentUser = useCurrentUser();

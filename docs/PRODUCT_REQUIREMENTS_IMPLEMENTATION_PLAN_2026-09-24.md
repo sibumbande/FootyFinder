@@ -2,7 +2,7 @@
 
 Plan date: 2026-09-24  
 Source: `docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md`  
-Status: active delivery plan. Gate 1 application changes were implemented on 2026-09-25; database migration and focused Playwright runtime verification remain pending in a disposable environment.
+Status: active delivery plan. Gate 1 and Gate 2 application changes were implemented on 2026-09-25. Their committed migrations and focused Playwright/runtime checks remain pending in a disposable environment; Gate 2 production activation also awaits approved legal/retention content and Postmark configuration.
 
 ## 1. Goal and delivery strategy
 
@@ -47,10 +47,10 @@ DEC-001 through DEC-017 are approved in `docs/PRODUCT_REQUIREMENTS_TICKET_BREAKD
 | Slot policy | Define slot interval/granularity, booking lead time, horizon, buffers, and whether a field can expose overlapping format options. | Gate 3 |
 | Public preview privacy | Recommended: anonymous viewers see venue, time, format, price, and aggregate capacity, but not participant contact details. Decide whether names/avatars are public. | Gate 4 |
 | Share-link permanence | Recommended: stable non-secret public slug for public matches; hashed, rotatable tokens only for private matches. | Gate 4 |
-| Selfie definition | Decide required profile photo vs identity/face verification, storage/retention, moderation, and whether legacy users must supply one. | Gate 2 |
-| Legal facts/documents | Supply approved Terms, Privacy/POPIA, participation acknowledgement, company disclosures, code of conduct, and document version policy. | Gate 2 |
-| Verification provider | Choose email first unless SMS is a launch requirement; define expiry, attempts, resend limits, and unverified-user permissions. | Gate 2 |
-| Supported cities | Define normalized launch cities, unsupported-city behavior, and whether a waiting-list entry can exist without a full player account. | Gate 2 |
+| Player photo | Approved and implemented: required non-biometric normalized private photo; no original retention; self replacement and MFA-gated moderator hiding. Counsel must still approve account/media retention periods. | Gate 2 implemented; retention input pending |
+| Legal facts/documents | Version/checksum/acceptance infrastructure and public routes are implemented. Counsel must supply approved Terms, Privacy/POPIA, participation acknowledgement, company disclosures, Code of Conduct, and retention matrix. | Gate 2 production blocker |
+| Verification provider | Approved and implemented: email links through a provider abstraction; 24-hour verification, 30-minute reset, 60-second resend cooldown, five sends per rolling day. Postmark production domain/credentials remain external. | Gate 2 implemented; production provider pending |
+| Supported cities | Approved and implemented: Cape Town active; Johannesburg, Durban, Pretoria, Gqeberha, and Bloemfontein waiting-list only; anonymous and authenticated interest supported. | Gate 2 implemented |
 | Deposit/payment rules | Choose provider, methods, minimum/maximum amount, fees, webhook policy, chargebacks, and withdrawal/refund rules. | Gate 6 |
 | Venue settlement | Define who approves manual payouts, cadence, evidence, beneficiary data, partial/refund treatment, and whether venues need accounts. | Gate 6 |
 | Quick-position collision | Recommended: first committed claim wins; claimant receives a conflict and refreshed board; organiser may move/remove players with notification. | Gate 5 |
@@ -234,6 +234,12 @@ The application has one authoritative definition for fee, duration, short-name l
 
 ## 8. Gate 2 - Legal, onboarding, verification, city, and profile completion
 
+### Implementation status (2026-09-25)
+
+The Gate 2 application slice is implemented in migration `20260925120000_gate_2_onboarding`, shared contracts, API services/routes, the typed client, and the player web app. It includes controlled cities and a consented waiting list, DOB/18+ and experience validation, ordered positions, private normalized player photos, immutable legal-version/acceptance storage, hashed single-use email links, verification/reset/email-change journeys, resumable onboarding, legacy mutation gates, and dispute/forfeit-aware supported statistics.
+
+The implementation deliberately does not invent legal wording or retention policy. Production release remains blocked until counsel supplies the five approved legal documents/company facts and retention matrix, and Platform Operations configures/verifies Postmark. Disposable-PostgreSQL migration/preflight, provider delivery, and focused Playwright verification are also pending. The deployment and acceptance sequence is in `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`.
+
 ### Objective
 
 Make account creation satisfy the required player and legal data while providing a safe path for existing users.
@@ -250,7 +256,7 @@ Make account creation satisfy the required player and legal data while providing
 #### ONB-01: Additive profile/onboarding schema
 
 - Add DOB, years of experience, structured city relation/value, profile-completion status, and contact-verification state.
-- Reuse `PlayerPreferredPosition` for primary/secondary selections; define whether ordering or a primary flag is required.
+- Reuse `PlayerPreferredPosition` for up to four unique ordered selections; `sortOrder=0` is primary.
 - Add immutable legal acceptance records referencing the exact versions accepted and timestamp/source.
 - Keep new fields nullable initially for legacy accounts.
 
@@ -272,7 +278,7 @@ Make account creation satisfy the required player and legal data while providing
 
 - Add hashed single-use verification tokens/OTPs, purpose, expiry, attempt/resend limits, used/revoked timestamps, and delivery status.
 - Implement provider abstraction and a non-production test adapter.
-- Decide which actions unverified users may perform.
+- Allow unverified new accounts to sign in only for verification/onboarding and reject protected product actions server-side.
 - Do not expose whether an arbitrary contact exists through resend/recovery responses.
 
 #### AUTH-03: Password reset
@@ -286,7 +292,7 @@ Make account creation satisfy the required player and legal data while providing
 - Extend the registration wizard for DOB/18+, experience, city, positions, selfie, legal acceptance, and verification.
 - Validate 18+ on both client and server using date semantics, not a submitted age number.
 - Persist account creation and onboarding steps with an explicit retry/resume model; do not leave untraceable partial consent/payment state.
-- Require legacy users to complete only the approved missing fields at an appropriate gate rather than blocking every route immediately.
+- Preserve legacy sign-in/read access while server-side mutation gates require current completion before create, join, pay, message, or Team changes.
 
 #### PROFILE-01: Supported statistics
 
@@ -314,7 +320,7 @@ Make account creation satisfy the required player and legal data while providing
 
 ### Exit criteria
 
-New users can complete a legally evidenced, verified, age-gated profile; legacy users have an approved transition path; public legal content is available.
+Code complete; release verification is pending. The criterion is met only after approved legal content is published, the migration/preflight succeeds in a disposable PostgreSQL environment, Postmark delivery is verified, and the focused onboarding/legacy Playwright journeys pass.
 
 ## 9. Gate 3 - Real venues, dynamic availability, and venue-first home
 

@@ -9,4 +9,9 @@ export const usersApi = (client: ApiClient) => ({
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  uploadPhoto: (input: FormData) =>
+    client.request<{ data: { success: true } }>('/players/me/photo', {
+      method: 'POST',
+      body: input,
+    }),
 });

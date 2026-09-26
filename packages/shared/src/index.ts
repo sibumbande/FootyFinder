@@ -16,6 +16,7 @@ export * from './config/formations.js';
 export * from './schemas/auth.js';
 export * from './schemas/match.js';
 export * from './schemas/profile.js';
+export * from './schemas/onboarding.js';
 export * from './schemas/messaging.js';
 export * from './schemas/team.js';
 export * from './schemas/route-params.js';

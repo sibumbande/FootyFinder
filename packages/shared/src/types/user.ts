@@ -6,6 +6,25 @@ export const ACCOUNT_STATUSES = ['ACTIVE', 'SUSPENDED', 'BANNED'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 export const PLATFORM_ROLES = ['USER', 'ADMIN'] as const;
 export type PlatformRole = (typeof PLATFORM_ROLES)[number];
+export const ONBOARDING_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETE'] as const;
+export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
+
+export interface CitySummary {
+  id: string;
+  code: string;
+  name: string;
+  countryCode: string;
+  timezone: string;
+  supportStatus: 'ACTIVE' | 'WAITLIST';
+}
+
+export interface PlayerStatistics {
+  matchesPlayed: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goals: number;
+}
 
 export interface PublicPlayerProfile {
   userId: string;
@@ -16,6 +35,9 @@ export interface PublicPlayerProfile {
   preferredPositions: FootballPosition[];
   dominantFoot?: DominantFoot | null;
   homeArea?: string | null;
+  yearsExperience?: number | null;
+  city?: CitySummary | null;
+  statistics?: PlayerStatistics;
   createdAt: string;
   updatedAt: string;
   teams?: Array<{
@@ -38,6 +60,12 @@ export interface AuthenticatedUser extends PublicUser {
   currency: 'ZAR';
   accountStatus: AccountStatus;
   platformRole: PlatformRole;
+  emailVerified: boolean;
+  emailVerificationRequired: boolean;
+  onboardingStatus: OnboardingStatus;
+  onboardingComplete: boolean;
+  dateOfBirth?: string | null;
+  missingOnboardingRequirements: string[];
 }
 
 /** Internal database-only account shape. Never return this from the API. */

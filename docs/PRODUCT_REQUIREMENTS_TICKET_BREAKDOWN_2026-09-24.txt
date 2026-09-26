@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 to be implemented as a single batch on 2026-09-25; that exception does not apply to later gates.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as separate batch implementations on 2026-09-25; those exceptions do not apply to later gates.
 
 
 1. HOW TO USE THIS BACKLOG
@@ -12,7 +12,7 @@ Purpose: execution backlog. The default is one implementation ticket at a time. 
 
 1. Apply the approved decision record before any implementation ticket that depends on it; do not reopen policy inside an implementation ticket.
 2. Select exactly one READY ticket unless an explicit recorded batch exception applies.
-3. Implement only that ticket, including its tests and documentation. The completed Gate 1 batch is the sole recorded exception.
+3. Implement only that ticket, including its tests and documentation. The recorded Gate 1 and Gate 2 batches are the only exceptions.
 4. Stop after verification and provide a completion report.
 5. Review/approve the result before selecting the next ticket.
 6. Do not combine tickets because they touch the same files.
@@ -295,6 +295,7 @@ Blocks resolved by policy: TKT-805 through TKT-807.
 - All DEC-001 through DEC-017 product choices are approved and have been translated into the dependent ticket scopes below.
 - Immediate Gate 0 closeout is runtime verification of the already-implemented TKT-002 and TKT-003; do not reimplement them unless verification exposes a defect. TKT-005 is verified and TKT-006 is the next READY Gate 0 ticket.
 - Gate 1 application work was implemented as one approved batch on 2026-09-25. Unit/component tests, lint, Prisma generation, and all workspace builds pass. TKT-104, TKT-108, and TKT-109 still require the committed migration to be exercised against a disposable PostgreSQL database; TKT-101 still requires its focused Playwright flow there. Do not call Gate 1 release-verified until those checks pass.
+- Gate 2 application work was implemented as one approved batch on 2026-09-25. The additive schema/migration, shared contracts, API/provider layers, web journeys, protected photo processing, waiting list, legacy gates, and supported statistics are present. Automated tests, lint, builds, Prisma generation, and npm audit pass; disposable-database migration/preflight, Postmark delivery, and focused Playwright verification remain pending. Production activation is additionally blocked on the counsel inputs below. See `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
@@ -546,8 +547,10 @@ Not in scope: changing match capacity rules.
 6. GATE 2 - LEGAL AND PLAYER ONBOARDING
 ========================================
 
+Implementation summary (2026-09-25): Gate 2 schema, APIs, provider abstraction, protected photo processing, waiting list, legal publication/import path, verification/recovery/email-change flows, resumable onboarding UI, legacy mutation gate, and supported statistics are implemented. Automated tests, lint, Prisma generation, builds, and npm audit pass. Production release is intentionally blocked until counsel supplies the five approved legal documents/company facts and retention matrix; migration/database smoke, Postmark delivery, and Playwright onboarding verification also remain pending. See `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`.
+
 TKT-201 - Publish approved legal and disclosure pages
-Status: BLOCKED FOR PRODUCTION CONTENT - COUNSEL DOCUMENTS/COMPANY FACTS REQUIRED (2026-09-24)
+Status: IMPLEMENTED SHELL/ROUTES/IMPORTER - PRODUCTION CONTENT STILL BLOCKED ON COUNSEL (2026-09-25)
 Depends on: DEC-007
 Risk: Medium
 Scope:
@@ -558,6 +561,7 @@ Tests: routing, links, public access, basic accessibility.
 Not in scope: inventing or editing legal wording.
 
 TKT-202 - Add legal document versions and acceptance records
+Status: IMPLEMENTED - IMMUTABLE MODEL/EVIDENCE COMPLETE; DATABASE RUNTIME AND COUNSEL CONTENT PENDING (2026-09-25)
 Depends on: DEC-007, TKT-201
 Risk: High
 Scope:
@@ -569,6 +573,7 @@ Tests: migration, uniqueness/version behavior, server rejection when evidence is
 Not in scope: full registration UI.
 
 TKT-203 - Add onboarding profile fields and position ordering
+Status: IMPLEMENTED - SCHEMA/SERVICE/PRIVACY/BOUNDARY TESTS PASS; DATABASE RUNTIME PENDING (2026-09-25)
 Depends on: DEC-009
 Risk: Medium
 Scope:
@@ -580,6 +585,7 @@ Tests: migration, age/date boundaries, experience/city/position validation.
 Not in scope: onboarding wizard or legal acceptance.
 
 TKT-204 - Implement supported cities and waiting-list backend
+Status: IMPLEMENTED - CONTROLLED CITIES, DEDUPE, CONSENT, MANAGEMENT TOKEN, AND ADMIN VIEW ADDED; DATABASE RUNTIME PENDING (2026-09-25)
 Depends on: DEC-009, TKT-203
 Risk: Medium
 Scope:
@@ -591,6 +597,7 @@ Tests: supported/unsupported, duplicate, authenticated/anonymous policy, authori
 Not in scope: home/registration presentation.
 
 TKT-205 - Implement required non-biometric player photo upload
+Status: IMPLEMENTED - PRIVATE SHARP NORMALIZATION, SELF-REPLACEMENT, MODERATOR HIDE, AND ADVERSARIAL STORAGE TESTS PASS (2026-09-25)
 Depends on: DEC-008
 Risk: High
 Scope:
@@ -603,6 +610,7 @@ Tests: storage/service/API plus UI upload states.
 Not in scope: biometric identity verification unless explicitly approved.
 
 TKT-206 - Add verification token/OTP persistence and service
+Status: VERIFIED IN CODE - HASHING, SINGLE USE, EXPIRY, COOLDOWN, DAILY LIMIT, DELIVERY STATE, AND PROVIDER TESTS PASS (2026-09-25)
 Depends on: DEC-010
 Risk: High
 Scope:
@@ -614,6 +622,7 @@ Tests: token lifecycle, hashing, delivery failure, rate limits, suspended users.
 Not in scope: user-facing screens.
 
 TKT-207 - Add verification API and UI
+Status: IMPLEMENTED - SESSION/PRODUCT GATES AND RESUMABLE UI ADDED; POSTMARK/PLAYWRIGHT VERIFICATION PENDING (2026-09-25)
 Depends on: TKT-206
 Risk: Medium
 Scope:
@@ -624,6 +633,7 @@ Tests: controller/API client/component/E2E success and failure paths.
 Not in scope: password reset.
 
 TKT-208 - Add password reset and verified email-change flows
+Status: IMPLEMENTED - GENERIC RECOVERY, SESSION REVOCATION, ATOMIC EMAIL SWAP PATH, AND UI ADDED; E2E PENDING (2026-09-25)
 Depends on: TKT-206
 Risk: High
 Scope:
@@ -635,6 +645,7 @@ Tests: service/API/UI/session invalidation.
 Not in scope: changing normal login/session architecture.
 
 TKT-209 - Extend registration wizard
+Status: IMPLEMENTED - MULTI-STAGE RESUMABLE JOURNEY AND SERVER ENFORCEMENT ADDED; RELEASE BLOCKED ON COUNSEL CONTENT/PLAYWRIGHT (2026-09-25)
 Depends on: TKT-202, TKT-203, TKT-204, TKT-205, TKT-207
 Risk: High
 Scope:
@@ -647,6 +658,7 @@ Tests: shared schema, API transaction behavior, component steps, full E2E.
 Not in scope: backfilling legacy users.
 
 TKT-210 - Implement legacy profile-completion journey
+Status: IMPLEMENTED - LEGACY READ ACCESS AND SERVER-SIDE MUTATION GATE ADDED; DATABASE/E2E AND COUNSEL CONTENT PENDING (2026-09-25)
 Depends on: TKT-209, DEC-007, DEC-008
 Risk: High
 Scope:
@@ -657,6 +669,7 @@ Tests: fixtures for every legacy-field combination and route-access policy.
 Not in scope: fabricating values.
 
 TKT-211 - Add supported profile statistics
+Status: IMPLEMENTED - PLAYED/FORFEIT/DISPUTE-AWARE W-D-L-GOALS PROJECTION AND UNIT TEST PASS; DATABASE FIXTURE RECONCILIATION PENDING (2026-09-25)
 Depends on: TKT-109, DEC-016
 Risk: Medium
 Scope:
@@ -1273,7 +1286,7 @@ Not in scope: inferring unsupported historical facts.
 14. DEPENDENCY-AWARE EXECUTION ORDER
 ====================================
 
-Within each sequence, select only the first unverified ticket whose explicit dependencies and external inputs are satisfied. Gate 1 was implemented under the recorded 2026-09-25 batch exception, but its database/Playwright runtime checks remain required. After Gate 1, independent streams may proceed in parallel; a blocked stream does not authorize skipping dependencies inside that stream.
+Within each sequence, select only the first unverified ticket whose explicit dependencies and external inputs are satisfied. Gates 1 and 2 were implemented under recorded 2026-09-25 batch exceptions, but their database/provider/Playwright runtime checks remain required. After Gate 1, independent streams may proceed in parallel; a blocked stream does not authorize skipping dependencies inside that stream.
 
 Foundation sequence:
 

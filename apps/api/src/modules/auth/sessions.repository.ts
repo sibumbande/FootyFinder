@@ -20,7 +20,14 @@ export class SessionsRepository {
         id: true,
         userId: true,
         lastSeenAt: true,
-        user: { select: { accountStatus: true } },
+        user: {
+          select: {
+            accountStatus: true,
+            emailVerifiedAt: true,
+            emailVerificationRequired: true,
+            onboardingCompletedAt: true,
+          },
+        },
       },
     });
   }
@@ -28,7 +35,13 @@ export class SessionsRepository {
   findLegacyUser(userId: string) {
     return prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, accountStatus: true },
+      select: {
+        id: true,
+        accountStatus: true,
+        emailVerifiedAt: true,
+        emailVerificationRequired: true,
+        onboardingCompletedAt: true,
+      },
     });
   }
 

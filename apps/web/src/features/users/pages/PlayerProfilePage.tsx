@@ -15,6 +15,8 @@ import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { usePlayerProfile, useUpdatePlayerProfile } from '../hooks/usePlayerProfile.js';
 import { TeamAvatar } from '@/features/teams/components/TeamAvatar.js';
+import { useUploadPlayerPhoto } from '@/features/onboarding/hooks/useOnboarding.js';
+import { useRequestEmailChange } from '@/features/auth/hooks/useAuth.js';
 
 export function PlayerProfilePage() {
   const { userId = '' } = useParams();
@@ -23,12 +25,16 @@ export function PlayerProfilePage() {
   const update = useUpdatePlayerProfile(userId);
   const { notify } = useNotifications();
   const [editing, setEditing] = useState(false);
+  const [photo, setPhoto] = useState<File>();
+  const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const photoUpload = useUploadPlayerPhoto();
+  const emailChange = useRequestEmailChange();
   const form = useForm<UpdatePlayerProfileInput>({
     resolver: zodResolver(updatePlayerProfileSchema),
     values: profile.data
       ? {
           displayName: profile.data.displayName,
-          avatarUrl: profile.data.avatarUrl,
           bio: profile.data.bio,
           preferredPositions: profile.data.preferredPositions,
           dominantFoot: profile.data.dominantFoot,
@@ -71,6 +77,9 @@ export function PlayerProfilePage() {
                 ? `${player.dominantFoot.toLowerCase()} foot`
                 : 'Dominant foot not set'}
             </p>
+            <p className="mt-1 text-sm text-content-muted">
+              {player.city?.name ?? 'City not set'} · {player.yearsExperience ?? '—'} years' experience
+            </p>
           </div>
           {mine ? (
             <Button variant="secondary" onClick={() => setEditing((value) => !value)}>
@@ -100,6 +109,16 @@ export function PlayerProfilePage() {
           )}
         </div>
       </div>
+      {player.statistics && (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-5" aria-label="Player statistics">
+          {Object.entries(player.statistics).map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-line bg-surface p-4 text-center shadow-sm">
+              <strong className="block text-2xl text-content-strong">{value}</strong>
+              <span className="text-xs font-bold uppercase text-content-muted">{label.replace(/([A-Z])/g, ' $1')}</span>
+            </div>
+          ))}
+        </section>
+      )}
       {player.teams && player.teams.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface p-6 shadow-sm">
           <h2 className="text-xl font-bold text-content-strong">Teams</h2>
@@ -130,12 +149,12 @@ export function PlayerProfilePage() {
             error={form.formState.errors.displayName?.message}
             {...form.register('displayName')}
           />
-          <Input
-            label="Avatar URL"
-            type="url"
-            error={form.formState.errors.avatarUrl?.message}
-            {...form.register('avatarUrl')}
-          />
+          <div className="grid gap-2">
+            <label className="text-sm font-semibold text-content" htmlFor="profile-photo">Profile photo</label>
+            <input id="profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhoto(event.target.files?.[0])} />
+            <Button type="button" variant="secondary" disabled={!photo} loading={photoUpload.isPending} onClick={() => photo && photoUpload.mutate(photo)}>Replace photo</Button>
+            <FormError message={photoUpload.error?.message} />
+          </div>
           <Input
             label="Home area"
             placeholder="Cape Town"
@@ -183,6 +202,17 @@ export function PlayerProfilePage() {
           <Button type="submit" loading={update.isPending}>
             Save public profile
           </Button>
+          <Link className="text-center text-sm font-bold text-brand-700 hover:underline" to="/onboarding">
+            Edit date of birth, city, experience, or position order
+          </Link>
+          <div className="grid gap-3 border-t border-line pt-5">
+            <h3 className="font-bold text-content-strong">Change sign-in email</h3>
+            <Input label="New email" type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} />
+            <Input label="Current password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            <Button type="button" variant="secondary" loading={emailChange.isPending} disabled={!newEmail || !currentPassword} onClick={() => emailChange.mutate({ newEmail, currentPassword })}>Send confirmation</Button>
+            {emailChange.isSuccess && <p className="text-sm text-content-muted">Check the new address. Your current email remains active until confirmation.</p>}
+            <FormError message={emailChange.error?.message} />
+          </div>
         </form>
       )}
     </section>

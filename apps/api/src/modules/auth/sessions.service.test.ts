@@ -39,7 +39,12 @@ describe('SessionsService', () => {
     sessions.findActive.mockResolvedValue({
       id: 'session-1',
       userId: 'user-1',
-      user: { accountStatus: 'SUSPENDED' },
+      user: {
+        accountStatus: 'SUSPENDED',
+        emailVerifiedAt: null,
+        emailVerificationRequired: true,
+        onboardingCompletedAt: null,
+      },
     });
     const tokens = { verify: vi.fn().mockReturnValue({ sub: 'user-1', sid: 'session-1' }) };
     const result = await new SessionsService(
@@ -51,6 +56,9 @@ describe('SessionsService', () => {
       userId: 'user-1',
       sessionId: 'session-1',
       accountStatus: 'SUSPENDED',
+      emailVerified: false,
+      emailVerificationRequired: true,
+      onboardingComplete: false,
     });
     expect(sessions.touch).toHaveBeenCalledWith('session-1', expect.any(Date));
   });

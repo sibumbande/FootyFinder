@@ -7,6 +7,7 @@ import { registerRouteParam, registerUuidRouteParams } from '../../middleware/ro
 import * as controller from './teams.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
 import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
+import { requireOnboardingForMutations } from '../../middleware/require-onboarding.js';
 
 export const teamImageUpload = multer({
   storage: multer.memoryStorage(),
@@ -55,6 +56,7 @@ teamInvitesRouter.get('/:token', controller.inspectInvite);
 teamInvitesRouter.post(
   '/:token/accept',
   requireAuth,
+  requireOnboardingForMutations,
   costlyMutationRateLimit,
   controller.acceptInvite,
 );

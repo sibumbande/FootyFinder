@@ -41,7 +41,10 @@ export function RegisterPage() {
       setStep((current) => Math.min(current + 1, steps.length - 1));
   };
   const submit = form.handleSubmit(({ confirmPassword: _confirmPassword, ...input }) =>
-    registration.mutate(input, { onSuccess: () => navigate(returnTo, { replace: true }) }),
+    registration.mutate(input, {
+      onSuccess: () =>
+        navigate(`/verify-email?returnTo=${encodeURIComponent(returnTo)}`, { replace: true }),
+    }),
   );
 
   return (
@@ -190,6 +193,11 @@ export function RegisterPage() {
           >
             Sign in
           </Link>
+        </p>
+        <p className="text-center text-xs text-content-muted">
+          By continuing you will be asked to verify your email and review the current{' '}
+          <Link className="font-bold text-brand-700 underline" to="/legal/terms">Terms</Link>,{' '}
+          <Link className="font-bold text-brand-700 underline" to="/legal/privacy">Privacy notice</Link>, and participation documents before activation.
         </p>
       </form>
     </AuthLayout>

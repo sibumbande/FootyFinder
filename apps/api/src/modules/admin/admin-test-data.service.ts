@@ -1,7 +1,7 @@
 import type { AdminTestDataBatch, CreateAdminTestDataBatchInput } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import argon2 from 'argon2';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
@@ -50,6 +50,7 @@ export class AdminTestDataService {
     const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
     const batch = await serializableTransaction(async (tx) => {
       const created = await tx.testDataBatch.create({ data: { label: input.label, createdByAdminUserId: adminUserId } });
+      const city = await tx.city.findUniqueOrThrow({ where: { code: 'CAPE_TOWN' } });
       for (let index = 1; index <= input.accountCount; index += 1) {
         const sequence = String(index).padStart(2, '0');
         await tx.user.create({
@@ -57,9 +58,19 @@ export class AdminTestDataService {
             email: `ff-test-${suffix}-${sequence}@test.invalid`,
             username: `ff_test_${suffix}_${sequence}`,
             passwordHash,
+            emailVerifiedAt: new Date(),
+            onboardingCompletedAt: new Date(),
             isTestAccount: true,
             testDataBatchId: created.id,
-            profile: { create: { displayName: `Test Player ${sequence}` } },
+            profile: { create: {
+              displayName: `Test Player ${sequence}`,
+              dateOfBirth: new Date('1995-01-01T00:00:00Z'),
+              yearsExperience: 5,
+              cityId: city.id,
+              onboardingStatus: 'COMPLETE',
+              preferredPositions: { create: [{ position: 'MIDFIELDER', sortOrder: 0 }] },
+              photo: { create: { fileKey: `${randomUUID()}.webp`, mimeType: 'image/webp', byteSize: 1, width: 512, height: 512 } },
+            } },
             walletAccount: { create: { currency: 'ZAR' } },
           },
         });

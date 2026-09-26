@@ -1,4 +1,5 @@
 import type { AuthenticatedUser, FootballPosition, PublicUser } from '@footy-finder/shared';
+import { env } from '../../config/env.js';
 
 type SafeUserSource = {
   id: string;
@@ -6,6 +7,9 @@ type SafeUserSource = {
   username: string;
   accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
   platformRole?: 'USER' | 'ADMIN';
+  emailVerifiedAt?: Date | null;
+  emailVerificationRequired?: boolean;
+  onboardingCompletedAt?: Date | null;
   createdAt: Date;
   profile?: {
     displayName: string;
@@ -13,6 +17,18 @@ type SafeUserSource = {
     bio: string | null;
     dominantFoot: 'LEFT' | 'RIGHT' | 'BOTH' | null;
     homeArea: string | null;
+    dateOfBirth?: Date | null;
+    yearsExperience?: number | null;
+    onboardingStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETE';
+    city?: {
+      id: string;
+      code: string;
+      name: string;
+      countryCode: string;
+      timezone: string;
+      supportStatus: 'ACTIVE' | 'WAITLIST';
+    } | null;
+    photo?: { hiddenAt: Date | null } | null;
     createdAt: Date;
     updatedAt: Date;
     preferredPositions: Array<{ position: FootballPosition }>;
@@ -31,16 +47,23 @@ type SafeUserSource = {
 
 export function toPublicUser(user: SafeUserSource): PublicUser {
   const profile = user.profile;
+  const avatarUrl = profile?.photo
+    ? profile.photo.hiddenAt
+      ? null
+      : `${env.PUBLIC_API_URL.replace(/\/$/, '')}/players/${user.id}/photo`
+    : profile?.avatarUrl;
   return {
     id: user.id,
     userId: user.id,
     username: user.username,
     displayName: profile?.displayName ?? user.username,
-    avatarUrl: profile?.avatarUrl,
+    avatarUrl,
     bio: profile?.bio,
     preferredPositions: profile?.preferredPositions.map(({ position }) => position) ?? [],
     dominantFoot: profile?.dominantFoot,
     homeArea: profile?.homeArea,
+    yearsExperience: profile?.yearsExperience,
+    city: profile?.city,
     createdAt: (profile?.createdAt ?? user.createdAt).toISOString(),
     updatedAt: (profile?.updatedAt ?? user.createdAt).toISOString(),
     teams: user.teamMemberships?.map(({ role, team }) => ({
@@ -54,6 +77,18 @@ export function toPublicUser(user: SafeUserSource): PublicUser {
 }
 
 export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
+  const profile = user.profile;
+  const missingOnboardingRequirements = [
+    ...(user.emailVerificationRequired !== false && !user.emailVerifiedAt ? ['EMAIL_VERIFICATION'] : []),
+    ...(!profile?.dateOfBirth ? ['DATE_OF_BIRTH'] : []),
+    ...(profile?.yearsExperience === null || profile?.yearsExperience === undefined
+      ? ['EXPERIENCE']
+      : []),
+    ...(!profile?.city || profile.city.supportStatus !== 'ACTIVE' ? ['CITY'] : []),
+    ...(!profile?.preferredPositions.length ? ['POSITIONS'] : []),
+    ...(!profile?.photo || profile.photo.hiddenAt ? ['PHOTO'] : []),
+    ...(!user.onboardingCompletedAt ? ['LEGAL_ACCEPTANCE'] : []),
+  ];
   return {
     ...toPublicUser(user),
     email: user.email,
@@ -61,5 +96,11 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
     currency: user.walletAccount?.currency === 'ZAR' ? 'ZAR' : 'ZAR',
     accountStatus: user.accountStatus ?? 'ACTIVE',
     platformRole: user.platformRole ?? 'USER',
+    emailVerified: Boolean(user.emailVerifiedAt),
+    emailVerificationRequired: user.emailVerificationRequired ?? true,
+    onboardingStatus: profile?.onboardingStatus ?? 'NOT_STARTED',
+    onboardingComplete: Boolean(user.onboardingCompletedAt),
+    dateOfBirth: profile?.dateOfBirth?.toISOString().slice(0, 10) ?? null,
+    missingOnboardingRequirements,
   };
 }

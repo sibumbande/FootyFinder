@@ -4,7 +4,7 @@
 
 **Source of truth:** `docs/SYSTEM_AUDIT.md`, the current application code, shared contracts, and repository scripts.
 
-**Current post-audit baseline:** commit `e2ba24b` closes the browser/API-contract and atomic-notification findings described in the historical audit. Section 16 distinguishes closed findings from remaining known defects.
+**Current post-audit baseline:** the Gate 1 alignment and Gate 2 onboarding application slices are implemented in the working tree. Sections 16 and 22 distinguish historical findings, release blockers, and the Gate 2 acceptance work that still requires a disposable database, approved legal content, and a configured email provider.
 
 **Important:** This guide tests the product that exists now. It does not describe the future roadmap as if it were available. Known defects are labelled **KNOWN EXPECTED FAILURE** and include the behavior that should pass after remediation.
 
@@ -1566,3 +1566,19 @@ npm run test:e2e
 ```
 
 It uses Chromium and real cookie/CORS requests to cover authentication, demo funding, paid joining, Team invitation, availability `PUT`, lineup claims, direct messaging, and persisted notifications. It creates only uniquely tagged `@test.invalid` fixtures and asserts exact cleanup. Current known limitations must match `docs/AUDIT_REMEDIATION_CLOSURE.md`; no historical P1 item is an accepted expected failure.
+
+### 22.1 Gate 2 onboarding acceptance addendum
+
+Run this only after applying `20260925120000_gate_2_onboarding` according to `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`. Use approved non-production legal fixtures and the test email adapter; never label placeholder wording as production-approved content.
+
+1. Register a new account and confirm protected product routes redirect to email verification while the verification/onboarding routes remain usable.
+2. Confirm the raw link token is delivered only by the adapter, is absent from database storage/log output, expires as configured, and cannot be reused. Confirm resend cooldown and rolling daily limit responses.
+3. Verify email, then test DOB immediately below/at the 18-year boundary, experience values -1/0/60/61, duplicate/five positions, and a waiting-list city. Only a valid Cape Town profile may proceed.
+4. Join an unsupported-city waiting list anonymously and while authenticated. Confirm dedupe, status lookup, unsubscribe, deletion, and Admin-only visibility using the opaque management token.
+5. Upload valid JPEG/PNG/WEBP samples and reject MIME spoofing, files over 5 MB, images below 256x256, out-of-bounds crops, and another player's replacement. Confirm output is private normalized WEBP and the original is absent.
+6. Accept the exact five current document IDs, complete onboarding, and confirm create/join/pay/message/Team mutations become available. A mismatched or incomplete version set must fail.
+7. Sign in as a pre-migration legacy account. Confirm existing matches, Teams, wallet, and read paths remain visible while sensitive mutations return `ONBOARDING_REQUIRED`; complete missing fields on the same account and retry successfully.
+8. Exercise password reset once, confirm all prior sessions are invalid, and reject token reuse. Exercise email change with the current password, confirm the old address remains active until new-address verification, the swap is atomic, and the old address receives a notification.
+9. Confirm authenticated profiles show controlled city, experience, current Teams, and played W/D/L/goals; DOB is self/Admin-only. Verify unresolved result disputes are excluded and forfeits count W/L without goals.
+
+Record migration/preflight, Postmark/test-adapter, and Playwright evidence separately. Gate 2 is not production release-verified until counsel content/retention inputs and every runbook prerequisite are complete.
