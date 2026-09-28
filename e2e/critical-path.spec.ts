@@ -274,7 +274,7 @@ test.describe('browser critical path', () => {
     });
     expect(playerDeposit.status, JSON.stringify(playerDeposit.body)).toBe(200);
     await playerPage.getByRole('button', { name: 'Join this match' }).click();
-    await playerPage.getByRole('button', { name: 'Pay & join Home' }).click();
+    await playerPage.getByRole('button', { name: 'Pay & join Team A' }).click();
     await expect(playerPage.getByText('Place confirmed')).toBeVisible();
     expect(
       await prisma.matchParticipant.count({ where: { matchId: quickId, userId: player.id } }),

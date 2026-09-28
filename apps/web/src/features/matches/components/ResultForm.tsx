@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
+import { QUICK_MATCH_SIDE_LABELS } from '../constants/quick-match-sides.js';
 import { useSubmitResult } from '../hooks/useMatches.js';
 export function ResultForm({
   matchId,
@@ -43,14 +44,14 @@ export function ResultForm({
       <p className="mt-1 text-sm text-content-muted">Scorer totals must match each team score.</p>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Input
-          label="Home score"
+          label={`${QUICK_MATCH_SIDE_LABELS.HOME} score`}
           type="number"
           min="0"
           value={homeScore}
           onChange={(event) => setHomeScore(event.target.value)}
         />
         <Input
-          label="Away score"
+          label={`${QUICK_MATCH_SIDE_LABELS.AWAY} score`}
           type="number"
           min="0"
           value={awayScore}

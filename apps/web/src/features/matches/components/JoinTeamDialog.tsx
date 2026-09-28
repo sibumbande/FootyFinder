@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { useAddFunds } from '@/features/wallet/hooks/useWallet.js';
 import { formatRands } from '@/utils/format-currency.js';
+import { QUICK_MATCH_SIDE_BADGES, QUICK_MATCH_SIDE_LABELS } from '../constants/quick-match-sides.js';
 import { useJoinMatch } from '../hooks/useMatches.js';
 export function JoinTeamDialog({
   match,
@@ -32,7 +33,7 @@ export function JoinTeamDialog({
           notify({
             variant: 'success',
             title: 'Place confirmed',
-            message: `You joined the ${team === 'HOME' ? 'Home' : 'Away'} team reserves.`,
+            message: `You joined the ${QUICK_MATCH_SIDE_LABELS[team]} reserves.`,
           });
           onClose();
         },
@@ -79,7 +80,15 @@ export function JoinTeamDialog({
                 onClick={() => setTeam(side)}
                 className={`rounded-2xl border p-5 text-left ${side === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'} ${team === side ? 'ring-4 ring-brand-100' : ''} disabled:opacity-50`}
               >
-                <strong>{side === 'HOME' ? 'Home' : 'Away'}</strong>
+                <strong className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`grid size-6 place-items-center rounded-full text-xs font-black text-content-inverse ${side === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+                  >
+                    {QUICK_MATCH_SIDE_BADGES[side]}
+                  </span>
+                  {QUICK_MATCH_SIDE_LABELS[side]}
+                </strong>
                 <span className="mt-2 block text-sm">
                   {count}/{limit} players
                 </span>
@@ -118,7 +127,7 @@ export function JoinTeamDialog({
             </Button>
           ) : (
             <Button loading={join.isPending} onClick={submit}>
-              Pay & join {team === 'HOME' ? 'Home' : 'Away'}
+              Pay & join {QUICK_MATCH_SIDE_LABELS[team]}
             </Button>
           )}
           <Button variant="secondary" onClick={onClose}>

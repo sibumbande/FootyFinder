@@ -79,7 +79,7 @@ describe('FormationBoard', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /Player three/i }));
-    fireEvent.click(screen.getByRole('button', { name: /HOME slot 1/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Home position 1/i }));
     expect(screen.getByRole('dialog', { name: 'Position already occupied' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Move to substitutes' }));
     expect(assign).toHaveBeenCalledWith({

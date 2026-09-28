@@ -57,10 +57,10 @@ describe('FormationBoard position claims', () => {
     renderBoard({ onClaim });
 
     expect(screen.getAllByText('CLAIM')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: /slot 1, open position, claim it/i }));
+    fireEvent.click(screen.getByRole('button', { name: /position 1, open, claim it/i }));
 
     expect(onClaim).toHaveBeenCalledWith('home-1');
-    expect(await screen.findByRole('button', { name: /slot 1, Player me/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /position 1, occupied by Player me/i })).toBeInTheDocument();
     expect(within(homeReserves()).queryByText('Player me')).not.toBeInTheDocument();
     expect(await screen.findByText('Saved')).toBeInTheDocument();
   });
@@ -69,11 +69,11 @@ describe('FormationBoard position claims', () => {
     const onClaim = vi.fn().mockRejectedValue(new Error('POSITION_ALREADY_CLAIMED'));
     renderBoard({ onClaim });
 
-    fireEvent.click(screen.getByRole('button', { name: /slot 1, open position, claim it/i }));
+    fireEvent.click(screen.getByRole('button', { name: /position 1, open, claim it/i }));
 
     expect(await screen.findByText('Save failed — rolled back')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /slot 1, open position, claim it/i }),
+      screen.getByRole('button', { name: /position 1, open, claim it/i }),
     ).toBeInTheDocument();
     expect(within(homeReserves()).getByText('Player me')).toBeInTheDocument();
   });
@@ -82,7 +82,7 @@ describe('FormationBoard position claims', () => {
     const onClaim = vi.fn();
     renderBoard({ onClaim });
 
-    const awaySlot = screen.getByRole('button', { name: /AWAY slot 1/i });
+    const awaySlot = screen.getByRole('button', { name: /Away position 1/i });
     expect(awaySlot).toHaveAccessibleName(/empty/);
     fireEvent.click(awaySlot);
     expect(onClaim).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ describe('FormationBoard position claims', () => {
 
     expect(screen.queryByText('CLAIM')).not.toBeInTheDocument();
     expect(screen.getByText('Locked')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /HOME slot 1/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Home position 1/i }));
     expect(onClaim).not.toHaveBeenCalled();
   });
 
@@ -107,9 +107,9 @@ describe('FormationBoard position claims', () => {
       claimableSlotIds: ['home-2'],
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /slot 2, open position, claim it/i }));
+    fireEvent.click(screen.getByRole('button', { name: /position 2, open, claim it/i }));
 
-    expect(screen.getByRole('button', { name: /slot 2, Player me/i })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /position 2, occupied by Player me/i })).toHaveAttribute(
       'aria-busy',
       'true',
     );
@@ -123,7 +123,7 @@ describe('FormationBoard position claims', () => {
     renderBoard({ onClaim, canEdit: true });
 
     expect(screen.queryByText('CLAIM')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /HOME slot 1/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Home position 1/i }));
     expect(onClaim).not.toHaveBeenCalled();
   });
 });

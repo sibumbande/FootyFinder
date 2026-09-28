@@ -16,6 +16,11 @@ import { useNotifications } from '@/features/notifications/NotificationProvider.
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
 import { FormationBoard } from '../components/formation/FormationBoard.js';
+import {
+  QUICK_MATCH_RESERVE_LABELS,
+  QUICK_MATCH_SIDE_BADGES,
+  QUICK_MATCH_SIDE_LABELS,
+} from '../constants/quick-match-sides.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
@@ -314,6 +319,10 @@ export function MatchLobbyPage() {
             claimableSlotIds={claimableSlotIds}
             onClaim={claim}
             currentPlayerId={currentParticipant?.id ?? null}
+            sideLabels={QUICK_MATCH_SIDE_LABELS}
+            sideBadges={QUICK_MATCH_SIDE_BADGES}
+            reserveLabels={QUICK_MATCH_RESERVE_LABELS}
+            emptySlotsAreOpen
             readonlyHint={
               canClaim
                 ? 'Tap an open position on your team to claim it.'
@@ -336,8 +345,16 @@ export function MatchLobbyPage() {
             key={team}
             className={`rounded-2xl border p-4 ${team === 'HOME' ? 'border-team-home-border bg-team-home-muted' : 'border-team-away-border bg-team-away-muted'}`}
           >
-            <h2 className={`font-bold ${team === 'HOME' ? 'text-team-home' : 'text-team-away'}`}>
-              {team === 'HOME' ? 'Home' : 'Away'} team
+            <h2
+              className={`flex items-center gap-2 font-bold ${team === 'HOME' ? 'text-team-home' : 'text-team-away'}`}
+            >
+              <span
+                aria-hidden="true"
+                className={`grid size-6 place-items-center rounded-full text-xs font-black text-content-inverse ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+              >
+                {QUICK_MATCH_SIDE_BADGES[team]}
+              </span>
+              {QUICK_MATCH_SIDE_LABELS[team]}
             </h2>
             {participants
               .filter((item) => item.team === team)
@@ -349,6 +366,14 @@ export function MatchLobbyPage() {
                   <Link className="min-w-0 flex-1 truncate" to={`/players/${player.userId}`}>
                     {player.user?.displayName}
                   </Link>
+                  {player.userId === user?.id && (
+                    <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-black uppercase text-content-inverse">
+                      You
+                    </span>
+                  )}
+                  <span className="text-[10px] font-bold uppercase text-content-muted">
+                    {onFieldIds.has(player.id) ? 'On pitch' : 'Reserve'}
+                  </span>
                   {mutable &&
                     (isHost || player.userId === user?.id) &&
                     (isHost || !onFieldIds.has(player.id)) && (
@@ -362,7 +387,7 @@ export function MatchLobbyPage() {
                         }
                         className="rounded-lg border border-line px-2 py-1 text-xs text-content-muted"
                       >
-                        Move to {team === 'HOME' ? 'Away' : 'Home'}
+                        Move to {QUICK_MATCH_SIDE_LABELS[team === 'HOME' ? 'AWAY' : 'HOME']}
                       </button>
                     )}
                 </div>
