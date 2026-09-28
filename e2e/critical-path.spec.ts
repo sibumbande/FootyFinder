@@ -14,6 +14,13 @@ const prisma = new PrismaClient({
 });
 const marker = `e2e-${Date.now().toString(36)}`;
 let managedVenueId: string | undefined;
+let testBatchId: string | undefined;
+
+/** Test accounts must belong to a TestDataBatch (User_test_batch_consistency). */
+async function testBatch() {
+  testBatchId ??= (await prisma.testDataBatch.create({ data: { label: marker } })).id;
+  return testBatchId;
+}
 
 type ApiResult<T = Record<string, unknown>> = {
   status: number;
@@ -60,6 +67,7 @@ async function register(page: Page, suffix: 'captain' | 'player') {
 
 async function activateDisposableTestUser(userId: string) {
   const city = await prisma.city.findUniqueOrThrow({ where: { code: 'CAPE_TOWN' } });
+  const batchId = await testBatch();
   await prisma.$transaction(async (tx) => {
     const profile = await tx.playerProfile.update({
       where: { userId },
@@ -74,7 +82,7 @@ async function activateDisposableTestUser(userId: string) {
     await tx.playerPhoto.create({
       data: { profileId: profile.id, fileKey: `${userId}.webp`, mimeType: 'image/webp', byteSize: 1, width: 512, height: 512 },
     });
-    await tx.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date(), onboardingCompletedAt: new Date(), isTestAccount: true } });
+    await tx.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date(), onboardingCompletedAt: new Date(), isTestAccount: true, testDataBatchId: batchId } });
   });
 }
 
@@ -187,6 +195,7 @@ async function cleanFixtures() {
       await tx.managedVenue.delete({ where: { id: managedVenueId } });
     }
     await tx.user.deleteMany({ where: { id: { in: userIds } } });
+    if (testBatchId) await tx.testDataBatch.delete({ where: { id: testBatchId } });
   });
   expect(await prisma.user.count({ where: { email: { startsWith: marker } } })).toBe(0);
 }
@@ -392,6 +401,7 @@ test.describe('browser critical path', () => {
             username: `${marker.replaceAll('-', '')}_c${index}`.slice(0, 30),
             passwordHash: 'browser-test-only',
             isTestAccount: true,
+            testDataBatchId: testBatchId!,
           },
         }),
       ),
