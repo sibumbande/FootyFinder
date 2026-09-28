@@ -5,7 +5,7 @@ import {
   MATCH_RULE_CONFIG,
 } from '@footy-finder/shared';
 import { ApiError } from '@footy-finder/api-client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
@@ -15,7 +15,11 @@ import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
-import { FormationBoard } from '../components/formation/FormationBoard.js';
+import {
+  FormationBoard,
+  type FormationBoardPlayer,
+  type FormationBoardSlot,
+} from '../components/formation/FormationBoard.js';
 import {
   QUICK_MATCH_RESERVE_LABELS,
   QUICK_MATCH_SIDE_BADGES,
@@ -56,6 +60,31 @@ export function MatchLobbyPage() {
   const [tab, setTab] = useState<'formation' | 'players' | 'chat'>('formation');
   const match = matchQuery.data;
   const participants = match?.participants ?? [];
+  // Stable board inputs: only a changed formation or roster produces new arrays (TKT-505).
+  const boardSlots = useMemo<FormationBoardSlot[]>(
+    () =>
+      (match?.formationSlots ?? []).map((slot) => ({
+        id: slot.id,
+        team: slot.team,
+        slotIndex: slot.slotIndex,
+        positionX: slot.positionX,
+        positionY: slot.positionY,
+        playerId: slot.participantId,
+        player: slot.participant?.user
+          ? { id: slot.participant.id, team: slot.participant.team, user: slot.participant.user }
+          : null,
+      })),
+    [match?.formationSlots],
+  );
+  const boardPlayers = useMemo<FormationBoardPlayer[]>(
+    () =>
+      (match?.participants ?? []).flatMap((participant) =>
+        participant.user
+          ? [{ id: participant.id, team: participant.team, user: participant.user }]
+          : [],
+      ),
+    [match?.participants],
+  );
   const onFieldIds = new Set(
     match?.formationSlots?.flatMap((slot) => (slot.participantId ? [slot.participantId] : [])) ??
       [],
@@ -295,26 +324,8 @@ export function MatchLobbyPage() {
           className={`${tab === 'formation' ? 'block' : 'hidden'} rounded-3xl border border-line bg-surface p-4 shadow-sm md:block sm:p-6`}
         >
           <FormationBoard
-            slots={(match.formationSlots ?? []).map((slot) => ({
-              id: slot.id,
-              team: slot.team,
-              slotIndex: slot.slotIndex,
-              positionX: slot.positionX,
-              positionY: slot.positionY,
-              playerId: slot.participantId,
-              player: slot.participant?.user
-                ? {
-                    id: slot.participant.id,
-                    team: slot.participant.team,
-                    user: slot.participant.user,
-                  }
-                : null,
-            }))}
-            players={participants.flatMap((participant) =>
-              participant.user
-                ? [{ id: participant.id, team: participant.team, user: participant.user }]
-                : [],
-            )}
+            slots={boardSlots}
+            players={boardPlayers}
             canEdit={isHost && mutable}
             claimableSlotIds={claimableSlotIds}
             onClaim={claim}

@@ -1,7 +1,8 @@
 import type { DisplacedPlayerAction, PublicUser, TeamSide } from '@footy-finder/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar.js';
 import { Button } from '@/components/ui/Button.js';
+import { formationNow, recordFormationTiming } from './formation-timing.js';
 
 export interface FormationBoardPlayer {
   id: string;
@@ -41,6 +42,14 @@ type PlayerDrag = {
 
 type PendingAssignment = { target: FormationBoardSlot; playerId: string };
 const clamp = (value: number) => Math.max(4, Math.min(96, value));
+/** Content identity of a formation, so equal data in a new array never resets the board. */
+export const formationSignature = (items: readonly FormationBoardSlot[]) =>
+  items
+    .map(
+      (slot) =>
+        `${slot.id}:${slot.playerId ?? ''}:${Number(slot.positionX)}:${Number(slot.positionY)}:${slot.isOpen ? 1 : 0}:${slot.player?.user.displayName ?? ''}:${slot.player?.user.avatarUrl ?? ''}`,
+    )
+    .join('|');
 /** Compact on-pitch name: first word, capped so markers stay readable on a phone. */
 export const shortName = (displayName: string) => {
   const first = displayName.trim().split(/\s+/)[0] ?? displayName;
@@ -98,6 +107,13 @@ export function FormationBoard({
   /** Treat every empty slot as an explicit "open" position (Quick Matches). */
   emptySlotsAreOpen?: boolean;
 }) {
+  // TKT-505 state model:
+  // - `slots` (props) is the authoritative server formation.
+  // - `localSlots` is what is drawn: the server formation plus any optimistic change.
+  // - Server props are adopted only when their content actually changes (not on every render),
+  //   and never while a drag is active or a write is still settling. A buffered update is
+  //   applied as soon as the board is idle again.
+  // - Transient drag coordinates live in `playerDrag`, separate from both.
   const [localSlots, setLocalSlots] = useState(slots);
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -118,7 +134,42 @@ export function FormationBoard({
   };
   const pitch = useRef<HTMLDivElement>(null);
   const suppressClick = useRef(false);
-  useEffect(() => setLocalSlots(slots), [slots]);
+
+  const serverSlots = useRef(slots);
+  const appliedSignature = useRef(formationSignature(slots));
+  const writesInFlight = useRef(0);
+  const dragActive = useRef(false);
+  const writeQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const latestMove = useRef(new Map<string, number>());
+  const moveSequence = useRef(0);
+  const feedbackStartedAt = useRef<number | null>(null);
+  const incomingSignature = formationSignature(slots);
+
+  const adoptServerSlots = (force = false) => {
+    if (!force && (writesInFlight.current > 0 || dragActive.current)) return;
+    const signature = formationSignature(serverSlots.current);
+    if (!force && signature === appliedSignature.current) return;
+    appliedSignature.current = signature;
+    setLocalSlots(serverSlots.current);
+  };
+  useEffect(() => {
+    serverSlots.current = slots;
+    adoptServerSlots();
+    // Content-keyed on purpose: a parent re-render with an equal formation must not reset the
+    // board, so the dependency is the signature rather than the array identity.
+  }, [incomingSignature]);
+
+  useLayoutEffect(() => {
+    if (feedbackStartedAt.current === null) return;
+    recordFormationTiming('pointer-to-render', formationNow() - feedbackStartedAt.current);
+    feedbackStartedAt.current = null;
+  }, [localSlots, playerDrag]);
+  const markFeedbackStart = (eventTimeStamp?: number) => {
+    const now = formationNow();
+    feedbackStartedAt.current =
+      eventTimeStamp && eventTimeStamp > 0 && eventTimeStamp <= now ? eventTimeStamp : now;
+  };
+
   const onField = new Set(localSlots.flatMap((slot) => (slot.playerId ? [slot.playerId] : [])));
   const reserves = players.filter((item) => !onField.has(item.id));
   const markSaved = () => {
@@ -126,39 +177,65 @@ export function FormationBoard({
     window.setTimeout(() => setSaving('idle'), 1200);
   };
 
-  const assign = async (
+  /**
+   * Apply an optimistic change immediately, then run the server write strictly after any earlier
+   * write has settled. On rejection the board is restored to the authoritative server formation.
+   */
+  const commit = (
+    optimistic: (items: FormationBoardSlot[]) => FormationBoardSlot[],
+    write: () => Promise<unknown>,
+  ) => {
+    const startedAt = formationNow();
+    if (feedbackStartedAt.current === null) feedbackStartedAt.current = startedAt;
+    writesInFlight.current += 1;
+    setSaving('saving');
+    setLocalSlots(optimistic);
+    const run = writeQueue.current.then(write);
+    writeQueue.current = run.catch(() => undefined);
+    return run.then(
+      (value) => {
+        recordFormationTiming('drop-to-confirm', formationNow() - startedAt, 'success');
+        writesInFlight.current -= 1;
+        markSaved();
+        adoptServerSlots();
+        return value;
+      },
+      (error: unknown) => {
+        recordFormationTiming('drop-to-confirm', formationNow() - startedAt, 'error');
+        writesInFlight.current -= 1;
+        setSaving('error');
+        adoptServerSlots(true);
+        throw error;
+      },
+    );
+  };
+
+  const assign = (
     target: FormationBoardSlot,
     playerId: string,
     displacedPlayerAction?: DisplacedPlayerAction,
   ) => {
-    const confirmed = localSlots;
     const source = localSlots.find((slot) => slot.playerId === playerId);
     const displaced = target.player;
-    setSaving('saving');
-    setLocalSlots((items) =>
-      items.map((slot) => {
-        if (slot.id === target.id)
-          return {
-            ...slot,
-            playerId,
-            player: players.find((player) => player.id === playerId) ?? null,
-            isOpen: false,
-          };
-        if (source && slot.id === source.id)
-          return displaced && (displacedPlayerAction === 'SWAP' || occupiedDropMode === 'implicit')
-            ? { ...slot, playerId: displaced.id, player: displaced }
-            : { ...slot, playerId: null, player: null };
-        return slot;
-      }),
+    return commit(
+      (items) =>
+        items.map((slot) => {
+          if (slot.id === target.id)
+            return {
+              ...slot,
+              playerId,
+              player: players.find((player) => player.id === playerId) ?? null,
+              isOpen: false,
+            };
+          if (source && slot.id === source.id)
+            return displaced &&
+              (displacedPlayerAction === 'SWAP' || occupiedDropMode === 'implicit')
+              ? { ...slot, playerId: displaced.id, player: displaced }
+              : { ...slot, playerId: null, player: null };
+          return slot;
+        }),
+      () => onAssign({ slotId: target.id, playerId, displacedPlayerAction }),
     );
-    try {
-      await onAssign({ slotId: target.id, playerId, displacedPlayerAction });
-      markSaved();
-    } catch (error) {
-      setLocalSlots(confirmed);
-      setSaving('error');
-      throw error;
-    }
   };
 
   const chooseAssignment = (target: FormationBoardSlot, playerId: string) => {
@@ -170,28 +247,26 @@ export function FormationBoard({
     setSelected(null);
   };
 
-  const claim = async (target: FormationBoardSlot) => {
+  const claim = async (target: FormationBoardSlot, eventTimeStamp?: number) => {
     if (!onClaim || !currentPlayerId || claimingSlotId) return;
-    const confirmed = localSlots;
     const me = players.find((player) => player.id === currentPlayerId) ?? null;
+    markFeedbackStart(eventTimeStamp);
     setClaimingSlotId(target.id);
-    setSaving('saving');
-    // Optimistic: occupy the target and vacate any slot the player already holds (SELF_MOVE).
-    // Rollback restores the confirmed board; a conflict also delivers the authoritative
-    // formation through the cache, which then flows back in as new props.
-    setLocalSlots((items) =>
-      items.map((slot) => {
-        if (slot.id === target.id) return { ...slot, playerId: currentPlayerId, player: me };
-        if (slot.playerId === currentPlayerId) return { ...slot, playerId: null, player: null };
-        return slot;
-      }),
-    );
     try {
-      await onClaim(target.id);
-      markSaved();
+      // Optimistic: occupy the target and vacate any slot the player already holds (SELF_MOVE).
+      // A conflict restores the server formation, which the conflict response has already
+      // refreshed with the authoritative board.
+      await commit(
+        (items) =>
+          items.map((slot) => {
+            if (slot.id === target.id) return { ...slot, playerId: currentPlayerId, player: me };
+            if (slot.playerId === currentPlayerId) return { ...slot, playerId: null, player: null };
+            return slot;
+          }),
+        () => onClaim(target.id),
+      );
     } catch {
-      setLocalSlots(confirmed);
-      setSaving('error');
+      // Already rolled back and reported by commit().
     } finally {
       setClaimingSlotId(null);
     }
@@ -199,20 +274,13 @@ export function FormationBoard({
 
   const removeSelected = async () => {
     const slot = localSlots.find((item) => item.playerId === selected);
-    if (!slot) return setSelected(null);
-    const confirmed = localSlots;
-    setLocalSlots((items) =>
-      items.map((item) => (item.id === slot.id ? { ...item, playerId: null, player: null } : item)),
-    );
-    setSaving('saving');
-    try {
-      await onRemove(slot.id);
-      markSaved();
-    } catch {
-      setLocalSlots(confirmed);
-      setSaving('error');
-    }
     setSelected(null);
+    if (!slot) return;
+    await commit(
+      (items) =>
+        items.map((item) => (item.id === slot.id ? { ...item, playerId: null, player: null } : item)),
+      () => onRemove(slot.id),
+    ).catch(() => undefined);
   };
 
   const pointerPosition = (clientX: number, clientY: number) => {
@@ -224,17 +292,20 @@ export function FormationBoard({
       rect,
     };
   };
-  const savePosition = async (
-    slotId: string,
-    position: { positionX: number; positionY: number },
-  ) => {
-    setSaving('saving');
-    try {
-      await onMove(slotId, position);
-      markSaved();
-    } catch {
-      setSaving('error');
-    }
+  /**
+   * Move a marker to a new coordinate. The marker lands where it was dropped immediately. If
+   * several moves of the same slot queue up behind a slow write, only the newest one is sent.
+   */
+  const savePosition = (slotId: string, position: { positionX: number; positionY: number }) => {
+    const sequence = (moveSequence.current += 1);
+    latestMove.current.set(slotId, sequence);
+    return commit(
+      (items) => items.map((slot) => (slot.id === slotId ? { ...slot, ...position } : slot)),
+      () =>
+        latestMove.current.get(slotId) === sequence
+          ? onMove(slotId, position)
+          : Promise.resolve(undefined),
+    ).catch(() => undefined);
   };
   const nearestDropTarget = (
     clientX: number,
@@ -259,6 +330,12 @@ export function FormationBoard({
         .sort((a, b) => a.distance - b.distance)[0]?.slot ?? null
     );
   };
+  const endDrag = () => {
+    setPlayerDrag(null);
+    setDropTargetId(null);
+    dragActive.current = false;
+    adoptServerSlots();
+  };
   const startPlayerDrag = (
     event: React.PointerEvent<HTMLButtonElement>,
     slot: FormationBoardSlot,
@@ -266,6 +343,7 @@ export function FormationBoard({
     if (!canEdit || !slot.playerId || selected) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    dragActive.current = true;
     setPlayerDrag({
       playerId: slot.playerId,
       sourceSlotId: slot.id,
@@ -287,6 +365,7 @@ export function FormationBoard({
       Math.hypot(event.clientX - playerDrag.startClientX, event.clientY - playerDrag.startClientY) >
         5;
     if (active && !playerDrag.active) setSelected(null);
+    if (active) markFeedbackStart(event.timeStamp);
     setPlayerDrag((current) =>
       current
         ? { ...current, positionX: position.positionX, positionY: position.positionY, active }
@@ -310,6 +389,9 @@ export function FormationBoard({
       const valid =
         position && isFormationPositionValid(pitchMode, playerDrag.team, position.positionY);
       setLandingSlotId(valid ? (target?.id ?? playerDrag.sourceSlotId) : playerDrag.sourceSlotId);
+      // Leave drag mode first so the optimistic drop below is not buffered behind the drag.
+      dragActive.current = false;
+      markFeedbackStart(event.timeStamp);
       if (valid && target) chooseAssignment(target, playerDrag.playerId);
       else if (valid && position)
         void savePosition(playerDrag.sourceSlotId, {
@@ -327,8 +409,19 @@ export function FormationBoard({
         suppressClick.current = false;
       }, 0);
     }
-    setPlayerDrag(null);
-    setDropTargetId(null);
+    endDrag();
+  };
+  /**
+   * A cancelled pointer (for example the browser taking over a touch to scroll) aborts the drag
+   * and returns the marker to its position. It must never be treated as a drop.
+   */
+  const cancelPlayerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!playerDrag || event.pointerId !== playerDrag.pointerId) return;
+    if (playerDrag.active) {
+      setLandingSlotId(playerDrag.sourceSlotId);
+      window.setTimeout(() => setLandingSlotId(null), 460);
+    }
+    endDrag();
   };
   const moveEmptySlot = (clientX: number, clientY: number, slot: FormationBoardSlot) => {
     const position = pointerPosition(clientX, clientY);
@@ -337,6 +430,7 @@ export function FormationBoard({
       window.setTimeout(() => setLandingSlotId(null), 460);
       return;
     }
+    markFeedbackStart();
     void savePosition(slot.id, {
       positionX: position.positionX,
       positionY: position.positionY,
@@ -351,7 +445,12 @@ export function FormationBoard({
     const element = event.currentTarget;
     element.onpointerup = (up) => {
       element.onpointerup = null;
+      element.onpointercancel = null;
       moveEmptySlot(up.clientX, up.clientY, slot);
+    };
+    element.onpointercancel = () => {
+      element.onpointerup = null;
+      element.onpointercancel = null;
     };
   };
 
@@ -400,7 +499,7 @@ export function FormationBoard({
               }
               onPointerMove={movePlayerDrag}
               onPointerUp={(event) => slot.playerId && finishPlayerDrag(event)}
-              onPointerCancel={finishPlayerDrag}
+              onPointerCancel={cancelPlayerDrag}
               onClick={() => {
                 if (!canEdit && claimable.has(slot.id) && !slot.playerId) {
                   void claim(slot);

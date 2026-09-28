@@ -1,7 +1,12 @@
 import type { FormationSlot, Match } from '@footy-finder/shared';
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
-import { applyFormationSnapshot, isFormationSnapshot, matchQueryKey } from './formation-cache.js';
+import {
+  applyFormationSnapshot,
+  isFormationSnapshot,
+  keepNewerFormation,
+  matchQueryKey,
+} from './formation-cache.js';
 
 const slot = (participantId: string | null): FormationSlot => ({
   id: 'slot-1',
@@ -54,6 +59,24 @@ describe('formation cache snapshots', () => {
     const cache = new QueryClient();
     applyFormationSnapshot(cache, { matchId: 'match-1', formationVersion: 1, slots: [] });
     expect(cached(cache)).toBeUndefined();
+  });
+
+  it('keeps the newer formation when a slower full refetch lands after a formation write', () => {
+    const newer = { name: 'Lobby', formationVersion: 6, formationSlots: [slot('fresh')] } as unknown as Match;
+    const staleRefetch = {
+      name: 'Renamed lobby',
+      formationVersion: 5,
+      formationSlots: [slot('stale')],
+    } as unknown as Match;
+
+    expect(keepNewerFormation(newer, staleRefetch)).toMatchObject({
+      name: 'Renamed lobby',
+      formationVersion: 6,
+      formationSlots: [{ participantId: 'fresh' }],
+    });
+    const fresherRefetch = { ...staleRefetch, formationVersion: 7 } as Match;
+    expect(keepNewerFormation(newer, fresherRefetch)).toBe(fresherRefetch);
+    expect(keepNewerFormation(undefined, staleRefetch)).toBe(staleRefetch);
   });
 
   it('recognises conflict details that carry an authoritative formation', () => {

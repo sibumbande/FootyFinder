@@ -59,7 +59,7 @@ describe('FormationBoard position claims', () => {
     expect(screen.getAllByText('CLAIM')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: /position 1, open, claim it/i }));
 
-    expect(onClaim).toHaveBeenCalledWith('home-1');
+    await waitFor(() => expect(onClaim).toHaveBeenCalledWith('home-1'));
     expect(await screen.findByRole('button', { name: /position 1, occupied by Player me/i })).toBeInTheDocument();
     expect(within(homeReserves()).queryByText('Player me')).not.toBeInTheDocument();
     expect(await screen.findByText('Saved')).toBeInTheDocument();
@@ -114,6 +114,7 @@ describe('FormationBoard position claims', () => {
       'true',
     );
     expect(screen.getAllByRole('button', { name: /Player me/i })).toHaveLength(1);
+    await waitFor(() => expect(onClaim).toHaveBeenCalledWith('home-2'));
     resolveClaim();
     await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument());
   });

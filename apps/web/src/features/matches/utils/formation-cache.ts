@@ -18,6 +18,20 @@ export function applyFormationSnapshot(cache: QueryClient, snapshot: FormationSn
   return applied;
 }
 
+/**
+ * Guard for full lobby refetches. A refetch that started before a formation write committed can
+ * land after the newer snapshot. Keep the newer formation instead of rolling the board back, and
+ * take everything else from the refetch.
+ */
+export function keepNewerFormation(previous: Match | undefined, next: Match): Match {
+  if (!previous || (next.formationVersion ?? 0) >= (previous.formationVersion ?? 0)) return next;
+  return {
+    ...next,
+    formationVersion: previous.formationVersion,
+    formationSlots: previous.formationSlots,
+  };
+}
+
 export const isFormationSnapshot = (value: unknown): value is FormationSnapshot =>
   typeof value === 'object' &&
   value !== null &&

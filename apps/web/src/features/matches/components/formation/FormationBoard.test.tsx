@@ -1,5 +1,5 @@
 import type { PublicUser } from '@footy-finder/shared';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   FormationBoard,
@@ -46,7 +46,7 @@ describe('FormationBoard', () => {
     expect(isFormationPositionValid('single-team', 'HOME', 12)).toBe(true);
   });
 
-  it('requires an explicit bench/remove choice for an occupied non-starter drop', () => {
+  it('requires an explicit bench/remove choice for an occupied non-starter drop', async () => {
     const assign = vi.fn().mockResolvedValue(undefined);
     render(
       <FormationBoard
@@ -82,10 +82,12 @@ describe('FormationBoard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Home position 1/i }));
     expect(screen.getByRole('dialog', { name: 'Position already occupied' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Move to substitutes' }));
-    expect(assign).toHaveBeenCalledWith({
-      slotId: 'slot-1',
-      playerId: 'three',
-      displacedPlayerAction: 'BENCH',
-    });
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith({
+        slotId: 'slot-1',
+        playerId: 'three',
+        displacedPlayerAction: 'BENCH',
+      }),
+    );
   });
 });

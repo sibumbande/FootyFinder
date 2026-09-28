@@ -2,16 +2,18 @@ import type {
   CreateMatchInput,
   DiscoveryQuery,
   FormationSlotUpdateInput,
+  Match,
   JoinMatchInput,
   ResultInput,
 } from '@footy-finder/shared';
 import { ApiError } from '@footy-finder/api-client';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { replaceEqualDeep, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
 import { matchApi } from '../api/matches.js';
 import {
   applyFormationSnapshot,
   isFormationSnapshot,
+  keepNewerFormation,
   matchQueryKey,
 } from '../utils/formation-cache.js';
 export const matchesKey = ['matches'] as const;
@@ -28,6 +30,8 @@ export const useMatch = (id: string) =>
     queryFn: async () => (await matchApi.get(id)).data,
     enabled: Boolean(id),
     refetchInterval: 30_000,
+    structuralSharing: (previous, next) =>
+      replaceEqualDeep(previous, keepNewerFormation(previous as Match | undefined, next as Match)),
   });
 export const usePublicMatchPreview = (slug: string) =>
   useQuery({
