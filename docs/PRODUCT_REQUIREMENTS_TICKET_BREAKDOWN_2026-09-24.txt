@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, and Gate 4 on 2026-09-28.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, and Gate 5 on 2026-09-28 (implemented with one commit per ticket).
 
 
 1. HOW TO USE THIS BACKLOG
@@ -219,6 +219,9 @@ Policy:
 - Presentation uses Team A/Team B with accessible blue/orange plus non-color labels, readable name/avatar, current-user emphasis, and explicit open/occupied states.
 - Formation interaction budget: local feedback under 100 ms, server success/conflict at two seconds p95, and other-client convergence within three seconds; rollback on failure.
 Blocks resolved by policy: TKT-501 through TKT-506.
+CEO decisions recorded during Gate 5 implementation (2026-09-28):
+- CEO decision (Sibu): a placed player who claims another open slot on their side is moved atomically (SELF_MOVE), not rejected.
+- CEO decision (Sibu): away team colour stays red; side identification relies on A/B badges and text labels rather than a colour change.
 
 DEC-014 - Team-wallet governance
 Status: APPROVED - POLICY RECORDED (2026-09-24)
@@ -296,6 +299,10 @@ Blocks resolved by policy: TKT-805 through TKT-807.
 - Immediate Gate 0 closeout is runtime verification of the already-implemented TKT-002 and TKT-003; do not reimplement them unless verification exposes a defect. TKT-005 is verified and TKT-006 is the next READY Gate 0 ticket.
 - Gate 1 application work was implemented as one approved batch on 2026-09-25. Unit/component tests, lint, Prisma generation, and all workspace builds pass. TKT-104, TKT-108, and TKT-109 still require the committed migration to be exercised against a disposable PostgreSQL database; TKT-101 still requires its focused Playwright flow there. Do not call Gate 1 release-verified until those checks pass.
 - Gate 2 application work was implemented as one approved batch on 2026-09-25. The additive schema/migration, shared contracts, API/provider layers, web journeys, protected photo processing, waiting list, legacy gates, and supported statistics are present. Automated tests, lint, builds, Prisma generation, and npm audit pass; disposable-database migration/preflight, Postmark delivery, and focused Playwright verification remain pending. Production activation is additionally blocked on the counsel inputs below. See `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`.
+- Gate 5 was implemented on 2026-09-28 with one commit per ticket (TKT-501 to TKT-506) plus additive migration `20260929100000_gate_5_position_claims`.
+  - Verified against a local disposable PostgreSQL database (`footy_finder_test`): the full 27-migration chain applies, the claim race smoke passes, and both Playwright journeys pass (position-claim and the previously never-passing critical path).
+  - Mobile-hardware budget measurement is still pending.
+  - See `docs/GATE_5_POSITION_CLAIMS_RUNBOOK_2026-09-28.md`.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
@@ -774,6 +781,7 @@ Not in scope: anonymous preview route.
 
 TKT-308 - Add venue-to-match E2E and reservation race test
 Status: IMPLEMENTED TEST COVERAGE - BROWSER JOURNEY AND CONCURRENT DATABASE RACE COMMITTED; RUNTIME PENDING WITHOUT DOCKER (2026-09-28)
+Runtime update (2026-09-28, during Gate 5): e2e/critical-path.spec.ts passed in Playwright against local footy_finder_test after fixing its test-account batch helper (commit c009cb2), and smoke:field-bookings passed. CI execution remains pending.
 Depends on: TKT-306, TKT-307
 Risk: Medium
 Scope:
@@ -838,6 +846,7 @@ Not in scope: QR codes, referrals, analytics, or campaign tracking.
 
 TKT-405 - Add public-share acquisition E2E
 Status: IMPLEMENTED TEST COVERAGE - ANONYMOUS PREVIEW, LOGIN RETURN, DEMO FUNDING, JOIN, AND FULL/CANCELLED/PRIVATE-SAFE PATH COMMITTED; RUNTIME PENDING WITHOUT DOCKER (2026-09-28)
+Runtime update (2026-09-28, during Gate 5): the acquisition journey in e2e/critical-path.spec.ts passed in Playwright against local footy_finder_test (commit c009cb2). CI execution remains pending.
 Depends on: TKT-404, TKT-209
 Risk: Medium
 Scope: Anonymous share -> preview -> register/login -> return -> fund -> join. Fund only through the environment-gated demo-deposit API with a unique idempotency key and disposable cleanup; never write a browser-test balance directly.
@@ -848,7 +857,32 @@ Not in scope: position claim, covered by TKT-506.
 9. GATE 5 - POSITION CLAIMS AND FORMATION UX
 =============================================
 
+Implementation summary (2026-09-28): Gate 5 was implemented one commit per ticket on `ceo/finish-gate-5` with additive migration `20260929100000_gate_5_position_claims`. That migration adds the MATCH_POSITION_CHANGED notification type, `Match.formationVersion`, and the append-only `MatchFormationEvent` audit table.
+
+Delivered:
+- Joined Quick Match players can atomically self-claim an open same-side position (first commit wins; SELF_MOVE per the CEO decision under DEC-013).
+- Organiser moves and removals are audited and notify the affected players.
+- The web lobby offers claiming with deterministic rollback and conflict recovery.
+- Versioned `match-formation:updated` events patch only the affected Match cache.
+- Quick Match sides are presented as Team A/Team B with badges, names and current-user emphasis. Colours are unchanged per the CEO decision.
+- Formation drag/drop is instrumented and stabilised.
+
+Verification:
+- Shared, API, API-client and web automated suites, type-checks and the web build pass.
+- `npx prisma migrate reset --force` on the local development database applies all 27 migrations.
+- Against the local disposable `footy_finder_test` database, `smoke:position-claims` (5 races x 4 claimants) and the Playwright position-claim and critical-path journeys pass.
+- Still pending: measuring the DEC-013 latency budget on representative mobile hardware/network, and CI execution.
+
+Shared fix made during TKT-501: `serializableTransaction` now retries Prisma 7 driver-adapter serialization failures (40001 nested under `meta.driverAdapterError`). Raw-lock contention on wallet, hold, join and booking paths was previously surfaced as errors instead of being retried.
+
+Follow-ups found and not fixed (outside Gate 5):
+- `smoke:match-capacity` does not compile since Gate 3 removed `MatchesRepository.create`. This halts `smoke:all`.
+- Gate 3 public venue APIs/UI expose venue prices to players, which conflicts with the CEO rule that venue costs never appear in player-facing UI or responses. A decision is required.
+
+See `docs/GATE_5_POSITION_CLAIMS_RUNBOOK_2026-09-28.md`.
+
 TKT-501 - Implement atomic quick-match self-claim service/API
+Status: VERIFIED LOCALLY - SERVICE/API, ORGANISER AUDIT/NOTIFY, AND POSTGRESQL RACE SMOKE PASS; COMMIT a64d7ee (2026-09-28)
 Depends on: DEC-013, TKT-109
 Risk: High
 Scope:
@@ -860,6 +894,7 @@ Tests: service/API/PostgreSQL concurrency and role matrix.
 Not in scope: organiser generic movement changes.
 
 TKT-502 - Add position-claim UI and conflict recovery
+Status: VERIFIED LOCALLY - CLAIM AFFORDANCE, OPTIMISTIC ROLLBACK, AND CONFLICT REFRESH COMPONENT/BROWSER TESTS PASS; COMMIT 821982d (2026-09-28)
 Depends on: TKT-501
 Risk: Medium
 Scope:
@@ -871,6 +906,7 @@ Tests: component success/conflict/wrong-side/immutable states.
 Not in scope: drag optimization.
 
 TKT-503 - Narrow realtime formation updates and cache invalidation
+Status: VERIFIED LOCALLY - VERSIONED match-formation:updated EVENT, STALE/DUPLICATE REJECTION, AND TWO-BROWSER CONVERGENCE PASS; COMMIT 0c4d4d7 (2026-09-28)
 Depends on: TKT-501, TKT-502
 Risk: Medium
 Scope:
@@ -882,6 +918,7 @@ Tests: socket integration, duplicate/missed/out-of-order event recovery.
 Not in scope: presentation redesign.
 
 TKT-504 - Improve team-side and player-marker presentation
+Status: VERIFIED LOCALLY - TEAM A/TEAM B LABELS, A/B BADGES, NAMES, CURRENT-USER EMPHASIS, OPEN/OCCUPIED STATES; COLOURS UNCHANGED PER CEO DECISION; COMMIT e49d786 (2026-09-28)
 Depends on: DEC-013
 Risk: Low
 Scope:
@@ -893,6 +930,7 @@ Tests: component/accessibility/responsive snapshots where appropriate.
 Not in scope: claim backend.
 
 TKT-505 - Measure and stabilize formation drag/drop
+Status: IMPLEMENTED - INSTRUMENTED AND STABILISED; LOCAL CHROMIUM WITHIN BUDGET (FEEDBACK p95 5-8 MS, CONFIRM p95 440-660 MS); REPRESENTATIVE MOBILE MEASUREMENT PENDING; COMMIT 7f1c9c0 (2026-09-28)
 Depends on: TKT-503
 Risk: High
 Scope:
@@ -905,6 +943,7 @@ Tests: component interaction, simulated latency, multi-client/socket integration
 Not in scope: changing formation rules.
 
 TKT-506 - Add complete public join-and-claim E2E
+Status: VERIFIED LOCALLY - SHARED LINK, AUTH RETURN, FUND/JOIN, CLAIM RACE, AND REALTIME CONVERGENCE PASS IN PLAYWRIGHT AGAINST footy_finder_test; CI RUN PENDING; COMMIT c009cb2 (2026-09-28)
 Depends on: TKT-405, TKT-505
 Risk: Medium
 Scope: Shared public match -> auth -> pay/join -> claim -> second-user conflict -> realtime convergence.
