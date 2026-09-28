@@ -4,6 +4,7 @@ import {
   MATCH_FORMAT_CONFIG,
   MATCH_RULE_CONFIG,
 } from '@footy-finder/shared';
+import { ApiError } from '@footy-finder/api-client';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
@@ -24,6 +25,7 @@ import {
   useCancellationQuote,
   useCancellationStatus,
   useChangeTeam,
+  useClaimPosition,
   useDeleteMatch,
   useFormationUpdate,
   useLeaveMatch,
@@ -43,6 +45,7 @@ export function MatchLobbyPage() {
   const ready = useReadyMatch(matchId);
   const rotateInvite = useRotateMatchInvite(matchId);
   const formation = useFormationUpdate(matchId);
+  const claimPosition = useClaimPosition(matchId);
   const changeTeam = useChangeTeam(matchId);
   const [joinOpen, setJoinOpen] = useState(false);
   const [tab, setTab] = useState<'formation' | 'players' | 'chat'>('formation');
@@ -105,6 +108,35 @@ export function MatchLobbyPage() {
       leave.mutate(undefined, {
         onSuccess: () => notify({ variant: 'info', title: 'Place cancelled', message: detail }),
       });
+  };
+  const canClaim = mutable && Boolean(currentParticipant) && !isHost;
+  const claimableSlotIds = canClaim
+    ? (match.formationSlots ?? [])
+        .filter((slot) => slot.team === currentParticipant?.team && !slot.participantId)
+        .map((slot) => slot.id)
+    : [];
+  const claim = async (slotId: string) => {
+    try {
+      await claimPosition.mutateAsync(slotId);
+      notify({ variant: 'success', title: 'Position claimed', message: 'You are on the pitch.' });
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : undefined;
+      notify({
+        variant: 'error',
+        title: code === 'POSITION_ALREADY_CLAIMED' ? 'Position taken' : 'Could not claim position',
+        message:
+          code === 'POSITION_ALREADY_CLAIMED'
+            ? 'Another player claimed that position first. The formation has been refreshed.'
+            : code === 'POSITION_WRONG_SIDE'
+              ? 'You can only claim a position on your own team.'
+              : code === 'MATCH_STARTED'
+                ? 'Positions are locked once the match kicks off.'
+                : error instanceof Error
+                  ? error.message
+                  : 'Please try again.',
+      });
+      throw error;
+    }
   };
   const copyInvite = async () => {
     const inviteToken = match.inviteToken ?? (await rotateInvite.mutateAsync()).data.inviteToken;
@@ -279,6 +311,14 @@ export function MatchLobbyPage() {
                 : [],
             )}
             canEdit={isHost && mutable}
+            claimableSlotIds={claimableSlotIds}
+            onClaim={claim}
+            currentPlayerId={currentParticipant?.id ?? null}
+            readonlyHint={
+              canClaim
+                ? 'Tap an open position on your team to claim it.'
+                : 'The organiser controls the pre-match formation.'
+            }
             onAssign={({ slotId, playerId }) =>
               formation.mutateAsync({ slotId, input: { participantId: playerId } })
             }

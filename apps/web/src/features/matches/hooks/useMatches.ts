@@ -5,11 +5,17 @@ import type {
   JoinMatchInput,
   ResultInput,
 } from '@footy-finder/shared';
+import { ApiError } from '@footy-finder/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
 import { matchApi } from '../api/matches.js';
+import {
+  applyFormationSnapshot,
+  isFormationSnapshot,
+  matchQueryKey,
+} from '../utils/formation-cache.js';
 export const matchesKey = ['matches'] as const;
-export const matchKey = (id: string) => ['matches', id] as const;
+export const matchKey = matchQueryKey;
 export const publicMatchKey = (slug: string) => ['public-match', slug] as const;
 export const useMatches = (query?: Partial<DiscoveryQuery>) =>
   useQuery({
@@ -88,6 +94,25 @@ export const useFormationUpdate = (id: string) =>
   lobbyMutation<{ slotId: string; input: FormationSlotUpdateInput }>(id, ({ slotId, input }) =>
     matchApi.formation(id, slotId, input),
   );
+/**
+ * DEC-013 self-claim. A committed claim writes its snapshot straight into the lobby cache. A lost
+ * race carries the authoritative formation in the conflict details, so the board converges
+ * without waiting for a refetch.
+ */
+export function useClaimPosition(id: string) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (slotId: string) => matchApi.claimPosition(id, slotId),
+    onSuccess: ({ data }) => {
+      applyFormationSnapshot(cache, data);
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && isFormationSnapshot(error.details))
+        applyFormationSnapshot(cache, error.details);
+      else void cache.invalidateQueries({ queryKey: matchKey(id) });
+    },
+  });
+}
 export const useChangeTeam = (id: string) =>
   lobbyMutation<{ participantId: string; team: 'HOME' | 'AWAY' }>(id, ({ participantId, team }) =>
     matchApi.changeTeam(id, participantId, { team }),

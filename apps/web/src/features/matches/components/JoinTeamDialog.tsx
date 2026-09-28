@@ -61,7 +61,7 @@ export function JoinTeamDialog({
           <div>
             <h2 className="text-2xl font-bold text-content-strong">Choose your team</h2>
             <p className="mt-1 text-sm text-content-muted">
-              You will start in reserves. The organiser assigns formation slots.
+              You will start in reserves. After joining, tap an open position on your team to claim it.
             </p>
           </div>
           <button aria-label="Close" onClick={onClose} className="text-2xl text-content-muted">

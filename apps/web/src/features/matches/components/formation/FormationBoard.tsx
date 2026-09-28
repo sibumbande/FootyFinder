@@ -61,6 +61,9 @@ export function FormationBoard({
   editableHint = 'Tap or drag players; drag empty slot space to reposition.',
   readonlyHint = 'The organiser controls the pre-match formation.',
   reserveLabels,
+  claimableSlotIds = [],
+  onClaim,
+  currentPlayerId,
 }: {
   slots: FormationBoardSlot[];
   players: FormationBoardPlayer[];
@@ -75,6 +78,11 @@ export function FormationBoard({
   editableHint?: string;
   readonlyHint?: string;
   reserveLabels?: Partial<Record<TeamSide, string>>;
+  /** Open slots the viewer may claim for themselves (DEC-013). Ignored while `canEdit`. */
+  claimableSlotIds?: readonly string[];
+  onClaim?: (slotId: string) => Promise<unknown>;
+  /** The viewer's own player id, used for the optimistic claim and current-user emphasis. */
+  currentPlayerId?: string | null;
 }) {
   const [localSlots, setLocalSlots] = useState(slots);
   const [selected, setSelected] = useState<string | null>(null);
@@ -83,6 +91,8 @@ export function FormationBoard({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [landingSlotId, setLandingSlotId] = useState<string | null>(null);
   const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
+  const [claimingSlotId, setClaimingSlotId] = useState<string | null>(null);
+  const claimable = new Set(canEdit || !onClaim ? [] : claimableSlotIds);
   const pitch = useRef<HTMLDivElement>(null);
   const suppressClick = useRef(false);
   useEffect(() => setLocalSlots(slots), [slots]);
@@ -135,6 +145,33 @@ export function FormationBoard({
       else setPendingAssignment({ target, playerId });
     } else void assign(target, playerId).catch(() => undefined);
     setSelected(null);
+  };
+
+  const claim = async (target: FormationBoardSlot) => {
+    if (!onClaim || !currentPlayerId || claimingSlotId) return;
+    const confirmed = localSlots;
+    const me = players.find((player) => player.id === currentPlayerId) ?? null;
+    setClaimingSlotId(target.id);
+    setSaving('saving');
+    // Optimistic: occupy the target and vacate any slot the player already holds (SELF_MOVE).
+    // Rollback restores the confirmed board; a conflict also delivers the authoritative
+    // formation through the cache, which then flows back in as new props.
+    setLocalSlots((items) =>
+      items.map((slot) => {
+        if (slot.id === target.id) return { ...slot, playerId: currentPlayerId, player: me };
+        if (slot.playerId === currentPlayerId) return { ...slot, playerId: null, player: null };
+        return slot;
+      }),
+    );
+    try {
+      await onClaim(target.id);
+      markSaved();
+    } catch {
+      setLocalSlots(confirmed);
+      setSaving('error');
+    } finally {
+      setClaimingSlotId(null);
+    }
   };
 
   const removeSelected = async () => {
@@ -340,17 +377,22 @@ export function FormationBoard({
               onPointerUp={(event) => slot.playerId && finishPlayerDrag(event)}
               onPointerCancel={finishPlayerDrag}
               onClick={() => {
+                if (!canEdit && claimable.has(slot.id) && !slot.playerId) {
+                  void claim(slot);
+                  return;
+                }
                 if (suppressClick.current || !canEdit) return;
                 if (selected) chooseAssignment(slot, selected);
                 else if (slot.playerId) setSelected(slot.playerId);
               }}
-              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
+              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${claimable.has(slot.id) && !slot.playerId ? 'formation-marker--claimable ring-4 ring-brand-300' : ''} ${claimingSlotId === slot.id ? 'animate-pulse' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
               style={{
                 left: `${dragging ? playerDrag.positionX : slot.positionX}%`,
                 top: `${dragging ? playerDrag.positionY : slot.positionY}%`,
                 zIndex: dragging ? 30 : dropTargetId === slot.id ? 20 : 10,
               }}
-              aria-label={`${slot.team} slot ${slot.slotIndex}${slot.player ? `, ${slot.player.user.displayName}` : slot.isOpen ? ', open position' : ', empty'}`}
+              aria-busy={claimingSlotId === slot.id || undefined}
+              aria-label={`${slot.team} slot ${slot.slotIndex}${slot.player ? `, ${slot.player.user.displayName}` : claimable.has(slot.id) ? ', open position, claim it' : slot.isOpen ? ', open position' : ', empty'}`}
             >
               {slot.player ? (
                 <span className="formation-marker__avatar pointer-events-none">
@@ -358,7 +400,7 @@ export function FormationBoard({
                 </span>
               ) : (
                 <span className="pointer-events-none text-[10px] font-black">
-                  {slot.isOpen ? 'OPEN' : slot.slotIndex}
+                  {claimable.has(slot.id) ? 'CLAIM' : slot.isOpen ? 'OPEN' : slot.slotIndex}
                 </span>
               )}
             </button>
