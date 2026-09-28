@@ -93,11 +93,14 @@ ALTER TABLE "ManagedFieldPrice" ADD CONSTRAINT "ManagedFieldPrice_slot_scope_che
   ("dayOfWeek" IS NULL AND "startMinute" IS NULL AND "endMinute" IS NULL)
   OR ("dayOfWeek" BETWEEN 0 AND 6 AND "startMinute" BETWEEN 0 AND 1439 AND "endMinute" BETWEEN 1 AND 1440 AND "startMinute" < "endMinute")
 );
+CREATE FUNCTION "managed_field_price_format_key"("MatchFormat") RETURNS TEXT
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE
+  AS $$ SELECT COALESCE($1::text, '*') $$;
 ALTER TABLE "ManagedFieldPrice" DROP CONSTRAINT "ManagedFieldPrice_no_overlap";
 ALTER TABLE "ManagedFieldPrice" ADD CONSTRAINT "ManagedFieldPrice_no_overlap"
   EXCLUDE USING gist (
     "fieldId" WITH =,
-    (COALESCE("format"::text, '*')) WITH =,
+    ("managed_field_price_format_key"("format")) WITH =,
     (COALESCE("dayOfWeek", -1)) WITH =,
     (COALESCE("startMinute", -1)) WITH =,
     (COALESCE("endMinute", -1)) WITH =,
