@@ -13,6 +13,8 @@
     "wallet:reconcile": "tsx scripts/reconcile-wallets.ts",
     "gate1:preflight": "tsx scripts/check-gate1-data.ts",
     "gate2:preflight": "tsx scripts/check-gate2-data.ts",
+    "gate3:preflight": "tsx scripts/check-gate3-data.ts",
+    "gate4:preflight": "tsx scripts/check-gate4-data.ts",
     "legal:publish": "tsx scripts/publish-legal-documents.ts",
     "pretest": "prisma generate",
     "test": "vitest run --configLoader runner",

@@ -22,6 +22,22 @@ describe('matchesApi invitation rotation', () => {
   });
 });
 
+describe('matchesApi public sharing', () => {
+  it('uses separate anonymous-preview and authenticated-resolution endpoints', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = matchesApi({ request } as unknown as ApiClient);
+
+    await api.publicPreview('m-0123456789abcdef01234567');
+    await api.getByPublicSlug('m-0123456789abcdef01234567');
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      '/public/matches/m-0123456789abcdef01234567',
+    );
+    expect(request).toHaveBeenNthCalledWith(2, '/matches/public/m-0123456789abcdef01234567');
+  });
+});
+
 describe('matchesApi Team availability', () => {
   it('encodes strict availability filters including selected=false', async () => {
     const request = vi.fn().mockResolvedValue({ data: {} });

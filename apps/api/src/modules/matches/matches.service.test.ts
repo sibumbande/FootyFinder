@@ -137,6 +137,119 @@ describe('match scheduling updates', () => {
     ).rejects.toMatchObject({ statusCode: 409, code: 'MATCH_STARTED' });
     expect(repository.update).not.toHaveBeenCalled();
   });
+
+  it('does not detach a managed reservation by changing its kickoff', async () => {
+    const repository = {
+      findById: vi.fn().mockResolvedValue(editableMatch()),
+      hasFieldReservation: vi.fn().mockResolvedValue({ id: 'reservation-1' }),
+      update: vi.fn(),
+    } as unknown as MatchesRepository;
+
+    await expect(
+      new MatchesService(repository).update(
+        'match-1',
+        { startsAt: new Date(Date.now() + 172_800_000).toISOString() },
+        'host-1',
+      ),
+    ).rejects.toMatchObject({ statusCode: 409, code: 'MANAGED_SLOT_IMMUTABLE' });
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('anonymous public Match preview', () => {
+  const publicMatch = (overrides: Record<string, unknown> = {}) => ({
+    id: 'internal-match-id',
+    publicSlug: 'm-0123456789abcdef01234567',
+    inviteTokenHash: 'must-never-leak',
+    name: 'Friday football',
+    description: 'Friendly game',
+    format: 'FIVE_A_SIDE',
+    substituteCapacityPerTeam: 0,
+    rules: ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'],
+    status: 'OPEN',
+    startsAt: new Date('2099-09-28T16:00:00.000Z'),
+    durationMinutes: 60,
+    feeCents: 8_000,
+    venue: {
+      name: 'Queens Park',
+      city: 'Cape Town',
+      region: 'Western Cape',
+      addressLine1: 'Private street detail',
+    },
+    createdBy: { id: 'host-id', email: 'host@example.invalid' },
+    participants: [{ user: { email: 'player@example.invalid', walletAccount: { balanceCents: 1 } } }],
+    formationSlots: [],
+    teamSides: [],
+    result: null,
+    ...overrides,
+  });
+
+  it('returns exactly the approved aggregate DTO without identities or private metadata', async () => {
+    const repository = {
+      findPublicPreviewBySlug: vi.fn().mockResolvedValue(publicMatch()),
+    } as unknown as MatchesRepository;
+
+    const preview = await new MatchesService(repository).publicPreview(
+      'm-0123456789abcdef01234567',
+    );
+
+    expect(preview).toEqual({
+      slug: 'm-0123456789abcdef01234567',
+      canonicalUrl: 'http://localhost:5173/m/m-0123456789abcdef01234567',
+      name: 'Friday football',
+      description: 'Friendly game',
+      venue: { name: 'Queens Park', city: 'Cape Town', region: 'Western Cape' },
+      startsAt: '2099-09-28T16:00:00.000Z',
+      durationMinutes: 60,
+      format: 'FIVE_A_SIDE',
+      feeCents: 8_000,
+      currency: 'ZAR',
+      rules: [
+        {
+          code: 'GOALKEEPERS_SWAP_AFTER_EVERY_GOAL',
+          label: 'Goalkeepers swap after every goal',
+        },
+      ],
+      status: 'OPEN',
+      joinability: { canJoin: true, reason: 'AVAILABLE' },
+      capacity: { filled: 1, total: 10 },
+    });
+    expect(JSON.stringify(preview)).not.toMatch(
+      /internal-match-id|inviteToken|host@example|player@example|wallet|addressLine1/,
+    );
+  });
+
+  it.each([
+    [{ participants: Array.from({ length: 10 }, () => ({})) }, 'FULL', 'FULL'],
+    [{ status: 'CANCELLED' }, 'CANCELLED', 'CANCELLED'],
+    [{ status: 'COMPLETED' }, 'COMPLETED', 'COMPLETED'],
+    [
+      { status: 'IN_PROGRESS', startsAt: new Date(Date.now() - 10 * 60_000) },
+      'IN_PROGRESS',
+      'STARTED',
+    ],
+  ] as const)('keeps a safe %s status page', async (overrides, status, reason) => {
+    const repository = {
+      findPublicPreviewBySlug: vi.fn().mockResolvedValue(publicMatch(overrides)),
+    } as unknown as MatchesRepository;
+
+    await expect(new MatchesService(repository).publicPreview('m-0123456789abcdef01234567'))
+      .resolves.toMatchObject({ status, joinability: { canJoin: false, reason } });
+  });
+
+  it('uses the same generic response for every non-public or unknown slug', async () => {
+    const repository = {
+      findPublicPreviewBySlug: vi.fn().mockResolvedValue(null),
+    } as unknown as MatchesRepository;
+    const service = new MatchesService(repository);
+
+    for (const slug of ['m-aaaaaaaaaaaaaaaaaaaaaaaa', 'm-bbbbbbbbbbbbbbbbbbbbbbbb'])
+      await expect(service.publicPreview(slug)).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'PUBLIC_MATCH_NOT_FOUND',
+        message: 'Public match not found.',
+      });
+  });
 });
 
 describe('Match notification publication', () => {

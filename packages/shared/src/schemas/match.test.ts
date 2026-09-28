@@ -5,11 +5,27 @@ import {
   createTeamMatchSchema,
   discoveryQuerySchema,
   openTeamMatchLineupSlotSchema,
+  publicMatchSlugSchema,
   removeTeamMatchStarterSchema,
   teamMatchAvailabilityQuerySchema,
   updateMyTeamMatchAvailabilitySchema,
   updateTeamMatchLineupSlotPositionSchema,
 } from './match.js';
+
+describe('publicMatchSlugSchema', () => {
+  it('accepts only the canonical opaque identifier shape', () => {
+    expect(publicMatchSlugSchema.parse('m-0123456789abcdef01234567')).toBe(
+      'm-0123456789abcdef01234567',
+    );
+    for (const value of [
+      '0123456789abcdef01234567',
+      'm-0123456789ABCDEF01234567',
+      'm-../../private',
+      'm-0123456789abcdef012345678',
+    ])
+      expect(publicMatchSlugSchema.safeParse(value).success).toBe(false);
+  });
+});
 
 const validMatch = {
   name: 'Friday football',
@@ -17,13 +33,15 @@ const validMatch = {
   visibility: 'PUBLIC' as const,
   startsAt: '2099-08-23T18:00:00.000Z',
   feeCents: 8_000,
-  venue: {
+  managedFieldId: 'f03d12a0-9855-4a03-8948-739bad35e733',
+};
+
+const manualVenue = {
     name: 'Central Arena',
     addressLine1: '1 Main Road',
     city: 'Johannesburg',
     region: 'Gauteng',
     countryCode: 'ZA',
-  },
 };
 
 describe('createMatchSchema', () => {
@@ -87,6 +105,8 @@ describe('createTeamMatchSchema', () => {
   it('accepts Team fixture planning data without visibility or fees', () => {
     const parsed = createTeamMatchSchema.parse({
       ...validMatch,
+      managedFieldId: undefined,
+      venue: manualVenue,
       visibility: undefined,
       feeCents: undefined,
       formationKey: 'BALANCED_1_1_2_1',
@@ -109,6 +129,12 @@ describe('discoveryQuerySchema', () => {
 
   it.each(['1', '0', 'yes', 'FALSE', true, false])('rejects coercive boolean value %s', (value) => {
     expect(() => discoveryQuerySchema.parse({ availableOnly: value })).toThrow();
+  });
+
+  it('defaults and bounds the home-page result limit', () => {
+    expect(discoveryQuerySchema.parse({}).limit).toBe(200);
+    expect(discoveryQuerySchema.parse({ limit: '6' }).limit).toBe(6);
+    expect(() => discoveryQuerySchema.parse({ limit: '201' })).toThrow();
   });
 
   it.each(['maxPriceCents', 'lat', 'lng', 'radiusKm', 'sort'])(

@@ -9,6 +9,7 @@ import type {
   LobbyMessage,
   Match,
   MatchParticipant,
+  PublicMatchPreview,
   ParticipantCancellationStatus,
   ResultInput,
   SendLobbyMessageInput,
@@ -43,9 +44,15 @@ const availabilityQueryString = (query: Partial<TeamMatchAvailabilityQuery> = {}
   return value ? `?${value}` : '';
 };
 export const matchesApi = (client: ApiClient) => ({
+  publicPreview: (slug: string) =>
+    client.request<{ data: PublicMatchPreview }>(
+      `/public/matches/${encodeURIComponent(slug)}`,
+    ),
   list: (query?: Partial<DiscoveryQuery>) =>
     client.request<{ data: Match[] }>(`/matches${queryString(query)}`),
   get: (id: string) => client.request<{ data: Match }>(`/matches/${id}`),
+  getByPublicSlug: (slug: string) =>
+    client.request<{ data: Match }>(`/matches/public/${encodeURIComponent(slug)}`),
   invite: (token: string) => client.request<{ data: Match }>(`/matches/invite/${token}`),
   create: (input: CreateMatchInput) =>
     client.request<{ data: Match }>('/matches', { method: 'POST', body: JSON.stringify(input) }),

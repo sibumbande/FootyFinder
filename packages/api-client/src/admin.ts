@@ -9,6 +9,8 @@ import type {
   ManagedFieldPriceInput,
   ManagedVenue,
   ManagedVenueInput,
+  ManagedVenueMediaInput,
+  VenueCancellationPolicyInput,
   AdminSupportListQuery,
   AdminSupportReplyInput,
   UpdateSupportTicketInput,
@@ -86,6 +88,13 @@ export const adminApi = (client: ApiClient) => ({
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  replaceVenueMedia: (venueId: string, input: ManagedVenueMediaInput) =>
+    client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/media`, { method: 'PUT', body: JSON.stringify(input) }),
+  addVenueCancellationPolicy: (venueId: string, input: VenueCancellationPolicyInput) =>
+    client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/cancellation-policies`, { method: 'POST', body: JSON.stringify(input) }),
+  submitVenue: (venueId: string) => client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/submit`, { method: 'POST' }),
+  approveVenue: (venueId: string) => client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/approve`, { method: 'POST' }),
+  deactivateVenue: (venueId: string, reason: string) => client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/deactivate`, { method: 'POST', body: JSON.stringify({ reason }) }),
   supportTickets: (query: AdminSupportListQuery = {}) => {
     const params = new URLSearchParams();
     if (query.status) params.set('status', query.status);

@@ -19,6 +19,7 @@ import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
 import { ResultForm } from '../components/ResultForm.js';
+import { ShareMatchActions } from '../components/ShareMatchActions.js';
 import {
   useCancellationQuote,
   useCancellationStatus,
@@ -196,6 +197,21 @@ export function MatchLobbyPage() {
             </button>
           )}
         </div>
+        {match.visibility === 'PUBLIC' && match.canonicalUrl && (
+          <div className="mt-4">
+            <ShareMatchActions
+              facts={{
+                canonicalUrl: match.canonicalUrl,
+                name: match.name,
+                venueName: match.venue.name,
+                startsAt: match.startsAt,
+                filled: match.participantCount,
+                total: capacity,
+                feeCents: match.feeCents,
+              }}
+            />
+          </div>
+        )}
       </header>
       <FormError
         message={leave.error?.message ?? deletion.error?.message ?? ready.error?.message}

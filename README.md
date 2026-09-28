@@ -51,6 +51,7 @@ The original hero artwork is stored at `apps/web/public/art/matchday-heroes.png`
    RATE_LIMIT_AUTH_PER_15_MINUTES=20
    RATE_LIMIT_MESSAGES_PER_MINUTE=30
    RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE=20
+   RATE_LIMIT_PUBLIC_PREVIEWS_PER_MINUTE=120
    ADMIN_MFA_ENCRYPTION_KEY=replace-this-with-an-independent-mfa-key
    ADMIN_MFA_MAX_AGE_MINUTES=720
    PUBLIC_API_URL=http://localhost:3000
@@ -112,6 +113,8 @@ The create wizard supports public or invitation-only 5-a-side, 7-a-side, and 11-
 
 Creating a lobby does not charge or auto-join the organiser. Players explicitly select Home or Away when joining. The persisted venue contains structured address data and optional coordinates. Public discovery supports format, date, and availability filters; private matches are excluded and require their secure invitation token. Quick Match invitation tokens are stored only as SHA-256 digests; a plaintext link is delivered once when the Match is created or the host rotates it.
 
+Public Matches also receive a separate immutable opaque slug and canonical `/m/:slug` URL. That public page exposes only venue summary, kickoff, format, fee, rules, status/joinability, and aggregate capacity; it never exposes participants, contact/profile data, wallets/payments, chat, creator identity, invitation data, or a detailed address. Shared links survive login, registration, verification, and onboarding through the validated internal `returnTo` flow. Web Share, WhatsApp, and copy actions use live Match facts and the canonical URL without tracking identifiers. Private Matches never receive public slugs and continue to use only their hashed rotatable invitations.
+
 The host can ready or cancel the match, move participants between teams, assign or swap formation slots, and reposition pitch markers. Players may switch teams only from the reserves while capacity remains. The responsive lobby provides a pitch, reserves, participant list, timer, persisted chat, and result form.
 
 Lifecycle transitions are server-authoritative. A background scheduler moves due matches to `IN_PROGRESS`, then to `AWAITING_RESULT` using the duration stored on the match. The host submits the final score and participating scorers; scorer totals and membership are validated transactionally before completion. Lobby chat closes after the configured post-match window.
@@ -160,6 +163,11 @@ Public authentication and profile routes:
 - `PATCH /players/me/profile`, `POST /players/me/photo` (authenticated/onboarding session)
 - `/onboarding` - status, profile details, legal acceptance, and completion
 - `GET /users`, `GET /users/me` (authenticated)
+
+Public venue discovery routes:
+
+- `/venues`, `/venues/:slug`, and `/venues/:slug/slots` - approved active venue cards/details and server-calculated availability without operational or Admin-only data.
+- `GET /public/matches/:slug` - rate-limited anonymous public Match preview using the deliberately minimal privacy DTO.
 
 Authenticated domain routes:
 
@@ -222,6 +230,8 @@ npm run smoke:field-bookings --workspace=@footy-finder/api
 npm run smoke:moderation-enforcement --workspace=@footy-finder/api
 npm run smoke:disputes-results --workspace=@footy-finder/api
 npm run smoke:operations --workspace=@footy-finder/api
+npm run gate3:preflight --workspace=@footy-finder/api
+npm run gate4:preflight --workspace=@footy-finder/api
 npm run wallet:reconcile --workspace=@footy-finder/api
 ```
 
@@ -242,6 +252,10 @@ The additive `20260824090000_auth_sessions_security` migration creates revocable
 `20260824230000_financial_integrity_jobs` adds wallet holds, durable jobs, balance/sign checks, and immutable terminal financial transitions. Existing deposits and Quick Game debit/credit flows use the shared locked financial repository. The reconciliation command is read-only and returns a nonzero exit code when it finds an integrity issue.
 
 `20260925120000_gate_2_onboarding` adds the controlled city catalogue/interests, nullable legacy-compatible onboarding fields, ordered positions, protected photo metadata, immutable legal versions/acceptances, hashed verification tokens, and explicit result outcome semantics. Follow `docs/GATE_2_ONBOARDING_RUNBOOK_2026-09-25.md`; do not activate the production consent gate until counsel content, retention policy, Postmark configuration, migration preflight, and focused browser verification are complete.
+
+`20260926100000_gate_3_venues_slots_home` adds venue publication/dual-control evidence, public media and slug aliases, effective cancellation policies, scoped field pricing, field turnaround buffers, and Quick Match guarantee/snapshot fields. Follow `docs/GATE_3_VENUES_SLOTS_RUNBOOK_2026-09-28.md`; do not publish synthetic venue packs or treat Gate 3 as production-ready until verified packs, migration/smoke checks, and the venue-to-match browser path pass.
+
+`20260928120000_gate_4_public_match_sharing` backfills opaque slugs for existing public Matches and enforces uniqueness, valid shape, public/private separation, and immutability. Follow `docs/GATE_4_PUBLIC_SHARING_RUNBOOK_2026-09-28.md`; verify the migration/preflight and anonymous-to-joined Playwright path before release.
 
 `20260825010000_booking_enum_values` and `20260825020000_field_reservations_funding` add the booking financial types, atomic managed-field reservations, immutable price/location snapshots, funding obligations, and personal-wallet contributions. PostgreSQL prevents active time overlaps. Underfunded reservations expire through the durable worker and release holds; confirmed contribution ledgers are included in reconciliation.
 

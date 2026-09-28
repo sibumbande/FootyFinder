@@ -21,6 +21,7 @@ export const envSchema = z
     RATE_LIMIT_AUTH_PER_15_MINUTES: z.coerce.number().int().positive().default(20),
     RATE_LIMIT_MESSAGES_PER_MINUTE: z.coerce.number().int().positive().default(30),
     RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE: z.coerce.number().int().positive().default(20),
+    RATE_LIMIT_PUBLIC_PREVIEWS_PER_MINUTE: z.coerce.number().int().positive().default(120),
     ADMIN_MFA_ENCRYPTION_KEY: z.string().min(32).optional(),
     ADMIN_MFA_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(720),
     ADMIN_TEST_DATA_ENABLED: z

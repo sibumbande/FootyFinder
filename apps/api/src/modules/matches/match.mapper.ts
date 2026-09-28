@@ -2,6 +2,7 @@ import type { FormationSlot, Match, MatchParticipant, MatchStatus } from '@footy
 import { getEffectiveMatchStatus, getMatchEndsAt, isMatchAtCapacity } from '@footy-finder/shared';
 import { toPublicUser } from '../users/user.mapper.js';
 import type { MatchRecord, ParticipantRecord } from './match.query.js';
+import { publicMatchUrl } from './public-match.js';
 
 export function toMatchParticipant(participant: ParticipantRecord): MatchParticipant {
   return {
@@ -51,6 +52,9 @@ export function toMatch(
       : lifecycleStatus;
   return {
     id: match.id,
+    ...(match.publicSlug
+      ? { publicSlug: match.publicSlug, canonicalUrl: publicMatchUrl(match.publicSlug) }
+      : {}),
     name: match.name,
     description: match.description,
     createdById: match.createdById,

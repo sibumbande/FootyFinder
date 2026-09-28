@@ -7,6 +7,7 @@ import {
   resultInputSchema,
   sendLobbyMessageSchema,
   openTeamMatchLineupSlotSchema,
+  publicMatchSlugSchema,
   removeTeamMatchStarterSchema,
   teamMatchAvailabilityQuerySchema,
   teamMatchSideSchema,
@@ -42,6 +43,18 @@ export const get: RequestHandler = async (req, res, next) => {
 export const invite: RequestHandler = async (req, res, next) => {
   try {
     res.json({ data: await service.getByInvite(String(req.params.token)) });
+  } catch (error) {
+    next(error);
+  }
+};
+export const getByPublicSlug: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await service.getByPublicSlug(
+        publicMatchSlugSchema.parse(req.params.slug),
+        userId(res.locals),
+      ),
+    });
   } catch (error) {
     next(error);
   }

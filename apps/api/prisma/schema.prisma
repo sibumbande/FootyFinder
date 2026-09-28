@@ -196,6 +196,13 @@ enum ManagedFieldStatus {
   MAINTENANCE
 }
 
+enum VenuePublicationStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  DEACTIVATED
+}
+
 enum SupportTicketCategory {
   GENERAL
   ACCOUNT
@@ -376,6 +383,9 @@ model User {
   legalAcceptances          LegalAcceptance[]
   cityInterests             CityInterest[]
   moderatedPlayerPhotos     PlayerPhoto[]             @relation("PlayerPhotoModerator")
+  submittedVenues           ManagedVenue[]            @relation("VenueSubmitter")
+  approvedVenues            ManagedVenue[]            @relation("VenueApprover")
+  deactivatedVenues         ManagedVenue[]            @relation("VenueDeactivator")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -542,39 +552,100 @@ model TestDataBatch {
 }
 
 model ManagedVenue {
-  id           String         @id @default(uuid()) @db.Uuid
-  name         String
-  addressLine1 String
-  addressLine2 String?
-  city         String
-  region       String
-  postalCode   String?
-  countryCode  String
-  latitude     Decimal?       @db.Decimal(9, 6)
-  longitude    Decimal?       @db.Decimal(9, 6)
-  timezone     String         @default("Africa/Johannesburg")
-  isActive     Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  fields       ManagedField[]
+  id                    String                    @id @default(uuid()) @db.Uuid
+  slug                  String                    @unique
+  name                  String
+  publicDescription     String?
+  addressLine1          String
+  addressLine2          String?
+  city                  String
+  region                String
+  postalCode            String?
+  countryCode           String
+  latitude              Decimal?                  @db.Decimal(9, 6)
+  longitude             Decimal?                  @db.Decimal(9, 6)
+  timezone              String                    @default("Africa/Johannesburg")
+  amenities             String[]                  @default([])
+  coverImageUrl         String?
+  coverImageAlt         String?
+  coverImageAttribution String?
+  publicationStatus     VenuePublicationStatus    @default(DRAFT)
+  submittedByUserId     String?                   @db.Uuid
+  submittedAt           DateTime?
+  approvedByUserId      String?                   @db.Uuid
+  approvedAt            DateTime?
+  deactivatedByUserId   String?                   @db.Uuid
+  deactivatedAt         DateTime?
+  deactivationReason    String?
+  isActive              Boolean                   @default(true)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  fields                ManagedField[]
+  media                 ManagedVenueMedia[]
+  slugAliases           ManagedVenueSlugAlias[]
+  cancellationPolicies  VenueCancellationPolicy[]
+  submittedBy           User?                     @relation("VenueSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  approvedBy            User?                     @relation("VenueApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  deactivatedBy         User?                     @relation("VenueDeactivator", fields: [deactivatedByUserId], references: [id], onDelete: Restrict)
 
-  @@index([city, isActive])
+  @@index([city, publicationStatus, isActive])
+}
+
+model ManagedVenueMedia {
+  id          String       @id @default(uuid()) @db.Uuid
+  venueId     String       @db.Uuid
+  url         String
+  altText     String
+  attribution String
+  sortOrder   Int
+  createdAt   DateTime     @default(now())
+  venue       ManagedVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, sortOrder])
+  @@index([venueId])
+}
+
+model ManagedVenueSlugAlias {
+  id        String       @id @default(uuid()) @db.Uuid
+  venueId   String       @db.Uuid
+  slug      String       @unique
+  createdAt DateTime     @default(now())
+  venue     ManagedVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId])
+}
+
+model VenueCancellationPolicy {
+  id                       String             @id @default(uuid()) @db.Uuid
+  venueId                  String             @db.Uuid
+  effectiveFrom            DateTime
+  effectiveTo              DateTime?
+  fullCreditBeforeHours    Int                @default(24)
+  lateCreditPercent        Int                @default(0)
+  venueCancellationPercent Int                @default(100)
+  policyText               String
+  createdAt                DateTime           @default(now())
+  venue                    ManagedVenue       @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  reservations             FieldReservation[]
+
+  @@index([venueId, effectiveFrom])
 }
 
 model ManagedField {
-  id                  String                        @id @default(uuid()) @db.Uuid
-  venueId             String                        @db.Uuid
-  name                String
-  description         String?
-  status              ManagedFieldStatus            @default(ACTIVE)
-  createdAt           DateTime                      @default(now())
-  updatedAt           DateTime                      @updatedAt
-  venue               ManagedVenue                  @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  supportedFormats    ManagedFieldSupportedFormat[]
-  availabilityPeriods ManagedFieldAvailability[]
-  exceptions          ManagedFieldException[]
-  prices              ManagedFieldPrice[]
-  reservations        FieldReservation[]
+  id                      String                        @id @default(uuid()) @db.Uuid
+  venueId                 String                        @db.Uuid
+  name                    String
+  description             String?
+  status                  ManagedFieldStatus            @default(ACTIVE)
+  turnaroundBufferMinutes Int                           @default(15)
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  venue                   ManagedVenue                  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  supportedFormats        ManagedFieldSupportedFormat[]
+  availabilityPeriods     ManagedFieldAvailability[]
+  exceptions              ManagedFieldException[]
+  prices                  ManagedFieldPrice[]
+  reservations            FieldReservation[]
 
   @@unique([venueId, name])
   @@index([venueId, status])
@@ -619,6 +690,10 @@ model ManagedFieldPrice {
   fieldId       String             @db.Uuid
   amountCents   Int
   currency      String             @default("ZAR")
+  format        MatchFormat?
+  dayOfWeek     Int?
+  startMinute   Int?
+  endMinute     Int?
   effectiveFrom DateTime
   effectiveTo   DateTime?
   createdAt     DateTime           @default(now())
@@ -805,22 +880,23 @@ model WalletTransaction {
 }
 
 model WalletHold {
-  id                  String               @id @default(uuid()) @db.Uuid
-  walletAccountId     String               @db.Uuid
-  amountCents         Int
-  currency            String               @default("ZAR")
-  status              WalletHoldStatus     @default(ACTIVE)
-  idempotencyKey      String               @unique
-  referenceType       String
-  referenceId         String
-  description         String?
-  expiresAt           DateTime?
-  capturedAt          DateTime?
-  releasedAt          DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  walletAccount       WalletAccount        @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
-  fundingContribution FundingContribution?
+  id                    String               @id @default(uuid()) @db.Uuid
+  walletAccountId       String               @db.Uuid
+  amountCents           Int
+  currency              String               @default("ZAR")
+  status                WalletHoldStatus     @default(ACTIVE)
+  idempotencyKey        String               @unique
+  referenceType         String
+  referenceId           String
+  description           String?
+  expiresAt             DateTime?
+  capturedAt            DateTime?
+  releasedAt            DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  walletAccount         WalletAccount        @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  fundingContribution   FundingContribution?
+  guaranteedReservation FieldReservation?    @relation("ReservationOrganiserGuarantee")
 
   @@index([walletAccountId, status, expiresAt])
   @@index([referenceType, referenceId, status])
@@ -865,6 +941,7 @@ model Venue {
 
 model Match {
   id                        String                    @id @default(uuid()) @db.Uuid
+  publicSlug                String?                   @unique
   name                      String
   description               String?
   createdById               String                    @db.Uuid
@@ -901,30 +978,40 @@ model Match {
 }
 
 model FieldReservation {
-  id                 String                 @id @default(uuid()) @db.Uuid
-  fieldId            String                 @db.Uuid
-  fieldPriceId       String                 @db.Uuid
-  matchId            String                 @unique @db.Uuid
-  source             FieldReservationSource
-  status             FieldReservationStatus
-  startsAt           DateTime
-  endsAt             DateTime
-  fundingDeadline    DateTime?
-  priceCentsSnapshot Int
-  currencySnapshot   String                 @default("ZAR")
-  venueNameSnapshot  String
-  fieldNameSnapshot  String
-  addressSnapshot    String
-  citySnapshot       String
-  desiredVisibility  MatchVisibility        @default(PUBLIC)
-  confirmedAt        DateTime?
-  cancelledAt        DateTime?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-  field              ManagedField           @relation(fields: [fieldId], references: [id], onDelete: Restrict)
-  fieldPrice         ManagedFieldPrice      @relation(fields: [fieldPriceId], references: [id], onDelete: Restrict)
-  match              Match                  @relation(fields: [matchId], references: [id], onDelete: Restrict)
-  obligations        FundingObligation[]
+  id                              String                   @id @default(uuid()) @db.Uuid
+  fieldId                         String                   @db.Uuid
+  fieldPriceId                    String                   @db.Uuid
+  cancellationPolicyId            String?                  @db.Uuid
+  organizerGuaranteeHoldId        String?                  @unique @db.Uuid
+  matchId                         String                   @unique @db.Uuid
+  source                          FieldReservationSource
+  status                          FieldReservationStatus
+  startsAt                        DateTime
+  endsAt                          DateTime
+  fundingDeadline                 DateTime?
+  priceCentsSnapshot              Int
+  currencySnapshot                String                   @default("ZAR")
+  venueNameSnapshot               String
+  fieldNameSnapshot               String
+  addressSnapshot                 String
+  citySnapshot                    String
+  timezoneSnapshot                String                   @default("Africa/Johannesburg")
+  turnaroundBufferMinutesSnapshot Int                      @default(15)
+  cancellationPolicySnapshot      Json?
+  organizerGuaranteeCents         Int                      @default(0)
+  organizerGuaranteeSettledAt     DateTime?
+  playerFeesAppliedCents          Int                      @default(0)
+  desiredVisibility               MatchVisibility          @default(PUBLIC)
+  confirmedAt                     DateTime?
+  cancelledAt                     DateTime?
+  createdAt                       DateTime                 @default(now())
+  updatedAt                       DateTime                 @updatedAt
+  field                           ManagedField             @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  fieldPrice                      ManagedFieldPrice        @relation(fields: [fieldPriceId], references: [id], onDelete: Restrict)
+  cancellationPolicy              VenueCancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id], onDelete: Restrict)
+  organizerGuaranteeHold          WalletHold?              @relation("ReservationOrganiserGuarantee", fields: [organizerGuaranteeHoldId], references: [id], onDelete: Restrict)
+  match                           Match                    @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  obligations                     FundingObligation[]
 
   @@index([fieldId, status, startsAt, endsAt])
   @@index([status, fundingDeadline])

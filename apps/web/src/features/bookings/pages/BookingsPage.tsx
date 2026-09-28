@@ -1,26 +1,17 @@
-import type { MatchFormat } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { bookingsClient } from '@/api/client.js';
 import { Button } from '@/components/ui/Button.js';
 import { Input } from '@/components/ui/Input.js';
 import { formatRands } from '@/utils/format-currency.js';
 
 const rootKey = ['bookings'] as const;
+
 export function BookingsPage() {
   const { bookingId } = useParams();
-  const navigate = useNavigate();
   const cache = useQueryClient();
-  const [fieldId, setFieldId] = useState('');
-  const [name, setName] = useState('');
-  const [format, setFormat] = useState<MatchFormat>('FIVE_A_SIDE');
-  const [startsAt, setStartsAt] = useState('');
   const [amount, setAmount] = useState('');
-  const fields = useQuery({
-    queryKey: [...rootKey, 'fields'],
-    queryFn: async () => (await bookingsClient.fields()).data,
-  });
   const list = useQuery({
     queryKey: [...rootKey, 'mine'],
     queryFn: async () => (await bookingsClient.list()).data,
@@ -30,30 +21,6 @@ export function BookingsPage() {
     queryFn: async () => (await bookingsClient.get(bookingId!)).data,
     enabled: Boolean(bookingId),
     refetchInterval: bookingId ? 10_000 : false,
-  });
-  const selectedField = fields.data
-    ?.flatMap((venue) => venue.fields)
-    .find((field) => field.id === fieldId);
-  useEffect(() => {
-    if (selectedField && !selectedField.supportedFormats.includes(format))
-      setFormat(selectedField.supportedFormats[0] ?? 'FIVE_A_SIDE');
-  }, [selectedField, format]);
-  const create = useMutation({
-    mutationFn: () =>
-      bookingsClient.create({
-        managedFieldId: fieldId,
-        name,
-        format,
-        substituteCapacityPerTeam: 5,
-        rollingSubstitutes: true,
-        rules: [],
-        visibility: 'PUBLIC',
-        startsAt: new Date(startsAt).toISOString(),
-      }),
-    onSuccess: ({ data }) => {
-      void cache.invalidateQueries({ queryKey: rootKey });
-      navigate(`/bookings/${data.id}`);
-    },
   });
   const contribute = useMutation({
     mutationFn: () =>
@@ -71,6 +38,7 @@ export function BookingsPage() {
   const deadline = detail.data?.fundingDeadline
     ? Math.max(0, Date.parse(detail.data.fundingDeadline) - Date.now())
     : 0;
+
   return (
     <div className="grid gap-6 lg:grid-cols-[19rem_1fr]">
       <aside className="space-y-3 rounded-2xl border border-line bg-surface p-4">
@@ -81,10 +49,10 @@ export function BookingsPage() {
           <h1 className="text-2xl font-bold text-content-strong">Field bookings</h1>
         </div>
         <Link
-          to="/bookings"
+          to="/#venues"
           className="block rounded-xl bg-brand-600 p-3 text-center font-bold text-white"
         >
-          New booking
+          Browse available slots
         </Link>
         {list.data?.map((item) => (
           <Link
@@ -99,68 +67,25 @@ export function BookingsPage() {
           </Link>
         ))}
       </aside>
+
       {!bookingId ? (
-        <form
-          className="space-y-5 rounded-2xl border border-line bg-surface p-6"
-          onSubmit={(event: FormEvent) => {
-            event.preventDefault();
-            create.mutate();
-          }}
-        >
+        <section className="space-y-5 rounded-2xl border border-line bg-surface p-6">
           <div>
-            <h2 className="text-xl font-bold text-content-strong">Book a field</h2>
+            <h2 className="text-xl font-bold text-content-strong">
+              Choose an available venue slot
+            </h2>
             <p className="text-sm text-content-muted">
-              The price is snapshotted when you create the booking. The field is held for 15 minutes
-              while you and friends fund it from Footy Finder wallets.
+              New player bookings start from an approved venue calendar. This keeps the displayed
+              price, local time, availability and turnaround buffer consistent with the server.
             </p>
           </div>
-          <label className="grid gap-2 text-sm font-semibold text-content">
-            Field
-            <select
-              className="rounded-xl border border-line bg-canvas p-3"
-              value={fieldId}
-              onChange={(event) => setFieldId(event.target.value)}
-              required
-            >
-              <option value="">Choose a field</option>
-              {fields.data?.flatMap((venue) =>
-                venue.fields.map((field) => (
-                  <option value={field.id} key={field.id}>
-                    {venue.name} — {field.name}
-                  </option>
-                )),
-              )}
-            </select>
-          </label>
-          <Input
-            label="Match name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-            minLength={3}
-          />
-          <label className="grid gap-2 text-sm font-semibold text-content">
-            Format
-            <select
-              className="rounded-xl border border-line bg-canvas p-3"
-              value={format}
-              onChange={(event) => setFormat(event.target.value as MatchFormat)}
-            >
-              {selectedField?.supportedFormats.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <Input
-            label="Kickoff"
-            type="datetime-local"
-            value={startsAt}
-            onChange={(event) => setStartsAt(event.target.value)}
-            required
-          />
-          {create.error && <p className="text-danger-600">{create.error.message}</p>}
-          <Button loading={create.isPending}>Hold field & open funding</Button>
-        </form>
+          <Link
+            to="/#venues"
+            className="inline-block rounded-xl bg-brand-600 px-4 py-3 font-bold text-white"
+          >
+            Open venue calendars
+          </Link>
+        </section>
       ) : (
         <section className="space-y-5 rounded-2xl border border-line bg-surface p-6">
           {detail.isPending && <p>Loading booking…</p>}
@@ -181,24 +106,9 @@ export function BookingsPage() {
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-surface-raised p-4">
-                  <span className="text-xs text-content-muted">Price snapshot</span>
-                  <strong className="block text-lg text-content-strong">
-                    {formatRands(detail.data.priceCents)}
-                  </strong>
-                </div>
-                <div className="rounded-xl bg-surface-raised p-4">
-                  <span className="text-xs text-content-muted">Funded</span>
-                  <strong className="block text-lg text-content-strong">
-                    {formatRands(detail.data.fundedCents)}
-                  </strong>
-                </div>
-                <div className="rounded-xl bg-surface-raised p-4">
-                  <span className="text-xs text-content-muted">Remaining</span>
-                  <strong className="block text-lg text-content-strong">
-                    {formatRands(detail.data.remainingCents)}
-                  </strong>
-                </div>
+                <Snapshot label="Price snapshot" value={formatRands(detail.data.priceCents)} />
+                <Snapshot label="Funded" value={formatRands(detail.data.fundedCents)} />
+                <Snapshot label="Remaining" value={formatRands(detail.data.remainingCents)} />
               </div>
               {detail.data.status === 'FUNDING' && (
                 <>
@@ -260,6 +170,15 @@ export function BookingsPage() {
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+function Snapshot({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-surface-raised p-4">
+      <span className="text-xs text-content-muted">{label}</span>
+      <strong className="block text-lg text-content-strong">{value}</strong>
     </div>
   );
 }

@@ -29,6 +29,8 @@ import { ConfirmEmailChangePage } from '@/features/auth/pages/ConfirmEmailChange
 import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage.js';
 import { WaitingListPage } from '@/features/onboarding/pages/WaitingListPage.js';
 import { LegalPage } from '@/features/legal/pages/LegalPage.js';
+import { VenueDetailPage } from '@/features/venues/pages/VenueDetailPage.js';
+import { PublicMatchPreviewPage } from '@/features/matches/pages/PublicMatchPreviewPage.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
@@ -46,9 +48,11 @@ export function AppRouter() {
         <Route path="/confirm-email-change" element={animated(<ConfirmEmailChangePage />)} />
         <Route path="/waiting-list" element={animated(<WaitingListPage />)} />
         <Route path="/legal/:document" element={animated(<LegalPage />)} />
+        <Route path="/m/:slug" element={animated(<PublicMatchPreviewPage />)} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/onboarding" element={animated(<OnboardingPage />)} />
+            <Route path="/venues/:slug" element={animated(<VenueDetailPage />)} />
             <Route index element={animated(<HomePage />)} />
             <Route path="/matches" element={animated(<MatchListPage />)} />
             <Route path="/matches/new" element={animated(<CreateMatchPage />)} />

@@ -2,8 +2,7 @@ import { z } from 'zod';
 import { createMatchSchema } from './match.js';
 
 export const managedMatchBookingSchema = createMatchSchema
-  .omit({ venue: true, feeCents: true })
-  .extend({ managedFieldId: z.string().uuid() });
+  .omit({ feeCents: true });
 export const playerFieldBookingSchema = managedMatchBookingSchema
   .omit({ visibility: true })
   .extend({ visibility: z.literal('PUBLIC').default('PUBLIC') });

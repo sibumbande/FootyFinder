@@ -12,3 +12,4 @@ export * from './bookings.js';
 export * from './moderation.js';
 export * from './disputes.js';
 export * from './onboarding.js';
+export * from './venues.js';

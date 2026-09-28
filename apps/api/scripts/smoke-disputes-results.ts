@@ -38,7 +38,7 @@ try {
     const host = await tx.user.create({ data: { email: `${marker}-host@smoke.invalid`, username: `s8-${tag}-h`, passwordHash: 'smoke' } });
     const player = await tx.user.create({ data: { email: `${marker}-player@smoke.invalid`, username: `s8-${tag}-p`, passwordHash: 'smoke' } });
     const venue = await tx.venue.create({ data: { name: marker, addressLine1: '1 Test Road', city: 'Cape Town', region: 'Western Cape', countryCode: 'ZA' } });
-    const match = await tx.match.create({ data: { name: `${marker}-result`, createdById: host.id, venueId: venue.id, format: 'FIVE_A_SIDE', visibility: 'PUBLIC', startsAt: new Date(Date.now() - 3_600_000), durationMinutes: 50, feeCents: 0, status: 'COMPLETED' } });
+    const match = await tx.match.create({ data: { name: `${marker}-result`, createdById: host.id, venueId: venue.id, format: 'FIVE_A_SIDE', visibility: 'PUBLIC', publicSlug: `m-${randomUUID().replaceAll('-', '').slice(0, 24)}`, startsAt: new Date(Date.now() - 3_600_000), durationMinutes: 50, feeCents: 0, status: 'COMPLETED' } });
     const home = await tx.matchParticipant.create({ data: { matchId: match.id, userId: host.id, team: 'HOME' } });
     await tx.matchParticipant.create({ data: { matchId: match.id, userId: player.id, team: 'AWAY' } });
     const result = await tx.matchResult.create({ data: { matchId: match.id, homeScore: 1, awayScore: 0, submittedById: host.id } });
@@ -46,10 +46,10 @@ try {
     const revisionOne = await tx.matchResultRevision.create({ data: { matchResultId: result.id, revisionNumber: 1, homeScore: 1, awayScore: 0, scorersSnapshot: [{ participantId: home.id, team: 'HOME', goals: 1 }], reason: 'INITIAL_SUBMISSION' } });
     const resultDispute = await tx.dispute.create({ data: { openedByUserId: player.id, type: 'MATCH_RESULT', referenceId: result.id, reason: 'INCORRECT_SCORE', details: marker, evidenceSnapshot: { matchId: match.id, homeScore: 1, awayScore: 0 } } });
 
-    const managedVenue = await tx.managedVenue.create({ data: { name: marker, addressLine1: '2 Test Road', city: 'Cape Town', region: 'Western Cape', countryCode: 'ZA' } });
+    const managedVenue = await tx.managedVenue.create({ data: { slug: `${marker}-venue`, name: marker, addressLine1: '2 Test Road', city: 'Cape Town', region: 'Western Cape', countryCode: 'ZA' } });
     const field = await tx.managedField.create({ data: { venueId: managedVenue.id, name: 'Court A' } });
     const price = await tx.managedFieldPrice.create({ data: { fieldId: field.id, amountCents: 80000, effectiveFrom: new Date(Date.now() - 60_000) } });
-    const bookingMatch = await tx.match.create({ data: { name: `${marker}-booking`, createdById: player.id, venueId: venue.id, format: 'FIVE_A_SIDE', visibility: 'PUBLIC', startsAt: new Date(Date.now() + 86_400_000), durationMinutes: 50, feeCents: 0, status: 'OPEN' } });
+    const bookingMatch = await tx.match.create({ data: { name: `${marker}-booking`, createdById: player.id, venueId: venue.id, format: 'FIVE_A_SIDE', visibility: 'PUBLIC', publicSlug: `m-${randomUUID().replaceAll('-', '').slice(0, 24)}`, startsAt: new Date(Date.now() + 86_400_000), durationMinutes: 50, feeCents: 0, status: 'OPEN' } });
     const reservation = await tx.fieldReservation.create({ data: { fieldId: field.id, fieldPriceId: price.id, matchId: bookingMatch.id, source: 'PLAYER_BOOKING', status: 'CONFIRMED', startsAt: bookingMatch.startsAt, endsAt: new Date(bookingMatch.startsAt.getTime() + 50 * 60_000), priceCentsSnapshot: 80000, venueNameSnapshot: marker, fieldNameSnapshot: field.name, addressSnapshot: '2 Test Road', citySnapshot: 'Cape Town', confirmedAt: new Date() } });
     await tx.dispute.create({ data: { openedByUserId: player.id, type: 'FIELD_BOOKING', referenceId: reservation.id, reason: 'FIELD_QUALITY', details: marker, evidenceSnapshot: { reservationId: reservation.id, priceCents: 80000 } } });
 

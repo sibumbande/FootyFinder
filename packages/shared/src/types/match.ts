@@ -200,6 +200,8 @@ export interface MatchResult {
 
 export interface Match {
   id: string;
+  publicSlug?: string;
+  canonicalUrl?: string;
   name: string;
   description?: string | null;
   createdById: string;
@@ -229,6 +231,41 @@ export interface Match {
   teamSides: MatchTeamSide[];
   viewerCanManage: boolean;
   viewerCanChat: boolean;
+}
+
+export type PublicMatchJoinabilityReason =
+  | 'AVAILABLE'
+  | 'FULL'
+  | 'CANCELLED'
+  | 'STARTED'
+  | 'COMPLETED'
+  | 'UNAVAILABLE';
+
+export interface PublicMatchPreview {
+  slug: string;
+  canonicalUrl: string;
+  name: string;
+  description?: string;
+  venue: {
+    name: string;
+    city: string;
+    region: string;
+  };
+  startsAt: string;
+  durationMinutes: number;
+  format: MatchFormat;
+  feeCents: number;
+  currency: 'ZAR';
+  rules: Array<{ code: MatchRule; label: string }>;
+  status: MatchStatus;
+  joinability: {
+    canJoin: boolean;
+    reason: PublicMatchJoinabilityReason;
+  };
+  capacity: {
+    filled: number;
+    total: number;
+  };
 }
 
 export interface LobbyMessage {

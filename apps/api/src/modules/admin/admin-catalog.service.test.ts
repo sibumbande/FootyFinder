@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../../errors/app-error.js';
-import { assertNonOverlappingAvailability } from './admin-catalog.service.js';
+import {
+  assertIndependentVenueApprover,
+  assertNonOverlappingAvailability,
+  venueCompletenessIssues,
+} from './admin-catalog.service.js';
 
 describe('Admin catalogue validation', () => {
   it('accepts adjacent operating periods and separate days', () => {
@@ -22,5 +26,36 @@ describe('Admin catalogue validation', () => {
       expect(error).toBeInstanceOf(AppError);
       expect((error as AppError).code).toBe('FIELD_AVAILABILITY_OVERLAP');
     }
+  });
+
+  it('requires an independent publication approver', () => {
+    expect(() => assertIndependentVenueApprover('admin-1', 'admin-1')).toThrowError(
+      expect.objectContaining({ code: 'VENUE_DUAL_CONTROL_REQUIRED' }),
+    );
+    expect(() => assertIndependentVenueApprover('admin-1', 'admin-2')).not.toThrow();
+  });
+
+  it('reports every publication-critical category for an incomplete draft', () => {
+    const issues = venueCompletenessIssues({
+      publicDescription: null,
+      latitude: null,
+      longitude: null,
+      coverImageUrl: null,
+      coverImageAlt: null,
+      coverImageAttribution: null,
+      media: [],
+      amenities: [],
+      fields: [],
+      cancellationPolicies: [],
+    } as never);
+    expect(issues).toEqual([
+      'PUBLIC_DESCRIPTION',
+      'COORDINATES',
+      'COVER_IMAGE',
+      'GALLERY_IMAGES',
+      'AMENITIES',
+      'FIELDS',
+      'CANCELLATION_POLICY',
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import type {
   ManagedFieldInput,
   ManagedVenue,
   ManagedVenueInput,
+  MatchFormat,
 } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
@@ -20,7 +21,9 @@ const timeMinute = (value: string) => {
   return Number(hour) * 60 + Number(minute);
 };
 const venueInput = (venue: ManagedVenue): ManagedVenueInput => ({
+  slug: venue.slug,
   name: venue.name,
+  ...(venue.publicDescription ? { publicDescription: venue.publicDescription } : {}),
   addressLine1: venue.addressLine1,
   ...(venue.addressLine2 ? { addressLine2: venue.addressLine2 } : {}),
   city: venue.city,
@@ -30,6 +33,10 @@ const venueInput = (venue: ManagedVenue): ManagedVenueInput => ({
   ...(venue.latitude !== undefined ? { latitude: venue.latitude } : {}),
   ...(venue.longitude !== undefined ? { longitude: venue.longitude } : {}),
   timezone: venue.timezone,
+  amenities: venue.amenities,
+  ...(venue.coverImageUrl ? { coverImageUrl: venue.coverImageUrl } : {}),
+  ...(venue.coverImageAlt ? { coverImageAlt: venue.coverImageAlt } : {}),
+  ...(venue.coverImageAttribution ? { coverImageAttribution: venue.coverImageAttribution } : {}),
   isActive: venue.isActive,
 });
 
@@ -59,7 +66,12 @@ function FieldEditor({ field }: { field: ManagedField }) {
   const [price, setPrice] = useState('800');
   const [priceFrom, setPriceFrom] = useState('');
   const [priceTo, setPriceTo] = useState('');
+  const [priceFormat, setPriceFormat] = useState<MatchFormat | ''>('');
+  const [priceDay, setPriceDay] = useState('');
+  const [priceStart, setPriceStart] = useState('08:00');
+  const [priceEnd, setPriceEnd] = useState('22:00');
   const [status, setStatus] = useState<ManagedField['status']>(field.status);
+  const [bufferMinutes, setBufferMinutes] = useState(field.turnaroundBufferMinutes);
   const mutation = useMutation({
     mutationFn: (action: () => Promise<{ data: ManagedVenue }>) => action(),
     onSuccess: ({ data }) => updateVenue(data),
@@ -68,6 +80,7 @@ function FieldEditor({ field }: { field: ManagedField }) {
     name: field.name,
     ...(field.description ? { description: field.description } : {}),
     status,
+    turnaroundBufferMinutes: bufferMinutes,
     supportedFormats: field.supportedFormats,
   });
   return (
@@ -85,12 +98,13 @@ function FieldEditor({ field }: { field: ManagedField }) {
             <option value="INACTIVE">Inactive</option>
           </select>
         </label>
+        <label className="compact">Turnaround buffer<input type="number" min="15" max="240" value={bufferMinutes} onChange={(event) => setBufferMinutes(Number(event.target.value))} /></label>
         <button
           className="small"
-          disabled={mutation.isPending || status === field.status}
+          disabled={mutation.isPending || (status === field.status && bufferMinutes === field.turnaroundBufferMinutes)}
           onClick={() => mutation.mutate(() => adminClient.updateField(field.id, fieldInput()))}
         >
-          Save status
+          Save field settings
         </button>
       </header>
 
@@ -153,6 +167,8 @@ function FieldEditor({ field }: { field: ManagedField }) {
             event.preventDefault();
             mutation.mutate(() => adminClient.addFieldPrice(field.id, {
               amountCents: Math.round(Number(price) * 100),
+              ...(priceFormat ? { format: priceFormat } : {}),
+              ...(priceDay ? { dayOfWeek: Number(priceDay), startMinute: timeMinute(priceStart), endMinute: timeMinute(priceEnd) } : {}),
               effectiveFrom: new Date(priceFrom).toISOString(),
               ...(priceTo ? { effectiveTo: new Date(priceTo).toISOString() } : {}),
             }));
@@ -160,6 +176,9 @@ function FieldEditor({ field }: { field: ManagedField }) {
             <label>Price (R)<input type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} required /></label>
             <label>Effective from<input type="datetime-local" value={priceFrom} onChange={(event) => setPriceFrom(event.target.value)} required /></label>
             <label>Effective to (optional)<input type="datetime-local" value={priceTo} onChange={(event) => setPriceTo(event.target.value)} /></label>
+            <label>Format scope<select value={priceFormat} onChange={(event) => setPriceFormat(event.target.value as MatchFormat | '')}><option value="">All formats</option>{field.supportedFormats.map((item) => <option key={item} value={item}>{formatLabel(item)}</option>)}</select></label>
+            <label>Day/time scope<select value={priceDay} onChange={(event) => setPriceDay(event.target.value)}><option value="">All operating hours</option>{days.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+            {priceDay && <><label>Scope starts<input type="time" value={priceStart} onChange={(event) => setPriceStart(event.target.value)} /></label><label>Scope ends<input type="time" value={priceEnd} onChange={(event) => setPriceEnd(event.target.value)} /></label></>}
             <button disabled={mutation.isPending}>Add immutable price</button>
           </form>
         </div>
@@ -173,6 +192,18 @@ function VenueCard({ venue }: { venue: ManagedVenue }) {
   const cache = useQueryClient();
   const [fieldName, setFieldName] = useState('');
   const [selectedFormats, setSelectedFormats] = useState<ManagedFieldInput['supportedFormats']>(['FIVE_A_SIDE']);
+  const [deactivationReason, setDeactivationReason] = useState('');
+  const [publicDescription, setPublicDescription] = useState(venue.publicDescription ?? '');
+  const [latitude, setLatitude] = useState(venue.latitude?.toString() ?? '');
+  const [longitude, setLongitude] = useState(venue.longitude?.toString() ?? '');
+  const [amenities, setAmenities] = useState(venue.amenities.join(', '));
+  const [coverUrl, setCoverUrl] = useState(venue.coverImageUrl ?? '');
+  const [coverAlt, setCoverAlt] = useState(venue.coverImageAlt ?? '');
+  const [coverAttribution, setCoverAttribution] = useState(venue.coverImageAttribution ?? '');
+  const [gallery, setGallery] = useState(venue.media.map((item) => `${item.url} | ${item.altText} | ${item.attribution}`).join('\n'));
+  const [policyFrom, setPolicyFrom] = useState('');
+  const [policyTo, setPolicyTo] = useState('');
+  const [policyText, setPolicyText] = useState('Full credit more than 24 hours before kickoff; no credit within 24 hours. Venue or platform cancellation receives full credit.');
   const mutation = useMutation({
     mutationFn: (action: () => Promise<{ data: ManagedVenue }>) => action(),
     onSuccess: ({ data }) => cache.setQueryData<ManagedVenue[]>(venuesKey, (current = []) => current.map((item) => item.id === data.id ? data : item)),
@@ -181,8 +212,39 @@ function VenueCard({ venue }: { venue: ManagedVenue }) {
     <article className="venue-card">
       <header className="row between">
         <div><h3>{venue.name}</h3><p className="muted">{venue.addressLine1}, {venue.city} · {venue.timezone}</p></div>
-        <button className={venue.isActive ? 'danger small' : 'small'} disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.updateVenue(venue.id, { ...venueInput(venue), isActive: !venue.isActive }))}>{venue.isActive ? 'Deactivate venue' : 'Activate venue'}</button>
+        <strong>{venue.publicationStatus.replaceAll('_', ' ')}</strong>
       </header>
+      <details>
+        <summary>Public listing, media, and cancellation policy</summary>
+        <div className="stack inset">
+          <label>Public description<textarea minLength={20} value={publicDescription} onChange={(event) => setPublicDescription(event.target.value)} /></label>
+          <div className="form-grid two">
+            <label>Latitude<input type="number" step="any" value={latitude} onChange={(event) => setLatitude(event.target.value)} /></label>
+            <label>Longitude<input type="number" step="any" value={longitude} onChange={(event) => setLongitude(event.target.value)} /></label>
+            <label>Amenities (comma separated)<input value={amenities} onChange={(event) => setAmenities(event.target.value)} /></label>
+            <label>Cover HTTPS URL<input type="url" value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} /></label>
+            <label>Cover alt text<input value={coverAlt} onChange={(event) => setCoverAlt(event.target.value)} /></label>
+            <label>Cover attribution<input value={coverAttribution} onChange={(event) => setCoverAttribution(event.target.value)} /></label>
+          </div>
+          <button disabled={mutation.isPending || !latitude || !longitude} onClick={() => mutation.mutate(() => adminClient.updateVenue(venue.id, { ...venueInput(venue), publicDescription, latitude: Number(latitude), longitude: Number(longitude), amenities: amenities.split(',').map((item) => item.trim()).filter(Boolean), coverImageUrl: coverUrl, coverImageAlt: coverAlt, coverImageAttribution: coverAttribution }))}>Save public listing</button>
+          <label>Gallery (one per line: HTTPS URL | alt text | attribution)<textarea value={gallery} onChange={(event) => setGallery(event.target.value)} /></label>
+          <button disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.replaceVenueMedia(venue.id, { items: gallery.split('\n').filter((line) => line.trim()).map((line) => { const [url = '', altText = '', attribution = ''] = line.split('|').map((part) => part.trim()); return { url, altText, attribution }; }) }))}>Save gallery</button>
+          <div className="form-grid two">
+            <label>Policy effective from<input type="datetime-local" value={policyFrom} onChange={(event) => setPolicyFrom(event.target.value)} /></label>
+            <label>Policy effective to (optional)<input type="datetime-local" value={policyTo} onChange={(event) => setPolicyTo(event.target.value)} /></label>
+            <label>Policy text<textarea value={policyText} onChange={(event) => setPolicyText(event.target.value)} /></label>
+          </div>
+          <button disabled={mutation.isPending || !policyFrom} onClick={() => mutation.mutate(() => adminClient.addVenueCancellationPolicy(venue.id, { effectiveFrom: new Date(policyFrom).toISOString(), ...(policyTo ? { effectiveTo: new Date(policyTo).toISOString() } : {}), fullCreditBeforeHours: 24, lateCreditPercent: 0, venueCancellationPercent: 100, policyText }))}>Add effective policy</button>
+        </div>
+      </details>
+      <div className="stack inset">
+        <p className="muted">Publishing requires a second MFA-verified admin. Catalogue changes return a published venue to draft.</p>
+        <div className="row">
+          {venue.publicationStatus === 'DRAFT' && <button disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.submitVenue(venue.id))}>Submit for independent approval</button>}
+          {venue.publicationStatus === 'PENDING_APPROVAL' && <button disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.approveVenue(venue.id))}>Approve and publish</button>}
+        </div>
+        {venue.publicationStatus === 'PUBLISHED' && <div className="form-grid two"><label>Emergency deactivation reason<input value={deactivationReason} onChange={(event) => setDeactivationReason(event.target.value)} /></label><button className="danger" disabled={mutation.isPending || deactivationReason.trim().length < 3} onClick={() => mutation.mutate(() => adminClient.deactivateVenue(venue.id, deactivationReason))}>Emergency deactivate</button></div>}
+      </div>
       <div className="stack">{venue.fields.map((field) => <FieldEditor key={field.id} field={field} />)}</div>
       <details>
         <summary>Add a field or court</summary>

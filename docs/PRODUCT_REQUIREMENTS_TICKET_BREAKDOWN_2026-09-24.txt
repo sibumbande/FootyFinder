@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as separate batch implementations on 2026-09-25; those exceptions do not apply to later gates.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, and Gate 4 on 2026-09-28.
 
 
 1. HOW TO USE THIS BACKLOG
@@ -12,7 +12,7 @@ Purpose: execution backlog. The default is one implementation ticket at a time. 
 
 1. Apply the approved decision record before any implementation ticket that depends on it; do not reopen policy inside an implementation ticket.
 2. Select exactly one READY ticket unless an explicit recorded batch exception applies.
-3. Implement only that ticket, including its tests and documentation. The recorded Gate 1 and Gate 2 batches are the only exceptions.
+3. Implement only that ticket, including its tests and documentation, unless a recorded gate-level batch authorization applies.
 4. Stop after verification and provide a completion report.
 5. Review/approve the result before selecting the next ticket.
 6. Do not combine tickets because they touch the same files.
@@ -684,7 +684,10 @@ Not in scope: assists, attendance, POTM, historical captaincy, or ratings.
 7. GATE 3 - VENUES, SLOTS, AND HOME
 ====================================
 
+Implementation summary (2026-09-28): Gate 3 catalogue/publication schema, privacy-safe public venue APIs, calculated timezone-aware slots, venue-first home/detail UI, managed-field Quick Match reservation, fair-share fee enforcement, organiser guarantee holds, cancellation compensation, bounded upcoming Matches, production-data preflight, and concurrency/browser test coverage are implemented. Type-checks and the shared/API/API-client/web automated suites pass. TKT-302 remains intentionally blocked until approved real venue packs and rights/beneficiary facts are supplied; no synthetic production venues were published. PostgreSQL migration/smoke and Playwright runtime verification remain pending because Docker is unavailable on this workstation. See `docs/GATE_3_VENUES_SLOTS_RUNBOOK_2026-09-28.md`.
+
 TKT-301 - Add public managed-venue metadata and read API
+Status: IMPLEMENTED - PUBLIC DTO/API AND DUAL-CONTROL WORKFLOW COMPLETE; DATABASE RUNTIME PENDING (2026-09-28)
 Depends on: DEC-005
 Risk: Medium
 Scope:
@@ -697,7 +700,7 @@ Tests: migration, mapper, filtering, authorization/privacy.
 Not in scope: venue seed or slot calculation.
 
 TKT-302 - Publish approved real venue catalogue and prices
-Status: BLOCKED FOR PRODUCTION DATA - VERIFIED VENUE PACKS REQUIRED (2026-09-24)
+Status: BLOCKED FOR PRODUCTION DATA - WORKFLOW/PREFLIGHT READY; VERIFIED VENUE PACKS STILL REQUIRED (2026-09-28)
 Depends on: TKT-301, DEC-005
 Risk: Medium
 Scope:
@@ -709,6 +712,7 @@ Tests: idempotency where used, dual-control approval, completeness, effective pr
 Not in scope: synthetic production facts.
 
 TKT-303 - Implement calculated availability-slot service and API
+Status: IMPLEMENTED - TIMEZONE/DST, GRID, HORIZON, BUFFER, EXCEPTION, PRICE, AND RESERVATION LOGIC ADDED; DATABASE RUNTIME PENDING (2026-09-28)
 Depends on: TKT-104, TKT-301, DEC-006
 Risk: High
 Scope:
@@ -721,6 +725,7 @@ Tests: timezone/DST, exceptions, formats, boundaries, reservations, bounded quer
 Not in scope: calendar UI or slot persistence unless justified.
 
 TKT-304 - Implement venue cards on home
+Status: IMPLEMENTED - VENUE-FIRST HOME, DATABASE CARDS, AND HONEST EMPTY/ERROR/LOADING STATES ADDED; REAL DISPLAY DATA BLOCKED BY TKT-302 (2026-09-28)
 Depends on: TKT-301, TKT-302
 Risk: Low
 Scope:
@@ -731,6 +736,7 @@ Tests: component/query/navigation/accessibility.
 Not in scope: calendar or match creation.
 
 TKT-305 - Implement venue detail and availability calendar
+Status: IMPLEMENTED - SERVER-SLOT FIELD/FORMAT/DATE FLOW AND CREATION CONTEXT ADDED; PLAYWRIGHT RUNTIME PENDING (2026-09-28)
 Depends on: TKT-303, TKT-304
 Risk: Medium
 Scope:
@@ -741,6 +747,7 @@ Tests: keyboard/mobile calendar, timezone display, empty/error/refetch states.
 Not in scope: reservation creation.
 
 TKT-306 - Replace placeholder match creation with managed-field reservation
+Status: IMPLEMENTED - ATOMIC RESERVATION, FAIR-SHARE CAP, GUARANTEE HOLD/SETTLEMENT, SNAPSHOTS, AND CANCELLATION COMPENSATION ADDED; DATABASE RUNTIME PENDING (2026-09-28)
 Depends on: TKT-103, TKT-104, TKT-305
 Risk: High
 Scope:
@@ -755,6 +762,7 @@ Tests: service/repository concurrency, fee/capacity boundaries, wallet hold/canc
 Not in scope: deleting historical Venue data.
 
 TKT-307 - Add Upcoming Matches to home
+Status: IMPLEMENTED - BOUNDED KICKOFF-SORTED AVAILABLE-ONLY HOME QUERY AND STATES ADDED (2026-09-28)
 Depends on: TKT-109, TKT-304
 Risk: Low
 Scope:
@@ -765,6 +773,7 @@ Tests: query filtering/sort and home component states.
 Not in scope: anonymous preview route.
 
 TKT-308 - Add venue-to-match E2E and reservation race test
+Status: IMPLEMENTED TEST COVERAGE - BROWSER JOURNEY AND CONCURRENT DATABASE RACE COMMITTED; RUNTIME PENDING WITHOUT DOCKER (2026-09-28)
 Depends on: TKT-306, TKT-307
 Risk: Medium
 Scope:
@@ -777,7 +786,10 @@ Not in scope: real payment provider.
 8. GATE 4 - PUBLIC SHARING
 ==========================
 
+Implementation summary (2026-09-28): Gate 4 opaque immutable public identifiers/backfill, minimal rate-limited anonymous preview API, privacy-safe lifecycle DTO, direct public page, validated login/register continuation, authenticated join continuation, canonical Web Share/WhatsApp/copy actions, read-only release preflight, and acquisition browser coverage are implemented. Fast automated tests, lint, Prisma generation, and builds pass. PostgreSQL migration/preflight and Playwright runtime verification remain pending because Docker is unavailable locally. See `docs/GATE_4_PUBLIC_SHARING_RUNBOOK_2026-09-28.md`.
+
 TKT-401 - Add stable public match slug/identifier
+Status: IMPLEMENTED - OPAQUE BACKFILL, UNIQUENESS, VISIBILITY, AND IMMUTABILITY ENFORCEMENT COMMITTED; DATABASE RUNTIME PENDING (2026-09-28)
 Depends on: DEC-004, TKT-109
 Risk: Medium
 Scope:
@@ -789,6 +801,7 @@ Tests: migration/backfill policy, uniqueness, lifecycle, private/public boundari
 Not in scope: preview UI.
 
 TKT-402 - Add anonymous public match preview API
+Status: IMPLEMENTED - LEAST-PRIVILEGE DTO, GENERIC BOUNDARY, RATE LIMIT, AND LIFECYCLE TESTS PASS; DATABASE RUNTIME PENDING (2026-09-28)
 Depends on: TKT-401
 Risk: High
 Scope:
@@ -801,6 +814,7 @@ Tests: DTO snapshot/privacy, enumeration behavior, rate limiting, statuses.
 Not in scope: joining without authentication.
 
 TKT-403 - Add public preview page and auth continuation
+Status: IMPLEMENTED - DIRECT/REFRESH ROUTE AND SAFE SAME-MATCH LOGIN/REGISTER/ONBOARDING CONTINUATION VERIFIED; PLAYWRIGHT RUNTIME PENDING (2026-09-28)
 Depends on: TKT-101, TKT-402
 Risk: Medium
 Scope:
@@ -811,6 +825,7 @@ Tests: routing/components and browser flow.
 Not in scope: share actions.
 
 TKT-404 - Add Web Share and WhatsApp actions
+Status: VERIFIED IN CODE - LIVE CANONICAL COPY, WEB SHARE, WHATSAPP, AND COPY FALLBACK TESTS PASS (2026-09-28)
 Depends on: TKT-403
 Risk: Low
 Scope:
@@ -822,6 +837,7 @@ Tests: supported/unsupported browser behavior, encoding, copy fallback.
 Not in scope: QR codes, referrals, analytics, or campaign tracking.
 
 TKT-405 - Add public-share acquisition E2E
+Status: IMPLEMENTED TEST COVERAGE - ANONYMOUS PREVIEW, LOGIN RETURN, DEMO FUNDING, JOIN, AND FULL/CANCELLED/PRIVATE-SAFE PATH COMMITTED; RUNTIME PENDING WITHOUT DOCKER (2026-09-28)
 Depends on: TKT-404, TKT-209
 Risk: Medium
 Scope: Anonymous share -> preview -> register/login -> return -> fund -> join. Fund only through the environment-gated demo-deposit API with a unique idempotency key and disposable cleanup; never write a browser-test balance directly.

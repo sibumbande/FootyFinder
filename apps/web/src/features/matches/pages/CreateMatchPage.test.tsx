@@ -13,10 +13,26 @@ vi.mock('../hooks/useMatches.js', () => ({
   }),
 }));
 
+vi.mock('@/features/venues/hooks/useVenues.js', () => ({
+  useVenue: () => ({
+    data: {
+      venue: {
+        name: 'Approved Arena',
+        addressLine1: '1 Main Road',
+        fields: [{ id: 'f03d12a0-9855-4a03-8948-739bad35e733', name: 'Field One' }],
+      },
+    },
+  }),
+}));
+
 describe('CreateMatchPage', () => {
   it('persists match-specific capacity, rolling substitutions, and rules', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={[
+          '/matches/new?venue=approved-arena&field=f03d12a0-9855-4a03-8948-739bad35e733&format=FIVE_A_SIDE&startsAt=2099-08-23T18%3A00%3A00.000Z&price=300000',
+        ]}
+      >
         <CreateMatchPage />
       </MemoryRouter>,
     );
@@ -34,17 +50,14 @@ describe('CreateMatchPage', () => {
       target: { value: 'Friday football' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    fireEvent.click(screen.getByRole('button', { name: /Green Point Arena/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-
-    fireEvent.change(screen.getByLabelText('Match date'), { target: { value: '2099-08-23' } });
-    fireEvent.click(screen.getByRole('button', { name: '18:00' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create match' }));
 
     expect(mocks.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         feeCents: 8_000,
+        managedFieldId: 'f03d12a0-9855-4a03-8948-739bad35e733',
         substituteCapacityPerTeam: 10,
         rollingSubstitutes: true,
         rules: ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'],

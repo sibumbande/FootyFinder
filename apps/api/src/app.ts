@@ -29,6 +29,8 @@ import { logError } from './observability/logger.js';
 import { onboardingRouter } from './modules/onboarding/onboarding.routes.js';
 import { legalRouter } from './modules/legal/legal.routes.js';
 import { citiesRouter } from './modules/cities/cities.routes.js';
+import { venuesRouter } from './modules/venues/venues.routes.js';
+import { publicMatchesRouter } from './modules/matches/public-matches.routes.js';
 export const app: Express = express();
 const operations = new OperationsService();
 app.disable('x-powered-by');
@@ -61,6 +63,8 @@ app.get('/ready', async (_req, res) => {
 app.use('/auth', authRouter);
 app.use('/legal', legalRouter);
 app.use('/cities', citiesRouter);
+app.use('/venues', venuesRouter);
+app.use('/public/matches', publicMatchesRouter);
 app.use('/onboarding', onboardingRouter);
 app.use('/players', profilesRouter);
 app.use('/users', usersRouter);

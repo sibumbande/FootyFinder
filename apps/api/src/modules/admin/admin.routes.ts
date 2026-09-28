@@ -27,6 +27,11 @@ adminRouter.get('/audit-logs', controller.auditLog);
 adminRouter.get('/venues', controller.listVenues);
 adminRouter.post('/venues', costlyMutationRateLimit, controller.createVenue);
 adminRouter.put('/venues/:venueId', costlyMutationRateLimit, controller.updateVenue);
+adminRouter.put('/venues/:venueId/media', costlyMutationRateLimit, controller.replaceVenueMedia);
+adminRouter.post('/venues/:venueId/cancellation-policies', costlyMutationRateLimit, controller.addVenueCancellationPolicy);
+adminRouter.post('/venues/:venueId/submit', costlyMutationRateLimit, controller.submitVenue);
+adminRouter.post('/venues/:venueId/approve', costlyMutationRateLimit, controller.approveVenue);
+adminRouter.post('/venues/:venueId/deactivate', costlyMutationRateLimit, controller.deactivateVenue);
 adminRouter.post('/venues/:venueId/fields', costlyMutationRateLimit, controller.createField);
 adminRouter.put('/fields/:fieldId', costlyMutationRateLimit, controller.updateField);
 adminRouter.put(

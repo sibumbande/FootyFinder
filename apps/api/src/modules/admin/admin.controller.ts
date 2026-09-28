@@ -10,6 +10,9 @@ import {
   updateSupportTicketSchema,
   createAdminTestDataBatchSchema,
   managedMatchBookingSchema,
+  managedVenueMediaInputSchema,
+  venueCancellationPolicyInputSchema,
+  venueDeactivationInputSchema,
 } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { AppError } from '../../errors/app-error.js';
@@ -196,6 +199,21 @@ export const addFieldPrice: RequestHandler = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+export const replaceVenueMedia: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await catalog.replaceMedia(String(req.params.venueId), managedVenueMediaInputSchema.parse(req.body), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const addVenueCancellationPolicy: RequestHandler = async (req, res, next) => {
+  try { res.status(201).json({ data: await catalog.addCancellationPolicy(String(req.params.venueId), venueCancellationPolicyInputSchema.parse(req.body), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const submitVenue: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await catalog.submitForApproval(String(req.params.venueId), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const approveVenue: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await catalog.approve(String(req.params.venueId), actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
+};
+export const deactivateVenue: RequestHandler = async (req, res, next) => {
+  try { res.json({ data: await catalog.deactivate(String(req.params.venueId), venueDeactivationInputSchema.parse(req.body).reason, actor(res.locals), requestId(res.locals)) }); } catch (error) { next(error); }
 };
 export const listSupportTickets: RequestHandler = async (req, res, next) => {
   try {

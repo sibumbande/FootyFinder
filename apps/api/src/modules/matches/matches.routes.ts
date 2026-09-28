@@ -9,6 +9,7 @@ registerRouteParam(matchesRouter, 'side', teamSideRouteParamSchema);
 matchesRouter.get('/', controller.list);
 matchesRouter.post('/', costlyMutationRateLimit, controller.create);
 matchesRouter.get('/invite/:token', controller.invite);
+matchesRouter.get('/public/:slug', controller.getByPublicSlug);
 matchesRouter.get('/:id', controller.get);
 matchesRouter.post('/:id/invite', costlyMutationRateLimit, controller.rotateInvite);
 matchesRouter.patch('/:id', controller.update);

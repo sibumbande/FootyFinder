@@ -11,7 +11,9 @@ const service = new BookingsService(); const financial = new FinancialRepository
 const userIds: string[] = []; const reservationIds: string[] = []; const matchIds: string[] = []; const holdIds: string[] = [];
 let managedVenueId = '';
 try {
-  const venue = await prisma.managedVenue.create({ data: { name: marker, addressLine1: '1 Booking Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA', fields: { create: { name: 'Pitch One', supportedFormats: { create: { format: 'FIVE_A_SIDE' } }, availabilityPeriods: { create: { dayOfWeek: 1, startMinute: 0, endMinute: 1440 } }, prices: { create: { amountCents: 80_000, effectiveFrom: new Date('2026-01-01T00:00:00Z') } } } } } });
+  const kickoff = new Date(Date.now() + 7 * 86_400_000);
+  kickoff.setUTCMinutes(0, 0, 0);
+  const venue = await prisma.managedVenue.create({ data: { slug: `${marker}-venue`, name: marker, addressLine1: '1 Booking Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA', fields: { create: { name: 'Pitch One', supportedFormats: { create: { format: 'FIVE_A_SIDE' } }, availabilityPeriods: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startMinute: 0, endMinute: 1440 })) }, prices: { create: { amountCents: 80_000, effectiveFrom: new Date(Date.now() - 86_400_000) } } } } } });
   managedVenueId = venue.id;
   const field = await prisma.managedField.findFirstOrThrow({ where: { venueId: venue.id }, include: { prices: true } });
   for (const suffix of ['a', 'b']) {
@@ -19,7 +21,9 @@ try {
     userIds.push(user.id);
     await serializableTransaction((tx) => financial.credit(tx, { userId: user.id, amountCents: 50_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:seed:${suffix}`, referenceType: 'SMOKE', referenceId: marker }));
   }
-  const startsAt = '2027-03-01T16:00:00.000Z';
+  await prisma.venueCancellationPolicy.create({ data: { venueId: venue.id, effectiveFrom: new Date(Date.now() - 86_400_000), policyText: 'Full credit more than 24 hours before kickoff; no late credit.' } });
+  await prisma.managedVenue.update({ where: { id: venue.id }, data: { publicationStatus: 'PUBLISHED', submittedByUserId: userIds[0], submittedAt: new Date(), approvedByUserId: userIds[1], approvedAt: new Date() } });
+  const startsAt = kickoff.toISOString();
   const booking = await service.createPlayer({ managedFieldId: field.id, name: 'Pooled Booking Smoke', format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC', startsAt }, userIds[0]!);
   reservationIds.push(booking.id); matchIds.push(booking.match.id);
   assert(booking.status === 'FUNDING' && booking.priceCents === 80_000, 'Player booking did not snapshot price into funding state.');
@@ -39,7 +43,8 @@ try {
   catch (error) { overlapBlocked = typeof error === 'object' && error !== null && 'code' in error && error.code === 'FIELD_TIME_CONFLICT'; }
   assert(overlapBlocked, 'Overlapping reservation was not rejected with FIELD_TIME_CONFLICT.');
 
-  const expiring = await service.createPlayer({ managedFieldId: field.id, name: 'Expiry Smoke', format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC', startsAt: '2027-03-01T19:00:00.000Z' }, userIds[0]!);
+  const expiringStartsAt = new Date(kickoff.getTime() + 3 * 60 * 60_000).toISOString();
+  const expiring = await service.createPlayer({ managedFieldId: field.id, name: 'Expiry Smoke', format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC', startsAt: expiringStartsAt }, userIds[0]!);
   reservationIds.push(expiring.id); matchIds.push(expiring.match.id);
   await service.contribute(expiring.id, userIds[0]!, { amountCents: 5_000 }, `${marker}:expiry-contribution`);
   holdIds.push(...(await prisma.fundingContribution.findMany({ where: { obligation: { reservationId: expiring.id } }, select: { walletHoldId: true } })).map((item) => item.walletHoldId));
@@ -47,13 +52,28 @@ try {
   assert(expired?.status === 'EXPIRED', 'Funding expiry did not release the reservation.');
   assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId: userIds[0] } })).balanceCents === 10_000, 'Expired hold changed wallet balance.');
 
+  for (const [index, userId] of userIds.entries())
+    await serializableTransaction((tx) => financial.credit(tx, { userId, amountCents: 100_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:race-funds:${index}`, referenceType: 'SMOKE', referenceId: marker }));
+  const raceStartsAt = new Date(kickoff.getTime() + 6 * 60 * 60_000).toISOString();
+  const raceInput = { managedFieldId: field.id, name: 'Gate 3 reservation race', format: 'FIVE_A_SIDE' as const, substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC' as const, startsAt: raceStartsAt, feeCents: 4_000 };
+  const race = await Promise.allSettled(userIds.map((userId) => service.createQuickMatch(raceInput, userId)));
+  const winner = race.find((item): item is PromiseFulfilledResult<Awaited<ReturnType<BookingsService['createQuickMatch']>>> => item.status === 'fulfilled');
+  const loser = race.find((item): item is PromiseRejectedResult => item.status === 'rejected');
+  assert(Boolean(winner) && Boolean(loser), 'Concurrent reservation race did not produce exactly one winner.');
+  assert(typeof loser!.reason === 'object' && loser!.reason?.code === 'FIELD_TIME_CONFLICT', 'Reservation race did not return the stable FIELD_TIME_CONFLICT code.');
+  matchIds.push(winner!.value.id);
+  const raceReservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: winner!.value.id } });
+  reservationIds.push(raceReservation.id);
+  if (raceReservation.organizerGuaranteeHoldId) holdIds.push(raceReservation.organizerGuaranteeHoldId);
+  assert(raceReservation.priceCentsSnapshot === 90_000 && raceReservation.organizerGuaranteeCents === 90_000, 'Race winner did not preserve price and guarantee snapshots.');
+
   let rolledBack = false;
   try { await prisma.$transaction(async (tx) => { const admin = await tx.user.create({ data: { email: `${marker}-admin@smoke.invalid`, username: `admin_${marker.slice(-18)}`, passwordHash: 'smoke', platformRole: 'ADMIN' } }); await tx.adminAuditLog.create({ data: { actorUserId: admin.id, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', requestId: marker } }); throw new Error('ROLLBACK_ADMIN_LOAD'); }); }
   catch (error) { rolledBack = String(error).includes('ROLLBACK_ADMIN_LOAD'); }
   assert(rolledBack && (await prisma.adminAuditLog.count({ where: { requestId: marker } })) === 0, 'Admin load audit rollback was not exact.');
 } finally {
   if (reservationIds.length) {
-    await prisma.durableJob.deleteMany({ where: { OR: reservationIds.map((id) => ({ dedupeKey: `reservation-expire:${id}` })) } });
+    await prisma.durableJob.deleteMany({ where: { OR: reservationIds.flatMap((id) => [{ dedupeKey: `reservation-expire:${id}` }, { dedupeKey: `quick-match-guarantee-settle:${id}` }]) } });
     await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.fundingContribution.deleteMany({ where: { obligation: { reservationId: { in: reservationIds } } } });
     await prisma.fieldReservation.deleteMany({ where: { id: { in: reservationIds } } });
@@ -68,8 +88,8 @@ try {
     await prisma.venue.deleteMany({ where: { id: { in: legacyVenueIds } } });
   }
   for (const id of userIds) { const wallet = await prisma.walletAccount.findUnique({ where: { userId: id } }); if (wallet) await prisma.walletTransaction.deleteMany({ where: { walletAccountId: wallet.id } }); }
+  if (managedVenueId) { await prisma.managedFieldPrice.deleteMany({ where: { field: { venueId: managedVenueId } } }); await prisma.venueCancellationPolicy.deleteMany({ where: { venueId: managedVenueId } }); await prisma.managedField.deleteMany({ where: { venueId: managedVenueId } }); await prisma.managedVenue.deleteMany({ where: { id: managedVenueId } }); }
   if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-  if (managedVenueId) { await prisma.managedFieldPrice.deleteMany({ where: { field: { venueId: managedVenueId } } }); await prisma.managedField.deleteMany({ where: { venueId: managedVenueId } }); await prisma.managedVenue.deleteMany({ where: { id: managedVenueId } }); }
   assert((await prisma.user.count({ where: { email: { startsWith: marker } } })) === 0, 'Booking smoke users remained.');
   assert((await prisma.managedVenue.count({ where: { name: marker } })) === 0, 'Booking smoke venue remained.');
   assert((await prisma.adminAuditLog.count({ where: { requestId: marker } })) === 0, 'Booking smoke audit remained.');

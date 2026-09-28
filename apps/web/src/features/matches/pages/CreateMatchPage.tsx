@@ -12,14 +12,14 @@ import {
   type MatchRule,
   type MatchVisibility,
 } from '@footy-finder/shared';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { formatRands } from '@/utils/format-currency.js';
-import { AVAILABLE_FIELDS, BOOKING_TIMES } from '../constants/fields.js';
 import { useCreateMatch } from '../hooks/useMatches.js';
+import { useVenue } from '@/features/venues/hooks/useVenues.js';
 const steps = [
   'Format',
   'Squad rules',
@@ -40,31 +40,36 @@ export function CreateMatchPage() {
   const [visibility, setVisibility] = useState<MatchVisibility>('PUBLIC');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [fieldId, setFieldId] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
   const [feeRands, setFeeRands] = useState(String(DEFAULT_QUICK_GAME_FEE_CENTS / 100));
+  const [search] = useSearchParams();
+  const venueSlug = search.get('venue') ?? '';
+  const fieldId = search.get('field') ?? '';
+  const startsAt = search.get('startsAt') ?? '';
+  const selectedPriceCents = Number(search.get('price') ?? 0);
+  const selectedFormat = search.get('format') as MatchFormat | null;
+  const venueQuery = useVenue(venueSlug);
+  const selectedField = venueQuery.data?.venue.fields.find((item) => item.id === fieldId);
   const navigate = useNavigate();
   const creation = useCreateMatch();
-  const field = useMemo(() => AVAILABLE_FIELDS.find((item) => item.id === fieldId), [fieldId]);
   const config = MATCH_FORMAT_CONFIG[format];
+  const fairShareMaximum = selectedPriceCents > 0 ? Math.min(MAX_QUICK_GAME_FEE_CENTS, Math.floor(selectedPriceCents / getMaxMatchParticipants(format, substituteCapacityPerTeam) / 100) * 100) : MAX_QUICK_GAME_FEE_CENTS;
   const feeValue = Number(feeRands);
   const feeIsValid =
     feeRands.trim() !== '' &&
     Number.isInteger(feeValue) &&
     feeValue >= 0 &&
-    feeValue <= MAX_QUICK_GAME_FEE_CENTS / 100;
+    feeValue <= fairShareMaximum / 100;
   const valid = [
     true,
     substituteCapacityPerTeam >= 0 && substituteCapacityPerTeam <= MAX_SUBSTITUTES_PER_TEAM,
     true,
     name.trim().length >= 3,
-    Boolean(field),
-    Boolean(date && time && feeIsValid),
+    Boolean(selectedField && startsAt && selectedFormat === format),
+    Boolean(startsAt && feeIsValid),
     true,
   ][step];
   const submit = () => {
-    if (!field || !date || !time || !valid) return;
+    if (!selectedField || !startsAt || !valid) return;
     creation.mutate(
       {
         name,
@@ -74,15 +79,9 @@ export function CreateMatchPage() {
         rollingSubstitutes,
         rules,
         visibility,
-        startsAt: new Date(`${date}T${time}:00`).toISOString(),
+        startsAt,
         feeCents: feeValue * 100,
-        venue: {
-          name: field.name,
-          addressLine1: field.address,
-          city: field.city,
-          region: field.region,
-          countryCode: field.countryCode,
-        },
+        managedFieldId: selectedField.id,
       },
       { onSuccess: ({ data }) => navigate(`/matches/${data.id}`, { replace: true }) },
     );
@@ -98,6 +97,7 @@ export function CreateMatchPage() {
           Choose the format, squad rules, privacy, venue, schedule and player entry fee.
         </p>
       </div>
+      {(!selectedField || !startsAt) && <div className="rounded-2xl border border-warning-300 bg-warning-50 p-5"><strong className="text-content-strong">Select a live venue slot first.</strong><p className="mt-2 text-sm text-content-muted">Quick Matches can only be created from the managed venue calendar.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to="/#venues">Browse venues</Link></div>}
       <div>
         <div className="mb-3 flex justify-between text-xs font-bold uppercase tracking-wide text-content-muted">
           <span>
@@ -245,23 +245,9 @@ export function CreateMatchPage() {
         {step === 4 && (
           <Step
             title="Select a venue"
-            detail="These development venues will later come from the venue catalogue."
+            detail="The approved venue and server-calculated slot are carried from the venue calendar."
           >
-            <div className="grid gap-4 md:grid-cols-3">
-              {AVAILABLE_FIELDS.map((item) => (
-                <Choice
-                  key={item.id}
-                  selected={fieldId === item.id}
-                  onClick={() => setFieldId(item.id)}
-                >
-                  <strong className="text-content-strong">{item.name}</strong>
-                  <span className="mt-1 block text-xs font-bold text-brand-700">
-                    {item.surface}
-                  </span>
-                  <span className="mt-3 block text-sm text-content-muted">{item.address}</span>
-                </Choice>
-              ))}
-            </div>
+            {selectedField ? <div className="rounded-2xl border border-brand-300 bg-brand-50 p-5"><strong className="text-content-strong">{venueQuery.data?.venue.name} — {selectedField.name}</strong><span className="mt-2 block text-sm text-content-muted">{venueQuery.data?.venue.addressLine1}</span></div> : <Link className="font-bold text-brand-700 underline" to="/#venues">Choose a venue and slot</Link>}
           </Step>
         )}
         {step === 5 && (
@@ -269,37 +255,21 @@ export function CreateMatchPage() {
             title="Schedule and player fee"
             detail="Every match lasts 60 minutes. Players pay only when they join a team."
           >
-            <Input
-              label="Match date"
-              type="date"
-              min={new Date().toISOString().slice(0, 10)}
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
-            <div>
-              <p className="mb-2 text-sm font-semibold text-content">Kickoff</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {BOOKING_TIMES.map((slot) => (
-                  <Choice compact key={slot} selected={time === slot} onClick={() => setTime(slot)}>
-                    {slot}
-                  </Choice>
-                ))}
-              </div>
-            </div>
+            <div className="rounded-2xl bg-surface-muted p-4"><span className="text-xs font-bold uppercase text-content-muted">Selected kickoff</span><strong className="mt-1 block text-content-strong">{startsAt ? new Date(startsAt).toLocaleString() : 'Choose a venue slot'}</strong><span className="mt-1 block text-sm text-content-muted">Venue price: {formatRands(selectedPriceCents)} per 60-minute field slot</span></div>
             <Input
               label="Entry fee (rands)"
               type="number"
               min="0"
-              max={MAX_QUICK_GAME_FEE_CENTS / 100}
+              max={fairShareMaximum / 100}
               step="1"
               value={feeRands}
               onChange={(event) => setFeeRands(event.target.value)}
               error={
                 feeRands.length > 0 && !feeIsValid
-                  ? 'Use a whole-rand amount from R0 to R500.'
+                  ? `Use a whole-rand amount from R0 to R${fairShareMaximum / 100}.`
                   : undefined
               }
-              hint="Choose a whole-rand amount from R0 to R500. The default is R80."
+              hint={`The server prevents organiser profit. For this venue and capacity the maximum is R${fairShareMaximum / 100}.`}
             />
           </Step>
         )}
@@ -331,8 +301,8 @@ export function CreateMatchPage() {
                 label="Visibility"
                 value={visibility === 'PRIVATE' ? 'Private invitation' : 'Public discovery'}
               />
-              <Summary label="Venue" value={field?.name ?? ''} />
-              <Summary label="Kickoff" value={`${date} at ${time}`} />
+              <Summary label="Venue" value={`${venueQuery.data?.venue.name ?? ''} — ${selectedField?.name ?? ''}`} />
+              <Summary label="Kickoff" value={startsAt ? new Date(startsAt).toLocaleString() : ''} />
               <Summary label="Player fee" value={formatRands(Math.round(Number(feeRands) * 100))} />
             </dl>
             <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700">
@@ -356,7 +326,7 @@ export function CreateMatchPage() {
               Continue
             </Button>
           ) : (
-            <Button loading={creation.isPending} onClick={submit}>
+            <Button disabled={!selectedField || !startsAt} loading={creation.isPending} onClick={submit}>
               Create match
             </Button>
           )}

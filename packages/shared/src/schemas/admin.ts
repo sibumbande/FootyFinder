@@ -1,10 +1,21 @@
 import { z } from 'zod';
 
+const timezoneSchema = z.string().trim().min(3).max(80).refine((timezone) => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: timezone }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}, 'Use a valid IANA timezone.');
+
 export const adminMfaCodeSchema = z.object({ code: z.string().regex(/^\d{6}$/) });
 export type AdminMfaCodeInput = z.infer<typeof adminMfaCodeSchema>;
 
 export const managedVenueInputSchema = z.object({
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100).optional(),
   name: z.string().trim().min(2).max(120),
+  publicDescription: z.string().trim().min(20).max(3000).optional(),
   addressLine1: z.string().trim().min(2).max(160),
   addressLine2: z.string().trim().max(160).optional(),
   city: z.string().trim().min(2).max(80),
@@ -13,15 +24,20 @@ export const managedVenueInputSchema = z.object({
   countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
-  timezone: z.string().trim().min(3).max(80).default('Africa/Johannesburg'),
+  timezone: timezoneSchema.default('Africa/Johannesburg'),
+  amenities: z.array(z.string().trim().min(1).max(80)).max(40).default([]),
+  coverImageUrl: z.string().url().refine((value) => value.startsWith('https://'), 'Use an HTTPS image URL').optional(),
+  coverImageAlt: z.string().trim().min(3).max(240).optional(),
+  coverImageAttribution: z.string().trim().min(2).max(500).optional(),
   isActive: z.boolean().default(true),
 });
-export type ManagedVenueInput = z.infer<typeof managedVenueInputSchema>;
+export type ManagedVenueInput = z.input<typeof managedVenueInputSchema>;
 
 export const managedFieldInputSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).default('ACTIVE'),
+  turnaroundBufferMinutes: z.number().int().min(15).max(240).default(15),
   supportedFormats: z
     .array(z.enum(['FIVE_A_SIDE', 'SEVEN_A_SIDE', 'ELEVEN_A_SIDE']))
     .min(1)
@@ -29,7 +45,7 @@ export const managedFieldInputSchema = z.object({
       message: 'Supported formats must be unique.',
     }),
 });
-export type ManagedFieldInput = z.infer<typeof managedFieldInputSchema>;
+export type ManagedFieldInput = z.input<typeof managedFieldInputSchema>;
 
 export const managedFieldAvailabilityInputSchema = z.object({
   periods: z.array(
@@ -62,14 +78,49 @@ export type ManagedFieldExceptionInput = z.infer<typeof managedFieldExceptionInp
 export const managedFieldPriceInputSchema = z
   .object({
     amountCents: z.number().int().min(0),
+    format: z.enum(['FIVE_A_SIDE', 'SEVEN_A_SIDE', 'ELEVEN_A_SIDE']).optional(),
+    dayOfWeek: z.number().int().min(0).max(6).optional(),
+    startMinute: z.number().int().min(0).max(1439).optional(),
+    endMinute: z.number().int().min(1).max(1440).optional(),
     effectiveFrom: z.string().datetime(),
     effectiveTo: z.string().datetime().optional(),
   })
   .refine(
     (value) => !value.effectiveTo || new Date(value.effectiveFrom) < new Date(value.effectiveTo),
     { path: ['effectiveTo'], message: 'End must be after start.' },
-  );
+  )
+  .refine(
+    (value) => [value.dayOfWeek, value.startMinute, value.endMinute].every((item) => item === undefined) ||
+      [value.dayOfWeek, value.startMinute, value.endMinute].every((item) => item !== undefined),
+    { message: 'Day and time scope must be supplied together.' },
+  )
+  .refine((value) => value.startMinute === undefined || value.endMinute === undefined || value.startMinute < value.endMinute, {
+    path: ['endMinute'], message: 'Price end minute must be after its start minute.',
+  });
 export type ManagedFieldPriceInput = z.infer<typeof managedFieldPriceInputSchema>;
+
+export const managedVenueMediaInputSchema = z.object({
+  items: z.array(z.object({
+    url: z.string().url().refine((value) => value.startsWith('https://'), 'Use an HTTPS image URL'),
+    altText: z.string().trim().min(3).max(240),
+    attribution: z.string().trim().min(2).max(500),
+  })).min(3).max(20),
+});
+export type ManagedVenueMediaInput = z.infer<typeof managedVenueMediaInputSchema>;
+
+export const venueCancellationPolicyInputSchema = z.object({
+  effectiveFrom: z.string().datetime(),
+  effectiveTo: z.string().datetime().optional(),
+  fullCreditBeforeHours: z.number().int().min(0).max(720).default(24),
+  lateCreditPercent: z.number().int().min(0).max(100).default(0),
+  venueCancellationPercent: z.number().int().min(0).max(100).default(100),
+  policyText: z.string().trim().min(20).max(3000),
+}).refine((value) => !value.effectiveTo || value.effectiveFrom < value.effectiveTo, {
+  path: ['effectiveTo'], message: 'End must be after start.',
+});
+export type VenueCancellationPolicyInput = z.infer<typeof venueCancellationPolicyInputSchema>;
+
+export const venueDeactivationInputSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 
 export const createAdminTestDataBatchSchema = z.object({
   label: z.string().trim().min(3).max(80),

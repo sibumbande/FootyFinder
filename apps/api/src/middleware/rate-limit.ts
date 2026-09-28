@@ -88,3 +88,9 @@ export const costlyMutationRateLimit = createRateLimit({
   limit: env.RATE_LIMIT_COSTLY_MUTATIONS_PER_MINUTE,
   windowMs: 60_000,
 });
+
+export const publicPreviewRateLimit = createRateLimit({
+  scope: 'public-match-preview',
+  limit: env.RATE_LIMIT_PUBLIC_PREVIEWS_PER_MINUTE,
+  windowMs: 60_000,
+});

@@ -6,6 +6,7 @@ import type {
   JoinMatchInput,
   ResultInput,
   UpdateMatchInput,
+  PublicMatchPreview,
 } from '@footy-finder/shared';
 import {
   canChangeLobby,
@@ -14,6 +15,8 @@ import {
   isMatchAtCapacity,
   MATCH_DURATION_MINUTES,
   getMaxParticipantsPerTeam,
+  getMaxMatchParticipants,
+  MATCH_RULE_CONFIG,
 } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
@@ -28,15 +31,19 @@ import {
   TeamFullError,
   TeamMatchPlanningError,
 } from './matches.repository.js';
+import { BookingsService } from '../bookings/bookings.service.js';
+import { publicMatchUrl } from './public-match.js';
 
 export class MatchesService {
   constructor(
     private readonly matches = new MatchesRepository(),
     private readonly notifications = new NotificationsService(),
+    private readonly bookings = new BookingsService(),
   ) {}
 
   async list(query: DiscoveryQuery) {
-    let matches = (await this.matches.listPublic(query)).map((match) => toMatch(match));
+    const repositoryQuery = query.availableOnly ? { ...query, limit: 200 } : query;
+    let matches = (await this.matches.listPublic(repositoryQuery)).map((match) => toMatch(match));
     if (query.availableOnly)
       matches = matches.filter(
         (match) =>
@@ -46,7 +53,7 @@ export class MatchesService {
             match.participantCount,
           ),
       );
-    return matches;
+    return matches.slice(0, query.limit);
   }
   async get(id: string, userId: string) {
     const match = await this.load(id);
@@ -82,21 +89,51 @@ export class MatchesService {
       throw new AppError(404, 'Match invitation is invalid or expired.', 'INVITE_NOT_FOUND');
     return toMatch(match);
   }
+  async getByPublicSlug(slug: string, userId: string) {
+    const match = await this.matches.findPublicBySlug(slug);
+    if (!match)
+      throw new AppError(404, 'Public match not found.', 'PUBLIC_MATCH_NOT_FOUND');
+    return this.get(match.id, userId);
+  }
+  async publicPreview(slug: string): Promise<PublicMatchPreview> {
+    const match = await this.matches.findPublicPreviewBySlug(slug);
+    if (!match)
+      throw new AppError(404, 'Public match not found.', 'PUBLIC_MATCH_NOT_FOUND');
+    const filled = match.participants.length;
+    const total = getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
+    const lifecycleStatus = getEffectiveMatchStatus({
+      status: match.status,
+      startsAt: match.startsAt,
+      durationMinutes: match.durationMinutes,
+    });
+    const status =
+      ['OPEN', 'READY'].includes(lifecycleStatus) && filled >= total ? 'FULL' : lifecycleStatus;
+    const reason =
+      status === 'FULL' ? 'FULL'
+        : status === 'CANCELLED' ? 'CANCELLED'
+          : ['IN_PROGRESS'].includes(status) ? 'STARTED'
+            : ['AWAITING_RESULT', 'COMPLETED'].includes(status) ? 'COMPLETED'
+              : ['OPEN', 'READY'].includes(status) ? 'AVAILABLE'
+                : 'UNAVAILABLE';
+    return {
+      slug,
+      canonicalUrl: publicMatchUrl(slug),
+      name: match.name,
+      ...(match.description ? { description: match.description } : {}),
+      venue: { name: match.venue.name, city: match.venue.city, region: match.venue.region },
+      startsAt: match.startsAt.toISOString(),
+      durationMinutes: match.durationMinutes,
+      format: match.format,
+      feeCents: match.feeCents,
+      currency: 'ZAR',
+      rules: match.rules.map((code) => ({ code, label: MATCH_RULE_CONFIG[code].label })),
+      status,
+      joinability: { canJoin: reason === 'AVAILABLE', reason },
+      capacity: { filled, total },
+    };
+  }
   async create(input: CreateMatchInput, userId: string) {
-    const inviteToken = input.visibility === 'PRIVATE' ? createMatchInviteToken() : undefined;
-    return toMatch(
-      await this.matches.create(
-        input,
-        userId,
-        MATCH_DURATION_MINUTES,
-        inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
-      ),
-      {
-        inviteToken,
-        viewerCanManage: true,
-        viewerCanChat: true,
-      },
-    );
+    return this.bookings.createQuickMatch(input, userId);
   }
   async rotateInvite(id: string, userId: string) {
     const match = await this.assertManager(id, userId);
@@ -122,6 +159,12 @@ export class MatchesService {
         400,
         'Choose a future date and time for kickoff.',
         'MATCH_START_TIME_INVALID',
+      );
+    if (input.startsAt && (await this.matches.hasFieldReservation(id)))
+      throw new AppError(
+        409,
+        'A managed venue slot cannot be rescheduled. Cancel it and choose a new live slot.',
+        'MANAGED_SLOT_IMMUTABLE',
       );
     const updated = toMatch(await this.matches.update(id, input), {
       viewerCanManage: true,

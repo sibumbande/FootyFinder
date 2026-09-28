@@ -44,6 +44,10 @@ export interface ManagedFieldPrice {
   id: string;
   amountCents: number;
   currency: 'ZAR';
+  format?: 'FIVE_A_SIDE' | 'SEVEN_A_SIDE' | 'ELEVEN_A_SIDE';
+  dayOfWeek?: number;
+  startMinute?: number;
+  endMinute?: number;
   effectiveFrom: string;
   effectiveTo?: string;
 }
@@ -53,6 +57,7 @@ export interface ManagedField {
   name: string;
   description?: string;
   status: ManagedFieldStatus;
+  turnaroundBufferMinutes: number;
   supportedFormats: Array<'FIVE_A_SIDE' | 'SEVEN_A_SIDE' | 'ELEVEN_A_SIDE'>;
   availabilityPeriods: ManagedFieldAvailability[];
   exceptions: ManagedFieldException[];
@@ -62,7 +67,9 @@ export interface ManagedField {
 }
 export interface ManagedVenue {
   id: string;
+  slug: string;
   name: string;
+  publicDescription?: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
@@ -72,7 +79,28 @@ export interface ManagedVenue {
   latitude?: number;
   longitude?: number;
   timezone: string;
+  amenities: string[];
+  coverImageUrl?: string;
+  coverImageAlt?: string;
+  coverImageAttribution?: string;
+  publicationStatus: 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'DEACTIVATED';
+  submittedByUserId?: string;
+  submittedAt?: string;
+  approvedByUserId?: string;
+  approvedAt?: string;
+  deactivatedAt?: string;
+  deactivationReason?: string;
   isActive: boolean;
+  media: Array<{ id: string; url: string; altText: string; attribution: string; sortOrder: number }>;
+  cancellationPolicies: Array<{
+    id: string;
+    effectiveFrom: string;
+    effectiveTo?: string;
+    fullCreditBeforeHours: number;
+    lateCreditPercent: number;
+    venueCancellationPercent: number;
+    policyText: string;
+  }>;
   fields: ManagedField[];
   createdAt: string;
   updatedAt: string;

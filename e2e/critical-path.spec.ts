@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { getMaxMatchParticipants } from '@footy-finder/shared';
 import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
 import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
 
@@ -12,7 +13,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 const marker = `e2e-${Date.now().toString(36)}`;
-const emails = [`${marker}-captain@test.invalid`, `${marker}-player@test.invalid`];
+let managedVenueId: string | undefined;
 
 type ApiResult<T = Record<string, unknown>> = {
   status: number;
@@ -77,9 +78,84 @@ async function activateDisposableTestUser(userId: string) {
   });
 }
 
+async function createPublishedVenue(submitterId: string, approverId: string) {
+  const startsAt = new Date(Date.now() + 48 * 60 * 60_000);
+  startsAt.setUTCSeconds(0, 0);
+  startsAt.setUTCMinutes(startsAt.getUTCMinutes() < 30 ? 30 : 60);
+  const localParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(startsAt);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    localParts.find((part) => part.type === type)?.value ?? '';
+  const localDate = `${value('year')}-${value('month')}-${value('day')}`;
+  const localTime = `${value('hour')}:${value('minute')}`;
+  const venue = await prisma.managedVenue.create({
+    data: {
+      slug: `${marker}-venue`,
+      name: `${marker} Gate 3 Venue`,
+      publicDescription: 'A complete disposable venue used only by the browser critical-path test.',
+      addressLine1: '3 Browser Road',
+      city: 'Cape Town',
+      region: 'Western Cape',
+      countryCode: 'ZA',
+      latitude: -33.9249,
+      longitude: 18.4241,
+      timezone: 'Africa/Johannesburg',
+      amenities: ['Changing rooms'],
+      coverImageUrl: 'https://example.invalid/gate-3-cover.webp',
+      coverImageAlt: 'Disposable football field fixture',
+      coverImageAttribution: 'Footy Finder automated test fixture',
+      publicationStatus: 'PUBLISHED',
+      submittedByUserId: submitterId,
+      submittedAt: new Date(),
+      approvedByUserId: approverId,
+      approvedAt: new Date(),
+      media: {
+        create: [1, 2, 3].map((sortOrder) => ({
+          sortOrder,
+          url: `https://example.invalid/gate-3-${sortOrder}.webp`,
+          altText: `Disposable field view ${sortOrder}`,
+          attribution: 'Footy Finder automated test fixture',
+        })),
+      },
+      cancellationPolicies: {
+        create: {
+          effectiveFrom: new Date(Date.now() - 86_400_000),
+          policyText: 'Full credit more than 24 hours before kickoff; no late credit.',
+        },
+      },
+      fields: {
+        create: {
+          name: 'E2E Pitch',
+          supportedFormats: { create: { format: 'FIVE_A_SIDE' } },
+          availabilityPeriods: {
+            create: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+              dayOfWeek,
+              startMinute: 0,
+              endMinute: 1440,
+            })),
+          },
+          prices: {
+            create: { amountCents: 40_000, effectiveFrom: new Date(Date.now() - 86_400_000) },
+          },
+        },
+      },
+    },
+    include: { fields: true },
+  });
+  managedVenueId = venue.id;
+  return { venue, field: venue.fields[0]!, startsAt, localDate, localTime };
+}
+
 async function cleanFixtures() {
   const users = await prisma.user.findMany({
-    where: { email: { in: emails } },
+    where: { email: { startsWith: marker } },
     select: { id: true },
   });
   const userIds = users.map(({ id }) => id);
@@ -88,18 +164,31 @@ async function cleanFixtures() {
     where: { createdById: { in: userIds } },
     select: { id: true, venueId: true },
   });
+  const reservations = await prisma.fieldReservation.findMany({
+    where: { matchId: { in: matches.map(({ id }) => id) } },
+    select: { id: true, organizerGuaranteeHoldId: true },
+  });
   const conversations = await prisma.conversation.findMany({
     where: { participants: { some: { userId: { in: userIds } } } },
     select: { id: true },
   });
   await prisma.$transaction(async (tx) => {
     await tx.conversation.deleteMany({ where: { id: { in: conversations.map(({ id }) => id) } } });
+    await tx.durableJob.deleteMany({ where: { OR: reservations.map(({ id }) => ({ dedupeKey: `quick-match-guarantee-settle:${id}` })) } });
+    await tx.fieldReservation.deleteMany({ where: { id: { in: reservations.map(({ id }) => id) } } });
+    await tx.walletHold.deleteMany({ where: { id: { in: reservations.flatMap(({ organizerGuaranteeHoldId }) => organizerGuaranteeHoldId ? [organizerGuaranteeHoldId] : []) } } });
     await tx.match.deleteMany({ where: { id: { in: matches.map(({ id }) => id) } } });
     await tx.team.deleteMany({ where: { ownerUserId: { in: userIds } } });
     await tx.venue.deleteMany({ where: { id: { in: matches.map(({ venueId }) => venueId) } } });
+    if (managedVenueId) {
+      await tx.managedFieldPrice.deleteMany({ where: { field: { venueId: managedVenueId } } });
+      await tx.venueCancellationPolicy.deleteMany({ where: { venueId: managedVenueId } });
+      await tx.managedField.deleteMany({ where: { venueId: managedVenueId } });
+      await tx.managedVenue.delete({ where: { id: managedVenueId } });
+    }
     await tx.user.deleteMany({ where: { id: { in: userIds } } });
   });
-  expect(await prisma.user.count({ where: { email: { in: emails } } })).toBe(0);
+  expect(await prisma.user.count({ where: { email: { startsWith: marker } } })).toBe(0);
 }
 
 test.describe('browser critical path', () => {
@@ -135,41 +224,61 @@ test.describe('browser critical path', () => {
     await captainPage.goto(`/login?returnTo=${encodeURIComponent('/\\attacker.invalid/steal')}`);
     await expect(captainPage).toHaveURL('/');
 
-    for (const [index, page] of [captainPage, playerPage].entries()) {
-      const deposit = await api(page, '/wallet/deposits/demo', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': `${marker}-deposit-${index}` },
-      });
-      expect(deposit.status, JSON.stringify(deposit.body)).toBe(200);
-    }
+    const captainDeposit = await api(captainPage, '/wallet/deposits/demo', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': `${marker}-deposit-captain` },
+    });
+    expect(captainDeposit.status, JSON.stringify(captainDeposit.body)).toBe(200);
 
-    const quick = await api<{ id: string }>(captainPage, '/matches', {
-      method: 'POST',
-      body: {
-        name: `${marker} paid match`,
-        format: 'FIVE_A_SIDE',
-        substituteCapacityPerTeam: 0,
-        rollingSubstitutes: false,
-        rules: [],
-        visibility: 'PUBLIC',
-        venue: {
-          name: `${marker} pitch`,
-          addressLine1: '1 Browser Road',
-          city: 'Cape Town',
-          region: 'Western Cape',
-          countryCode: 'ZA',
-        },
-        startsAt: new Date(Date.now() + 48 * 60 * 60_000).toISOString(),
-        feeCents: 8000,
-      },
+    const venueFixture = await createPublishedVenue(captain.id, player.id);
+    await captainPage.goto('/');
+    await captainPage.getByRole('link', { name: new RegExp(venueFixture.venue.name) }).click();
+    await captainPage.getByLabel('Date').fill(venueFixture.localDate);
+    await captainPage.getByRole('link', { name: new RegExp(venueFixture.localTime) }).click();
+    await captainPage.getByRole('button', { name: 'Continue' }).click();
+    await captainPage.getByRole('button', { name: 'Continue' }).click();
+    await captainPage.getByRole('button', { name: 'Continue' }).click();
+    await captainPage.getByLabel('Match name').fill(`${marker} paid match`);
+    await captainPage.getByRole('button', { name: 'Continue' }).click();
+    await captainPage.getByRole('button', { name: 'Continue' }).click();
+    await captainPage.getByLabel('Entry fee (rands)').fill('20');
+    await captainPage.getByRole('button', { name: 'Continue' }).click();
+    await captainPage.getByRole('button', { name: 'Create match' }).click();
+    await expect(captainPage).toHaveURL(/\/matches\/[0-9a-f-]+$/);
+    const quickId = captainPage.url().split('/').at(-1)!;
+    const quickMatch = await prisma.match.findUniqueOrThrow({
+      where: { id: quickId },
+      select: { publicSlug: true, format: true, substituteCapacityPerTeam: true },
     });
-    expect(quick.status, JSON.stringify(quick.body)).toBe(201);
-    const joined = await api(playerPage, `/matches/${quick.body.data!.id}/join`, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': `${marker}-join` },
-      body: { team: 'AWAY' },
+    expect(quickMatch.publicSlug).toMatch(/^m-[a-f0-9]{24}$/);
+    await captainPage.goto('/');
+    await expect(captainPage.getByText(`${marker} paid match`)).toBeVisible();
+
+    await playerPage.evaluate(async () => {
+      await fetch('http://localhost:3000/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
     });
-    expect(joined.status, JSON.stringify(joined.body)).toBe(201);
+    await playerPage.goto(`/m/${quickMatch.publicSlug}`);
+    await expect(playerPage.getByRole('heading', { name: `${marker} paid match` })).toBeVisible();
+    await playerPage.getByRole('link', { name: 'Sign in to join' }).click();
+    await playerPage.getByLabel('Email or username').fill(`${marker}-player@test.invalid`);
+    await playerPage.getByLabel('Password').fill('FootyFinder123!');
+    await playerPage.getByRole('button', { name: 'Sign in' }).click();
+    await expect(playerPage).toHaveURL(`/m/${quickMatch.publicSlug}`);
+
+    const playerDeposit = await api(playerPage, '/wallet/deposits/demo', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': `${marker}-share-deposit-player` },
+    });
+    expect(playerDeposit.status, JSON.stringify(playerDeposit.body)).toBe(200);
+    await playerPage.getByRole('button', { name: 'Join this match' }).click();
+    await playerPage.getByRole('button', { name: 'Pay & join Home' }).click();
+    await expect(playerPage.getByText('Place confirmed')).toBeVisible();
+    expect(
+      await prisma.matchParticipant.count({ where: { matchId: quickId, userId: player.id } }),
+    ).toBe(1);
 
     const team = await api<{ id: string }>(captainPage, '/teams', {
       method: 'POST',
@@ -269,6 +378,52 @@ test.describe('browser critical path', () => {
     );
     const notifications = await api<Array<{ type: string }>>(playerPage, '/notifications');
     expect(notifications.body.data!.some(({ type }) => type === 'DIRECT_MESSAGE')).toBe(true);
+
+    const capacityUsers = await Promise.all(
+      Array.from(
+        {
+          length:
+            getMaxMatchParticipants(quickMatch.format, quickMatch.substituteCapacityPerTeam) - 1,
+        },
+        (_, index) =>
+        prisma.user.create({
+          data: {
+            email: `${marker}-capacity-${index}@test.invalid`,
+            username: `${marker.replaceAll('-', '')}_c${index}`.slice(0, 30),
+            passwordHash: 'browser-test-only',
+            isTestAccount: true,
+          },
+        }),
+      ),
+    );
+    await prisma.matchParticipant.createMany({
+      data: capacityUsers.map((user, index) => ({
+        matchId: quickId,
+        userId: user.id,
+        team: index % 2 ? 'HOME' : 'AWAY',
+      })),
+    });
+    await playerPage.reload();
+    await expect(playerPage.getByText('This match is full. The page remains available for match details.')).toBeVisible();
+    await prisma.match.update({ where: { id: quickId }, data: { status: 'CANCELLED' } });
+    await playerPage.reload();
+    await expect(playerPage.getByText('This match has been cancelled and cannot be joined.')).toBeVisible();
+
+    const privateMatch = await prisma.match.create({
+      data: {
+        name: `${marker} private match`,
+        createdById: captain.id,
+        venueId: (await prisma.match.findUniqueOrThrow({ where: { id: quickId } })).venueId,
+        format: 'FIVE_A_SIDE',
+        visibility: 'PRIVATE',
+        startsAt: new Date(Date.now() + 96 * 60 * 60_000),
+        durationMinutes: 60,
+        feeCents: 0,
+      },
+    });
+    expect(privateMatch.publicSlug).toBeNull();
+    await playerPage.goto('/m/m-ffffffffffffffffffffffff');
+    await expect(playerPage.getByRole('heading', { name: 'Match unavailable' })).toBeVisible();
 
     await captainContext.close();
     await playerContext.close();

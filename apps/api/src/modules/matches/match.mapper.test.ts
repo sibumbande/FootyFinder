@@ -17,6 +17,7 @@ const user = (id: string) => ({
 const record = (participantCount: number) =>
   ({
     id: '11111111-1111-4111-8111-111111111111',
+    publicSlug: 'm-0123456789abcdef01234567',
     name: 'Capacity test',
     description: null,
     createdById: 'host',
@@ -76,5 +77,12 @@ describe('match mapper capacity status', () => {
 
   it('reopens the DTO when a confirmed place is released', () => {
     expect(toMatch(record(9)).status).toBe('OPEN');
+  });
+
+  it('returns the canonical public identity on authenticated Match DTOs', () => {
+    expect(toMatch(record(1))).toMatchObject({
+      publicSlug: 'm-0123456789abcdef01234567',
+      canonicalUrl: 'http://localhost:5173/m/m-0123456789abcdef01234567',
+    });
   });
 });

@@ -13,7 +13,7 @@ let overlapBlocked = false;
 try {
   await prisma.$transaction(async (tx) => {
     const actor = await tx.user.create({ data: { email: `${marker}@smoke.invalid`, username: marker.slice(0, 28), passwordHash: 'smoke-test-only', platformRole: 'ADMIN' } });
-    const venue = await tx.managedVenue.create({ data: { name: marker, addressLine1: '1 Smoke Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA' } });
+    const venue = await tx.managedVenue.create({ data: { slug: `${marker}-catalogue`, name: marker, addressLine1: '1 Smoke Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA' } });
     const field = await tx.managedField.create({ data: { venueId: venue.id, name: 'Pitch A', supportedFormats: { create: [{ format: 'FIVE_A_SIDE' }, { format: 'SEVEN_A_SIDE' }] } } });
     await tx.managedFieldAvailability.createMany({ data: [
       { fieldId: field.id, dayOfWeek: 1, startMinute: 480, endMinute: 720 },
@@ -40,7 +40,7 @@ try {
 
 try {
   await prisma.$transaction(async (tx) => {
-    const venue = await tx.managedVenue.create({ data: { name: `${marker}-overlap`, addressLine1: '2 Smoke Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA' } });
+    const venue = await tx.managedVenue.create({ data: { slug: `${marker}-overlap`, name: `${marker}-overlap`, addressLine1: '2 Smoke Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA' } });
     const field = await tx.managedField.create({ data: { venueId: venue.id, name: 'Pitch B', supportedFormats: { create: [{ format: 'FIVE_A_SIDE' }] } } });
     await tx.managedFieldPrice.create({ data: { fieldId: field.id, amountCents: 50000, effectiveFrom: new Date('2027-01-01T00:00:00Z'), effectiveTo: new Date('2027-06-01T00:00:00Z') } });
     await tx.managedFieldPrice.create({ data: { fieldId: field.id, amountCents: 60000, effectiveFrom: new Date('2027-05-01T00:00:00Z'), effectiveTo: new Date('2027-07-01T00:00:00Z') } });

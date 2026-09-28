@@ -10,6 +10,7 @@ import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
 import { matchApi } from '../api/matches.js';
 export const matchesKey = ['matches'] as const;
 export const matchKey = (id: string) => ['matches', id] as const;
+export const publicMatchKey = (slug: string) => ['public-match', slug] as const;
 export const useMatches = (query?: Partial<DiscoveryQuery>) =>
   useQuery({
     queryKey: [...matchesKey, query],
@@ -20,6 +21,20 @@ export const useMatch = (id: string) =>
     queryKey: matchKey(id),
     queryFn: async () => (await matchApi.get(id)).data,
     enabled: Boolean(id),
+    refetchInterval: 30_000,
+  });
+export const usePublicMatchPreview = (slug: string) =>
+  useQuery({
+    queryKey: publicMatchKey(slug),
+    queryFn: async () => (await matchApi.publicPreview(slug)).data,
+    enabled: Boolean(slug),
+    staleTime: 30_000,
+  });
+export const useMatchByPublicSlug = (slug: string, enabled = true) =>
+  useQuery({
+    queryKey: [...publicMatchKey(slug), 'authenticated'],
+    queryFn: async () => (await matchApi.getByPublicSlug(slug)).data,
+    enabled: Boolean(slug) && enabled,
     refetchInterval: 30_000,
   });
 export function useCreateMatch() {

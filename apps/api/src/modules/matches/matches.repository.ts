@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import type {
-  CreateMatchInput,
   CreateTeamMatchInput,
   DiscoveryQuery,
   FormationSlotUpdateInput,
@@ -18,6 +17,7 @@ import {
 } from '@footy-finder/shared';
 import { serializableTransaction } from '../../database/transaction.js';
 import { prisma } from '../../database/prisma.js';
+import { AppError } from '../../errors/app-error.js';
 import {
   notificationDedupeKey,
   persistNotifications,
@@ -61,11 +61,39 @@ export class MatchesRepository {
       },
       include: matchInclude,
       orderBy: { startsAt: 'asc' },
-      take: 200,
+      take: query.limit,
     });
   }
   findById(id: string) {
     return prisma.match.findUnique({ where: { id }, include: matchInclude });
+  }
+  findPublicBySlug(publicSlug: string) {
+    return prisma.match.findFirst({
+      where: { publicSlug, visibility: 'PUBLIC' },
+      include: matchInclude,
+    });
+  }
+  findPublicPreviewBySlug(publicSlug: string) {
+    return prisma.match.findFirst({
+      where: { publicSlug, visibility: 'PUBLIC' },
+      select: {
+        publicSlug: true,
+        name: true,
+        description: true,
+        format: true,
+        substituteCapacityPerTeam: true,
+        rules: true,
+        status: true,
+        startsAt: true,
+        durationMinutes: true,
+        feeCents: true,
+        venue: { select: { name: true, city: true, region: true } },
+        participants: { where: { status: 'JOINED' }, select: { id: true } },
+      },
+    });
+  }
+  hasFieldReservation(matchId: string) {
+    return prisma.fieldReservation.findUnique({ where: { matchId }, select: { id: true } });
   }
   findByInviteTokenHash(inviteTokenHash: string) {
     return prisma.match.findUnique({ where: { inviteTokenHash }, include: matchInclude });
@@ -200,42 +228,6 @@ export class MatchesRepository {
     });
   }
 
-  create(
-    input: CreateMatchInput,
-    userId: string,
-    durationMinutes: number,
-    inviteTokenHash?: string,
-  ) {
-    return serializableTransaction((tx) =>
-      tx.match.create({
-        data: {
-          name: input.name,
-          description: input.description,
-          createdBy: { connect: { id: userId } },
-          format: input.format,
-          mode: 'QUICK_GAME',
-          substituteCapacityPerTeam: input.substituteCapacityPerTeam,
-          rollingSubstitutes: input.rollingSubstitutes,
-          rules: input.rules,
-          visibility: input.visibility,
-          inviteTokenHash,
-          startsAt: new Date(input.startsAt),
-          durationMinutes,
-          feeCents: input.feeCents,
-          currency: 'ZAR',
-          venue: {
-            create: {
-              ...input.venue,
-              latitude: input.venue.latitude,
-              longitude: input.venue.longitude,
-            },
-          },
-          formationSlots: { create: createDefaultFormation(input.format) },
-        },
-        include: matchInclude,
-      }),
-    );
-  }
   rotateInviteToken(id: string, inviteTokenHash: string) {
     return prisma.match.update({
       where: { id },
@@ -523,7 +515,7 @@ export class MatchesRepository {
     return serializableTransaction(async (tx) => {
       const match = await tx.match.findUniqueOrThrow({
         where: { id: matchId },
-        include: { payments: { where: { status: 'SUCCEEDED' } } },
+        include: { payments: { where: { status: 'SUCCEEDED' } }, fieldReservation: true },
       });
       if (match.status === 'CANCELLED')
         return { match, refundedUserIds: [] as string[], notifications: [] };
@@ -553,6 +545,31 @@ export class MatchesRepository {
             'match-cancelled',
             payment.userId,
           ),
+        });
+      }
+      if (match.fieldReservation && !match.fieldReservation.organizerGuaranteeSettledAt) {
+        const policy = match.fieldReservation.cancellationPolicySnapshot as { fullCreditBeforeHours?: number; lateCreditPercent?: number } | null;
+        const hoursUntilKickoff = (match.startsAt.getTime() - Date.now()) / 3_600_000;
+        const creditPercent = hoursUntilKickoff > (policy?.fullCreditBeforeHours ?? 24) ? 100 : (policy?.lateCreditPercent ?? 0);
+        const nonRefundableCents = Math.round(match.fieldReservation.priceCentsSnapshot * (100 - creditPercent) / 100);
+        if (match.fieldReservation.organizerGuaranteeHoldId)
+          await this.financial.releaseHold(tx, match.fieldReservation.organizerGuaranteeHoldId);
+        if (nonRefundableCents) {
+          try {
+            await this.financial.debit(tx, {
+              userId: match.createdById, amountCents: nonRefundableCents, type: 'FIELD_BOOKING_DEBIT',
+              idempotencyKey: `quick-match-cancellation-venue-charge:${match.fieldReservation.id}`,
+              referenceType: 'FIELD_RESERVATION', referenceId: match.fieldReservation.id,
+              description: 'Non-refundable venue cost after organiser cancellation',
+            });
+          } catch (error) {
+            if (error instanceof FinancialInsufficientFundsError) throw new AppError(409, 'The organiser venue guarantee could not be settled.', 'FINANCIAL_INTEGRITY_ERROR');
+            throw error;
+          }
+        }
+        await tx.fieldReservation.update({
+          where: { id: match.fieldReservation.id },
+          data: { status: 'CANCELLED', cancelledAt: new Date(), organizerGuaranteeSettledAt: new Date(), playerFeesAppliedCents: 0 },
         });
       }
       const cancelled = await tx.match.update({

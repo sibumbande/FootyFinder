@@ -3,8 +3,10 @@ import type {
   FieldBooking,
   ManagedMatchBookingInput,
   PlayerFieldBookingInput,
+  CreateMatchInput,
 } from '@footy-finder/shared';
-import { createDefaultFormation, MATCH_DURATION_MINUTES } from '@footy-finder/shared';
+import { randomUUID } from 'node:crypto';
+import { createDefaultFormation, getMaxMatchParticipants, MATCH_DURATION_MINUTES, MAX_QUICK_GAME_FEE_CENTS } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
@@ -19,6 +21,8 @@ import { notificationDedupeKey, persistNotifications } from '../notifications/no
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toPublicUser } from '../users/user.mapper.js';
 import { FinancialInsufficientFundsError, FinancialRepository } from '../wallet/financial.repository.js';
+import { createMatchInviteToken, hashMatchInviteToken } from '../matches/invite-token.js';
+import { createPublicMatchSlug } from '../matches/public-match.js';
 
 const bookingInclude = {
   match: { include: matchInclude },
@@ -50,6 +54,12 @@ export const isWithinFieldAvailability = (
   return start.day === end.day && field.availabilityPeriods.some((period) => period.dayOfWeek === start.day && period.startMinute <= start.minute && period.endMinute >= end.minute);
 };
 
+export const maximumQuickMatchFeeCents = (venuePriceCents: number, paidCapacity: number) =>
+  Math.min(
+    MAX_QUICK_GAME_FEE_CENTS,
+    Math.floor(venuePriceCents / paidCapacity / 100) * 100,
+  );
+
 const bookingDto = (reservation: any, viewerId?: string): FieldBooking => {
   const contributions = reservation.obligations.flatMap((item: any) => item.contributions);
   const fundedCents = contributions.filter((item: any) => item.status !== 'RELEASED').reduce((sum: number, item: any) => sum + item.amountCents, 0);
@@ -75,7 +85,7 @@ export class BookingsService {
 
   async listBookableFields() {
     return (await new AdminCatalogService().list())
-      .filter((venue) => venue.isActive)
+      .filter((venue) => venue.isActive && venue.publicationStatus === 'PUBLISHED')
       .map((venue) => ({
         ...venue,
         fields: venue.fields.filter((field) => field.status === 'ACTIVE'),
@@ -87,23 +97,116 @@ export class BookingsService {
     const endsAt = new Date(startsAt.getTime() + MATCH_DURATION_MINUTES * 60_000);
     const field = await tx.managedField.findUnique({
       where: { id: fieldId },
-      include: { venue: true, supportedFormats: true, availabilityPeriods: true, exceptions: { where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }, prices: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] } } },
+      include: { venue: { include: { cancellationPolicies: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] }, orderBy: { effectiveFrom: 'desc' } } } }, supportedFormats: true, availabilityPeriods: true, exceptions: { where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }, prices: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] } } },
     });
-    if (!field || !field.venue.isActive || field.status !== 'ACTIVE') throw new AppError(409, 'That field is not bookable.', 'FIELD_NOT_BOOKABLE');
+    if (!field || !field.venue.isActive || field.venue.publicationStatus !== 'PUBLISHED' || field.status !== 'ACTIVE') throw new AppError(409, 'That field is not bookable.', 'FIELD_NOT_BOOKABLE');
     if (!field.supportedFormats.some((item) => item.format === format)) throw new AppError(409, 'That field does not support this format.', 'FIELD_FORMAT_UNSUPPORTED');
     if (!isWithinFieldAvailability(field, startsAt, endsAt)) throw new AppError(409, 'That time is outside field availability.', 'FIELD_UNAVAILABLE');
-    const price = field.prices[0];
+    const local = localParts(startsAt, field.venue.timezone);
+    const price = field.prices
+      .filter((item) => !item.format || item.format === format)
+      .filter((item) => item.dayOfWeek === null || (item.dayOfWeek === local.day && item.startMinute! <= local.minute && item.endMinute! >= local.minute + MATCH_DURATION_MINUTES))
+      .sort((a, b) => Number(Boolean(b.format)) - Number(Boolean(a.format)) || Number(b.dayOfWeek !== null) - Number(a.dayOfWeek !== null))[0];
     if (!price) throw new AppError(409, 'No effective price is configured for that time.', 'FIELD_PRICE_UNAVAILABLE');
-    return { field, price, endsAt };
+    const cancellationPolicy = field.venue.cancellationPolicies[0];
+    if (!cancellationPolicy) throw new AppError(409, 'No effective cancellation policy is configured.', 'VENUE_POLICY_UNAVAILABLE');
+    return { field, price, cancellationPolicy, endsAt };
+  }
+
+  async createQuickMatch(input: CreateMatchInput, actorUserId: string) {
+    const startsAt = new Date(input.startsAt); const now = new Date();
+    if (startsAt.getTime() < now.getTime() + 2 * 60 * 60_000 || startsAt.getTime() > now.getTime() + 60 * 86_400_000)
+      throw new AppError(400, 'Choose a calculated slot between two hours and 60 days from now.', 'MATCH_START_TIME_INVALID');
+    const inviteToken = input.visibility === 'PRIVATE' ? createMatchInviteToken() : undefined;
+    try {
+      const match = await serializableTransaction(async (tx) => {
+        const { field, price, cancellationPolicy, endsAt } = await this.fieldContext(tx, input.managedFieldId, input.format, startsAt);
+        const local = localParts(startsAt, field.venue.timezone);
+        if (local.minute % 30 !== 0) throw new AppError(409, 'Choose a server-calculated 30-minute-grid slot.', 'FIELD_SLOT_INVALID');
+        const paidCapacity = getMaxMatchParticipants(input.format, input.substituteCapacityPerTeam);
+        const maximumFeeCents = maximumQuickMatchFeeCents(price.amountCents, paidCapacity);
+        if (input.feeCents > maximumFeeCents)
+          throw new AppError(409, `The player fee cannot exceed R${(maximumFeeCents / 100).toFixed(0)} for this venue and capacity.`, 'MATCH_FEE_EXCEEDS_FAIR_SHARE', { maximumFeeCents });
+        const created = await tx.match.create({ data: {
+          name: input.name, description: input.description, createdBy: { connect: { id: actorUserId } }, mode: 'QUICK_GAME', format: input.format,
+          substituteCapacityPerTeam: input.substituteCapacityPerTeam, rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
+          visibility: input.visibility,
+          publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
+          inviteTokenHash: inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
+          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: input.feeCents, status: 'OPEN',
+          venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
+          formationSlots: { create: createDefaultFormation(input.format) },
+        } });
+        const reservationId = randomUUID();
+        let guaranteeHoldId: string | undefined;
+        if (price.amountCents > 0) {
+          try {
+            guaranteeHoldId = (await this.financial.createHold(tx, { userId: actorUserId, amountCents: price.amountCents, idempotencyKey: `quick-match-guarantee:${created.id}`, referenceType: 'FIELD_RESERVATION', referenceId: reservationId, description: 'Quick Match venue-cost guarantee' })).hold.id;
+          } catch (error) {
+            if (error instanceof FinancialInsufficientFundsError) throw new AppError(402, 'Your available wallet balance cannot guarantee this venue cost.', 'INSUFFICIENT_BALANCE');
+            throw error;
+          }
+        }
+        const address = [field.venue.addressLine1, field.venue.addressLine2].filter(Boolean).join(', ');
+        const reservation = await tx.fieldReservation.create({ data: {
+          id: reservationId,
+          fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId: created.id,
+          source: 'PLAYER_BOOKING', status: 'CONFIRMED', startsAt, endsAt, priceCentsSnapshot: price.amountCents,
+          venueNameSnapshot: field.venue.name, fieldNameSnapshot: field.name, addressSnapshot: address, citySnapshot: field.venue.city,
+          timezoneSnapshot: field.venue.timezone, turnaroundBufferMinutesSnapshot: field.turnaroundBufferMinutes,
+          cancellationPolicySnapshot: { fullCreditBeforeHours: cancellationPolicy.fullCreditBeforeHours, lateCreditPercent: cancellationPolicy.lateCreditPercent, venueCancellationPercent: cancellationPolicy.venueCancellationPercent, policyText: cancellationPolicy.policyText },
+          organizerGuaranteeHoldId: guaranteeHoldId, organizerGuaranteeCents: price.amountCents,
+          desiredVisibility: input.visibility, confirmedAt: now,
+        } });
+        await enqueueDurableJob(tx, { type: 'QUICK_MATCH_GUARANTEE_SETTLE', dedupeKey: `quick-match-guarantee-settle:${reservation.id}`, payload: { reservationId: reservation.id }, runAt: startsAt });
+        return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
+      });
+      return toMatch(match, { inviteToken, viewerCanManage: true, viewerCanChat: true });
+    } catch (error) {
+      if ((error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2004' && String(error.meta?.database_error).includes('FieldReservation_no_overlap')) || String(error).includes('FieldReservation_no_overlap'))
+        throw new AppError(409, 'That field is already reserved for this slot.', 'FIELD_TIME_CONFLICT');
+      throw error;
+    }
+  }
+
+  async settleQuickMatchGuarantee(reservationId: string) {
+    return serializableTransaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "FieldReservation" WHERE "id" = ${reservationId}::uuid FOR UPDATE`;
+      const reservation = await tx.fieldReservation.findUnique({ where: { id: reservationId }, include: { match: { include: { payments: true } } } });
+      if (!reservation || reservation.organizerGuaranteeSettledAt || reservation.status !== 'CONFIRMED') return;
+      const playerFees = reservation.match.payments.filter(({ status }) => status === 'SUCCEEDED').reduce((total, payment) => total + payment.amountCents, 0);
+      if (reservation.organizerGuaranteeHoldId) await this.financial.releaseHold(tx, reservation.organizerGuaranteeHoldId);
+      const due = Math.max(0, reservation.priceCentsSnapshot - playerFees);
+      if (due) await this.financial.debit(tx, { userId: reservation.match.createdById, amountCents: due, type: 'FIELD_BOOKING_DEBIT', idempotencyKey: `quick-match-guarantee-debit:${reservation.id}`, referenceType: 'FIELD_RESERVATION', referenceId: reservation.id, description: 'Quick Match venue-cost remainder' });
+      await tx.fieldReservation.update({ where: { id: reservation.id }, data: { organizerGuaranteeSettledAt: new Date(), playerFeesAppliedCents: Math.min(playerFees, reservation.priceCentsSnapshot) } });
+    });
   }
 
   private async createReservation(input: ManagedMatchBookingInput, actorUserId: string, source: 'ADMIN_LOADED' | 'PLAYER_BOOKING', requestId?: string) {
     const startsAt = new Date(input.startsAt);
-    if (startsAt <= new Date()) throw new AppError(400, 'Choose a future booking time.', 'MATCH_START_TIME_INVALID');
+    const now = new Date();
+    if (
+      source === 'PLAYER_BOOKING' &&
+      (startsAt.getTime() < now.getTime() + 2 * 60 * 60_000 ||
+        startsAt.getTime() > now.getTime() + 60 * 86_400_000)
+    )
+      throw new AppError(
+        400,
+        'Choose a calculated slot between two hours and 60 days from now.',
+        'MATCH_START_TIME_INVALID',
+      );
+    if (startsAt <= now)
+      throw new AppError(400, 'Choose a future booking time.', 'MATCH_START_TIME_INVALID');
     try {
       const reservation = await serializableTransaction(async (tx) => {
-        const { field, price, endsAt } = await this.fieldContext(tx, input.managedFieldId, input.format, startsAt);
-        const now = new Date();
+        const { field, price, cancellationPolicy, endsAt } = await this.fieldContext(tx, input.managedFieldId, input.format, startsAt);
+        const local = localParts(startsAt, field.venue.timezone);
+        if (source === 'PLAYER_BOOKING' && local.minute % 30 !== 0)
+          throw new AppError(
+            409,
+            'Choose a server-calculated 30-minute-grid slot.',
+            'FIELD_SLOT_INVALID',
+          );
         const requiresFunding = source === 'PLAYER_BOOKING' && price.amountCents > 0;
         const fundingDeadline = requiresFunding ? new Date(now.getTime() + env.BOOKING_FUNDING_MINUTES * 60_000) : null;
         if (fundingDeadline && fundingDeadline >= startsAt) throw new AppError(409, 'The booking starts before its funding window can complete.', 'BOOKING_FUNDING_WINDOW_INVALID');
@@ -112,7 +215,9 @@ export class BookingsService {
           name: input.name, description: input.description, createdBy: { connect: { id: actorUserId } },
           mode: 'QUICK_GAME', format: input.format, substituteCapacityPerTeam: input.substituteCapacityPerTeam,
           rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
-          visibility: input.visibility, startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: 0,
+          visibility: input.visibility,
+          publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
+          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: 0,
           status: source === 'ADMIN_LOADED' ? 'OPEN' : 'DRAFT',
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },
@@ -120,11 +225,19 @@ export class BookingsService {
         const confirmed = !requiresFunding;
         const created = await tx.fieldReservation.create({
           data: {
-            fieldId: field.id, fieldPriceId: price.id, matchId: match.id, source,
+            fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId: match.id, source,
             status: confirmed ? 'CONFIRMED' : 'FUNDING', startsAt, endsAt,
             fundingDeadline, priceCentsSnapshot: price.amountCents, currencySnapshot: price.currency,
             venueNameSnapshot: field.venue.name, fieldNameSnapshot: field.name, addressSnapshot: address,
-            citySnapshot: field.venue.city, desiredVisibility: input.visibility,
+            citySnapshot: field.venue.city, timezoneSnapshot: field.venue.timezone,
+            turnaroundBufferMinutesSnapshot: field.turnaroundBufferMinutes,
+            cancellationPolicySnapshot: {
+              fullCreditBeforeHours: cancellationPolicy.fullCreditBeforeHours,
+              lateCreditPercent: cancellationPolicy.lateCreditPercent,
+              venueCancellationPercent: cancellationPolicy.venueCancellationPercent,
+              policyText: cancellationPolicy.policyText,
+            },
+            desiredVisibility: input.visibility,
             confirmedAt: confirmed ? now : null,
             obligations: { create: { obligationKey: confirmed ? 'PLATFORM' : 'PLAYER_POOL', requiredCents: price.amountCents, status: confirmed ? 'CAPTURED' : 'PENDING', capturedAt: confirmed ? now : null } },
           },

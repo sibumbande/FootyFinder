@@ -47,7 +47,7 @@ export const venueInputSchema = z
     message: 'Latitude and longitude must be supplied together.',
   });
 
-export const createMatchSchema = z.object({
+const matchDetailsSchema = z.object({
   name: z.string().trim().min(3).max(120),
   description: optionalText(1000),
   format: z.enum(MATCH_FORMATS),
@@ -64,11 +64,13 @@ export const createMatchSchema = z.object({
     .refine((rules) => new Set(rules).size === rules.length, 'Match rules must be unique')
     .default([]),
   visibility: z.enum(MATCH_VISIBILITIES),
-  venue: venueInputSchema,
   startsAt: z
     .string()
     .datetime()
     .refine((value) => new Date(value).getTime() > Date.now(), 'Choose a future date and time'),
+});
+export const createMatchSchema = matchDetailsSchema.extend({
+  managedFieldId: z.string().uuid(),
   feeCents: z
     .number()
     .int()
@@ -77,15 +79,16 @@ export const createMatchSchema = z.object({
     .refine((value) => value % 100 === 0, 'Player fee must be a whole-rand amount')
     .default(DEFAULT_QUICK_GAME_FEE_CENTS),
 });
-export const createTeamMatchSchema = createMatchSchema
-  .omit({ visibility: true, feeCents: true })
-  .extend({ formationKey: z.string().trim().min(1).max(80) });
+export const createTeamMatchSchema = matchDetailsSchema
+  .omit({ visibility: true })
+  .extend({ venue: venueInputSchema, formationKey: z.string().trim().min(1).max(80) });
 export const updateMatchSchema = z.object({
   name: z.string().trim().min(3).max(120).optional(),
   description: optionalText(1000),
   startsAt: z.string().datetime().optional(),
 });
 export const joinMatchSchema = z.object({ team: z.enum(TEAM_SIDES) });
+export const publicMatchSlugSchema = z.string().regex(/^m-[a-f0-9]{24}$/);
 export const changeParticipantTeamSchema = z.object({ team: z.enum(TEAM_SIDES) });
 export const teamMatchSideSchema = z.enum(TEAM_SIDES);
 export const teamMatchAvailabilityQuerySchema = z.object({
@@ -137,6 +140,7 @@ export const discoveryQuerySchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .default('false'),
+    limit: z.coerce.number().int().min(1).max(200).default(200),
   })
   .strict();
 

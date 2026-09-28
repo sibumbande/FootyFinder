@@ -324,6 +324,8 @@ Code complete; release verification is pending. The criterion is met only after 
 
 ## 9. Gate 3 - Real venues, dynamic availability, and venue-first home
 
+Implementation update (2026-09-28): the catalogue/publication model, public venue APIs, calculated slot engine, venue-first home and detail/calendar UI, managed-field Quick Match reservation, fair-share fee cap, organiser guarantee/cancellation handling, bounded Upcoming Matches, production-data preflight, and browser/concurrency test paths are implemented. Production venue packs remain blocked on verified external content under VEN-02/TKT-302. PostgreSQL migration/smoke and Playwright runtime checks remain pending because Docker is unavailable locally. Operational details are in `docs/GATE_3_VENUES_SLOTS_RUNBOOK_2026-09-28.md`.
+
 ### Objective
 
 Replace placeholder venue choices with the managed catalogue and expose a discoverable, valid booking/match-creation path.
@@ -385,6 +387,8 @@ Replace placeholder venue choices with the managed catalogue and expose a discov
 Players can discover a real venue, inspect calculated availability, and create/book a match without any placeholder field data.
 
 ## 10. Gate 4 - Public match sharing and acquisition funnel
+
+Implementation update (2026-09-28): opaque immutable public Match identifiers/backfill, a least-privilege rate-limited anonymous preview API, safe lifecycle projection, `/m/:slug` preview, validated authentication/onboarding continuation, canonical Web Share/WhatsApp/copy actions, release preflight, and the full acquisition browser path are implemented. Fast checks pass. PostgreSQL migration/preflight and Playwright runtime verification remain pending because Docker is unavailable locally. Operational details are in `docs/GATE_4_PUBLIC_SHARING_RUNBOOK_2026-09-28.md`.
 
 ### Objective
 
