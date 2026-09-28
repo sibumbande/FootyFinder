@@ -4,6 +4,10 @@ import { useEffect } from 'react';
 import { ensureSocketConnected } from '@/socket/socket.js';
 import { matchKey, matchesKey } from '@/features/matches/hooks/useMatches.js';
 import {
+  applyFormationSnapshot,
+  isFormationSnapshot,
+} from '@/features/matches/utils/formation-cache.js';
+import {
   teamMatchAvailabilityRootKey,
   teamMatchLineupKey,
 } from '@/features/matches/hooks/useTeamMatchDay.js';
@@ -15,6 +19,13 @@ export function useMatchSocket(matchId?: string) {
     const refresh = () => {
       void cache.invalidateQueries({ queryKey: matchKey(matchId) });
       void cache.invalidateQueries({ queryKey: matchesKey });
+    };
+    // Formation changes carry a full versioned snapshot: patch only this lobby's cache and ignore
+    // duplicate/out-of-order echoes. A missed trailing event is recovered by the reconnect refetch.
+    const applyFormation = (payload: unknown) => {
+      if (!isFormationSnapshot(payload) || payload.matchId !== matchId) return;
+      if (!applyFormationSnapshot(cache, payload) && !cache.getQueryData(matchKey(matchId)))
+        void cache.invalidateQueries({ queryKey: matchKey(matchId) });
     };
     const refreshMessages = () =>
       void cache.invalidateQueries({ queryKey: [...matchKey(matchId), 'messages'] });
@@ -38,7 +49,7 @@ export function useMatchSocket(matchId?: string) {
     socket.on(SocketEvents.participantJoined, refresh);
     socket.on(SocketEvents.participantLeft, refresh);
     socket.on(SocketEvents.participantTeamChanged, refresh);
-    socket.on(SocketEvents.formationUpdated, refresh);
+    socket.on(SocketEvents.matchFormationUpdated, applyFormation);
     socket.on(SocketEvents.matchStarted, refresh);
     socket.on(SocketEvents.matchEnded, refresh);
     socket.on(SocketEvents.matchResultSubmitted, refresh);
@@ -61,7 +72,7 @@ export function useMatchSocket(matchId?: string) {
       socket.off(SocketEvents.participantJoined, refresh);
       socket.off(SocketEvents.participantLeft, refresh);
       socket.off(SocketEvents.participantTeamChanged, refresh);
-      socket.off(SocketEvents.formationUpdated, refresh);
+      socket.off(SocketEvents.matchFormationUpdated, applyFormation);
       socket.off(SocketEvents.matchStarted, refresh);
       socket.off(SocketEvents.matchEnded, refresh);
       socket.off(SocketEvents.matchResultSubmitted, refresh);

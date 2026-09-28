@@ -57,6 +57,8 @@ Generic existing codes (`VALIDATION_ERROR`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONF
 
 ## Domain and structured-log events
 
+Gate 5 adds `match-formation:updated`. It is emitted after a formation transaction commits, with the versioned payload `FormationSnapshot` = `{ matchId, formationVersion, slots }`. `formationVersion` increases with every committed formation change, so clients must ignore a snapshot whose version is not newer than their cached one. The legacy `formation:updated` event (bare slot array) is still emitted unchanged for compatibility, but the web client no longer consumes it.
+
 Existing emitted events retain their current payloads: `match:started`, `match:ended`, `match:ready`, `match:updated`, `match:cancelled`, `match:result-submitted`, `participant:joined`, `participant:left`, `participant:team-changed`, `match-availability:requested`, `match-availability:updated`, and `match-lineup:changed`.
 
 Reserved names for later tickets:

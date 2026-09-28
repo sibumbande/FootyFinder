@@ -74,6 +74,31 @@ describe('Quick Match position claims', () => {
     expect(operationalMetricsSnapshot().counters).toMatchObject({ position_claims_total: 1 });
   });
 
+  it('publishes the versioned formation event only after the claim commits', async () => {
+    const versioned: unknown[] = [];
+    const onVersioned = (payload: unknown) => versioned.push(payload);
+    domainEvents.on('match-formation:updated', onVersioned);
+    let commit: (value: unknown) => void = () => undefined;
+    const repository = {
+      claimPosition: vi.fn(() => new Promise((resolve) => (commit = resolve))),
+    } as unknown as MatchesRepository;
+
+    const pending = new MatchesService(repository).claimPosition('match-1', 'slot-1', 'player-1');
+    await Promise.resolve();
+    expect(versioned).toHaveLength(0);
+    commit({ match: matchRecord(9), replayed: false });
+    await pending;
+    domainEvents.off('match-formation:updated', onVersioned);
+
+    expect(versioned).toEqual([
+      {
+        matchId: 'match-1',
+        formationVersion: 9,
+        slots: [expect.objectContaining({ id: 'slot-1', participantId: 'participant-1' })],
+      },
+    ]);
+  });
+
   it('does not republish or count an idempotent repeat of the same claim', async () => {
     const repository = {
       claimPosition: vi.fn().mockResolvedValue({ match: matchRecord(4), replayed: true }),

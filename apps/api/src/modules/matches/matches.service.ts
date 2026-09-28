@@ -342,8 +342,14 @@ export class MatchesService {
     }
   }
 
+  /** Called only after the formation transaction commits. */
   private publishFormation(matchId: string, formationVersion: number, slots: FormationSlot[]) {
     emitDomainEventBestEffort('formation:updated', { matchId, slots });
+    emitDomainEventBestEffort('match-formation:updated', {
+      matchId,
+      formationVersion,
+      slots,
+    } satisfies FormationSnapshot);
   }
   async changeTeam(
     id: string,

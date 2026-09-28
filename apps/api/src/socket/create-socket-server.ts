@@ -60,6 +60,9 @@ export function createSocketServer(server: HttpServer) {
   domainEvents.on('formation:updated', (payload) =>
     io.to(`match:${payload.matchId}`).emit(SocketEvents.formationUpdated, payload.slots),
   );
+  domainEvents.on('match-formation:updated', (payload) =>
+    io.to(`match:${payload.matchId}`).emit(SocketEvents.matchFormationUpdated, payload),
+  );
   domainEvents.on('lobby-message:created', (payload) =>
     io.to(`match:${payload.matchId}`).emit(SocketEvents.messageCreated, payload.message),
   );

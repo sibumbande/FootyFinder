@@ -4,7 +4,10 @@ export const SocketEvents = {
   participantJoined: 'participant:joined',
   participantLeft: 'participant:left',
   participantTeamChanged: 'participant:team-changed',
+  /** Legacy payload: bare slot array. Kept for compatibility; new clients use matchFormationUpdated. */
   formationUpdated: 'formation:updated',
+  /** Versioned payload: FormationSnapshot ({ matchId, formationVersion, slots }). */
+  matchFormationUpdated: 'match-formation:updated',
   matchStarted: 'match:started',
   matchEnded: 'match:ended',
   matchResultSubmitted: 'match:result-submitted',

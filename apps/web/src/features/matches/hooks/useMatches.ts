@@ -90,10 +90,21 @@ export function useRotateMatchInvite(id: string) {
     onSuccess: ({ data }) => cache.setQueryData(matchKey(id), data),
   });
 }
-export const useFormationUpdate = (id: string) =>
-  lobbyMutation<{ slotId: string; input: FormationSlotUpdateInput }>(id, ({ slotId, input }) =>
-    matchApi.formation(id, slotId, input),
-  );
+/**
+ * Organiser formation edits touch only this lobby: no wallet, participation, or list data changes,
+ * so only this Match is refreshed. The versioned socket echo usually lands first. The refetch is
+ * the fallback when the socket is disconnected.
+ */
+export function useFormationUpdate(id: string) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: ({ slotId, input }: { slotId: string; input: FormationSlotUpdateInput }) =>
+      matchApi.formation(id, slotId, input),
+    onSettled: () => {
+      void cache.invalidateQueries({ queryKey: matchKey(id), exact: true });
+    },
+  });
+}
 /**
  * DEC-013 self-claim. A committed claim writes its snapshot straight into the lobby cache. A lost
  * race carries the authoritative formation in the conflict details, so the board converges
