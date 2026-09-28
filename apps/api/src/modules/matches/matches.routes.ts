@@ -20,6 +20,7 @@ matchesRouter.get('/:id/cancellation-quote', controller.cancellationQuote);
 matchesRouter.get('/:id/cancellation-status', controller.cancellationStatus);
 matchesRouter.post('/:id/leave', controller.leave);
 matchesRouter.patch('/:id/formation/slots/:slotId', controller.formation);
+matchesRouter.post('/:id/formation/slots/:slotId/claim', controller.claimPosition);
 matchesRouter.patch('/:id/participants/:participantId/team', controller.changeTeam);
 matchesRouter.post('/:id/result', controller.submitResult);
 matchesRouter.get('/:id/participants', controller.participants);

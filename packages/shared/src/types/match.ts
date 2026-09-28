@@ -79,6 +79,13 @@ export interface FormationSlot {
   participant?: MatchParticipant | null;
 }
 
+/** Authoritative formation snapshot returned by a committed claim or sent with a claim conflict. */
+export interface FormationSnapshot {
+  matchId: string;
+  formationVersion: number;
+  slots: FormationSlot[];
+}
+
 export interface MatchScorer {
   id: string;
   participantId: string;
@@ -227,6 +234,7 @@ export interface Match {
   createdBy?: PublicUser;
   participants?: MatchParticipant[];
   formationSlots?: FormationSlot[];
+  formationVersion: number;
   result?: MatchResult | null;
   teamSides: MatchTeamSide[];
   viewerCanManage: boolean;

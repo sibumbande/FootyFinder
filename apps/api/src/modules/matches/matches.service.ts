@@ -2,7 +2,9 @@ import type {
   ChangeParticipantTeamInput,
   CreateMatchInput,
   DiscoveryQuery,
+  FormationSlot,
   FormationSlotUpdateInput,
+  FormationSnapshot,
   JoinMatchInput,
   ResultInput,
   UpdateMatchInput,
@@ -21,13 +23,19 @@ import {
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { toMatch, toMatchParticipant } from './match.mapper.js';
+import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
+import { logInfo } from '../../observability/logger.js';
+import { toFormationSlot, toMatch, toMatchParticipant } from './match.mapper.js';
 import { createMatchInviteToken, hashMatchInviteToken } from './invite-token.js';
 import {
   AlreadyJoinedError,
+  FormationSlotNotFoundError,
   InsufficientBalanceError,
   MatchClosedError,
   MatchesRepository,
+  NotMatchParticipantError,
+  PositionAlreadyClaimedError,
+  PositionWrongSideError,
   TeamFullError,
   TeamMatchPlanningError,
 } from './matches.repository.js';
@@ -289,13 +297,53 @@ export class MatchesService {
         "That position is outside the Team's half.",
         'POSITION_OUTSIDE_TEAM_HALF',
       );
-    const slots =
-      toMatch(await this.matches.updateFormation(id, slotId, input), {
-        viewerCanManage: true,
-        viewerCanChat: true,
-      }).formationSlots ?? [];
-    emitDomainEventBestEffort('formation:updated', { matchId: id, slots });
+    const result = await this.matches.updateFormation(id, slotId, input, userId);
+    const slots = result.match.formationSlots.map(toFormationSlot);
+    if (result.changed) this.publishFormation(id, result.match.formationVersion, slots);
+    this.notifications.publishPersistedMany(result.notifications);
     return slots;
+  }
+
+  /** DEC-013 self-claim: a joined participant takes an open position on their own side. */
+  async claimPosition(id: string, slotId: string, userId: string): Promise<FormationSnapshot> {
+    try {
+      const result = await this.matches.claimPosition(id, slotId, userId);
+      const snapshot = {
+        matchId: id,
+        formationVersion: result.match.formationVersion,
+        slots: result.match.formationSlots.map(toFormationSlot),
+      };
+      if (!result.replayed) {
+        incrementOperationalMetric('position_claims_total');
+        this.publishFormation(id, snapshot.formationVersion, snapshot.slots);
+      }
+      return snapshot;
+    } catch (error) {
+      if (error instanceof PositionAlreadyClaimedError) {
+        incrementOperationalMetric('position_claim_conflicts_total');
+        logInfo('position_claim_failed', { matchId: id, slotId, reason: 'POSITION_ALREADY_CLAIMED' });
+        const current = await this.load(id);
+        throw new AppError(409, 'Another player has already claimed that position.', 'POSITION_ALREADY_CLAIMED', {
+          matchId: id,
+          formationVersion: current.formationVersion,
+          slots: current.formationSlots.map(toFormationSlot),
+        } satisfies FormationSnapshot);
+      }
+      if (error instanceof FormationSlotNotFoundError)
+        throw new AppError(404, 'That position does not exist in this match.', 'FORMATION_SLOT_NOT_FOUND');
+      if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
+      if (error instanceof MatchClosedError)
+        throw new AppError(409, 'Positions cannot change after kickoff.', 'MATCH_STARTED');
+      if (error instanceof NotMatchParticipantError)
+        throw new AppError(403, 'Join this match before claiming a position.', 'MATCH_PARTICIPANT_REQUIRED');
+      if (error instanceof PositionWrongSideError)
+        throw new AppError(403, 'You can only claim a position on your own team.', 'POSITION_WRONG_SIDE');
+      throw error;
+    }
+  }
+
+  private publishFormation(matchId: string, formationVersion: number, slots: FormationSlot[]) {
+    emitDomainEventBestEffort('formation:updated', { matchId, slots });
   }
   async changeTeam(
     id: string,

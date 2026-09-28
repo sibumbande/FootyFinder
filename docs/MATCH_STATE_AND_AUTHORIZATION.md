@@ -78,7 +78,8 @@ The existing generic Team-fixture update/cancel permission accepts an OWNER or C
 | Cancellation quote/status | Participant, self only | Rejected | Before kickoff; self-scoped |
 | Leave | Participant, self only | Rejected | Before kickoff |
 | Change participant side | Host may move eligible participant; reserve participant may move self | Rejected | Destination capacity and formation constraints apply |
-| Edit Quick formation | Host | Generic path exists, but lineup API is canonical | Before kickoff; position remains in the side's half |
+| Edit Quick formation (move/assign/remove) | Host | Generic path exists, but lineup API is canonical | Before kickoff; position remains in the side's half. Gate 5: every player change appends a `MatchFormationEvent` (`ORGANISER_*`) and persists a `MATCH_POSITION_CHANGED` notification for each affected player other than the host |
+| Claim Quick position `POST /matches/:id/formation/slots/:slotId/claim` | Joined participant, self, own side (Gate 5) | Rejected (`TEAM_MATCH_PLANNING`) | Stored `OPEN`/`READY`, before kickoff; first commit wins; a player already in a slot is moved (`SELF_MOVE`); loser gets `POSITION_ALREADY_CLAIMED` with the authoritative formation |
 | Submit result | Host | No reachable current Team state | Effective `AWAITING_RESULT`; scorer and totals validation apply |
 | Read participants/chat | Host or authorized participant | Attached Team member | Chat write window and membership checks apply |
 | Request/read side availability | Not applicable | Side OWNER/CAPTAIN requests; member sees self; side manager sees all | Not `CANCELLED`/`COMPLETED` |
@@ -93,7 +94,9 @@ The existing generic Team-fixture update/cancel permission accepts an OWNER or C
 
 ### Quick Match position claims (Gate 5)
 
-- A joined participant may claim an open position on their own selected side before kickoff.
+Status: **implemented in Gate 5** (claim command, organiser audit/notification, formation versioning). The rules below are now current behavior.
+
+- A joined participant may claim an open position on their own selected side before kickoff. A participant who already holds a slot and claims another open slot on their side is moved atomically (`SELF_MOVE`); they never hold two positions.
 - The first transaction to commit wins. A losing claimant receives a stable conflict response and must refetch.
 - The organiser may move or remove a player before kickoff; the affected player receives a persisted notification and the action is audited.
 - Claims never change payment, participation, or side membership implicitly.

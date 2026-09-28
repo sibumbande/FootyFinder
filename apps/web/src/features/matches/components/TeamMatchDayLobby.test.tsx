@@ -54,6 +54,7 @@ const match: Match = {
   participantCount: 0,
   homeParticipantCount: 0,
   awayParticipantCount: 0,
+  formationVersion: 0,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   venue: {

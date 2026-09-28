@@ -28,9 +28,12 @@ This contract gives later tickets stable machine names. Existing names remain co
 | Reservation | `BOOKING_FUNDING_WINDOW_INVALID` | 409 | Existing: booking starts before its funding window can complete. |
 | Reservation | `BOOKING_FUNDING_CLOSED` | 409 | Existing: reservation no longer accepts contributions. |
 | Position claim | `POSITION_NOT_OPEN` | 409 | Existing: slot is not open for self-claim. |
-| Position claim | `POSITION_ALREADY_CLAIMED` | 409 | Existing: another committed claim won the race. |
-| Position claim | `PLAYER_ALREADY_STARTER` | 409 | Existing: claimant already occupies a starting slot. |
+| Position claim | `POSITION_ALREADY_CLAIMED` | 409 | Existing: another committed claim won the race. Quick Match claims (Gate 5) include `details` = `FormationSnapshot` (`matchId`, `formationVersion`, `slots`) so the client can replace its board with the authoritative formation. |
+| Position claim | `PLAYER_ALREADY_STARTER` | 409 | Existing: claimant already occupies a starting slot (Team Match lineups only; a Quick Match claimant who already holds a slot is moved, see `SELF_MOVE`). |
 | Position claim | `POSITION_OUTSIDE_TEAM_HALF` | 400 | Existing: coordinates violate the side boundary. |
+| Position claim | `MATCH_PARTICIPANT_REQUIRED` | 403 | Gate 5: caller is not a currently joined participant of the Quick Match. |
+| Position claim | `POSITION_WRONG_SIDE` | 403 | Gate 5: the slot belongs to the other side from the claimant's joined team. |
+| Position claim | `FORMATION_SLOT_NOT_FOUND` | 404 | Gate 5: the slot does not exist in this Match. |
 | Payment | `INSUFFICIENT_BALANCE` | 402 | Existing: available wallet funds do not cover the command. |
 | Payment | `FINANCIAL_IDEMPOTENCY_CONFLICT` | 409 | Existing: key reuse conflicts with the original financial command. |
 | Payment | `DEPOSIT_TERMINAL` | 409 | Existing: attempted transition after deposit terminal state. |
@@ -62,7 +65,8 @@ Reserved names for later tickets:
 |---|---|---|
 | Unsafe auth return rejected | `auth:return-rejected` | `auth_return_rejected` |
 | Reservation conflict | none (failed command) | `field_reservation_conflict` |
-| Position successfully claimed | `match-lineup:position-claimed` | `position_claim_failed` |
+| Position successfully claimed | Team Match: `match-lineup:position-claimed`. Quick Match (Gate 5): committed formation is broadcast with the formation event; audit row in `MatchFormationEvent` (`SELF_CLAIM`/`SELF_MOVE`) | `position_claim_failed` (implemented for Quick Match conflicts) |
+| Organiser moves/removes a Quick Match player | Audit row in `MatchFormationEvent` (`ORGANISER_ASSIGN`/`ORGANISER_SWAP`/`ORGANISER_REMOVE`); persisted `MATCH_POSITION_CHANGED` notification to each affected player other than the organiser | none |
 | Payment initiated/succeeded/failed | `payment:initiated`, `payment:succeeded`, `payment:failed` | `payment_provider_failed`, `payment_callback_rejected` |
 | Challenge lifecycle | `challenge:created`, `challenge:withdrawn`, `challenge:rejected`, `challenge:accepted`, `challenge:expired`, `challenge:cancelled` | `challenge_transition_failed` |
 | Result confirmation | `result:submitted`, `result:confirmed`, `result:disputed`, `result:confirmation-expired` | `result_confirmation_failed` |
@@ -80,7 +84,8 @@ The current process-local counters are diagnostic only; a production metrics bac
 |---|---|---|---|
 | `auth_return_rejected_total` | counter | Unexpected sustained increase after an auth release | Web/API identity owner |
 | `field_reservation_conflicts_total` | counter | Sudden increase relative to booking attempts | Booking backend owner |
-| `position_claim_conflicts_total` | counter | Sudden increase relative to claim attempts | Team Match backend owner |
+| `position_claims_total` | counter | Implemented (Gate 5): committed Quick Match self-claims; baseline for the conflict rate | Match backend owner |
+| `position_claim_conflicts_total` | counter | Sudden increase relative to claim attempts. Implemented for Quick Match claims in Gate 5 | Match backend owner |
 | `payment_provider_failures_total` | counter | Any sustained provider failure; page when deposits cannot complete | Payments on-call |
 | `payment_callback_rejections_total` | counter | Any signature failures above known test traffic | Security + payments on-call |
 | `challenge_transition_conflicts_total` | counter | Sustained increase after challenge release | Team competition owner |

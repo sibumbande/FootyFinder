@@ -329,6 +329,7 @@ enum NotificationType {
   BOOKING_CONFIRMED
   BOOKING_EXPIRED
   DISPUTE_RESOLVED
+  MATCH_POSITION_CHANGED
 }
 
 model User {
@@ -959,6 +960,7 @@ model Match {
   feeCents                  Int
   currency                  String                    @default("ZAR")
   status                    MatchStatus               @default(OPEN)
+  formationVersion          Int                       @default(0)
   cancelledAt               DateTime?
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime                  @updatedAt
@@ -972,6 +974,7 @@ model Match {
   cancellations             ParticipantCancellation[]
   teamSides                 MatchTeam[]
   fieldReservation          FieldReservation?
+  formationEvents           MatchFormationEvent[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1168,6 +1171,21 @@ model FormationSlot {
 
   @@unique([matchId, team, slotIndex])
   @@index([matchId, team])
+}
+
+model MatchFormationEvent {
+  id                    String   @id @default(uuid()) @db.Uuid
+  matchId               String   @db.Uuid
+  slotId                String   @db.Uuid
+  actorUserId           String   @db.Uuid
+  action                String
+  participantId         String?  @db.Uuid
+  previousParticipantId String?  @db.Uuid
+  formationVersion      Int
+  createdAt             DateTime @default(now())
+  match                 Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
 }
 
 model MatchPayment {

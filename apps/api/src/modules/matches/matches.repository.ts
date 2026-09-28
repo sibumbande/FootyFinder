@@ -15,6 +15,7 @@ import {
   getMaxParticipantsPerTeam,
   mapTeamPositionToMatchHalf,
 } from '@footy-finder/shared';
+import type { Notification, Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';
@@ -36,6 +37,26 @@ export class MatchClosedError extends Error {}
 export class TeamFixtureForbiddenError extends Error {}
 export class TeamFixtureTeamNotFoundError extends Error {}
 export class TeamMatchPlanningError extends Error {}
+export class FormationSlotNotFoundError extends Error {}
+export class NotMatchParticipantError extends Error {}
+export class PositionWrongSideError extends Error {}
+export class PositionAlreadyClaimedError extends Error {}
+
+/**
+ * Takes the Match row lock that every formation mutation shares, so claims and organiser moves
+ * on one Match serialize in a consistent lock order (Match, then slots).
+ */
+const lockMatchForFormation = (tx: Prisma.TransactionClient, matchId: string) =>
+  tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id" = ${matchId}::uuid FOR UPDATE`;
+
+const bumpFormationVersion = async (tx: Prisma.TransactionClient, matchId: string) =>
+  (
+    await tx.match.update({
+      where: { id: matchId },
+      data: { formationVersion: { increment: 1 } },
+      select: { formationVersion: true },
+    })
+  ).formationVersion;
 
 const isLobbyOpen = (
   match: { mode: string; status: string; startsAt: Date; durationMinutes: number },
@@ -439,10 +460,11 @@ export class MatchesRepository {
           notifications: [],
         };
       if (participant.status !== 'JOINED') throw new AlreadyJoinedError();
-      await tx.formationSlot.updateMany({
+      const released = await tx.formationSlot.updateMany({
         where: { participantId: participant.id },
         data: { participantId: null },
       });
+      if (released.count > 0) await bumpFormationVersion(tx, matchId);
       await tx.matchParticipant.update({
         where: { id: participant.id },
         data: { status: 'LEFT', leftAt: now },
@@ -614,8 +636,10 @@ export class MatchesRepository {
         getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam)
       )
         throw new TeamFullError();
-      if (slot)
+      if (slot) {
         await tx.formationSlot.update({ where: { id: slot.id }, data: { participantId: null } });
+        await bumpFormationVersion(tx, matchId);
+      }
       return tx.matchParticipant.update({
         where: { id: participantId },
         data: { team },
@@ -624,13 +648,35 @@ export class MatchesRepository {
     });
   }
 
-  async updateFormation(matchId: string, slotId: string, input: FormationSlotUpdateInput) {
+  async updateFormation(
+    matchId: string,
+    slotId: string,
+    input: FormationSlotUpdateInput,
+    actorUserId: string,
+  ) {
     return serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
       const target = await tx.formationSlot.findFirstOrThrow({ where: { id: slotId, matchId } });
+      const participantChanges: Array<{
+        action: 'ORGANISER_ASSIGN' | 'ORGANISER_SWAP' | 'ORGANISER_REMOVE';
+        participantId: string | null;
+        previousParticipantId: string | null;
+        affectedParticipantIds: string[];
+      }> = [];
+      let changed = false;
       if (input.participantId !== undefined) {
-        if (input.participantId === null)
-          await tx.formationSlot.update({ where: { id: slotId }, data: { participantId: null } });
-        else {
+        if (input.participantId === null) {
+          if (target.participantId) {
+            await tx.formationSlot.update({ where: { id: slotId }, data: { participantId: null } });
+            participantChanges.push({
+              action: 'ORGANISER_REMOVE',
+              participantId: null,
+              previousParticipantId: target.participantId,
+              affectedParticipantIds: [target.participantId],
+            });
+            changed = true;
+          }
+        } else if (target.participantId !== input.participantId) {
           const participant = await tx.matchParticipant.findFirstOrThrow({
             where: { id: input.participantId, matchId, status: 'JOINED', team: target.team },
           });
@@ -657,14 +703,121 @@ export class MatchesRepository {
               where: { id: source.id },
               data: { participantId: targetParticipantId },
             });
+          participantChanges.push({
+            action: source && targetParticipantId ? 'ORGANISER_SWAP' : 'ORGANISER_ASSIGN',
+            participantId: participant.id,
+            previousParticipantId: targetParticipantId,
+            affectedParticipantIds: targetParticipantId
+              ? [participant.id, targetParticipantId]
+              : [participant.id],
+          });
+          changed = true;
         }
       }
-      if (input.positionX !== undefined || input.positionY !== undefined)
+      if (input.positionX !== undefined || input.positionY !== undefined) {
         await tx.formationSlot.update({
           where: { id: slotId },
           data: { positionX: input.positionX, positionY: input.positionY },
         });
-      return tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude });
+        changed = true;
+      }
+      let notifications: Notification[] = [];
+      if (changed) {
+        const formationVersion = await bumpFormationVersion(tx, matchId);
+        const drafts: NotificationDraft[] = [];
+        for (const change of participantChanges) {
+          const event = await tx.matchFormationEvent.create({
+            data: {
+              matchId,
+              slotId,
+              actorUserId,
+              action: change.action,
+              participantId: change.participantId,
+              previousParticipantId: change.previousParticipantId,
+              formationVersion,
+            },
+          });
+          const affected = await tx.matchParticipant.findMany({
+            where: { id: { in: change.affectedParticipantIds } },
+            select: { userId: true },
+          });
+          for (const { userId } of affected)
+            if (userId !== actorUserId)
+              drafts.push({
+                userId,
+                type: 'MATCH_POSITION_CHANGED',
+                title: 'Your position changed',
+                message:
+                  change.action === 'ORGANISER_REMOVE'
+                    ? 'The organiser moved you to the reserves.'
+                    : 'The organiser changed your position on the pitch.',
+                targetPath: `/matches/${matchId}`,
+                dedupeKey: notificationDedupeKey('match-formation-event', event.id, userId),
+              });
+        }
+        notifications = await persistNotifications(tx, drafts);
+      }
+      return {
+        match: await tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude }),
+        notifications,
+        changed,
+      };
+    });
+  }
+
+  /**
+   * Quick Match self-claim (DEC-013). Every eligibility check and the write run in one
+   * serializable transaction behind a Match row lock, so the first committed claim wins and a
+   * concurrent loser re-reads an occupied slot on retry.
+   */
+  async claimPosition(matchId: string, slotId: string, userId: string, now = new Date()) {
+    return serializableTransaction(async (tx) => {
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: { mode: true, status: true, startsAt: true, durationMinutes: true },
+      });
+      if (!match) throw new FormationSlotNotFoundError();
+      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
+      await lockMatchForFormation(tx, matchId);
+      if (!isLobbyOpen(match, now)) throw new MatchClosedError();
+      const participant = await tx.matchParticipant.findUnique({
+        where: { matchId_userId: { matchId, userId } },
+        include: { formationSlot: true },
+      });
+      if (!participant || participant.status !== 'JOINED') throw new NotMatchParticipantError();
+      const target = await tx.formationSlot.findFirst({ where: { id: slotId, matchId } });
+      if (!target) throw new FormationSlotNotFoundError();
+      if (target.team !== participant.team) throw new PositionWrongSideError();
+      if (target.participantId === participant.id)
+        return {
+          match: await tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude }),
+          replayed: true,
+        };
+      if (target.participantId) throw new PositionAlreadyClaimedError();
+      const source = participant.formationSlot;
+      if (source)
+        await tx.formationSlot.update({ where: { id: source.id }, data: { participantId: null } });
+      const claimed = await tx.formationSlot.updateMany({
+        where: { id: target.id, participantId: null },
+        data: { participantId: participant.id },
+      });
+      if (claimed.count !== 1) throw new PositionAlreadyClaimedError();
+      const formationVersion = await bumpFormationVersion(tx, matchId);
+      await tx.matchFormationEvent.create({
+        data: {
+          matchId,
+          slotId: target.id,
+          actorUserId: userId,
+          action: source ? 'SELF_MOVE' : 'SELF_CLAIM',
+          participantId: participant.id,
+          previousParticipantId: null,
+          formationVersion,
+        },
+      });
+      return {
+        match: await tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude }),
+        replayed: false,
+      };
     });
   }
 

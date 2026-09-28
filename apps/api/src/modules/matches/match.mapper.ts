@@ -17,7 +17,7 @@ export function toMatchParticipant(participant: ParticipantRecord): MatchPartici
   };
 }
 
-const toFormationSlot = (slot: MatchRecord['formationSlots'][number]): FormationSlot => ({
+export const toFormationSlot = (slot: MatchRecord['formationSlots'][number]): FormationSlot => ({
   id: slot.id,
   matchId: slot.matchId,
   team: slot.team,
@@ -87,6 +87,7 @@ export function toMatch(
     createdBy: toPublicUser(match.createdBy),
     participants: match.participants.map(toMatchParticipant),
     formationSlots: match.formationSlots.map(toFormationSlot),
+    formationVersion: match.formationVersion,
     result: match.result
       ? {
           id: match.result.id,

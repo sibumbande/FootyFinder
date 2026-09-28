@@ -5,6 +5,7 @@ import type {
   DiscoveryQuery,
   FormationSlot,
   FormationSlotUpdateInput,
+  FormationSnapshot,
   JoinMatchInput,
   LobbyMessage,
   Match,
@@ -86,6 +87,11 @@ export const matchesApi = (client: ApiClient) => ({
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  claimPosition: (id: string, slotId: string) =>
+    client.request<{ data: FormationSnapshot }>(
+      `/matches/${id}/formation/slots/${slotId}/claim`,
+      { method: 'POST' },
+    ),
   changeTeam: (id: string, participantId: string, input: ChangeParticipantTeamInput) =>
     client.request<{ data: MatchParticipant }>(
       `/matches/${id}/participants/${participantId}/team`,

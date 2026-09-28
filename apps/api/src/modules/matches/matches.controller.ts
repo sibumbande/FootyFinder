@@ -152,6 +152,19 @@ export const formation: RequestHandler = async (req, res, next) => {
     next(error);
   }
 };
+export const claimPosition: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await service.claimPosition(
+        matchId(req.params),
+        String(req.params.slotId),
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 export const changeTeam: RequestHandler = async (req, res, next) => {
   try {
     res.json({
