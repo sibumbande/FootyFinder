@@ -34,6 +34,9 @@ This contract gives later tickets stable machine names. Existing names remain co
 | Position claim | `MATCH_PARTICIPANT_REQUIRED` | 403 | Gate 5: caller is not a currently joined participant of the Quick Match. |
 | Position claim | `POSITION_WRONG_SIDE` | 403 | Gate 5: the slot belongs to the other side from the claimant's joined team. |
 | Position claim | `FORMATION_SLOT_NOT_FOUND` | 404 | Gate 5: the slot does not exist in this Match. |
+| Go/no-go | `LINEUP_LOCKED` | 409 | DEC-018 (D1/D3): the lobby is frozen from kickoff − 30 minutes. Applies to join, leave, claim, team change, organiser formation edits, match updates and host cancellation. |
+| Bookings | `PLAYER_FIELD_BOOKING_RETIRED` | 410 | DEC-018 (D5): player pooled field-booking create, contribute and field-catalogue routes are retired. |
+| Durable job | `GO_NO_GO_NOT_DUE` | internal | DEC-018: a go/no-go job ran before its `goNoGoAt`; the durable queue retries it. Never exposed to clients. |
 | Payment | `INSUFFICIENT_BALANCE` | 402 | Existing: available wallet funds do not cover the command. |
 | Payment | `FINANCIAL_IDEMPOTENCY_CONFLICT` | 409 | Existing: key reuse conflicts with the original financial command. |
 | Payment | `DEPOSIT_TERMINAL` | 409 | Existing: attempted transition after deposit terminal state. |
@@ -56,6 +59,8 @@ This contract gives later tickets stable machine names. Existing names remain co
 Generic existing codes (`VALIDATION_ERROR`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`, `RATE_LIMITED`, `INTERNAL_ERROR`) remain fallbacks. New domain behavior should prefer a domain-specific code from this table.
 
 ## Domain and structured-log events
+
+DEC-018 adds the structured log event `go_no_go_decided` (matchId, outcome, filled/total). A T-30 decision reuses `match:cancelled` (auto-cancel) and `match:updated` (confirmed), emitted after commit, with persisted `MATCH_CANCELLED` / `MATCH_CONFIRMED` notifications.
 
 Gate 5 adds `match-formation:updated`. It is emitted after a formation transaction commits, with the versioned payload `FormationSnapshot` = `{ matchId, formationVersion, slots }`. `formationVersion` increases with every committed formation change, so clients must ignore a snapshot whose version is not newer than their cached one. The legacy `formation:updated` event (bare slot array) is still emitted unchanged for compatibility, but the web client no longer consumes it.
 
@@ -88,6 +93,8 @@ The current process-local counters are diagnostic only; a production metrics bac
 | `field_reservation_conflicts_total` | counter | Sudden increase relative to booking attempts | Booking backend owner |
 | `position_claims_total` | counter | Implemented (Gate 5): committed Quick Match self-claims; baseline for the conflict rate | Match backend owner |
 | `position_claim_conflicts_total` | counter | Sudden increase relative to claim attempts. Implemented for Quick Match claims in Gate 5 | Match backend owner |
+| `go_no_go_confirmed_total` | counter | DEC-018: matches confirmed at T-30 (every position claimed) | Match backend owner |
+| `go_no_go_cancelled_total` | counter | DEC-018: matches auto-cancelled at T-30. A sustained rise relative to confirmations is a product signal. Alert on overdue or FAILED `QUICK_MATCH_GO_NO_GO` jobs | Match backend owner |
 | `payment_provider_failures_total` | counter | Any sustained provider failure; page when deposits cannot complete | Payments on-call |
 | `payment_callback_rejections_total` | counter | Any signature failures above known test traffic | Security + payments on-call |
 | `challenge_transition_conflicts_total` | counter | Sustained increase after challenge release | Team competition owner |

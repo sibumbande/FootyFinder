@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, and Gate 5 on 2026-09-28 (implemented with one commit per ticket).
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), and the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29.
 
 
 1. HOW TO USE THIS BACKLOG
@@ -85,6 +85,7 @@ Policy:
 - Every confirmed joined place, including a reserve/substitute place, pays the same snapshotted fee.
 - If the organiser cancels outside the refundable venue window, player fees are fully restored and the organiser bears the remaining non-refundable venue amount after venue credit.
 Blocks resolved by policy: TKT-103, TKT-304, TKT-306, TKT-603.
+Superseded in part by DEC-018 (2026-09-29): the fee is no longer configurable (every Quick Match place is a platform-fixed R80) and there is no organiser venue guarantee.
 
 DEC-002 - Sixty-minute transition policy
 Status: APPROVED - POLICY RECORDED (2026-09-24)
@@ -271,6 +272,84 @@ Policy:
 - Display a simple arithmetic average and visible-review count only after three eligible visible reviews; otherwise display "Not enough reviews."
 Blocks resolved by policy: TKT-805 through TKT-807.
 
+DEC-018 - Fixed R80 fee, hidden venue costs, no host guarantee, and T-30 go/no-go
+Status: APPROVED - CEO DECISION (Sibu), 2026-09-29. IMPLEMENTED AS TKT-311 TO TKT-315 (see section 9A).
+Depends on: none. Supersedes: the configurable fee and organiser guarantee in DEC-001; the venue-price display in TKT-304; the fair-share cap and organiser guarantee in TKT-306; player pooled field bookings (TKT-306 era /bookings flow).
+Decision as recorded (word for word):
+
+CEO DECISION (Sibu): replace gate 3's host-set fee / venue-price model with a fixed-fee
+model. Implement all of the following:
+
+1. Fixed fee: every player who joins a Quick Match pays exactly R80 (8000 cents),
+   including subs. The platform sets it. Hosts cannot set or change a fee: remove the fee
+   input and the "maximum entry fee" logic from create-match (web + API validation).
+2. Hide venue costs: ManagedFieldPrice amounts / venue prices must not appear in ANY
+   player- or host-facing UI or API response. Remove "From R400" on venue cards,
+   "R400 field price" on slot buttons, "Venue price" on create-match, and the price
+   fields in public venue/slot DTOs. Prices stay visible in the admin app only.
+   Grep all player/host DTOs and mappers to prove it.
+3. No host guarantee: remove or disable gate 3's organizer guarantee (the host wallet
+   hold / organizerGuaranteeCents flow). The host pays R80 like any other player if they
+   play.
+4. Go/no-go at T-30 minutes: a match goes ahead only if EVERY formation position on the
+   pitch is filled (claimed) by 30 minutes before kickoff. Subs are optional.
+   Example: kickoff 30 Oct 2026 14:00 → check at 13:30.
+   - If not full at T-30: auto-cancel the match, notify every joined player, and refund
+     every player's R80 to their wallet (full refund, idempotent, via the existing
+     FinancialRepository and ledger patterns, never direct balance edits).
+   - Implement the T-30 check as a DurableJob (existing queue, FOR UPDATE SKIP LOCKED
+     pattern), safe to run twice and safe if the server restarts.
+   - If full at T-30: the match is confirmed.
+   - Tell me in the plan what should happen to joins/leaves after T-30 and when a
+     player leaves before T-30 (does the match stay open?). I will decide.
+5. Player messaging: on the match page, show clearly "This match goes ahead only if all
+   positions are filled by <T-30 time>. Otherwise it's cancelled and your R80 is
+   refunded to your wallet." Show a live "X of Y positions filled".
+6. Venue settlement: venues are paid AFTER the match, only for matches that went ahead.
+   Do not build venue payouts now, but make sure a cancelled match creates no amount
+   owed to the venue, and describe how a completed match would be marked for payout.
+7. Venue cost reference (what FootyFinder pays field owners per match; admin-only data):
+   - Italian Club: 5-a-side R500, 7-a-side R600, 11-a-side R800
+   - Queens Park: 11-a-side R1000
+   - Cape Town City FC: 11-a-side R1000
+   These are entered by admins in the admin app as ManagedFieldPrice records. Do NOT
+   hard-code them in application logic. Confirm the admin catalog supports a different
+   price per format on the same venue/field (format scope), since Italian Club has three
+   formats. Record this table in the ticket breakdown decision entry and the runbook,
+   marked ADMIN-ONLY / never shown to players.
+
+Rules:
+- Start with a plan (tickets, files, migration SQL if any, how each money flow changes)
+  and wait for my approval.
+- Never run `prisma migrate dev` / `npm run prisma:migrate`. Additive, hand-written
+  migrations only; functions in indexes must be IMMUTABLE; prove with
+  `npx prisma migrate reset --force` on local footy_finder (localhost:5432) and
+  `migrate deploy` on footy_finder_test.
+- One commit per ticket, stage files by name, never package-lock.json, do not push.
+- Tests for every money path: fixed-fee join, no host hold, T-30 cancel + refund
+  (including running the job twice → refunded once), full lobby confirmed, race between
+  last claim and the T-30 job. Run API + web tests and relevant smokes on
+  footy_finder_test. No bypassing safety checks.
+- Update the ticket breakdown with a new decision entry recording this CEO decision and
+  the rules above, word for word.
+
+Follow-up decisions approved by the CEO (Sibu) on 2026-09-29 (D1-D5, as recommended in the plan):
+- D1. From T-30 to kickoff the lobby is frozen: the server rejects joins, leaves, position claims, team changes, organiser formation moves and host cancellation (409 LINEUP_LOCKED). A player who cannot attend after T-30 is a no-show with no refund. This makes the T-30 decision depend only on the T-30 lineup, even if the job runs late.
+- D2. A player leaving before T-30: the match stays open, the vacated position becomes claimable, and the existing credit rule is unchanged: more than 12 hours before kickoff, full R80 credit; 12 hours or less, no credit unless a paid replacement joins the same team. If the match is later auto-cancelled at T-30, that player's still-unrefunded R80 is refunded by the cancellation.
+- D3. Host cancellation is allowed until T-30 only. Every player is refunded in full and nothing is owed to the venue.
+- D4. The new rules apply only to Quick Matches created after DEC-018 ships (Match.goNoGoAt set). Existing matches keep their stored fee and are never auto-cancelled.
+- D5. Player pooled field bookings (/bookings) are retired: create, contribute and the /bookings/fields catalogue return 410 PLAYER_FIELD_BOOKING_RETIRED; booking history stays readable without any money fields. Pre-check: Team Matches do not use this flow (free private DRAFT fixtures with a free-text venue; no reservation, hold or contribution), so nothing else breaks.
+
+Venue cost reference - ADMIN-ONLY / NEVER SHOWN TO PLAYERS OR HOSTS:
+| Venue             | 5-a-side | 7-a-side | 11-a-side |
+|-------------------|----------|----------|-----------|
+| Italian Club      | R500     | R600     | R800      |
+| Queens Park       | -        | -        | R1000     |
+| Cape Town City FC | -        | -        | R1000     |
+Entered by admins as format-scoped ManagedFieldPrice records (admin app "Format scope"); never hard-coded. Verified: one field can hold a different effective price per format, and reservation snapshots pick the format-specific price (smoke:go-no-go, privacy test).
+
+Venue settlement rule: a venue is owed money only for a match that went ahead. A cancelled match (organiser cancel or T-30 auto-cancel) leaves its FieldReservation CANCELLED with no hold, debit, obligation or payable. When Gate 6 settlement (TKT-607/TKT-608, DEC-012) is built, a payable is created exactly once per reservation (keyed by reservation id) from the admin-only priceCentsSnapshot, only when the reservation is CONFIRMED, the match has confirmedAt set and has reached kickoff/COMPLETED; it is marked due after kickoff and settled weekly under dual control.
+
 
 3A. CROSS-CUTTING APPROVED PRODUCT/UX RULES
 ============================================
@@ -303,6 +382,7 @@ Blocks resolved by policy: TKT-805 through TKT-807.
   - Verified against a local disposable PostgreSQL database (`footy_finder_test`): the full 27-migration chain applies, the claim race smoke passes, and both Playwright journeys pass (position-claim and the previously never-passing critical path).
   - Mobile-hardware budget measurement is still pending.
   - See `docs/GATE_5_POSITION_CLAIMS_RUNBOOK_2026-09-28.md`.
+- DEC-018 (fixed R80 fee, hidden venue costs, no host guarantee, T-30 go/no-go) was implemented on 2026-09-29 as TKT-311 to TKT-315 with additive migration `20260930100000_fixed_fee_go_no_go`, verified locally on footy_finder_test. See section 9A and `docs/DEC_018_FIXED_FEE_GO_NO_GO_RUNBOOK_2026-09-29.md`.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
@@ -733,6 +813,7 @@ Not in scope: calendar UI or slot persistence unless justified.
 
 TKT-304 - Implement venue cards on home
 Status: IMPLEMENTED - VENUE-FIRST HOME, DATABASE CARDS, AND HONEST EMPTY/ERROR/LOADING STATES ADDED; REAL DISPLAY DATA BLOCKED BY TKT-302 (2026-09-28)
+Superseded in part by DEC-018 (2026-09-29): venue cards no longer show any venue price. Venue costs are admin-only (TKT-313).
 Depends on: TKT-301, TKT-302
 Risk: Low
 Scope:
@@ -755,6 +836,7 @@ Not in scope: reservation creation.
 
 TKT-306 - Replace placeholder match creation with managed-field reservation
 Status: IMPLEMENTED - ATOMIC RESERVATION, FAIR-SHARE CAP, GUARANTEE HOLD/SETTLEMENT, SNAPSHOTS, AND CANCELLATION COMPENSATION ADDED; DATABASE RUNTIME PENDING (2026-09-28)
+Superseded in part by DEC-018 (2026-09-29): the host-chosen fee, fair-share cap and organiser guarantee hold/settlement are removed. Every place costs a fixed R80, with no host guarantee (TKT-311/TKT-312). Cancellation owes the venue nothing, and T-30 go/no-go applies (TKT-314).
 Depends on: TKT-103, TKT-104, TKT-305
 Risk: High
 Scope:
@@ -950,6 +1032,70 @@ Scope: Shared public match -> auth -> pay/join -> claim -> second-user conflict 
 Acceptance: Entire core position journey passes in a real browser with database/API/socket.
 Not in scope: team fixture lineup.
 
+
+9A. DEC-018 - FIXED FEE, HIDDEN VENUE COSTS, AND T-30 GO/NO-GO
+===============================================================
+
+Implementation summary (2026-09-29): implemented on `ceo/finish-gate-5`, one commit per ticket, with additive migration `20260930100000_fixed_fee_go_no_go`. It adds Match.goNoGoAt, confirmedAt and cancellationReason with CHECK constraints, and the MATCH_CONFIRMED notification type.
+
+Verification:
+- The shared, API, API-client and web suites, type-checks and the web build pass.
+- `npx prisma migrate reset --force` on local footy_finder applies all 28 migrations; `migrate deploy` on footy_finder_test applies it.
+- On footy_finder_test: smoke:go-no-go (3 consecutive passes), smoke:position-claims, smoke:field-bookings and smoke:financial-integrity pass, and both Playwright journeys (critical path and position claim) pass.
+
+See `docs/DEC_018_FIXED_FEE_GO_NO_GO_RUNBOOK_2026-09-29.md`.
+
+TKT-311 - Fixed R80 Quick Match fee
+Status: VERIFIED LOCALLY - COMMIT a413bb8 (2026-09-29)
+Depends on: DEC-018
+Scope: remove feeCents from host input; host-created and admin-loaded Quick Matches store MATCH_FEE_CENTS (R80); delete the fair-share cap; create-match shows a fixed-fee notice.
+Tests: schema strips feeCents; captured-transaction unit test for both create paths; field-bookings smoke (host-sent fee ignored); E2E expects R80.
+
+TKT-312 - Remove the Quick Match host guarantee
+Status: VERIFIED LOCALLY - COMMIT cfc352c (2026-09-29)
+Depends on: DEC-018
+Scope: no organiser hold or guarantee job at creation; host cancel never charges the host; the legacy QUICK_MATCH_GUARANTEE_SETTLE handler only releases pre-existing holds.
+Tests: unit (no createHold, no guarantee job); smoke (no host hold, host cancel without charge, legacy hold released without debit, twice).
+
+TKT-313 - Hide venue costs from players and hosts
+Status: VERIFIED LOCALLY - COMMIT 9538875 (2026-09-29)
+Depends on: DEC-018
+Scope: public venue/slot DTOs and player booking history carry no venue cost; AdminFieldBooking is admin-only; the web shows no venue price; player pooled bookings retired (D5, 410 PLAYER_FIELD_BOOKING_RETIRED).
+Tests: privacy test serialising every player/host venue, slot, booking and match DTO from priced fixtures, with a negative control; VenueCard and api-client tests; smoke check of the player booking view.
+
+TKT-314 - T-30 go/no-go durable job
+Status: VERIFIED LOCALLY - COMMIT 4093007 (2026-09-29)
+Depends on: DEC-018, TKT-501 (claims), durable jobs
+Scope:
+- goNoGoAt set and QUICK_MATCH_GO_NO_GO enqueued when the match is created.
+- An idempotent decision under the Match row lock: confirm when every formation slot is claimed, otherwise cancel with a full refund of every paid fee once, the reservation cancelled, and nothing owed to the venue.
+- The lobby freezes from T-30 (D1/D3, 409 LINEUP_LOCKED).
+- The scheduler never starts an unconfirmed go/no-go match.
+Tests (smoke:go-no-go on real PostgreSQL):
+- fixed R80 debits and no host hold;
+- format-scoped cost snapshot;
+- unfilled cancel refunded once, including a second run;
+- the durable-queue path and a stale (crashed) job;
+- full lineup confirmed;
+- last-claim vs T-30 race (4 rounds, both outcomes);
+- boundary lock and freeze;
+- host cancel then T-30 not refunded twice;
+- late leaver refunded on auto-cancel (D2);
+- wallet reconciliation clean.
+Plus unit tests.
+
+TKT-315 - Player go/no-go messaging and live position count
+Status: VERIFIED LOCALLY - COMMIT fdbccba (2026-09-29)
+Depends on: TKT-314, TKT-503 (versioned formation cache)
+Scope:
+- The match lobby and public preview show the T-30 rule, a live "X of Y positions filled" count, and the confirmed or auto-cancelled/refunded outcome.
+- The preview adds aggregate positions and LINEUP_LOCKED joinability.
+Tests: banner states (14:00 -> 13:30 example); preview DTO; the position-claim E2E asserts the rule text and "2 of 10 positions filled" converging on three boards.
+
+Follow-ups (not implemented, recorded for decision):
+- Legal: the Terms of Service text contradicts DEC-018. See the DEC-018 runbook for the clause-by-clause list.
+- Venue commercial terms: a T-30 auto-cancel happens inside most venues' 24-hour late-cancellation window. DEC-018 records that FootyFinder owes the venue nothing for a cancelled match, and venue agreements must say so.
+- Monitoring: an unconfirmed go/no-go match past kickoff means its job did not run. Alert on QUICK_MATCH_GO_NO_GO jobs overdue or FAILED.
 
 10. GATE 6 - PERSONAL PAYMENTS AND VENUE SETTLEMENT
 ===================================================

@@ -92,6 +92,27 @@ The existing generic Team-fixture update/cancel permission accepts an OWNER or C
 
 ## Approved target state machines
 
+### Quick Match T-30 go/no-go (DEC-018)
+
+Status: **implemented** (TKT-314). Applies to Quick Matches with `goNoGoAt` set (created under DEC-018); legacy matches keep the older rules.
+
+```text
+OPEN / READY (lobby open: join, leave, claim, host edits, host cancel)
+      |
+      | goNoGoAt = kickoff - 30 min  (lobby frozen from here: 409 LINEUP_LOCKED)
+      v
+QUICK_MATCH_GO_NO_GO durable job (idempotent, Match row lock)
+      |-- every formation position claimed --> confirmedAt set (match goes ahead; subs optional)
+      |                                         --> kickoff: IN_PROGRESS (scheduler starts only confirmed matches)
+      '-- otherwise --> CANCELLED (cancellationReason POSITIONS_UNFILLED):
+                        every SUCCEEDED R80 payment fully credited once, reservation CANCELLED,
+                        nothing owed to the venue, joined players and host notified
+```
+
+- Every place costs the platform-fixed R80, subs included. Hosts cannot set a fee and place no venue guarantee.
+- Leaving before T-30 keeps the 12-hour credit rule. A late leaver is refunded if the match is later auto-cancelled.
+- Host cancellation is allowed until T-30 only (`cancellationReason ORGANISER_CANCELLED`). It uses the same refund core and idempotency keys, so a host cancel followed by the T-30 job never refunds twice.
+
 ### Quick Match position claims (Gate 5)
 
 Status: **implemented in Gate 5** (claim command, organiser audit/notification, formation versioning). The rules below are now current behavior.
