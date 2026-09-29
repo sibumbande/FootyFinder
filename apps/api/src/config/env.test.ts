@@ -36,8 +36,30 @@ describe('environment contract', () => {
         POSTMARK_SERVER_TOKEN: 'production-postmark-token',
         PAYMENT_PROVIDER: 'paystack',
         PAYSTACK_SECRET_KEY: 'sk_live_fake-value-for-schema-test',
+        VENUE_BENEFICIARY_ENCRYPTION_KEY: 'an-independent-beneficiary-encryption-key',
       }).success,
     ).toBe(true);
+  });
+
+  it('requires a separate venue beneficiary encryption key in production (TKT-607)', () => {
+    const production = {
+      ...valid,
+      NODE_ENV: 'production',
+      CLIENT_URL: 'https://player.example.test',
+      ADMIN_CLIENT_URL: 'https://admin.example.test',
+      PUBLIC_API_URL: 'https://api.example.test',
+      TRUST_PROXY_HOPS: '1',
+      ADMIN_MFA_ENCRYPTION_KEY: 'an-independent-production-mfa-key',
+      EMAIL_PROVIDER: 'postmark',
+      EMAIL_FROM: 'no-reply@footyfinder.co.za',
+      POSTMARK_SERVER_TOKEN: 'production-postmark-token',
+      PAYMENT_PROVIDER: 'paystack',
+      PAYSTACK_SECRET_KEY: 'sk_live_fake-value-for-schema-test',
+    };
+    expect(envSchema.safeParse(production).success).toBe(false);
+    expect(
+      envSchema.safeParse({ ...production, VENUE_BENEFICIARY_ENCRYPTION_KEY: production.ADMIN_MFA_ENCRYPTION_KEY }).success,
+    ).toBe(false);
   });
 
   it('accepts only test Paystack keys outside production and live keys in production (TKT-604)', () => {

@@ -144,6 +144,7 @@ const { bookingsRouter } = await import('../bookings/bookings.routes.js');
 const { errorHandler } = await import('../../middleware/error-handler.js');
 const { WalletHistoryService } = await import('../wallet/wallet-history.service.js');
 const { toTopUpStatus } = await import('../payments/top-up.service.js');
+const { toAdminBeneficiary, toAdminPayable } = await import('../settlement/venue-settlement.service.js');
 
 const user = (id: string) => ({
   id,
@@ -298,6 +299,48 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     expect(history.entries[1]).toMatchObject({ amountCents: -8_000, related: { name: 'Privacy match' } });
     // Negative control for the money-DTO detector.
     expect(() => expectNoVenueCostInMoneyDto({ entries: [{ priceCentsSnapshot: 1 }] })).toThrow();
+  });
+
+  it('venue payables and bank details stay admin-only (Gate 6, TKT-607)', () => {
+    // A match row that has a payable attached still maps to a player DTO without it.
+    const withPayable = { ...matchRecord, venuePayable: { amountCents: 100_000, status: 'DUE' } };
+    expectNoVenueCost(toMatch(withPayable as never, { viewerCanManage: true }));
+    const payable = toAdminPayable({
+      id: 'payable-1',
+      reservationId: 'reservation-1',
+      matchId: matchRecord.id,
+      venueId: 'venue-1',
+      amountCents: 100_000,
+      currency: 'ZAR',
+      status: 'DUE',
+      dueAt: now,
+      paidAt: null,
+      createdAt: now,
+      updatedAt: now,
+      match: { name: 'Privacy match', startsAt: now },
+      venue: { id: 'venue-1', name: 'Italian Club' },
+      adjustments: [],
+    } as never);
+    // Negative control: the admin payable is exactly what the player-facing detectors reject.
+    expect(() => expectNoVenueCostInMoneyDto(payable)).toThrow();
+    const beneficiary = toAdminBeneficiary({
+      id: 'beneficiary-1',
+      venueId: 'venue-1',
+      displayName: 'Test Venue Trust (fake)',
+      encryptedDetails: 'v1.fake.fake.fake',
+      keyVersion: 1,
+      accountLast4: '0001',
+      linkedUserId: null,
+      status: 'APPROVED',
+      createdByUserId: 'admin-a',
+      approvedByUserId: 'admin-b',
+      approvedAt: now,
+      retiredAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    expect(Object.keys(beneficiary)).not.toEqual(expect.arrayContaining(['encryptedDetails']));
+    expect(JSON.stringify(beneficiary)).not.toMatch(/accountNumber|branchCode|accountHolder|v1\.fake/);
   });
 
   it('card top-up DTOs carry no venue cost or provider internals (Gate 6)', () => {

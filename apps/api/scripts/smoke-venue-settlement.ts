@@ -1,0 +1,261 @@
+import './assert-disposable-test-database.js';
+import { randomUUID } from 'node:crypto';
+import type { MatchFormat } from '@footy-finder/shared';
+import { prisma } from '../src/database/prisma.js';
+import { serializableTransaction } from '../src/database/transaction.js';
+import { BookingsService } from '../src/modules/bookings/bookings.service.js';
+import { goNoGoJobDedupeKey } from '../src/modules/matches/go-no-go.js';
+import { fillReminderJobDedupeKey } from '../src/modules/matches/fill-reminder.js';
+import { transitionMatchToStarted } from '../src/modules/matches/match-lifecycle.scheduler.js';
+import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
+import { MatchesService } from '../src/modules/matches/matches.service.js';
+import { VenueSettlementService } from '../src/modules/settlement/venue-settlement.service.js';
+import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
+
+/**
+ * Gate 6 venue settlement smoke (real PostgreSQL). DEC-012 + DEC-018: a payable exists only for a
+ * confirmed match that went ahead, exactly once per reservation, from the admin-only snapshot.
+ * Bank details are fake, encrypted at rest, dual-control approved and revealed only with audit.
+ */
+const marker = `gate6-settle-${randomUUID()}`;
+const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
+  if (!condition) throw new Error(message);
+};
+const code = async (promise: Promise<unknown>) => {
+  try {
+    await promise;
+    return 'OK';
+  } catch (error) {
+    return (error as { code?: string }).code ?? String(error);
+  }
+};
+const bookings = new BookingsService();
+const matches = new MatchesRepository();
+const service = new MatchesService();
+const financial = new FinancialRepository();
+const settlement = new VenueSettlementService();
+const userIds: string[] = [];
+const matchIds: string[] = [];
+let hostId = '';
+let venueId = '';
+let fieldId = '';
+let matchIndex = 0;
+// AdminAuditLog is append-only, so the two disposable admins and their audit rows are retained.
+const admins: string[] = [];
+
+const nextKickoff = () => {
+  const day = new Date(Date.now() + (3 + matchIndex++) * 86_400_000);
+  day.setUTCHours(10, 0, 0, 0);
+  return day;
+};
+
+async function createMatch(format: MatchFormat = 'FIVE_A_SIDE') {
+  const match = await bookings.createQuickMatch(
+    {
+      managedFieldId: fieldId,
+      name: `${marker}-${matchIndex}`,
+      format,
+      substituteCapacityPerTeam: 5,
+      rollingSubstitutes: false,
+      rules: [],
+      visibility: 'PUBLIC',
+      startsAt: nextKickoff().toISOString(),
+    },
+    hostId,
+  );
+  matchIds.push(match.id);
+  return match;
+}
+
+/** Joins players alternately and claims every formation slot when fill is true. */
+async function joinPlayers(matchId: string, players: string[], fill: boolean) {
+  const slots = await prisma.formationSlot.findMany({ where: { matchId }, orderBy: [{ team: 'asc' }, { slotIndex: 'asc' }] });
+  const home = slots.filter((slot) => slot.team === 'HOME');
+  const away = slots.filter((slot) => slot.team === 'AWAY');
+  for (const [index, userId] of players.entries()) {
+    const team = index % 2 === 0 ? 'HOME' : 'AWAY';
+    await matches.join(matchId, userId, { team }, `${marker}:join:${matchId}:${userId}`);
+    const target = (team === 'HOME' ? home : away)[Math.floor(index / 2)];
+    if (fill && target) await matches.claimPosition(matchId, target.id, userId);
+  }
+}
+
+async function decideAt(matchId: string) {
+  const match = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
+  return service.decideGoNoGo(matchId, match.goNoGoAt!);
+}
+
+async function main() {
+  const users = await Promise.all(
+    Array.from({ length: 13 }, (_, index) =>
+      prisma.user.create({
+        data: {
+          email: `${marker}-${index}@smoke.invalid`,
+          username: `${marker.slice(-16)}_${index}`,
+          passwordHash: 'smoke',
+          profile: { create: { displayName: `Settlement ${index}` } },
+          walletAccount: { create: {} },
+        },
+      }),
+    ),
+  );
+  userIds.push(...users.map(({ id }) => id));
+  hostId = userIds[0]!;
+  for (const [index, userId] of userIds.entries())
+    await serializableTransaction((tx) =>
+      financial.credit(tx, { userId, amountCents: 100_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:seed:${index}`, referenceType: 'SMOKE', referenceId: marker }),
+    );
+  for (const label of ['a', 'b']) {
+    const admin = await prisma.user.create({
+      data: { email: `${marker}-admin-${label}@smoke.invalid`, username: `${marker.slice(-14)}_adm_${label}`, passwordHash: 'smoke', platformRole: 'ADMIN' },
+    });
+    admins.push(admin.id);
+  }
+  const [adminA, adminB] = admins as [string, string];
+  const priceFrom = new Date(Date.now() - 86_400_000);
+  const venue = await prisma.managedVenue.create({
+    data: {
+      slug: `${marker}-venue`,
+      name: marker,
+      addressLine1: '1 Settlement Road',
+      city: 'Cape Town',
+      region: 'Western Cape',
+      countryCode: 'ZA',
+      fields: {
+        create: {
+          name: 'Main Pitch',
+          supportedFormats: { create: [{ format: 'FIVE_A_SIDE' }] },
+          availabilityPeriods: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startMinute: 0, endMinute: 1440 })) },
+          prices: { create: [{ amountCents: 50_000, format: 'FIVE_A_SIDE', effectiveFrom: priceFrom }] },
+        },
+      },
+      cancellationPolicies: { create: { effectiveFrom: priceFrom, policyText: 'Full credit more than 24 hours before kickoff.' } },
+    },
+    include: { fields: true },
+  });
+  venueId = venue.id;
+  fieldId = venue.fields[0]!.id;
+  await prisma.managedVenue.update({
+    where: { id: venueId },
+    data: { publicationStatus: 'PUBLISHED', submittedByUserId: adminA, submittedAt: new Date(), approvedByUserId: adminB, approvedAt: new Date() },
+  });
+  const players = userIds.slice(1);
+
+  // 1. A confirmed match that goes ahead owes its venue exactly once, from the snapshot.
+  const played = await createMatch();
+  await joinPlayers(played.id, players.slice(0, 10), true);
+  assert((await decideAt(played.id)).outcome === 'CONFIRMED', 'Full match was not confirmed at T-30.');
+  assert((await prisma.venuePayable.count({ where: { matchId: played.id } })) === 0, 'A payable existed before kickoff.');
+  const starts = await Promise.allSettled([transitionMatchToStarted(played.id), transitionMatchToStarted(played.id), transitionMatchToStarted(played.id)]);
+  assert(starts.filter((result) => result.status === 'fulfilled' && result.value).length === 1, 'Kickoff transition did not happen exactly once.');
+  const payables = await prisma.venuePayable.findMany({ where: { matchId: played.id } });
+  const reservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: played.id } });
+  assert(payables.length === 1, 'Kickoff did not create exactly one payable.');
+  assert(payables[0]!.amountCents === reservation.priceCentsSnapshot && reservation.priceCentsSnapshot === 50_000, 'Payable is not the admin-only price snapshot.');
+  assert(payables[0]!.status === 'DUE' && payables[0]!.dueAt.toISOString() === new Date(played.startsAt).toISOString(), 'Payable not DUE at kickoff.');
+  assert(payables[0]!.venueId === venueId && payables[0]!.reservationId === reservation.id, 'Payable not linked to its venue and reservation.');
+
+  // 2. T-30 auto-cancel: no payable, ever.
+  const unfilled = await createMatch();
+  await joinPlayers(unfilled.id, players.slice(0, 3), true);
+  assert((await decideAt(unfilled.id)).outcome === 'CANCELLED', 'Unfilled match was not cancelled.');
+  assert(!(await transitionMatchToStarted(unfilled.id)), 'A cancelled match kicked off.');
+  assert((await prisma.venuePayable.count({ where: { matchId: unfilled.id } })) === 0, 'A T-30 cancelled match created a payable.');
+
+  // 3. Host cancel: no payable.
+  const hostCancelled = await createMatch();
+  await joinPlayers(hostCancelled.id, players.slice(0, 2), true);
+  await service.remove(hostCancelled.id, hostId);
+  assert(!(await transitionMatchToStarted(hostCancelled.id)), 'A host-cancelled match kicked off.');
+  assert((await prisma.venuePayable.count({ where: { matchId: hostCancelled.id } })) === 0, 'A host-cancelled match created a payable.');
+
+  // 4. D4: a legacy match (no go/no-go) that kicks off creates no payable.
+  const legacy = await createMatch();
+  await prisma.durableJob.deleteMany({ where: { dedupeKey: { in: [goNoGoJobDedupeKey(legacy.id), fillReminderJobDedupeKey(legacy.id)] } } });
+  await prisma.match.update({ where: { id: legacy.id }, data: { goNoGoAt: null, confirmedAt: null } });
+  assert(await transitionMatchToStarted(legacy.id), 'Legacy match did not start.');
+  assert((await prisma.venuePayable.count({ where: { matchId: legacy.id } })) === 0, 'A legacy match created a payable.');
+
+  // 5. The database refuses ineligible payables even if application code tried.
+  const unfilledReservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: unfilled.id } });
+  const refused = async (data: { reservationId: string; matchId: string; amountCents: number }) =>
+    prisma.venuePayable.create({ data: { ...data, venueId, dueAt: new Date() } }).then(() => 'OK', (error: unknown) => String(error));
+  assert((await refused({ reservationId: unfilledReservation.id, matchId: unfilled.id, amountCents: 50_000 })).includes('not eligible'), 'DB accepted a payable for a cancelled match.');
+  const legacyReservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: legacy.id } });
+  assert((await refused({ reservationId: legacyReservation.id, matchId: legacy.id, amountCents: 50_000 })).includes('not eligible'), 'DB accepted a payable for an unconfirmed match.');
+  const duplicate = await refused({ reservationId: reservation.id, matchId: played.id, amountCents: 50_000 });
+  assert(duplicate !== 'OK', 'DB accepted a second payable for one reservation.');
+
+  // 6. Beneficiary: fake details, encrypted at rest, second-admin approval, audited reveal.
+  const fakeDetails = { bankName: 'Test Bank (fake)', accountHolder: 'Smoke Venue Trust (fake)', accountNumber: '62000000001', branchCode: '250655', accountType: 'CHEQUE' as const };
+  const beneficiary = await settlement.createBeneficiary(adminA, venueId, { displayName: 'Smoke Venue Trust (fake)', details: fakeDetails }, marker);
+  const stored = await prisma.venueBeneficiary.findUniqueOrThrow({ where: { id: beneficiary.id } });
+  assert(!stored.encryptedDetails.includes('62000000001') && !stored.encryptedDetails.includes('250655'), 'Bank details stored in plaintext.');
+  assert(beneficiary.accountLast4 === '0001' && !JSON.stringify(beneficiary).includes('62000000001'), 'Beneficiary DTO is not masked.');
+  assert((await code(settlement.approveBeneficiary(adminA, beneficiary.id))) === 'BENEFICIARY_DUAL_CONTROL_REQUIRED', 'Creator approved their own bank details.');
+  assert((await settlement.approveBeneficiary(adminB, beneficiary.id)).status === 'APPROVED', 'Second admin could not approve.');
+  const revealed = await settlement.revealBeneficiary(adminB, beneficiary.id, marker);
+  assert(JSON.stringify(revealed) === JSON.stringify(fakeDetails), 'Reveal did not return the stored details.');
+  assert((await prisma.adminAuditLog.count({ where: { entityId: beneficiary.id, action: 'VENUE_BENEFICIARY_REVEALED' } })) === 1, 'Reveal not audited.');
+  const audits = await prisma.adminAuditLog.findMany({ where: { entityId: beneficiary.id } });
+  assert(!JSON.stringify(audits).includes('62000000001'), 'Bank details leaked into the audit log.');
+  const replacement = await settlement.createBeneficiary(adminB, venueId, { displayName: 'Smoke Venue Trust (fake, new)', details: { ...fakeDetails, accountNumber: '62000000002' } });
+  await settlement.approveBeneficiary(adminA, replacement.id);
+  const venueBeneficiaries = await settlement.beneficiaries(venueId);
+  assert(venueBeneficiaries.filter((row) => row.status === 'APPROVED').length === 1, 'More than one approved beneficiary per venue.');
+
+  // 7. Adjustments: reasoned, audited, and never make an unpaid payable negative.
+  const adjusted = await settlement.addAdjustment(adminA, payables[0]!.id, { amountCents: -10_000, reason: 'Floodlights failed for 15 minutes' });
+  assert(adjusted.adjustmentsCents === -10_000, 'Adjustment not recorded.');
+  assert((await code(settlement.addAdjustment(adminA, payables[0]!.id, { amountCents: -45_000, reason: 'Too large' }))) === 'ADJUSTMENT_INVALID', 'Adjustment took the payable below zero.');
+
+  // 8. Players never see any of this.
+  const participant = players[0]!;
+  const playerMatch = await service.get(played.id, participant);
+  assert(!JSON.stringify(playerMatch).match(/payable|beneficiary|priceCents|50000/i), 'A player match DTO exposed venue settlement data.');
+
+  console.log('Gate 6 venue settlement smoke passed: one payable per played match at kickoff from the snapshot, none for T-30/host-cancelled or legacy matches, DB eligibility trigger, encrypted dual-control beneficiaries with audited reveal, adjustments, player privacy.');
+}
+
+async function cleanup() {
+  const reservationIds = (await prisma.fieldReservation.findMany({ where: { matchId: { in: matchIds } }, select: { id: true } })).map(({ id }) => id);
+  await prisma.venuePayableAdjustment.deleteMany({ where: { payable: { matchId: { in: matchIds } } } });
+  await prisma.venuePayable.deleteMany({ where: { matchId: { in: matchIds } } });
+  if (venueId) await prisma.venueBeneficiary.deleteMany({ where: { venueId } });
+  await prisma.durableJob.deleteMany({
+    where: {
+      OR: [
+        ...matchIds.map((id) => ({ dedupeKey: goNoGoJobDedupeKey(id) })),
+        ...matchIds.map((id) => ({ dedupeKey: fillReminderJobDedupeKey(id) })),
+        ...matchIds.map((id) => ({ dedupeKey: { startsWith: `match-cancelled-email:${id}:` } })),
+        ...reservationIds.map((id) => ({ dedupeKey: `reservation-expire:${id}` })),
+      ],
+    },
+  });
+  await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.fieldReservation.deleteMany({ where: { id: { in: reservationIds } } });
+  const venueIds = (await prisma.match.findMany({ where: { id: { in: matchIds } }, select: { venueId: true } })).map(({ venueId: id }) => id);
+  await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
+  await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
+  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
+  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
+  if (venueId) {
+    await prisma.managedFieldPrice.deleteMany({ where: { field: { venueId } } });
+    await prisma.venueCancellationPolicy.deleteMany({ where: { venueId } });
+    await prisma.managedField.deleteMany({ where: { venueId } });
+    await prisma.managedVenue.update({ where: { id: venueId }, data: { publicationStatus: 'DRAFT', submittedByUserId: null, submittedAt: null, approvedByUserId: null, approvedAt: null } });
+    await prisma.managedVenue.delete({ where: { id: venueId } });
+  }
+  await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  assert((await prisma.match.count({ where: { id: { in: matchIds } } })) === 0, 'Smoke matches remained.');
+}
+
+try {
+  await main();
+} finally {
+  await cleanup().catch((error: unknown) => {
+    console.error('Cleanup failed:', error);
+    process.exitCode = 1;
+  });
+  await prisma.$disconnect();
+}

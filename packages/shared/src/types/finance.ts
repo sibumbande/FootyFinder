@@ -51,3 +51,45 @@ export interface AdminRestrictedWallet {
   reason?: string;
   openDisputes: number;
 }
+
+/** Gate 6 / TKT-607: venue bank details. Admin-only; returned in full only by the audited reveal. */
+export type BankAccountType = 'CHEQUE' | 'SAVINGS' | 'TRANSMISSION';
+
+export interface VenueBankDetails {
+  bankName: string;
+  accountHolder: string;
+  accountNumber: string;
+  branchCode: string;
+  accountType: BankAccountType;
+}
+
+export interface AdminVenueBeneficiary {
+  id: string;
+  venueId: string;
+  displayName: string;
+  /** Masked: only the last four digits of the account number. */
+  accountLast4: string;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'RETIRED';
+  linkedUserId?: string;
+  createdByUserId: string;
+  approvedByUserId?: string;
+  approvedAt?: string;
+  createdAt: string;
+}
+
+export type VenuePayableStatus = 'DUE' | 'IN_BATCH' | 'PAID' | 'VOID';
+
+export interface AdminVenuePayable {
+  id: string;
+  reservationId: string;
+  matchId: string;
+  matchName: string;
+  kickoffAt: string;
+  venue: { id: string; name: string };
+  amountCents: number;
+  adjustmentsCents: number;
+  status: VenuePayableStatus;
+  dueAt: string;
+  paidAt?: string;
+  adjustments: Array<{ id: string; amountCents: number; reason: string; actorUserId: string; createdAt: string }>;
+}

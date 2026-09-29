@@ -139,3 +139,26 @@ export const adminTopUpQuerySchema = z.object({
   status: z.enum(['INITIALIZED', 'SUCCEEDED', 'FAILED', 'REVIEW']).optional(),
   reference: z.string().trim().max(120).optional(),
 });
+
+/** Gate 6 / TKT-607: venue bank details (South African account formats). Fake data in non-production. */
+export const venueBankDetailsSchema = z.object({
+  bankName: z.string().trim().min(2).max(80),
+  accountHolder: z.string().trim().min(2).max(120),
+  accountNumber: z.string().trim().regex(/^[0-9]{6,16}$/, 'Account number must be 6 to 16 digits.'),
+  branchCode: z.string().trim().regex(/^[0-9]{6}$/, 'Branch code must be 6 digits.'),
+  accountType: z.enum(['CHEQUE', 'SAVINGS', 'TRANSMISSION']),
+});
+export const createVenueBeneficiarySchema = z.object({
+  displayName: z.string().trim().min(2).max(120),
+  details: venueBankDetailsSchema,
+  linkedUserId: z.string().uuid().optional(),
+});
+export type CreateVenueBeneficiaryInput = z.infer<typeof createVenueBeneficiarySchema>;
+export const venuePayableAdjustmentSchema = z.object({
+  amountCents: z.number().int().refine((value) => value !== 0, 'Adjustment cannot be zero.').refine((value) => Math.abs(value) <= 10_000_000),
+  reason: z.string().trim().min(5).max(500),
+});
+export const adminPayableQuerySchema = z.object({
+  status: z.enum(['DUE', 'IN_BATCH', 'PAID', 'VOID']).optional(),
+  venueId: z.string().uuid().optional(),
+});

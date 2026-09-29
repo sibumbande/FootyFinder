@@ -26,6 +26,8 @@ export const envSchema = z
     RATE_LIMIT_PUBLIC_PREVIEWS_PER_MINUTE: z.coerce.number().int().positive().default(120),
     ADMIN_MFA_ENCRYPTION_KEY: z.string().min(32).optional(),
     ADMIN_MFA_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(720),
+    // TKT-607: encrypts venue bank details at rest. Separate from every other key.
+    VENUE_BENEFICIARY_ENCRYPTION_KEY: z.string().min(32).optional(),
     ADMIN_TEST_DATA_ENABLED: z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
@@ -130,6 +132,18 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['ADMIN_MFA_ENCRYPTION_KEY'],
         message: 'ADMIN_MFA_ENCRYPTION_KEY is required in production',
+      });
+    if (!value.VENUE_BENEFICIARY_ENCRYPTION_KEY)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VENUE_BENEFICIARY_ENCRYPTION_KEY'],
+        message: 'VENUE_BENEFICIARY_ENCRYPTION_KEY is required in production',
+      });
+    else if (value.VENUE_BENEFICIARY_ENCRYPTION_KEY === value.ADMIN_MFA_ENCRYPTION_KEY)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VENUE_BENEFICIARY_ENCRYPTION_KEY'],
+        message: 'VENUE_BENEFICIARY_ENCRYPTION_KEY must differ from ADMIN_MFA_ENCRYPTION_KEY',
       });
     if (value.ADMIN_TEST_DATA_ENABLED)
       context.addIssue({

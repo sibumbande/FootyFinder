@@ -108,6 +108,19 @@ enum WalletHoldStatus {
   EXPIRED
 }
 
+enum VenueBeneficiaryStatus {
+  PENDING_APPROVAL
+  APPROVED
+  RETIRED
+}
+
+enum VenuePayableStatus {
+  DUE
+  IN_BATCH
+  PAID
+  VOID
+}
+
 enum ProviderRefundStatus {
   PENDING
   PROCESSING
@@ -417,6 +430,10 @@ model User {
   deactivatedVenues         ManagedVenue[]            @relation("VenueDeactivator")
   providerPayments          ProviderPayment[]
   initiatedRefunds          ProviderRefund[]          @relation("RefundInitiator")
+  linkedBeneficiaries       VenueBeneficiary[]        @relation("BeneficiaryLinkedUser")
+  createdBeneficiaries      VenueBeneficiary[]        @relation("BeneficiaryCreator")
+  approvedBeneficiaries     VenueBeneficiary[]        @relation("BeneficiaryApprover")
+  payableAdjustments        VenuePayableAdjustment[]
   restoredRefunds           ProviderRefund[]          @relation("RefundRestorer")
 
   @@index([isTestAccount, testDataBatchId])
@@ -616,6 +633,8 @@ model ManagedVenue {
   media                 ManagedVenueMedia[]
   slugAliases           ManagedVenueSlugAlias[]
   cancellationPolicies  VenueCancellationPolicy[]
+  beneficiaries         VenueBeneficiary[]
+  payables              VenuePayable[]
   submittedBy           User?                     @relation("VenueSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
   approvedBy            User?                     @relation("VenueApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   deactivatedBy         User?                     @relation("VenueDeactivator", fields: [deactivatedByUserId], references: [id], onDelete: Restrict)
@@ -1024,6 +1043,65 @@ model ProviderDispute {
   @@index([status, openedAt])
 }
 
+/// Gate 6 / TKT-607: a venue's bank details (encrypted, admin-only, second-admin approval).
+model VenueBeneficiary {
+  id               String                 @id @db.Uuid
+  venueId          String                 @db.Uuid
+  displayName      String
+  encryptedDetails String
+  keyVersion       Int                    @default(1)
+  accountLast4     String
+  linkedUserId     String?                @db.Uuid
+  status           VenueBeneficiaryStatus @default(PENDING_APPROVAL)
+  createdByUserId  String                 @db.Uuid
+  approvedByUserId String?                @db.Uuid
+  approvedAt       DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  venue            ManagedVenue           @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  linkedUser       User?                  @relation("BeneficiaryLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy        User                   @relation("BeneficiaryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy       User?                  @relation("BeneficiaryApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([venueId, status])
+}
+
+/// Gate 6 / TKT-607: what FootyFinder owes a venue for one match that went ahead (admin-only).
+model VenuePayable {
+  id            String                   @id @default(uuid()) @db.Uuid
+  reservationId String                   @unique @db.Uuid
+  matchId       String                   @unique @db.Uuid
+  venueId       String                   @db.Uuid
+  amountCents   Int
+  currency      String                   @default("ZAR")
+  status        VenuePayableStatus       @default(DUE)
+  dueAt         DateTime
+  paidAt        DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  reservation   FieldReservation         @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  match         Match                    @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  venue         ManagedVenue             @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  adjustments   VenuePayableAdjustment[]
+
+  @@index([venueId, status, dueAt])
+}
+
+/// Gate 6 / TKT-607: a reasoned correction to a payable (applied before or at the next settlement).
+model VenuePayableAdjustment {
+  id          String       @id @default(uuid()) @db.Uuid
+  payableId   String       @db.Uuid
+  amountCents Int
+  reason      String
+  actorUserId String       @db.Uuid
+  createdAt   DateTime     @default(now())
+  payable     VenuePayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  actor       User         @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([payableId, createdAt])
+}
+
 /// Gate 6 / TKT-605: every Paystack webhook delivery (bad signatures keep no payload).
 model PaymentWebhookEvent {
   id             String    @id @default(uuid()) @db.Uuid
@@ -1117,6 +1195,7 @@ model Match {
   teamSides                 MatchTeam[]
   fieldReservation          FieldReservation?
   formationEvents           MatchFormationEvent[]
+  venuePayable              VenuePayable?
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1157,6 +1236,7 @@ model FieldReservation {
   organizerGuaranteeHold          WalletHold?              @relation("ReservationOrganiserGuarantee", fields: [organizerGuaranteeHoldId], references: [id], onDelete: Restrict)
   match                           Match                    @relation(fields: [matchId], references: [id], onDelete: Restrict)
   obligations                     FundingObligation[]
+  venuePayable                    VenuePayable?
 
   @@index([fieldId, status, startsAt, endsAt])
   @@index([status, fundingDeadline])

@@ -8,6 +8,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { logError } from '../../observability/logger.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
+import { createVenuePayableForStartedMatch } from '../settlement/venue-payables.js';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -64,6 +65,8 @@ export async function transitionMatchToStarted(
       data: { status: 'IN_PROGRESS' },
     });
     if (transition.count !== 1) return null;
+    // Gate 6 / TKT-607: kickoff is when a confirmed match has gone ahead and its venue is owed.
+    await createVenuePayableForStartedMatch(tx, matchId);
     const match = await tx.match.findUniqueOrThrow({
       where: { id: matchId },
       select: {

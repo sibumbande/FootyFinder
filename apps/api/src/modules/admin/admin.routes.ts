@@ -5,6 +5,7 @@ import * as controller from './admin.controller.js';
 import * as moderation from '../moderation/moderation.controller.js';
 import * as disputes from '../disputes/disputes.controller.js';
 import * as finance from '../payments/admin-finance.controller.js';
+import * as settlement from '../settlement/venue-settlement.controller.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
 adminAuthRouter.get('/status', controller.status);
@@ -24,6 +25,8 @@ registerUuidRouteParams(adminRouter, [
   'disputeId',
   'paymentId',
   'refundId',
+  'beneficiaryId',
+  'payableId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -82,6 +85,13 @@ adminRouter.post('/finance/refunds/:refundId/retry', costlyMutationRateLimit, fi
 adminRouter.post('/finance/refunds/:refundId/restore', costlyMutationRateLimit, finance.restoreRefund);
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
 adminRouter.post('/finance/wallets/:userId/lift-restriction', costlyMutationRateLimit, finance.liftRestriction);
+// Gate 6 / TKT-607: venue beneficiaries (encrypted bank details) and payables. Admin-only.
+adminRouter.get('/venues/:venueId/beneficiaries', settlement.listBeneficiaries);
+adminRouter.post('/venues/:venueId/beneficiaries', costlyMutationRateLimit, settlement.createBeneficiary);
+adminRouter.post('/beneficiaries/:beneficiaryId/approve', costlyMutationRateLimit, settlement.approveBeneficiary);
+adminRouter.post('/beneficiaries/:beneficiaryId/reveal', costlyMutationRateLimit, settlement.revealBeneficiary);
+adminRouter.get('/settlement/payables', settlement.listPayables);
+adminRouter.post('/settlement/payables/:payableId/adjustments', costlyMutationRateLimit, settlement.adjustPayable);
 adminRouter.get('/matches', controller.listManagedMatches);
 adminRouter.post('/matches', costlyMutationRateLimit, controller.createManagedMatch);
 adminRouter.get('/moderation/reports', moderation.listReports);
