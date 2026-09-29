@@ -12,6 +12,7 @@ import type {
 } from '@footy-finder/shared';
 import {
   canChangeLobby,
+  isLobbyFrozen,
   getCancellationCreditCents,
   getEffectiveMatchStatus,
   isMatchAtCapacity,
@@ -31,6 +32,8 @@ import {
   AlreadyJoinedError,
   FormationSlotNotFoundError,
   InsufficientBalanceError,
+  GoNoGoNotDueError,
+  LineupLockedError,
   MatchClosedError,
   MatchesRepository,
   NotMatchParticipantError,
@@ -271,6 +274,7 @@ export class MatchesService {
       return cancellation;
     } catch (error) {
       if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
+      if (error instanceof LineupLockedError) this.throwLineupLocked();
       if (error instanceof MatchClosedError)
         throw new AppError(409, 'You cannot leave once kickoff has arrived.', 'MATCH_STARTED');
       throw error;
@@ -332,12 +336,45 @@ export class MatchesService {
       if (error instanceof FormationSlotNotFoundError)
         throw new AppError(404, 'That position does not exist in this match.', 'FORMATION_SLOT_NOT_FOUND');
       if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
+      if (error instanceof LineupLockedError) this.throwLineupLocked();
       if (error instanceof MatchClosedError)
         throw new AppError(409, 'Positions cannot change after kickoff.', 'MATCH_STARTED');
       if (error instanceof NotMatchParticipantError)
         throw new AppError(403, 'Join this match before claiming a position.', 'MATCH_PARTICIPANT_REQUIRED');
       if (error instanceof PositionWrongSideError)
         throw new AppError(403, 'You can only claim a position on your own team.', 'POSITION_WRONG_SIDE');
+      throw error;
+    }
+  }
+
+  /**
+   * DEC-018 T-30 go/no-go for one match (durable QUICK_MATCH_GO_NO_GO job). Idempotent: a repeat
+   * or late run returns ALREADY_DECIDED without moving money. GoNoGoNotDueError propagates so the
+   * durable queue retries a job that somehow ran early.
+   */
+  async decideGoNoGo(matchId: string, now = new Date()) {
+    try {
+      const result = await this.matches.decideGoNoGo(matchId, now);
+      this.notifications.publishPersistedMany(result.notifications);
+      if (result.outcome === 'CONFIRMED') {
+        incrementOperationalMetric('go_no_go_confirmed_total');
+        emitDomainEventBestEffort('match:updated', { matchId });
+      } else if (result.outcome === 'CANCELLED') {
+        incrementOperationalMetric('go_no_go_cancelled_total');
+        emitDomainEventBestEffort('match:cancelled', { matchId });
+      }
+      logInfo('go_no_go_decided', {
+        matchId,
+        outcome: result.outcome,
+        filled: result.filled,
+        total: result.total,
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof GoNoGoNotDueError)
+        throw Object.assign(new Error('Go/no-go check ran before its due time.'), {
+          code: 'GO_NO_GO_NOT_DUE',
+        });
       throw error;
     }
   }
@@ -373,6 +410,7 @@ export class MatchesService {
       if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
       if (error instanceof TeamFullError)
         throw new AppError(409, 'That team is full.', 'TEAM_FULL');
+      if (error instanceof LineupLockedError) this.throwLineupLocked();
       if (error instanceof MatchClosedError)
         throw new AppError(409, 'Teams cannot change after kickoff.', 'MATCH_STARTED');
       if (error instanceof Error && error.message === 'ON_FIELD_SWITCH')
@@ -461,6 +499,16 @@ export class MatchesService {
       })
     )
       throw new AppError(409, 'This action is unavailable after kickoff.', 'MATCH_STARTED');
+    // DEC-018 (D1): from the go/no-go instant the lobby is frozen, including organiser edits and
+    // host cancellation (D3).
+    if (isLobbyFrozen(match)) this.throwLineupLocked();
+  }
+  private throwLineupLocked(): never {
+    throw new AppError(
+      409,
+      'The lineup locked 30 minutes before kickoff for the go/no-go check.',
+      'LINEUP_LOCKED',
+    );
   }
   private rethrowJoinError(error: unknown): never {
     if (error instanceof InsufficientBalanceError)
@@ -477,6 +525,7 @@ export class MatchesService {
       );
     if (error instanceof TeamFullError) throw new AppError(409, 'That team is full.', 'TEAM_FULL');
     if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
+    if (error instanceof LineupLockedError) this.throwLineupLocked();
     if (error instanceof MatchClosedError)
       throw new AppError(409, 'This match is no longer accepting players.', 'MATCH_CLOSED');
     throw error;

@@ -147,4 +147,34 @@ describe('Quick Match creation fee (DEC-018)', () => {
     expect(captured.reservation[0]).not.toHaveProperty('organizerGuaranteeHoldId');
     expect(captured.jobs.map(({ type }) => type)).not.toContain('QUICK_MATCH_GUARANTEE_SETTLE');
   });
+
+  it.each(['host', 'admin'] as const)(
+    'schedules the T-30 go/no-go check in the same transaction (%s-created match)',
+    async (creator) => {
+      const service = new BookingsService(financial());
+      const created =
+        creator === 'host'
+          ? service.createQuickMatch(input, 'host-1')
+          : service.createAdmin(input, 'admin-1', 'request-1');
+      await expect(created).rejects.toBe(STOP);
+      const goNoGoAt = new Date(kickoff.getTime() - 30 * 60_000);
+      expect(captured.match[0]).toMatchObject({ goNoGoAt });
+      expect(captured.jobs).toContainEqual(
+        expect.objectContaining({
+          type: 'QUICK_MATCH_GO_NO_GO',
+          dedupeKey: 'quick-match-go-no-go:match-1',
+          payload: { matchId: 'match-1' },
+          runAt: goNoGoAt,
+        }),
+      );
+    },
+  );
+
+  it('rejects an admin-loaded kickoff whose go/no-go instant has already passed', async () => {
+    const soon = new Date(Date.now() + 20 * 60_000).toISOString();
+    await expect(
+      new BookingsService(financial()).createAdmin({ ...input, startsAt: soon }, 'admin-1'),
+    ).rejects.toMatchObject({ statusCode: 400, code: 'MATCH_START_TIME_INVALID' });
+    expect(captured.match).toHaveLength(0);
+  });
 });

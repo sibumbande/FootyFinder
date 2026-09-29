@@ -7,6 +7,7 @@ import { startDurableJobScheduler } from './jobs/durable-jobs.js';
 import { registerWalletHoldJobHandlers } from './modules/wallet/wallet-hold.jobs.js';
 import { registerBookingJobHandlers } from './modules/bookings/booking.jobs.js';
 import { registerModerationJobHandlers } from './modules/moderation/moderation.jobs.js';
+import { registerGoNoGoJobHandlers } from './modules/matches/go-no-go.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -14,5 +15,6 @@ startMatchLifecycleScheduler();
 registerWalletHoldJobHandlers();
 registerBookingJobHandlers();
 registerModerationJobHandlers();
+registerGoNoGoJobHandlers();
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

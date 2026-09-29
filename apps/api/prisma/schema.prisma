@@ -330,6 +330,7 @@ enum NotificationType {
   BOOKING_EXPIRED
   DISPUTE_RESOLVED
   MATCH_POSITION_CHANGED
+  MATCH_CONFIRMED
 }
 
 model User {
@@ -961,6 +962,9 @@ model Match {
   currency                  String                    @default("ZAR")
   status                    MatchStatus               @default(OPEN)
   formationVersion          Int                       @default(0)
+  goNoGoAt                  DateTime?
+  confirmedAt               DateTime?
+  cancellationReason        String?
   cancelledAt               DateTime?
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime                  @updatedAt

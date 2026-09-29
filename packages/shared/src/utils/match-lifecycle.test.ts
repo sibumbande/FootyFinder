@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getCancellationCreditCents, getEffectiveMatchStatus } from './match-lifecycle.js';
+import {
+  getCancellationCreditCents,
+  getEffectiveMatchStatus,
+  getGoNoGoAt,
+  GO_NO_GO_MINUTES_BEFORE_KICKOFF,
+  isLobbyFrozen,
+} from './match-lifecycle.js';
 
 const kickoff = new Date('2026-01-02T12:00:00.000Z');
 
@@ -44,5 +50,22 @@ describe('match lifecycle', () => {
     ['after kickoff', '2026-01-02T12:00:00.001Z', null],
   ])('calculates cancellation credit %s', (_case, now, expected) => {
     expect(getCancellationCreditCents(10_001, kickoff, new Date(now))).toBe(expected);
+  });
+});
+
+describe('DEC-018 go/no-go timing', () => {
+  it('checks 30 minutes before kickoff (kickoff 30 Oct 2026 14:00 SAST -> 13:30)', () => {
+    const kickoff = new Date('2026-10-30T14:00:00+02:00');
+    expect(getGoNoGoAt(kickoff).toISOString()).toBe(new Date('2026-10-30T13:30:00+02:00').toISOString());
+    expect(GO_NO_GO_MINUTES_BEFORE_KICKOFF).toBe(30);
+  });
+
+  it('freezes the lobby from the go/no-go instant onward, and never freezes legacy matches', () => {
+    const goNoGoAt = new Date('2026-10-30T11:30:00.000Z');
+    expect(isLobbyFrozen({ goNoGoAt }, new Date('2026-10-30T11:29:59.999Z'))).toBe(false);
+    expect(isLobbyFrozen({ goNoGoAt }, new Date('2026-10-30T11:30:00.000Z'))).toBe(true);
+    expect(isLobbyFrozen({ goNoGoAt: goNoGoAt.toISOString() }, new Date('2026-10-30T13:00:00.000Z'))).toBe(true);
+    expect(isLobbyFrozen({ goNoGoAt: null }, new Date('2099-01-01T00:00:00.000Z'))).toBe(false);
+    expect(isLobbyFrozen({}, new Date('2099-01-01T00:00:00.000Z'))).toBe(false);
   });
 });

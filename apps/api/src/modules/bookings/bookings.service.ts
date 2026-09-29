@@ -6,7 +6,7 @@ import type {
   PlayerFieldBookingInput,
   CreateMatchInput,
 } from '@footy-finder/shared';
-import { createDefaultFormation, MATCH_DURATION_MINUTES, MATCH_FEE_CENTS } from '@footy-finder/shared';
+import { createDefaultFormation, getGoNoGoAt, MATCH_DURATION_MINUTES, MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
@@ -16,6 +16,7 @@ import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
 import { appendAdminAudit } from '../admin/admin-audit.js';
 import { matchInclude } from '../matches/match.query.js';
 import { toMatch } from '../matches/match.mapper.js';
+import { enqueueGoNoGoJob } from '../matches/go-no-go.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toPublicUser } from '../users/user.mapper.js';
@@ -126,6 +127,7 @@ export class BookingsService {
           inviteTokenHash: inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
           // DEC-018: the platform sets the fee; hosts never choose it.
           startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: MATCH_FEE_CENTS, status: 'OPEN',
+          goNoGoAt: getGoNoGoAt(startsAt),
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },
         } });
@@ -141,6 +143,7 @@ export class BookingsService {
           organizerGuaranteeCents: 0,
           desiredVisibility: input.visibility, confirmedAt: now,
         } });
+        await enqueueGoNoGoJob(tx, created.id, startsAt);
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { inviteToken, viewerCanManage: true, viewerCanChat: true });
@@ -179,6 +182,12 @@ export class BookingsService {
         'Choose a calculated slot between two hours and 60 days from now.',
         'MATCH_START_TIME_INVALID',
       );
+    if (source === 'ADMIN_LOADED' && getGoNoGoAt(startsAt) <= now)
+      throw new AppError(
+        400,
+        'Kickoff must be more than 30 minutes away so players can fill every position before the go/no-go check.',
+        'MATCH_START_TIME_INVALID',
+      );
     if (startsAt <= now)
       throw new AppError(400, 'Choose a future booking time.', 'MATCH_START_TIME_INVALID');
     try {
@@ -202,6 +211,7 @@ export class BookingsService {
           visibility: input.visibility,
           publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
           startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: MATCH_FEE_CENTS,
+          ...(source === 'ADMIN_LOADED' ? { goNoGoAt: getGoNoGoAt(startsAt) } : {}),
           status: source === 'ADMIN_LOADED' ? 'OPEN' : 'DRAFT',
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },
@@ -226,6 +236,7 @@ export class BookingsService {
             obligations: { create: { obligationKey: confirmed ? 'PLATFORM' : 'PLAYER_POOL', requiredCents: price.amountCents, status: confirmed ? 'CAPTURED' : 'PENDING', capturedAt: confirmed ? now : null } },
           },
         });
+        if (source === 'ADMIN_LOADED') await enqueueGoNoGoJob(tx, match.id, startsAt);
         if (fundingDeadline) await enqueueDurableJob(tx, { type: 'RESERVATION_FUNDING_EXPIRE', dedupeKey: `reservation-expire:${created.id}`, payload: { reservationId: created.id }, runAt: fundingDeadline });
         if (source === 'ADMIN_LOADED') await appendAdminAudit(tx, { actorUserId, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', entityId: created.id, requestId, metadata: { matchId: match.id, fieldId: field.id, priceCents: price.amountCents } });
         return tx.fieldReservation.findUniqueOrThrow({ where: { id: created.id }, include: bookingInclude });

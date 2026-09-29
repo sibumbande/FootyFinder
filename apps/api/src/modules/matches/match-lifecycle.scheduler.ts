@@ -11,6 +11,13 @@ import { incrementOperationalMetric } from '../../observability/operational-metr
 
 const POLL_INTERVAL_MS = 15_000;
 
+/**
+ * DEC-018: a match under the go/no-go rule (goNoGoAt set) may start only once it has been
+ * confirmed. Legacy matches (goNoGoAt NULL) keep starting as before. An unconfirmed match past
+ * kickoff means its go/no-go job has not run yet; it is left for the durable queue.
+ */
+const STARTABLE = { OR: [{ goNoGoAt: null }, { confirmedAt: { not: null } }] };
+
 export async function runMatchLifecycleTick(
   now = new Date(),
   notifications = new NotificationsService(),
@@ -20,6 +27,7 @@ export async function runMatchLifecycleTick(
       mode: 'QUICK_GAME',
       status: { in: ['OPEN', 'READY'] },
       startsAt: { lte: now },
+      ...STARTABLE,
     },
     select: { id: true },
   });
@@ -52,7 +60,7 @@ export async function transitionMatchToStarted(
 ) {
   const result = await serializableTransaction(async (tx) => {
     const transition = await tx.match.updateMany({
-      where: { id: matchId, status: { in: ['OPEN', 'READY'] } },
+      where: { id: matchId, status: { in: ['OPEN', 'READY'] }, ...STARTABLE },
       data: { status: 'IN_PROGRESS' },
     });
     if (transition.count !== 1) return null;

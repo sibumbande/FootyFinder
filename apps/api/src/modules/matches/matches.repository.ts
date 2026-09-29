@@ -13,6 +13,7 @@ import {
   createFormationPresetSlots,
   getCancellationCreditCents,
   getMaxParticipantsPerTeam,
+  isLobbyFrozen,
   mapTeamPositionToMatchHalf,
 } from '@footy-finder/shared';
 import type { Notification, Prisma } from '../../generated/prisma/client.js';
@@ -33,6 +34,10 @@ export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
 export class TeamFullError extends Error {}
 export class MatchClosedError extends Error {}
+/** DEC-018 (D1): the lobby is frozen from the go/no-go instant (T-30) until kickoff. */
+export class LineupLockedError extends Error {}
+/** The go/no-go job ran before the match's go/no-go instant; the durable queue retries it. */
+export class GoNoGoNotDueError extends Error {}
 export class TeamFixtureForbiddenError extends Error {}
 export class TeamFixtureTeamNotFoundError extends Error {}
 export class TeamMatchPlanningError extends Error {}
@@ -64,6 +69,18 @@ const isLobbyOpen = (
   match.mode === 'QUICK_GAME' &&
   ['OPEN', 'READY'].includes(match.status) &&
   now < match.startsAt;
+
+/**
+ * Throws LineupLockedError once a DEC-018 match reaches its go/no-go instant (distinct from a
+ * started/closed match), or MatchClosedError when the lobby is otherwise closed.
+ */
+const assertLobbyOpen = (
+  match: { mode: string; status: string; startsAt: Date; durationMinutes: number; goNoGoAt?: Date | null },
+  now: Date,
+) => {
+  if (isLobbyOpen(match, now) && isLobbyFrozen(match, now)) throw new LineupLockedError();
+  if (!isLobbyOpen(match, now)) throw new MatchClosedError();
+};
 
 export class MatchesRepository {
   constructor(private readonly financial = new FinancialRepository()) {}
@@ -287,7 +304,7 @@ export class MatchesRepository {
         include: { participants: { where: { status: 'JOINED' } } },
       });
       if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
-      if (!isLobbyOpen(match, new Date())) throw new MatchClosedError();
+      assertLobbyOpen(match, new Date());
       const previousParticipation = await tx.matchParticipant.findUnique({
         where: { matchId_userId: { matchId, userId } },
         include: { payment: true },
@@ -447,7 +464,7 @@ export class MatchesRepository {
     return serializableTransaction(async (tx) => {
       const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
       if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
-      if (!isLobbyOpen(match, now)) throw new MatchClosedError();
+      assertLobbyOpen(match, now);
       const participant = await tx.matchParticipant.findUniqueOrThrow({
         where: { matchId_userId: { matchId, userId } },
         include: { payment: { include: { cancellation: true } } },
@@ -532,71 +549,161 @@ export class MatchesRepository {
     });
   }
 
+  /** Organiser cancellation (D3: allowed until the go/no-go instant; enforced by the service). */
   cancelMatch(matchId: string) {
+    return serializableTransaction((tx) => this.cancelInTx(tx, matchId, 'ORGANISER_CANCELLED'));
+  }
+
+  /**
+   * DEC-018 T-30 go/no-go, run by the durable QUICK_MATCH_GO_NO_GO job. Idempotent and safe to run
+   * more than once or late (after a restart): the lobby is frozen from goNoGoAt, so the formation
+   * it evaluates is exactly the formation at T-30.
+   * - Every formation position claimed: the match is confirmed (subs are optional).
+   * - Otherwise: the match is cancelled and every paid fee is refunded in full, once.
+   */
+  decideGoNoGo(matchId: string, now = new Date()) {
     return serializableTransaction(async (tx) => {
-      const match = await tx.match.findUniqueOrThrow({
+      await lockMatchForFormation(tx, matchId);
+      const match = await tx.match.findUnique({
         where: { id: matchId },
-        include: { payments: { where: { status: 'SUCCEEDED' } }, fieldReservation: true },
+        select: {
+          id: true,
+          mode: true,
+          status: true,
+          goNoGoAt: true,
+          confirmedAt: true,
+          createdById: true,
+          formationSlots: { select: { participantId: true } },
+          participants: { where: { status: 'JOINED' }, select: { userId: true } },
+        },
       });
-      if (match.status === 'CANCELLED')
-        return { match, refundedUserIds: [] as string[], notifications: [] };
-      const refundedUserIds: string[] = [];
-      const notificationDrafts: NotificationDraft[] = [];
-      for (const payment of match.payments) {
-        await this.financial.credit(tx, {
-          userId: payment.userId,
-          amountCents: payment.amountCents,
-          type: 'MATCH_CANCELLATION_CREDIT',
-          idempotencyKey: `match-cancellation:${payment.id}`,
-          referenceType: 'MATCH_PAYMENT',
-          referenceId: payment.id,
-          description: 'Full credit for cancelled match',
-        });
-        await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
-        refundedUserIds.push(payment.userId);
-        notificationDrafts.push({
-          userId: payment.userId,
-          type: 'MATCH_CANCELLED',
-          title: 'Match cancelled',
-          message: 'Your full match fee was credited to your Footy Finder wallet.',
-          targetPath: `/matches/${matchId}`,
-          dedupeKey: notificationDedupeKey(
-            'match-payment',
-            payment.id,
-            'match-cancelled',
-            payment.userId,
-          ),
-        });
+      const none = { notifications: [] as Notification[], filled: 0, total: 0 };
+      if (!match || match.mode !== 'QUICK_GAME' || !match.goNoGoAt)
+        return { outcome: 'NOT_APPLICABLE' as const, ...none };
+      if (match.status === 'CANCELLED' || match.confirmedAt)
+        return { outcome: 'ALREADY_DECIDED' as const, ...none };
+      if (!['OPEN', 'READY'].includes(match.status))
+        return { outcome: 'NOT_APPLICABLE' as const, ...none };
+      if (now < match.goNoGoAt) throw new GoNoGoNotDueError();
+      const total = match.formationSlots.length;
+      const filled = match.formationSlots.filter(({ participantId }) => participantId).length;
+      if (total > 0 && filled === total) {
+        await tx.match.update({ where: { id: matchId }, data: { confirmedAt: now } });
+        const recipients = [
+          ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
+        ];
+        const notifications = await persistNotifications(
+          tx,
+          recipients.map((userId) => ({
+            userId,
+            type: 'MATCH_CONFIRMED' as const,
+            title: 'Match confirmed',
+            message: 'Every position is filled, so the match goes ahead.',
+            targetPath: `/matches/${matchId}`,
+            dedupeKey: notificationDedupeKey('match', matchId, 'go-no-go-confirmed', userId),
+          })),
+        );
+        return { outcome: 'CONFIRMED' as const, notifications, filled, total };
       }
-      if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
-        // DEC-018: nothing is owed to the venue for a cancelled match and the host is never
-        // charged. A legacy (pre-DEC-018) organiser hold is simply released.
-        if (
-          match.fieldReservation.organizerGuaranteeHoldId &&
-          !match.fieldReservation.organizerGuaranteeSettledAt
-        )
-          await this.financial.releaseHold(tx, match.fieldReservation.organizerGuaranteeHoldId);
-        await tx.fieldReservation.update({
-          where: { id: match.fieldReservation.id },
-          data: {
-            status: 'CANCELLED',
-            cancelledAt: new Date(),
-            organizerGuaranteeSettledAt: match.fieldReservation.organizerGuaranteeSettledAt ?? new Date(),
-            playerFeesAppliedCents: 0,
-          },
-        });
-      }
-      const cancelled = await tx.match.update({
-        where: { id: matchId },
-        data: { status: 'CANCELLED', cancelledAt: new Date() },
-      });
-      const notifications = await persistNotifications(tx, notificationDrafts);
+      const cancelled = await this.cancelInTx(tx, matchId, 'POSITIONS_UNFILLED');
       return {
-        match: cancelled,
-        refundedUserIds,
-        notifications,
+        outcome: 'CANCELLED' as const,
+        notifications: cancelled.notifications,
+        filled,
+        total,
       };
     });
+  }
+
+  /**
+   * Shared cancellation core for organiser cancellation and the T-30 auto-cancel. Every SUCCEEDED
+   * payment gets a full MATCH_CANCELLATION_CREDIT with the stable key match-cancellation:<paymentId>,
+   * so two cancellation paths can never refund the same fee twice. Nothing is owed to the venue.
+   */
+  private async cancelInTx(
+    tx: Prisma.TransactionClient,
+    matchId: string,
+    reason: 'ORGANISER_CANCELLED' | 'POSITIONS_UNFILLED',
+  ) {
+    await lockMatchForFormation(tx, matchId);
+    const match = await tx.match.findUniqueOrThrow({
+      where: { id: matchId },
+      include: {
+        payments: { where: { status: 'SUCCEEDED' } },
+        fieldReservation: true,
+        participants: { where: { status: 'JOINED' }, select: { userId: true } },
+      },
+    });
+    if (match.status === 'CANCELLED')
+      return { match, refundedUserIds: [] as string[], notifications: [] as Notification[] };
+    const unfilled = reason === 'POSITIONS_UNFILLED';
+    const refundedUserIds: string[] = [];
+    const notificationDrafts: NotificationDraft[] = [];
+    for (const payment of match.payments) {
+      await this.financial.credit(tx, {
+        userId: payment.userId,
+        amountCents: payment.amountCents,
+        type: 'MATCH_CANCELLATION_CREDIT',
+        idempotencyKey: `match-cancellation:${payment.id}`,
+        referenceType: 'MATCH_PAYMENT',
+        referenceId: payment.id,
+        description: unfilled
+          ? 'Full refund: not all positions were filled 30 minutes before kickoff'
+          : 'Full credit for cancelled match',
+      });
+      await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
+      refundedUserIds.push(payment.userId);
+      notificationDrafts.push({
+        userId: payment.userId,
+        type: 'MATCH_CANCELLED',
+        title: 'Match cancelled',
+        message: unfilled
+          ? `Not all positions were filled 30 minutes before kickoff, so the match was cancelled. Your R${(payment.amountCents / 100).toFixed(2)} was refunded to your Footy Finder wallet.`
+          : 'Your full match fee was credited to your Footy Finder wallet.',
+        targetPath: `/matches/${matchId}`,
+        dedupeKey: notificationDedupeKey('match-payment', payment.id, 'match-cancelled', payment.userId),
+      });
+    }
+    if (unfilled) {
+      // Also tell every joined player without a refundable payment, and the host.
+      const others = [
+        ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
+      ].filter((userId) => !refundedUserIds.includes(userId));
+      for (const userId of others)
+        notificationDrafts.push({
+          userId,
+          type: 'MATCH_CANCELLED',
+          title: 'Match cancelled',
+          message:
+            'Not all positions were filled 30 minutes before kickoff, so the match was cancelled.',
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey('match', matchId, 'go-no-go-cancelled', userId),
+        });
+    }
+    if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
+      // DEC-018: nothing is owed to the venue for a cancelled match and the host is never
+      // charged. A legacy (pre-DEC-018) organiser hold is simply released.
+      if (
+        match.fieldReservation.organizerGuaranteeHoldId &&
+        !match.fieldReservation.organizerGuaranteeSettledAt
+      )
+        await this.financial.releaseHold(tx, match.fieldReservation.organizerGuaranteeHoldId);
+      await tx.fieldReservation.update({
+        where: { id: match.fieldReservation.id },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          organizerGuaranteeSettledAt: match.fieldReservation.organizerGuaranteeSettledAt ?? new Date(),
+          playerFeesAppliedCents: 0,
+        },
+      });
+    }
+    const cancelled = await tx.match.update({
+      where: { id: matchId },
+      data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason },
+    });
+    const notifications = await persistNotifications(tx, notificationDrafts);
+    return { match: cancelled, refundedUserIds, notifications };
   }
 
   changeTeam(
@@ -612,7 +719,7 @@ export class MatchesRepository {
         include: { participants: { where: { status: 'JOINED' } } },
       });
       if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
-      if (!isLobbyOpen(match, new Date())) throw new MatchClosedError();
+      assertLobbyOpen(match, new Date());
       const participant = match.participants.find((item) => item.id === participantId);
       if (!participant) throw new Error('PARTICIPANT_NOT_FOUND');
       if (!actorIsHost && participant.userId !== actorUserId) throw new Error('PLAYER_FORBIDDEN');
@@ -762,16 +869,23 @@ export class MatchesRepository {
    * serializable transaction behind a Match row lock, so the first committed claim wins and a
    * concurrent loser re-reads an occupied slot on retry.
    */
-  async claimPosition(matchId: string, slotId: string, userId: string, now = new Date()) {
+  async claimPosition(matchId: string, slotId: string, userId: string, nowOverride?: Date) {
     return serializableTransaction(async (tx) => {
       const match = await tx.match.findUnique({
         where: { id: matchId },
-        select: { mode: true, status: true, startsAt: true, durationMinutes: true },
+        select: { mode: true, status: true, startsAt: true, durationMinutes: true, goNoGoAt: true },
       });
       if (!match) throw new FormationSlotNotFoundError();
       if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
       await lockMatchForFormation(tx, matchId);
-      if (!isLobbyOpen(match, now)) throw new MatchClosedError();
+      // Evaluate time only after the Match row lock, so a claim racing the go/no-go job at T-30 is
+      // judged against the same instant the job sees.
+      const now = nowOverride ?? new Date();
+      const locked = await tx.match.findUniqueOrThrow({
+        where: { id: matchId },
+        select: { mode: true, status: true, startsAt: true, durationMinutes: true, goNoGoAt: true },
+      });
+      assertLobbyOpen(locked, now);
       const participant = await tx.matchParticipant.findUnique({
         where: { matchId_userId: { matchId, userId } },
         include: { formationSlot: true },
