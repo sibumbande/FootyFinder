@@ -1,32 +1,16 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
-import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { NotificationsMenu } from '@/features/notifications/NotificationsMenu.js';
-import { useAddFunds } from '@/features/wallet/hooks/useWallet.js';
 import { formatRands } from '@/utils/format-currency.js';
 import { Logo } from './Logo.js';
 import { ThemeToggle } from './ThemeToggle.js';
 import { UserMenu } from './UserMenu.js';
-import { Button } from './ui/Button.js';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `relative rounded-md px-3 py-2 text-xs font-black uppercase tracking-[0.08em] transition ${isActive ? 'bg-brand-600 text-content-inverse shadow-[3px_3px_0_rgb(var(--theme-accent-gold))]' : 'text-content-muted hover:-translate-y-0.5 hover:bg-surface-hover hover:text-content-strong'}`;
 
 export function Layout() {
   const { user } = useAuth();
-  const addFunds = useAddFunds();
-  const { notify } = useNotifications();
-  const addDemoFunds = () =>
-    addFunds.mutate(undefined, {
-      onSuccess: () =>
-        notify({
-          variant: 'success',
-          title: 'Funds added',
-          message: 'R500.00 was added to your wallet.',
-        }),
-      onError: (error) =>
-        notify({ variant: 'error', title: 'Deposit unsuccessful', message: error.message }),
-    });
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -52,11 +36,10 @@ export function Layout() {
           </div>
           {user && (
             <>
-              <Button
-                variant="secondary"
-                loading={addFunds.isPending}
-                onClick={addDemoFunds}
-                className="min-h-10 px-3 sm:min-h-11 sm:px-4"
+              <Link
+                to="/wallet#top-up"
+                aria-label="Top up wallet"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border-2 border-line-strong bg-surface px-3 text-sm font-bold text-content shadow-[2px_3px_0_rgb(var(--theme-ink)/0.16)] hover:bg-surface-hover sm:min-h-11 sm:px-4"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -68,8 +51,8 @@ export function Layout() {
                 >
                   <path d="M12 5v14M5 12h14" />
                 </svg>
-                <span className="hidden sm:inline">Add funds</span>
-              </Button>
+                <span className="hidden sm:inline">Top up</span>
+              </Link>
               <Link
                 to="/wallet"
                 className="rounded-md border border-line-strong bg-brand-900 px-2.5 py-2 text-right text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] sm:px-3"

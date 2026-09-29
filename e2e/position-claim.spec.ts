@@ -103,6 +103,7 @@ async function register(page: Page, suffix: 'host' | 'alpha' | 'bravo', firstNam
 async function fundWallet(page: Page, key: string) {
   const deposit = await api(page, '/wallet/deposits/demo', {
     method: 'POST',
+    body: { amountCents: 50_000 },
     headers: { 'Idempotency-Key': `${marker}-${key}` },
   });
   expect(deposit.status, JSON.stringify(deposit.body)).toBe(200);

@@ -109,4 +109,25 @@ describe('DepositsService', () => {
       undefined,
     );
   });
+
+  it.each([4_999, 500_001, 5_050, 0])('rejects %d cents before touching the operator or ledger', async (amountCents) => {
+    const { service, wallet } = setup({ status: 'success', providerReference: 'unused' });
+    await expect(service.deposit(user.id, amountCents, 'deposit-1')).rejects.toMatchObject({
+      code: 'INVALID_DEPOSIT_AMOUNT',
+    });
+    expect(wallet.createPending).not.toHaveBeenCalled();
+  });
+
+  it('rejects an idempotency key reused for a different amount', async () => {
+    const { service, wallet } = setup({ status: 'success', providerReference: 'unused' });
+    vi.mocked(wallet.findByIdempotencyKey).mockResolvedValue({
+      ...transaction,
+      amountCents: 16_000,
+      walletAccount: { userId: user.id, user },
+    } as never);
+    await expect(service.deposit(user.id, 24_000, 'deposit-1')).rejects.toMatchObject({
+      code: 'IDEMPOTENCY_KEY_REUSED',
+    });
+    expect(wallet.createPending).not.toHaveBeenCalled();
+  });
 });

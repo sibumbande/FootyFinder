@@ -1,10 +1,10 @@
 import { getMaxParticipantsPerTeam, type Match, type TeamSide } from '@footy-finder/shared';
 import { ApiError } from '@footy-finder/api-client';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
-import { useAddFunds } from '@/features/wallet/hooks/useWallet.js';
 import { formatRands } from '@/utils/format-currency.js';
 import { QUICK_MATCH_SIDE_BADGES, QUICK_MATCH_SIDE_LABELS } from '../constants/quick-match-sides.js';
 import { useJoinMatch } from '../hooks/useMatches.js';
@@ -21,7 +21,6 @@ export function JoinTeamDialog({
   const [team, setTeam] = useState<TeamSide>('HOME');
   const { user } = useAuth();
   const join = useJoinMatch(match.id);
-  const addFunds = useAddFunds();
   const { notify } = useNotifications();
   if (!open) return null;
   const limit = getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam);
@@ -40,17 +39,8 @@ export function JoinTeamDialog({
         },
       },
     );
-  const topUp = () =>
-    addFunds.mutate(undefined, {
-      onSuccess: () => {
-        notify({
-          variant: 'success',
-          title: 'Wallet topped up',
-          message: 'Rechecking your selected team now.',
-        });
-        submit();
-      },
-    });
+  const shortfallCents = Math.max(0, match.feeCents - (user?.balanceCents ?? 0));
+  const topUpHref = `/wallet?amount=${Math.max(5_000, Math.ceil(shortfallCents / 100) * 100)}&returnTo=${encodeURIComponent(`/matches/${match.id}`)}#top-up`;
   return (
     <div
       className="fixed inset-0 z-40 grid place-items-end bg-content-strong/40 p-0 sm:place-items-center sm:p-4"
@@ -127,15 +117,14 @@ export function JoinTeamDialog({
         )}
         {insufficient && (
           <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700">
-            You need {formatRands(Math.max(0, match.feeCents - (user?.balanceCents ?? 0)))} more.
-            Your team choice will be preserved.
+            You need {formatRands(shortfallCents)} more. Top up your wallet, then come back to join.
           </div>
         )}
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           {insufficient ? (
-            <Button loading={addFunds.isPending} onClick={topUp}>
-              Add R500 & continue
-            </Button>
+            <Link className="button text-center" to={topUpHref}>
+              Top up wallet
+            </Link>
           ) : (
             <Button loading={join.isPending} onClick={submit}>
               Pay & join {QUICK_MATCH_SIDE_LABELS[team]}

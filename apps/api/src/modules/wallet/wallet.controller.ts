@@ -1,7 +1,8 @@
-import { DEMO_DEPOSIT_CENTS, walletHistoryQuerySchema } from '@footy-finder/shared';
+import { topUpAmountSchema, walletHistoryQuerySchema } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { DemoPaymentOperator } from './demo-payment.operator.js';
 import { DepositsService } from './deposits.service.js';
+import { topUpOptions } from './payment-config.js';
 import { WalletHistoryService } from './wallet-history.service.js';
 
 const deposits = new DepositsService(new DemoPaymentOperator());
@@ -25,14 +26,16 @@ export const transactions: RequestHandler = async (req, res, next) => {
   }
 };
 
+export const options: RequestHandler = (_req, res) => {
+  res.json({ data: topUpOptions() });
+};
+
+/** Development/test only (see requireDemoDeposits): credits immediately without a card. */
 export const demoDeposit: RequestHandler = async (req, res, next) => {
   try {
     const idempotencyKey = String(req.header('Idempotency-Key') ?? '');
-    const data = await deposits.deposit(
-      userId(res.locals),
-      DEMO_DEPOSIT_CENTS,
-      idempotencyKey,
-    );
+    const { amountCents } = topUpAmountSchema.parse(req.body ?? {});
+    const data = await deposits.deposit(userId(res.locals), amountCents, idempotencyKey);
     res.json({ data });
   } catch (error) {
     next(error);

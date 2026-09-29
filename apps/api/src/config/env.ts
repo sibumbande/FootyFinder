@@ -38,6 +38,8 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['console', 'test', 'postmark']).default('console'),
     EMAIL_FROM: z.string().email().default('no-reply@footyfinder.test'),
     POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
+    // DEC-011 / TKT-603: 'demo' auto-succeeds and exists only in development/test.
+    PAYMENT_PROVIDER: z.enum(['demo', 'paystack']).default('demo'),
   })
   .superRefine((value, context) => {
     if (resolve(value.PLAYER_UPLOAD_DIR) === resolve(value.TEAM_UPLOAD_DIR))
@@ -101,6 +103,12 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['POSTMARK_SERVER_TOKEN'],
         message: 'POSTMARK_SERVER_TOKEN is required in production',
+      });
+    if (value.PAYMENT_PROVIDER !== 'paystack')
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYMENT_PROVIDER'],
+        message: 'PAYMENT_PROVIDER must be paystack in production; the demo operator is development/test only',
       });
     if (value.EMAIL_FROM.toLowerCase() === 'no-reply@footyfinder.test' || value.EMAIL_FROM.toLowerCase().endsWith('.test'))
       context.addIssue({

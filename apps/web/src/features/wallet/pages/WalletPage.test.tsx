@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WalletPage } from './WalletPage.js';
 
 const mocks = vi.hoisted(() => ({ summary: vi.fn(), history: vi.fn() }));
+vi.mock('../components/TopUpForm.js', () => ({
+  TopUpForm: ({ initialCents }: { initialCents?: number }) => <p>Top-up form {initialCents ?? 'default'}</p>,
+}));
 vi.mock('../hooks/useWallet.js', () => ({
   useWalletSummary: mocks.summary,
   useWalletHistory: mocks.history,
@@ -107,5 +110,27 @@ describe('WalletPage', () => {
     mocks.history.mockReturnValue(history([[]]));
     renderPage();
     expect(screen.getByRole('alert')).toHaveTextContent(/Spending from your wallet is paused/);
+  });
+
+  it('passes a suggested amount to the top-up form and offers a safe way back to the match', () => {
+    mocks.history.mockReturnValue(history([[]]));
+    const matchId = '11111111-1111-4111-8111-111111111111';
+    render(
+      <MemoryRouter initialEntries={[`/wallet?amount=5000&returnTo=%2Fmatches%2F${matchId}`]}>
+        <WalletPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Top-up form 5000')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to your match' })).toHaveAttribute('href', `/matches/${matchId}`);
+  });
+
+  it('ignores an unsafe return address', () => {
+    mocks.history.mockReturnValue(history([[]]));
+    render(
+      <MemoryRouter initialEntries={['/wallet?returnTo=https%3A%2F%2Fevil.invalid']}>
+        <WalletPage />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('link', { name: 'Back to your match' })).not.toBeInTheDocument();
   });
 });

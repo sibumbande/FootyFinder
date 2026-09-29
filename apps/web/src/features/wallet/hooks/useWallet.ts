@@ -5,6 +5,7 @@ import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
 export const walletKey = ['wallet'] as const;
 export const walletSummaryKey = [...walletKey, 'summary'] as const;
 export const walletHistoryKey = [...walletKey, 'history'] as const;
+export const topUpOptionsKey = [...walletKey, 'top-up-options'] as const;
 
 export function useWalletSummary() {
   return useQuery({
@@ -22,17 +23,29 @@ export function useWalletHistory() {
   });
 }
 
-export function useAddFunds() {
+export function useTopUpOptions() {
+  return useQuery({
+    queryKey: topUpOptionsKey,
+    queryFn: async () => (await walletClient.topUpOptions()).data,
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * Starts a top-up. With the development/test demo operator the wallet is credited immediately;
+ * card top-ups are handled by the payment provider flow.
+ */
+export function useTopUp() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await walletClient.demoDeposit(crypto.randomUUID());
+    mutationFn: async ({ amountCents, idempotencyKey }: { amountCents: number; idempotencyKey: string }) => {
+      const { data } = await walletClient.demoDeposit(amountCents, idempotencyKey);
       if (data.status !== 'success' || !data.user)
-        throw new Error(data.message ?? 'The deposit could not be completed.');
+        throw new Error(data.message ?? 'The top-up could not be completed.');
       return data;
     },
     onSuccess: ({ user }) => {
-      queryClient.setQueryData(currentUserKey, user);
+      if (user) queryClient.setQueryData(currentUserKey, user);
       void queryClient.invalidateQueries({ queryKey: walletKey });
     },
   });

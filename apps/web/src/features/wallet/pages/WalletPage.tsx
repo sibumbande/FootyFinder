@@ -1,10 +1,15 @@
 import type { WalletLedgerEntry } from '@footy-finder/shared';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { formatDate } from '@/utils/format-date.js';
 import { formatRands } from '@/utils/format-currency.js';
+import { TopUpForm } from '../components/TopUpForm.js';
 import { useWalletHistory, useWalletSummary } from '../hooks/useWallet.js';
+
+/** Only same-app match pages are offered as a way back after topping up. */
+const safeReturnTo = (value: string | null) =>
+  value && /^\/matches\/[0-9a-f-]{36}$/i.test(value) ? value : null;
 
 const STATUS_LABEL: Record<WalletLedgerEntry['status'], string | null> = {
   SUCCEEDED: null,
@@ -48,6 +53,9 @@ export function WalletPage() {
   const summary = useWalletSummary();
   const history = useWalletHistory();
   const entries = history.data?.pages.flatMap((page) => page.entries) ?? [];
+  const [params] = useSearchParams();
+  const suggested = Number(params.get('amount'));
+  const returnTo = safeReturnTo(params.get('returnTo'));
 
   return (
     <section className="grid gap-7">
@@ -86,6 +94,14 @@ export function WalletPage() {
           below zero. Contact <Link to="/support">support</Link> if you need help.
         </p>
       )}
+
+      {returnTo && (
+        <Link className="font-bold underline" to={returnTo}>
+          Back to your match
+        </Link>
+      )}
+
+      <TopUpForm initialCents={Number.isInteger(suggested) && suggested > 0 ? suggested : undefined} />
 
       <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="wallet-history">
         <h2 id="wallet-history" className="text-xl font-black uppercase text-content-strong">

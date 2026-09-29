@@ -1,4 +1,9 @@
-import type { DepositResponse, WalletLedgerPage, WalletSummary } from '@footy-finder/shared';
+import type {
+  DepositResponse,
+  TopUpOptions,
+  WalletLedgerPage,
+  WalletSummary,
+} from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
 export const walletApi = (client: ApiClient) => ({
@@ -10,9 +15,12 @@ export const walletApi = (client: ApiClient) => ({
     const query = search.toString();
     return client.request<{ data: WalletLedgerPage }>(`/wallet/transactions${query ? `?${query}` : ''}`);
   },
-  demoDeposit: (idempotencyKey: string) =>
+  topUpOptions: () => client.request<{ data: TopUpOptions }>('/wallet/top-up-options'),
+  /** Development/test only: the server answers 404 in production. */
+  demoDeposit: (amountCents: number, idempotencyKey: string) =>
     client.request<{ data: DepositResponse }>('/wallet/deposits/demo', {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ amountCents }),
     }),
 });

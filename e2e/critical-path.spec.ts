@@ -235,6 +235,7 @@ test.describe('browser critical path', () => {
 
     const captainDeposit = await api(captainPage, '/wallet/deposits/demo', {
       method: 'POST',
+      body: { amountCents: 50_000 },
       headers: { 'Idempotency-Key': `${marker}-deposit-captain` },
     });
     expect(captainDeposit.status, JSON.stringify(captainDeposit.body)).toBe(200);
@@ -279,6 +280,7 @@ test.describe('browser critical path', () => {
 
     const playerDeposit = await api(playerPage, '/wallet/deposits/demo', {
       method: 'POST',
+      body: { amountCents: 50_000 },
       headers: { 'Idempotency-Key': `${marker}-share-deposit-player` },
     });
     expect(playerDeposit.status, JSON.stringify(playerDeposit.body)).toBe(200);

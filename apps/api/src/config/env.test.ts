@@ -34,8 +34,28 @@ describe('environment contract', () => {
         EMAIL_PROVIDER: 'postmark',
         EMAIL_FROM: 'no-reply@footyfinder.co.za',
         POSTMARK_SERVER_TOKEN: 'production-postmark-token',
+        PAYMENT_PROVIDER: 'paystack',
       }).success,
     ).toBe(true);
+  });
+
+  it('keeps the demo payment operator out of production (TKT-603)', () => {
+    const production = {
+      ...valid,
+      NODE_ENV: 'production',
+      CLIENT_URL: 'https://player.example.test',
+      ADMIN_CLIENT_URL: 'https://admin.example.test',
+      PUBLIC_API_URL: 'https://api.example.test',
+      TRUST_PROXY_HOPS: '1',
+      ADMIN_MFA_ENCRYPTION_KEY: 'an-independent-production-mfa-key',
+      EMAIL_PROVIDER: 'postmark',
+      EMAIL_FROM: 'no-reply@footyfinder.co.za',
+      POSTMARK_SERVER_TOKEN: 'production-postmark-token',
+    };
+    const demo = envSchema.safeParse(production);
+    expect(demo.success).toBe(false);
+    expect(JSON.stringify(demo.error?.issues)).toContain('PAYMENT_PROVIDER');
+    expect(envSchema.parse(valid).PAYMENT_PROVIDER).toBe('demo');
   });
 
   it('fails closed when test-data tooling is enabled in production', () => {

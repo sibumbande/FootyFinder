@@ -1,4 +1,4 @@
-import type { DepositResponse } from '@footy-finder/shared';
+import { TOP_UP_MAX_CENTS, TOP_UP_MIN_CENTS, type DepositResponse } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
 import { toAuthenticatedUser } from '../users/user.mapper.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -24,10 +24,15 @@ export class DepositsService {
         'IDEMPOTENCY_KEY_REQUIRED',
       );
     }
-    if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    if (
+      !Number.isInteger(amountCents) ||
+      amountCents < TOP_UP_MIN_CENTS ||
+      amountCents > TOP_UP_MAX_CENTS ||
+      amountCents % 100 !== 0
+    ) {
       throw new AppError(
         400,
-        'Deposit amount must be a positive number of cents.',
+        'Top-ups must be a whole rand amount from R50 to R5,000.',
         'INVALID_DEPOSIT_AMOUNT',
       );
     }

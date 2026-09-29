@@ -2,7 +2,22 @@ import type { AuthenticatedUser } from './user.js';
 
 /** DEC-018: platform-fixed Quick Match place fee (R80), paid by every joined player including subs. */
 export const MATCH_FEE_CENTS = 8_000;
-export const DEMO_DEPOSIT_CENTS = 50_000;
+/** DEC-011: card top-ups are whole-rand ZAR amounts from R50 to R5,000. No withdrawals. */
+export const TOP_UP_MIN_CENTS = 5_000;
+export const TOP_UP_MAX_CENTS = 500_000;
+/** Quick-pick top-up amounts shown above the custom amount (CEO, 2026-09-29). */
+export const TOP_UP_QUICK_PICK_CENTS = [8_000, 16_000, 24_000, 40_000] as const;
+export const TOP_UP_DEFAULT_CENTS = 16_000;
+
+export type PaymentProviderName = 'demo' | 'paystack';
+
+export interface TopUpOptions {
+  provider: PaymentProviderName;
+  minCents: number;
+  maxCents: number;
+  quickPickCents: number[];
+  defaultCents: number;
+}
 
 export type DepositStatus = 'success' | 'failure' | 'error';
 
