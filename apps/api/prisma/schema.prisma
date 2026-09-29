@@ -104,6 +104,13 @@ enum WalletHoldStatus {
   EXPIRED
 }
 
+enum ProviderPaymentStatus {
+  INITIALIZED
+  SUCCEEDED
+  FAILED
+  REVIEW
+}
+
 enum DurableJobStatus {
   PENDING
   RUNNING
@@ -389,6 +396,7 @@ model User {
   submittedVenues           ManagedVenue[]            @relation("VenueSubmitter")
   approvedVenues            ManagedVenue[]            @relation("VenueApprover")
   deactivatedVenues         ManagedVenue[]            @relation("VenueDeactivator")
+  providerPayments          ProviderPayment[]
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -877,6 +885,7 @@ model WalletTransaction {
   updatedAt         DateTime                @updatedAt
   walletAccount     WalletAccount           @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
   matchPayment      MatchPayment?
+  providerPayment   ProviderPayment?
 
   @@unique([provider, providerReference])
   @@index([walletAccountId, createdAt])
@@ -903,6 +912,35 @@ model WalletHold {
 
   @@index([walletAccountId, status, expiresAt])
   @@index([referenceType, referenceId, status])
+}
+
+/// Gate 6 / TKT-604: one Paystack card top-up. Credited only after our server verifies it.
+model ProviderPayment {
+  id                    String                @id @default(uuid()) @db.Uuid
+  userId                String                @db.Uuid
+  walletTransactionId   String                @unique @db.Uuid
+  provider              String
+  reference             String                @unique
+  amountCents           Int
+  currency              String                @default("ZAR")
+  status                ProviderPaymentStatus @default(INITIALIZED)
+  authorizationUrl      String?
+  initializeStartedAt   DateTime?
+  providerTransactionId String?
+  providerStatus        String?
+  channel               String?
+  lastVerifiedAt        DateTime?
+  verifiedAt            DateTime?
+  creditedBy            String?
+  failureReason         String?
+  reviewReason          String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  walletTransaction     WalletTransaction     @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model DurableJob {

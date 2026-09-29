@@ -1,3 +1,4 @@
+import type { PaymentProviderName } from '@footy-finder/shared';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { walletClient } from '@/api/client.js';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
@@ -31,22 +32,66 @@ export function useTopUpOptions() {
   });
 }
 
+/** Hosted checkout must be Paystack's own page; anything else is refused. */
+export const isPaystackCheckoutUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'checkout.paystack.com';
+  } catch {
+    return false;
+  }
+};
+
+export const checkoutNavigation = { go: (url: string) => window.location.assign(url) };
+
+export type TopUpResult = { kind: 'credited' } | { kind: 'redirected' };
+
 /**
- * Starts a top-up. With the development/test demo operator the wallet is credited immediately;
- * card top-ups are handled by the payment provider flow.
+ * Starts a top-up. With the development/test demo operator the wallet is credited immediately.
+ * With Paystack the player is sent to hosted checkout; the wallet is credited only after our
+ * server verifies the payment, never because the browser came back.
  */
-export function useTopUp() {
+export function useTopUp(provider: PaymentProviderName | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ amountCents, idempotencyKey }: { amountCents: number; idempotencyKey: string }) => {
+    mutationFn: async ({ amountCents, idempotencyKey }: { amountCents: number; idempotencyKey: string }): Promise<TopUpResult> => {
+      if (provider === 'paystack') {
+        const { data } = await walletClient.startTopUp(amountCents, idempotencyKey);
+        if (data.state === 'SUCCEEDED') return { kind: 'credited' };
+        if (!data.authorizationUrl || !isPaystackCheckoutUrl(data.authorizationUrl))
+          throw new Error('Card checkout could not be started. Please try again.');
+        checkoutNavigation.go(data.authorizationUrl);
+        return { kind: 'redirected' };
+      }
       const { data } = await walletClient.demoDeposit(amountCents, idempotencyKey);
       if (data.status !== 'success' || !data.user)
         throw new Error(data.message ?? 'The top-up could not be completed.');
+      queryClient.setQueryData(currentUserKey, data.user);
+      return { kind: 'credited' };
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: walletKey }),
+  });
+}
+
+/** Polls the player's own top-up after returning from Paystack until it settles. */
+export function useTopUpStatus(reference: string | null) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: [...walletKey, 'top-up', reference],
+    enabled: Boolean(reference),
+    queryFn: async () => {
+      const { data } = await walletClient.topUpStatus(reference!);
+      if (data.state !== 'PROCESSING') {
+        void queryClient.invalidateQueries({ queryKey: currentUserKey });
+        void queryClient.invalidateQueries({ queryKey: walletSummaryKey });
+        void queryClient.invalidateQueries({ queryKey: walletHistoryKey });
+      }
       return data;
     },
-    onSuccess: ({ user }) => {
-      if (user) queryClient.setQueryData(currentUserKey, user);
-      void queryClient.invalidateQueries({ queryKey: walletKey });
-    },
+    // Poll every 3 s for up to two minutes; after that the page offers a manual refresh.
+    refetchInterval: (query) =>
+      (query.state.data && query.state.data.state !== 'PROCESSING') || query.state.dataUpdateCount >= 40
+        ? false
+        : 3_000,
   });
 }

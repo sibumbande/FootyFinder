@@ -23,7 +23,8 @@ export const parseRandInput = (value: string): number | null => {
 
 export function TopUpForm({ initialCents }: { initialCents?: number }) {
   const options = useTopUpOptions();
-  const topUp = useTopUp();
+  const topUp = useTopUp(options.data?.provider);
+  const card = options.data?.provider === 'paystack';
   const { notify } = useNotifications();
   const quickPicks = options.data?.quickPickCents ?? [...TOP_UP_QUICK_PICK_CENTS];
   const minCents = options.data?.minCents ?? TOP_UP_MIN_CENTS;
@@ -68,7 +69,8 @@ export function TopUpForm({ initialCents }: { initialCents?: number }) {
     topUp.mutate(
       { amountCents, idempotencyKey: attemptKey.current },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          if (result.kind === 'redirected') return; // Paystack checkout is loading.
           notify({ variant: 'success', title: 'Wallet topped up', message: `${formatRands(amountCents)} was added to your wallet.` });
           attemptKey.current = undefined;
           setConfirming(false);
@@ -141,11 +143,14 @@ export function TopUpForm({ initialCents }: { initialCents?: number }) {
       {confirming && amountCents !== null && (
         <p className="mt-4 rounded-xl bg-canvas p-3 text-sm font-semibold text-content-strong" role="status">
           Add {formatRands(amountCents)} to your wallet?
+          {card && ' You will pay securely by card on Paystack, then come back here.'}
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="submit" loading={topUp.isPending}>
-          {confirming && amountCents !== null ? `Confirm ${formatRands(amountCents)}` : 'Continue'}
+          {confirming && amountCents !== null
+            ? `${card ? 'Pay' : 'Confirm'} ${formatRands(amountCents)}`
+            : 'Continue'}
         </Button>
         {confirming && (
           <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>

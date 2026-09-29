@@ -19,6 +19,26 @@ export interface TopUpOptions {
   defaultCents: number;
 }
 
+/**
+ * TKT-604: a card top-up as the player sees it. PROCESSING covers "waiting for Paystack" and
+ * "under finance review"; the wallet is credited only when our server has verified the payment.
+ */
+export type TopUpState = 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+
+export interface TopUpStatus {
+  reference: string;
+  amountCents: number;
+  currency: 'ZAR';
+  state: TopUpState;
+  underReview: boolean;
+  createdAt: string;
+}
+
+export interface TopUpInitiation extends TopUpStatus {
+  /** Paystack hosted checkout (checkout.paystack.com). Absent once the top-up is closed. */
+  authorizationUrl?: string;
+}
+
 export type DepositStatus = 'success' | 'failure' | 'error';
 
 export interface DepositResponse {

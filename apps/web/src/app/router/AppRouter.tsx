@@ -32,6 +32,7 @@ import { LegalPage } from '@/features/legal/pages/LegalPage.js';
 import { VenueDetailPage } from '@/features/venues/pages/VenueDetailPage.js';
 import { PublicMatchPreviewPage } from '@/features/matches/pages/PublicMatchPreviewPage.js';
 import { WalletPage } from '@/features/wallet/pages/WalletPage.js';
+import { TopUpReturnPage } from '@/features/wallet/pages/TopUpReturnPage.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
@@ -68,6 +69,7 @@ export function AppRouter() {
             <Route path="/teams/:teamId/matches/new" element={animated(<CreateTeamMatchPage />)} />
             <Route path="/teams/:teamId" element={animated(<TeamPage />)} />
             <Route path="/wallet" element={animated(<WalletPage />)} />
+            <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />
             <Route path="/support/:ticketId" element={animated(<SupportPage />)} />
             <Route path="/bookings" element={animated(<BookingsPage />)} />

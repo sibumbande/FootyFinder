@@ -35,8 +35,41 @@ describe('environment contract', () => {
         EMAIL_FROM: 'no-reply@footyfinder.co.za',
         POSTMARK_SERVER_TOKEN: 'production-postmark-token',
         PAYMENT_PROVIDER: 'paystack',
+        PAYSTACK_SECRET_KEY: 'sk_live_fake-value-for-schema-test',
       }).success,
     ).toBe(true);
+  });
+
+  it('accepts only test Paystack keys outside production and live keys in production (TKT-604)', () => {
+    const fakeLive = 'sk_live_fake-value-for-schema-test';
+    const devWithLive = envSchema.safeParse({ ...valid, PAYSTACK_SECRET_KEY: fakeLive });
+    expect(devWithLive.success).toBe(false);
+    // The error names the variable but never echoes its value.
+    expect(JSON.stringify(devWithLive.error?.issues)).toContain('PAYSTACK_SECRET_KEY');
+    expect(JSON.stringify(devWithLive.error?.issues)).not.toContain('fake-value');
+    expect(envSchema.safeParse({ ...valid, PAYSTACK_PUBLIC_KEY: 'pk_live_fake' }).success).toBe(false);
+    expect(
+      envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'paystack', PAYSTACK_SECRET_KEY: 'sk_test_fake', PAYSTACK_PUBLIC_KEY: 'pk_test_fake' }).success,
+    ).toBe(true);
+    expect(envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'paystack' }).success).toBe(false);
+    expect(envSchema.parse({ ...valid, PAYSTACK_SECRET_KEY: '', PAYSTACK_PUBLIC_KEY: '' }).PAYSTACK_SECRET_KEY).toBeUndefined();
+    const production = {
+      ...valid,
+      NODE_ENV: 'production',
+      CLIENT_URL: 'https://player.example.test',
+      ADMIN_CLIENT_URL: 'https://admin.example.test',
+      PUBLIC_API_URL: 'https://api.example.test',
+      TRUST_PROXY_HOPS: '1',
+      ADMIN_MFA_ENCRYPTION_KEY: 'an-independent-production-mfa-key',
+      EMAIL_PROVIDER: 'postmark',
+      EMAIL_FROM: 'no-reply@footyfinder.co.za',
+      POSTMARK_SERVER_TOKEN: 'production-postmark-token',
+      PAYMENT_PROVIDER: 'paystack',
+    };
+    expect(envSchema.safeParse({ ...production, PAYSTACK_SECRET_KEY: 'sk_test_fake' }).success).toBe(false);
+    expect(
+      envSchema.safeParse({ ...production, PAYSTACK_SECRET_KEY: fakeLive, PAYSTACK_BASE_URL: 'http://localhost:9999' }).success,
+    ).toBe(false);
   });
 
   it('keeps the demo payment operator out of production (TKT-603)', () => {

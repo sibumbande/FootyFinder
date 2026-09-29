@@ -143,6 +143,7 @@ const { toMatch } = await import('../matches/match.mapper.js');
 const { bookingsRouter } = await import('../bookings/bookings.routes.js');
 const { errorHandler } = await import('../../middleware/error-handler.js');
 const { WalletHistoryService } = await import('../wallet/wallet-history.service.js');
+const { toTopUpStatus } = await import('../payments/top-up.service.js');
 
 const user = (id: string) => ({
   id,
@@ -297,5 +298,32 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     expect(history.entries[1]).toMatchObject({ amountCents: -8_000, related: { name: 'Privacy match' } });
     // Negative control for the money-DTO detector.
     expect(() => expectNoVenueCostInMoneyDto({ entries: [{ priceCentsSnapshot: 1 }] })).toThrow();
+  });
+
+  it('card top-up DTOs carry no venue cost or provider internals (Gate 6)', () => {
+    const topUp = toTopUpStatus({
+      id: 'payment-1',
+      userId: 'payer',
+      walletTransactionId: 'tx-1',
+      provider: 'paystack',
+      reference: 'ff_topup_0123456789abcdef0123456789abcdef',
+      amountCents: 16_000,
+      currency: 'ZAR',
+      status: 'REVIEW',
+      authorizationUrl: 'https://checkout.paystack.com/x',
+      initializeStartedAt: now,
+      providerTransactionId: '42',
+      providerStatus: 'success',
+      channel: 'card',
+      lastVerifiedAt: now,
+      verifiedAt: null,
+      creditedBy: null,
+      failureReason: null,
+      reviewReason: 'amount_mismatch',
+      createdAt: now,
+      updatedAt: now,
+    });
+    expectNoVenueCostInMoneyDto(topUp);
+    expect(JSON.stringify(topUp)).not.toMatch(/amount_mismatch|providerTransactionId|walletTransactionId/);
   });
 });

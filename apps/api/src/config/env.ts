@@ -7,6 +7,8 @@ const optionalDate = z
   .datetime()
   .transform((value) => new Date(value))
   .optional();
+// An empty value (e.g. 'PAYSTACK_SECRET_KEY=' copied from .env.example) means not configured.
+const optionalSecret = z.preprocess((value) => (value === '' ? undefined : value), z.string().min(1).optional());
 export const envSchema = z
   .object({
     DATABASE_URL: z.string().url(),
@@ -40,6 +42,12 @@ export const envSchema = z
     POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
     // DEC-011 / TKT-603: 'demo' auto-succeeds and exists only in development/test.
     PAYMENT_PROVIDER: z.enum(['demo', 'paystack']).default('demo'),
+    // TKT-604: Paystack credentials are owned by Platform Operations. Never log or echo them.
+    PAYSTACK_SECRET_KEY: optionalSecret,
+    PAYSTACK_PUBLIC_KEY: optionalSecret,
+    PAYSTACK_BASE_URL: z.string().url().default('https://api.paystack.co'),
+    TOP_UP_PENDING_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
+    TOP_UP_MAX_PENDING_HOURS: z.coerce.number().int().min(1).max(72).default(24),
   })
   .superRefine((value, context) => {
     if (resolve(value.PLAYER_UPLOAD_DIR) === resolve(value.TEAM_UPLOAD_DIR))
@@ -62,7 +70,34 @@ export const envSchema = z
         });
       }
     }
+    // Test keys outside production, live keys only in production (messages never include the key).
+    const secretPrefix = value.NODE_ENV === 'production' ? 'sk_live_' : 'sk_test_';
+    const publicPrefix = value.NODE_ENV === 'production' ? 'pk_live_' : 'pk_test_';
+    if (value.PAYSTACK_SECRET_KEY && !value.PAYSTACK_SECRET_KEY.startsWith(secretPrefix))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYSTACK_SECRET_KEY'],
+        message: `PAYSTACK_SECRET_KEY must be a ${secretPrefix} key in ${value.NODE_ENV}`,
+      });
+    if (value.PAYSTACK_PUBLIC_KEY && !value.PAYSTACK_PUBLIC_KEY.startsWith(publicPrefix))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYSTACK_PUBLIC_KEY'],
+        message: `PAYSTACK_PUBLIC_KEY must be a ${publicPrefix} key in ${value.NODE_ENV}`,
+      });
+    if (value.PAYMENT_PROVIDER === 'paystack' && !value.PAYSTACK_SECRET_KEY)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYSTACK_SECRET_KEY'],
+        message: 'PAYSTACK_SECRET_KEY is required when PAYMENT_PROVIDER is paystack',
+      });
     if (value.NODE_ENV !== 'production') return;
+    if (value.PAYSTACK_BASE_URL !== 'https://api.paystack.co')
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYSTACK_BASE_URL'],
+        message: 'PAYSTACK_BASE_URL must be https://api.paystack.co in production',
+      });
     for (const [name, url] of [
       ['CLIENT_URL', value.CLIENT_URL],
       ['ADMIN_CLIENT_URL', value.ADMIN_CLIENT_URL],

@@ -10,6 +10,7 @@ import { registerModerationJobHandlers } from './modules/moderation/moderation.j
 import { registerGoNoGoJobHandlers } from './modules/matches/go-no-go.jobs.js';
 import { registerMatchCancelledEmailJobHandlers } from './modules/matches/match-cancelled-email.jobs.js';
 import { registerFillReminderJobHandlers } from './modules/matches/fill-reminder.jobs.js';
+import { registerTopUpJobHandlers } from './modules/payments/top-up.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -20,5 +21,6 @@ registerModerationJobHandlers();
 registerGoNoGoJobHandlers();
 registerMatchCancelledEmailJobHandlers();
 registerFillReminderJobHandlers();
+registerTopUpJobHandlers();
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

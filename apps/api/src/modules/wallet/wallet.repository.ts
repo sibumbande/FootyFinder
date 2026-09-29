@@ -45,7 +45,7 @@ export class WalletRepository {
     });
   }
   async succeed(transactionId: string, userId: string, providerReference: string) {
-    return prisma.$transaction(async (tx) => {
+    return serializableTransaction(async (tx) => {
       const transition = await this.financial.succeedPendingCredit(
         tx,
         transactionId,

@@ -28,4 +28,17 @@ describe('walletApi', () => {
       body: JSON.stringify({ amountCents: 16_000 }),
     });
   });
+
+  it('starts a card top-up and reads its status', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = walletApi({ request } as unknown as ApiClient);
+    await api.startTopUp(24_000, 'key-2');
+    await api.topUpStatus('ff_topup_abc');
+    expect(request).toHaveBeenNthCalledWith(1, '/wallet/top-ups', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'key-2' },
+      body: JSON.stringify({ amountCents: 24_000 }),
+    });
+    expect(request).toHaveBeenNthCalledWith(2, '/wallet/top-ups/ff_topup_abc');
+  });
 });
