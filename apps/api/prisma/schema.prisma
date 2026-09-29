@@ -476,6 +476,7 @@ model User {
   teamWalletActions         TeamWalletTransaction[]   @relation("TeamWalletActor")
   teamWalletContributions   TeamWalletTransaction[]   @relation("TeamWalletContributor")
   teamWalletHoldsCreated    TeamWalletHold[]          @relation("TeamWalletHoldCreator")
+  teamMatchAuditActions     TeamMatchAuditEvent[]
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1287,6 +1288,7 @@ model Match {
   formationEvents           MatchFormationEvent[]
   venuePayable              VenuePayable?
   teamWalletHolds           TeamWalletHold[]
+  teamMatchAuditEvents      TeamMatchAuditEvent[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1679,6 +1681,7 @@ model Team {
   formations      TeamFormation[]
   matchSides      MatchTeam[]
   wallet          TeamWalletAccount?
+  matchAuditEvents TeamMatchAuditEvent[]
 
   @@index([ownerUserId])
   @@index([name])
@@ -1761,6 +1764,25 @@ model TeamWalletAllocation {
 
   @@unique([contributionTransactionId, debitTransactionId], map: "TeamWalletAllocation_contributionTransactionId_debitTransaction")
   @@index([debitTransactionId])
+}
+
+/// Gate 7 / TKT-705: append-only record of every team-match command and its actor (a trigger
+/// rejects updates). actorUserId is null for system jobs (go/no-go, unmatched cancel).
+model TeamMatchAuditEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  matchId     String    @db.Uuid
+  teamId      String?   @db.Uuid
+  side        TeamSide?
+  actorUserId String?   @db.Uuid
+  command     String
+  payload     Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  match       Match     @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  team        Team?     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@index([teamId, createdAt])
 }
 
 model TeamMembership {

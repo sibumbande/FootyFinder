@@ -124,6 +124,7 @@ export function teamMatchWorld(marker: string) {
       ];
       if (allMatchIds.length)
         await prisma.durableJob.deleteMany({ where: { OR: allMatchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
+      await prisma.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: allMatchIds } }, { teamId: { in: teamIds } }] } });
       await deleteTeamWalletFixtures(teamIds);
       await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
       await prisma.venuePayable.deleteMany({ where: { matchId: { in: allMatchIds } } });

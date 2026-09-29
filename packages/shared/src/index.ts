@@ -35,3 +35,4 @@ export * from './schemas/team-wallet.js';
 export * from './constants/socket-events.js';
 export * from './utils/api.js';
 export * from './utils/match-lifecycle.js';
+export * from './utils/team-match-sides.js';

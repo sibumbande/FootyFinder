@@ -17,6 +17,7 @@ import { toMatch } from '../matches/match.mapper.js';
 import { matchInclude } from '../matches/match.query.js';
 import { createPublicMatchSlug } from '../matches/public-match.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
+import { appendTeamMatchAudit } from './team-match-audit.js';
 import { copySavedSquad, savedFormation } from './team-squad.js';
 
 /**
@@ -136,6 +137,10 @@ export class TeamMatchesService {
           actorUserId: userId,
         });
         await tx.fieldReservation.create({ data: slot.reservation(created.id, 'PUBLIC', now) });
+        await appendTeamMatchAudit(tx, {
+          matchId: created.id, command: 'TEAM_MATCH_PUBLISHED', teamId, side: 'HOME', actorUserId: userId,
+          payload: { otherSideMode: input.otherSideMode, substituteCount: fee.substituteCount, teamFeeCents: fee.totalCents },
+        });
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { viewerCanManage: true, viewerCanChat: true });

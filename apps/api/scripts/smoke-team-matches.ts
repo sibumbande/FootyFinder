@@ -81,6 +81,20 @@ async function main() {
   assert(await rejectsWith(() => publish(teamMatchInput(home.id), owner.id), 'TEAM_MATCHES_AWAITING_OPPONENT_LIMIT'),
     'A third team match waiting for an opponent was published.');
 
+  // TKT-705 database backstop: the other side cannot be attached or joined around the rules.
+  const stranger = await world.team('stranger', captain.id);
+  assert(await prisma.matchTeam.create({ data: {
+    matchId: first.id, teamId: stranger.id, side: 'AWAY', organisingUserId: captain.id, formationKey: 'x', teamNameSnapshot: 'x',
+  } }).then(() => false, (error) => String(error).includes('not taken by a team')), 'An AWAY team was attached to an untaken side.');
+  assert(await prisma.matchParticipant.create({ data: { matchId: first.id, userId: member.id, team: 'AWAY' } })
+    .then(() => false, (error) => String(error).includes('not open to individual players')), 'A player joined a "Teams only" side directly.');
+  assert(await prisma.matchParticipant.create({ data: { matchId: second.id, userId: member.id, team: 'HOME' } })
+    .then(() => false, (error) => String(error).includes('not open to individual players')), 'A player joined the home team side as an individual.');
+  const audit = await prisma.teamMatchAuditEvent.findFirstOrThrow({ where: { matchId: first.id, command: 'TEAM_MATCH_PUBLISHED' } });
+  assert(audit.actorUserId === owner.id && audit.teamId === home.id, 'Publishing was not audited with its actor.');
+  assert(await prisma.teamMatchAuditEvent.update({ where: { id: audit.id }, data: { command: 'x' } })
+    .then(() => false, (error) => String(error).includes('immutable')), 'A team match audit event was edited.');
+
   // Team matches are listed in the lobby alongside Quick Matches.
   const listed = await matches.list({ limit: 200, availableOnly: false } as never);
   assert(listed.some((match) => match.id === first.id) && listed.some((match) => match.id === second.id), 'Team matches are missing from the lobby list.');
@@ -91,7 +105,7 @@ async function main() {
   assert(await rejectsWith(() => publish(teamMatchInput(other.id), owner.id), 'TEAM_ARCHIVED'), 'A closed team published a match.');
 
   assert((await world.ourIssues()).length === 0, `Reconciliation issues: ${JSON.stringify(await world.ourIssues())}`);
-  console.log('Gate 7 team-match setup smoke passed (TKT-704).');
+  console.log('Gate 7 team-match setup smoke passed (TKT-704 publish rules, TKT-705 side backstops and audit).');
 }
 
 try {
