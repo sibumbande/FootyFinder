@@ -127,3 +127,15 @@ export const createAdminTestDataBatchSchema = z.object({
   accountCount: z.number().int().min(1).max(20),
 });
 export type CreateAdminTestDataBatchInput = z.infer<typeof createAdminTestDataBatchSchema>;
+
+/** Gate 6 / TKT-606: admin card refund of a top-up (whole cents, reason required). */
+export const adminCardRefundSchema = z.object({
+  amountCents: z.number().int().positive().max(500_000),
+  reason: z.string().trim().min(5).max(500),
+});
+export type AdminCardRefundInput = z.infer<typeof adminCardRefundSchema>;
+export const adminFinanceReasonSchema = z.object({ reason: z.string().trim().min(5).max(500) });
+export const adminTopUpQuerySchema = z.object({
+  status: z.enum(['INITIALIZED', 'SUCCEEDED', 'FAILED', 'REVIEW']).optional(),
+  reference: z.string().trim().max(120).optional(),
+});

@@ -3,6 +3,16 @@ import { AppError } from '../../errors/app-error.js';
 import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
 
 export class FinancialInsufficientFundsError extends Error {}
+/** TKT-606 / D5-D6: a wallet under a chargeback restriction cannot spend or hold funds. */
+export class WalletRestrictedError extends AppError {
+  constructor() {
+    super(
+      409,
+      'Spending from your wallet is paused while a card payment dispute is open or your balance is below zero.',
+      'WALLET_RESTRICTED',
+    );
+  }
+}
 type LedgerInput = {
   userId: string;
   amountCents: number;
@@ -31,6 +41,22 @@ export class FinancialRepository {
     return tx.walletAccount.findUniqueOrThrow({ where: { id: rows[0].id } });
   }
 
+  /**
+   * D6: lifts a chargeback spending restriction once the wallet is repaid (balance >= 0) and no
+   * card dispute is still open for this player. Called after every credit.
+   */
+  private async releaseRestrictionIfRepaid(tx: Prisma.TransactionClient, account: { id: string; userId: string; balanceCents: number; spendingRestrictedAt: Date | null }) {
+    if (!account.spendingRestrictedAt || account.balanceCents < 0) return account;
+    const openDisputes = await tx.providerDispute.count({
+      where: { status: 'OPEN', providerPayment: { userId: account.userId } },
+    });
+    if (openDisputes) return account;
+    return tx.walletAccount.update({
+      where: { id: account.id },
+      data: { spendingRestrictedAt: null, spendingRestrictionReason: null },
+    });
+  }
+
   private activeHeldCents(tx: Prisma.TransactionClient, walletAccountId: string, now: Date) {
     return tx.walletHold.aggregate({
       where: { walletAccountId, status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
@@ -48,6 +74,7 @@ export class FinancialRepository {
       assertLedgerReplay(replay, account.id, signedAmount, input.type);
       return { account, transaction: replay, replayed: true };
     }
+    if (account.spendingRestrictedAt) throw new WalletRestrictedError();
     const held = (await this.activeHeldCents(tx, account.id, new Date()))._sum.amountCents ?? 0;
     if (account.balanceCents - held < input.amountCents) throw new FinancialInsufficientFundsError();
     const transaction = await tx.walletTransaction.create({ data: {
@@ -78,7 +105,57 @@ export class FinancialRepository {
     const updatedAccount = input.amountCents
       ? await tx.walletAccount.update({ where: { id: account.id }, data: { balanceCents: { increment: input.amountCents } } })
       : account;
+    return { account: await this.releaseRestrictionIfRepaid(tx, updatedAccount), transaction, replayed: false };
+  }
+
+  /**
+   * TKT-606 / D2 / D5: reverses a disputed card top-up. This is the only ledger path allowed to
+   * take a wallet below zero, and it always restricts spending in the same UPDATE (the database
+   * permits a negative balance only while spendingRestrictedAt is set). Idempotent by key.
+   */
+  async chargebackDebit(tx: Prisma.TransactionClient, input: Omit<LedgerInput, 'type'> & { restrictionReason: string }) {
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0)
+      throw new AppError(400, 'Chargeback amount must be positive.', 'FINANCIAL_AMOUNT_INVALID');
+    const account = await this.lockAccount(tx, input.userId);
+    const replay = await tx.walletTransaction.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+    if (replay) {
+      assertLedgerReplay(replay, account.id, -input.amountCents, 'CHARGEBACK_DEBIT');
+      return { account, transaction: replay, replayed: true };
+    }
+    const transaction = await tx.walletTransaction.create({ data: {
+      walletAccountId: account.id, type: 'CHARGEBACK_DEBIT', amountCents: -input.amountCents,
+      status: 'SUCCEEDED', idempotencyKey: input.idempotencyKey,
+      referenceType: input.referenceType, referenceId: input.referenceId, description: input.description,
+    } });
+    const updatedAccount = await tx.walletAccount.update({
+      where: { id: account.id },
+      data: {
+        balanceCents: { decrement: input.amountCents },
+        spendingRestrictedAt: account.spendingRestrictedAt ?? new Date(),
+        spendingRestrictionReason: input.restrictionReason,
+      },
+    });
     return { account: updatedAccount, transaction, replayed: false };
+  }
+
+  /** Re-checks the restriction after a dispute closes (for example a lost dispute with a repaid wallet). */
+  async refreshRestriction(tx: Prisma.TransactionClient, userId: string) {
+    return this.releaseRestrictionIfRepaid(tx, await this.lockAccount(tx, userId));
+  }
+
+  /** Admin resolution (D6): lifts a restriction on a wallet that is not below zero. */
+  async liftRestriction(tx: Prisma.TransactionClient, userId: string) {
+    const account = await this.lockAccount(tx, userId);
+    if (!account.spendingRestrictedAt) return { account, changed: false };
+    if (account.balanceCents < 0)
+      throw new AppError(409, 'A wallet below zero stays restricted until it is repaid.', 'WALLET_NEGATIVE');
+    return {
+      account: await tx.walletAccount.update({
+        where: { id: account.id },
+        data: { spendingRestrictedAt: null, spendingRestrictionReason: null },
+      }),
+      changed: true,
+    };
   }
 
   async succeedPendingCredit(
@@ -102,7 +179,7 @@ export class FinancialRepository {
       where: { id: account.id },
       data: { balanceCents: { increment: transaction.amountCents } },
     });
-    return { account: updatedAccount, transaction: updatedTransaction, replayed: false };
+    return { account: await this.releaseRestrictionIfRepaid(tx, updatedAccount), transaction: updatedTransaction, replayed: false };
   }
 
   async settlePending(
@@ -135,6 +212,7 @@ export class FinancialRepository {
         throw new AppError(409, 'That hold idempotency key was already used.', 'FINANCIAL_IDEMPOTENCY_CONFLICT');
       return { hold: replay, replayed: true };
     }
+    if (account.spendingRestrictedAt) throw new WalletRestrictedError();
     const held = (await this.activeHeldCents(tx, account.id, new Date()))._sum.amountCents ?? 0;
     if (account.balanceCents - held < input.amountCents) throw new FinancialInsufficientFundsError();
     const hold = await tx.walletHold.create({ data: {

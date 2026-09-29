@@ -20,6 +20,10 @@ const KIND_BY_TYPE: Record<WalletTransactionType, WalletLedgerKind> = {
   PLAYER_CANCELLATION_PARTIAL_CREDIT: 'LEAVE_CREDIT',
   REPLACEMENT_CREDIT: 'REPLACEMENT_CREDIT',
   FIELD_BOOKING_DEBIT: 'FIELD_BOOKING',
+  TOP_UP_REFUND_DEBIT: 'CARD_REFUND',
+  TOP_UP_REFUND_RESTORE_CREDIT: 'CARD_REFUND_REVERSED',
+  CHARGEBACK_DEBIT: 'CHARGEBACK',
+  CHARGEBACK_REVERSAL_CREDIT: 'CHARGEBACK_REVERSED',
 };
 
 const TITLE_BY_KIND: Record<WalletLedgerKind, string> = {
@@ -29,6 +33,10 @@ const TITLE_BY_KIND: Record<WalletLedgerKind, string> = {
   LEAVE_CREDIT: 'Credit for leaving a match',
   REPLACEMENT_CREDIT: 'Credit after a replacement joined',
   FIELD_BOOKING: 'Field booking contribution',
+  CARD_REFUND: 'Refund to your card',
+  CARD_REFUND_REVERSED: 'Card refund failed – returned to your wallet',
+  CHARGEBACK: 'Card payment disputed – top-up reversed',
+  CHARGEBACK_REVERSED: 'Card dispute resolved – top-up restored',
   LEGACY: 'Wallet adjustment',
 };
 
@@ -69,7 +77,7 @@ export class WalletHistoryService {
       heldCents,
       availableCents: account.balanceCents - heldCents,
       currency: 'ZAR',
-      spendingRestricted: false,
+      spendingRestricted: Boolean(account.spendingRestrictedAt),
     };
   }
 
@@ -100,6 +108,14 @@ export class WalletHistoryService {
     });
     const page = rows.slice(0, query.limit);
     const matches = await this.relatedMatches(page);
+    const refundDebits = page.filter((row) => row.type === 'TOP_UP_REFUND_DEBIT').map((row) => row.id);
+    const refunds = refundDebits.length
+      ? await prisma.providerRefund.findMany({
+          where: { debitTransactionId: { in: refundDebits } },
+          select: { debitTransactionId: true, status: true },
+        })
+      : [];
+    const refundState = new Map(refunds.map((refund) => [refund.debitTransactionId, refund.status]));
     const entries = page.map((row): WalletLedgerEntry => {
       const kind = walletLedgerKind(row.type);
       const match = matches.get(row.id);
@@ -113,6 +129,7 @@ export class WalletHistoryService {
         title: TITLE_BY_KIND[kind],
         createdAt: row.createdAt.toISOString(),
         ...(match && { related: { type: 'match' as const, id: match.id, name: match.name } }),
+        ...(refundState.has(row.id) && { cardRefund: { state: refundState.get(row.id)! } }),
       };
     });
     const last = page.at(-1);

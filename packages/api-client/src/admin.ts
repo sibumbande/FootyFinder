@@ -34,6 +34,10 @@ import type {
   ReviewDisputeInput,
   ResolveDisputeInput,
   OperationsSummary,
+  AdminTopUp,
+  AdminTopUpStatus,
+  AdminCardRefundInput,
+  AdminRestrictedWallet,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -129,6 +133,30 @@ export const adminApi = (client: ApiClient) => ({
     ),
   walletReconciliation: () =>
     client.request<{ data: WalletReconciliationReport }>('/admin/finance/reconciliation'),
+  // Gate 6 / TKT-606: card top-ups, refunds to card, chargebacks and wallet restrictions.
+  topUps: (query: { status?: AdminTopUpStatus; reference?: string } = {}) => {
+    const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value) as Array<[string, string]>).toString();
+    return client.request<{ data: AdminTopUp[] }>(`/admin/finance/top-ups${search ? `?${search}` : ''}`);
+  },
+  refundTopUp: (paymentId: string, input: AdminCardRefundInput, idempotencyKey: string) =>
+    client.request<{ data: AdminTopUp }>(`/admin/finance/top-ups/${encodeURIComponent(paymentId)}/refunds`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(input),
+    }),
+  retryRefund: (refundId: string) =>
+    client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/retry`, { method: 'POST' }),
+  restoreRefund: (refundId: string, reason: string) =>
+    client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  restrictedWallets: () => client.request<{ data: AdminRestrictedWallet[] }>('/admin/finance/restricted-wallets'),
+  liftRestriction: (userId: string, reason: string) =>
+    client.request<{ data: { changed: boolean } }>(`/admin/finance/wallets/${encodeURIComponent(userId)}/lift-restriction`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
   managedMatches: () => client.request<{ data: AdminFieldBooking[] }>('/admin/matches'),
   createManagedMatch: (input: ManagedMatchBookingInput) =>
     client.request<{ data: AdminFieldBooking }>('/admin/matches', {

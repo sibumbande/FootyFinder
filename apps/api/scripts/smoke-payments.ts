@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
 import { prisma } from '../src/database/prisma.js';
+import { serializableTransaction } from '../src/database/transaction.js';
+import { CardRefundsService } from '../src/modules/payments/card-refunds.service.js';
+import { ChargebacksService } from '../src/modules/payments/chargebacks.service.js';
+import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
 import { createPaystackWebhookRouter } from '../src/modules/payments/paystack-webhook.js';
 import { PaystackWebhookProcessor } from '../src/modules/payments/paystack-webhook.jobs.js';
@@ -41,7 +45,10 @@ const topUps = new TopUpService(gateway, settlement, undefined, {
 const history = new WalletHistoryService();
 const processor = new PaystackWebhookProcessor(settlement);
 const startedAt = new Date();
+const financial = new FinancialRepository();
+const summaryOf = (userId: string) => history.summary(userId);
 const userIds: string[] = [];
+let retainedAdmin = '';
 
 const createUser = async (suffix: string) => {
   const user = await prisma.user.create({
@@ -239,6 +246,112 @@ try {
   await processAll(w5.reference);
   assert((await payment(w5.reference)).status === 'REVIEW' && (await balance(buyer)) === 37_000, 'Late webhook after closure was credited instead of reviewed.');
 
+  // --- TKT-606 refunds to card ----------------------------------------------------------------
+  // AdminAuditLog is append-only (it cannot even be SET NULL), so this disposable admin and its
+  // audit rows are deliberately retained in the test database.
+  const admin = await createUser('admin');
+  userIds.splice(userIds.indexOf(admin), 1);
+  retainedAdmin = admin;
+  await prisma.user.update({ where: { id: admin }, data: { platformRole: 'ADMIN' } });
+  const refunds = new CardRefundsService(gateway);
+  const chargebacks = new ChargebacksService();
+  const creditedTopUp = async (userId: string, amountCents: number, key: string) => {
+    const started = await topUps.initiate(userId, amountCents, `${marker}-${key}`);
+    fake.pay(started.reference);
+    await settlement.settleFromVerify(started.reference, 'webhook');
+    return payment(started.reference);
+  };
+  const refundRow = (id: string) => prisma.providerRefund.findUniqueOrThrow({ where: { id } });
+  const refunder = await createUser('d');
+  const r1Payment = await creditedTopUp(refunder, 16_000, 'r1');
+
+  const r1 = await refunds.initiate({ actorUserId: admin, providerPaymentId: r1Payment.id, amountCents: 10_000, reason: 'Charged twice by mistake', idempotencyKey: `${marker}-refund-1` });
+  const r1Again = await refunds.initiate({ actorUserId: admin, providerPaymentId: r1Payment.id, amountCents: 10_000, reason: 'Charged twice by mistake', idempotencyKey: `${marker}-refund-1` });
+  assert(r1Again.id === r1.id && fake.refunds.length === 1, 'A replayed refund request refunded twice.');
+  assert((await balance(refunder)) === 6_000, 'Refund did not debit the wallet at initiation exactly once.');
+  assert((await refundRow(r1.id)).status === 'PENDING', 'Submitted refund not pending.');
+  assert((await code(refunds.initiate({ actorUserId: admin, providerPaymentId: r1Payment.id, amountCents: 6_100, reason: 'Too much', idempotencyKey: `${marker}-refund-x` }))) === 'REFUND_AMOUNT_INVALID', 'Over-refund was accepted.');
+  assert((await prisma.adminAuditLog.count({ where: { entityId: r1.id, action: 'TOP_UP_REFUND_INITIATED' } })) === 1, 'Refund not audited.');
+  // refund.processed arrives before we ever stored Paystack's refund id; replays are no-ops.
+  const processed = fake.signedEvent('refund.processed', { transaction_reference: r1Payment.reference, amount: '10000', status: 'processed' });
+  await deliver(processed.raw, processed.signature);
+  await processAll(r1Payment.reference);
+  await deliver(processed.raw, processed.signature);
+  await processAll(r1Payment.reference);
+  assert((await refundRow(r1.id)).status === 'PROCESSED', 'refund.processed not applied.');
+  const r1History = (await history.history(refunder, { limit: 20 })).entries.find((entry) => entry.kind === 'CARD_REFUND');
+  assert(r1History?.amountCents === -10_000 && r1History.cardRefund?.state === 'PROCESSED', 'History does not show the card refund state.');
+
+  // Failure, retry, failed again by webhook, explicit restore to wallet (D3).
+  const r2 = await refunds.initiate({ actorUserId: admin, providerPaymentId: r1Payment.id, amountCents: 5_000, reason: 'Account closure', idempotencyKey: `${marker}-refund-2` }).catch(() => null);
+  assert(r2 === null || (await refundRow(r2.id)).status !== 'FAILED', 'Unexpected refund state.');
+  const r3Payment = await creditedTopUp(refunder, 8_000, 'r3');
+  fake.failNext = { path: 'refund', status: 500 };
+  const r3 = await refunds.initiate({ actorUserId: admin, providerPaymentId: r3Payment.id, amountCents: 8_000, reason: 'Duplicate top-up', idempotencyKey: `${marker}-refund-3` });
+  assert(r3.status === 'FAILED' && r3.failureReason === 'PAYSTACK_UNAVAILABLE', 'Provider failure did not leave the refund FAILED.');
+  const afterFailure = await balance(refunder);
+  assert((await credits(refunder)) === 2, 'A failed refund was silently credited back.');
+  assert((await code(refunds.restoreToWallet({ actorUserId: admin, refundId: r1.id, reason: 'Wrong refund' }))) === 'REFUND_NOT_RESTORABLE', 'A processed refund could be restored.');
+  const retried = await refunds.retry({ actorUserId: admin, refundId: r3.id });
+  assert(retried.status === 'PENDING' && retried.attempts === 2, 'Retry did not resubmit the refund.');
+  const failedHook = fake.signedEvent('refund.failed', { transaction_reference: r3Payment.reference, amount: 8_000, status: 'failed' });
+  await deliver(failedHook.raw, failedHook.signature);
+  await processAll(r3Payment.reference);
+  assert((await refundRow(r3.id)).status === 'FAILED' && (await balance(refunder)) === afterFailure, 'refund.failed was not recorded without a credit.');
+  const restored = await refunds.restoreToWallet({ actorUserId: admin, refundId: r3.id, reason: 'Card closed; returned to wallet' });
+  await refunds.restoreToWallet({ actorUserId: admin, refundId: r3.id, reason: 'Card closed; returned to wallet' });
+  assert(restored.status === 'RESTORED_TO_WALLET' && (await balance(refunder)) === afterFailure + 8_000, 'Restore to wallet did not credit exactly once.');
+  assert((await code(refunds.retry({ actorUserId: admin, refundId: r3.id }))) === 'REFUND_NOT_RETRYABLE', 'A restored refund could be retried.');
+  const lateProcessed = fake.signedEvent('refund.processed', { transaction_reference: r3Payment.reference, amount: 8_000, status: 'processed', id: 7777 });
+  await deliver(lateProcessed.raw, lateProcessed.signature);
+  await processAll(r3Payment.reference);
+  assert((await refundRow(r3.id)).reviewReason === 'processed_after_restore', 'Card refund after restore was not flagged for finance.');
+
+  // --- TKT-606 chargebacks: reverse on open (may go negative), restore if won ---------------
+  const disputed = await createUser('e');
+  const d1Payment = await creditedTopUp(disputed, 16_000, 'd1');
+  await serializableTransaction((tx) => financial.debit(tx, { userId: disputed, amountCents: 8_000, type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}-fee`, referenceType: 'SMOKE', referenceId: marker }));
+  const open1 = fake.signedEvent('charge.dispute.create', { id: 555_001, refund_amount: 16_000, currency: 'ZAR', status: 'awaiting-merchant-feedback', transaction: { reference: d1Payment.reference, amount: 16_000 } });
+  await deliver(open1.raw, open1.signature);
+  await processAll(d1Payment.reference);
+  const replayOpen = fake.signedEvent('charge.dispute.create', { id: 555_001, refund_amount: 16_000, status: 'awaiting-merchant-feedback', transaction: { reference: d1Payment.reference }, replay: true });
+  await deliver(replayOpen.raw, replayOpen.signature);
+  await processAll(d1Payment.reference);
+  let wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputed } });
+  assert(wallet.balanceCents === -8_000 && wallet.spendingRestrictedAt, 'Chargeback did not reverse once, below zero, with a restriction.');
+  assert((await prisma.providerDispute.count({ where: { providerPaymentId: d1Payment.id } })) === 1, 'Replayed dispute created twice.');
+  assert((await code(serializableTransaction((tx) => financial.debit(tx, { userId: disputed, amountCents: 0, type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}-blocked`, referenceType: 'SMOKE', referenceId: marker })))) === 'WALLET_RESTRICTED', 'A restricted wallet could still spend.');
+  assert((await code(serializableTransaction((tx) => financial.createHold(tx, { userId: disputed, amountCents: 100, idempotencyKey: `${marker}-hold`, referenceType: 'SMOKE', referenceId: marker })))) === 'WALLET_RESTRICTED', 'A restricted wallet could still hold funds.');
+  assert((await code(refunds.initiate({ actorUserId: admin, providerPaymentId: d1Payment.id, amountCents: 1_000, reason: 'Refund during dispute', idempotencyKey: `${marker}-refund-d` }))) === 'REFUND_BLOCKED_BY_DISPUTE', 'Refund allowed on a disputed top-up.');
+  assert((await code(chargebacks.liftRestriction({ actorUserId: admin, userId: disputed, reason: 'Trying to lift early' }))) === 'WALLET_NEGATIVE', 'Restriction lifted on a negative wallet.');
+  await creditedTopUp(disputed, 10_000, 'd1-repay');
+  wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputed } });
+  assert(wallet.balanceCents === 2_000 && wallet.spendingRestrictedAt, 'Repaying while the dispute is open lifted the restriction.');
+  assert((await summaryOf(disputed)).spendingRestricted, 'Wallet summary does not show the restriction.');
+  const won = fake.signedEvent('charge.dispute.resolve', { id: 555_001, resolution: 'declined', status: 'resolved', transaction: { reference: d1Payment.reference } });
+  await deliver(won.raw, won.signature);
+  await processAll(d1Payment.reference);
+  await chargebacks.resolve({ id: 555_001, resolution: 'declined' });
+  wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputed } });
+  assert(wallet.balanceCents === 18_000 && !wallet.spendingRestrictedAt, 'Won dispute did not restore once and lift the restriction.');
+
+  const lost = await createUser('f');
+  const d2Payment = await creditedTopUp(lost, 8_000, 'd2');
+  await chargebacks.open(d2Payment.reference, { id: 555_002, transaction: { reference: d2Payment.reference, amount: 8_000 } });
+  assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId: lost } })).spendingRestrictedAt, 'Dispute on a zeroed wallet did not restrict.');
+  await chargebacks.resolve({ id: 555_002, resolution: 'merchant-accepted' });
+  wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: lost } });
+  assert(wallet.balanceCents === 0 && !wallet.spendingRestrictedAt, 'Lost dispute left the wrong balance or restriction.');
+  assert((await prisma.providerDispute.findUniqueOrThrow({ where: { providerDisputeId: '555002' } })).status === 'LOST', 'Lost dispute not recorded.');
+
+  let unrestrictedNegative = false;
+  try {
+    await prisma.walletAccount.update({ where: { userId: lost }, data: { balanceCents: -1 } });
+  } catch {
+    unrestrictedNegative = true;
+  }
+  assert(unrestrictedNegative, 'Database allowed a negative balance without a restriction.');
+
   // --- Reconciliation: balance equals the settled ledger ----------------------------------
   for (const userId of userIds) {
     const wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
@@ -251,12 +364,14 @@ try {
   const events = await prisma.paymentWebhookEvent.findMany({ where: { receivedAt: { gte: startedAt } }, select: { id: true } });
   await prisma.durableJob.deleteMany({ where: { dedupeKey: { in: events.map(({ id }) => `paystack-webhook:${id}`) } } });
   await prisma.paymentWebhookEvent.deleteMany({ where: { id: { in: events.map(({ id }) => id) } } });
+  await prisma.providerDispute.deleteMany({ where: { providerPayment: { userId: { in: userIds } } } });
+  await prisma.providerRefund.deleteMany({ where: { providerPayment: { userId: { in: userIds } } } });
   await prisma.providerPayment.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-  assert((await prisma.user.count({ where: { email: { startsWith: marker } } })) === 0, 'Payments smoke users remained.');
+  assert((await prisma.user.count({ where: { email: { startsWith: marker }, id: { not: retainedAdmin || undefined } } })) === 0, 'Payments smoke users remained.');
   await fake.stop();
   await prisma.$disconnect();
 }
-console.log('Gate 6 payments smoke passed: idempotent initiation, throttled status check, authenticated deduplicated webhooks, single credit across webhook/expiry/status sources in every order, review and failure paths, reconciliation.');
+console.log('Gate 6 payments smoke passed: idempotent initiation, throttled status check, authenticated deduplicated webhooks, single credit across webhook/expiry/status sources in every order, review and failure paths, card refunds (fail/retry/restore/out-of-order), chargebacks (negative balance, restriction, won/lost), reconciliation.');

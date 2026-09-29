@@ -11,6 +11,7 @@ export * from './types/moderation.js';
 export * from './types/dispute.js';
 export * from './types/operations.js';
 export * from './types/venue.js';
+export * from './types/finance.js';
 export * from './config/match-formats.js';
 export * from './config/match-rules.js';
 export * from './config/formations.js';

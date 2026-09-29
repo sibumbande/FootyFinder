@@ -159,4 +159,24 @@ describe('adminApi', () => {
       '/admin/disputes/dispute-id/resolve',
     ]);
   });
+
+  it('uses the Gate 6 finance contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.topUps({ status: 'REVIEW' });
+    await api.refundTopUp('payment-id', { amountCents: 5_000, reason: 'Charged twice' }, 'key-1');
+    await api.retryRefund('refund-id');
+    await api.restoreRefund('refund-id', 'Card closed by bank');
+    await api.restrictedWallets();
+    await api.liftRestriction('user-id', 'Repaid by EFT');
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/finance/top-ups?status=REVIEW',
+      '/admin/finance/top-ups/payment-id/refunds',
+      '/admin/finance/refunds/refund-id/retry',
+      '/admin/finance/refunds/refund-id/restore',
+      '/admin/finance/restricted-wallets',
+      '/admin/finance/wallets/user-id/lift-restriction',
+    ]);
+    expect(request.mock.calls[1]![1]).toMatchObject({ headers: { 'Idempotency-Key': 'key-1' } });
+  });
 });

@@ -5,14 +5,20 @@ MASTER TERMS OF SERVICE,
 PRIVACY NOTICE AND
 PARTICIPATION AGREEMENT
 Document	Master Terms of Service, Privacy Notice and Participation Agreement
-Version	2.1
+Version	2.2
 Effective date	29 September 2026
 Last updated	29 September 2026
-Supersedes	Version 2.0 (29 August 2026)
+Supersedes	Version 2.1 (29 September 2026)
 Applies to	All registered users of the FootyFinder platform, website and mobile applications
 Governing law	Republic of South Africa
 Presented at	Account registration — acceptance required before an account is created
 Queries	Contact support on our website
+
+SUMMARY OF CHANGES IN VERSION 2.2
+This summary explains what changed from version 2.1. It does not replace the full Terms below. These are clarifications of how card top-ups, card refunds and chargebacks work; they do not change what you pay.
+•	Top-ups. A card top-up is credited to your Wallet only once Paystack confirms the payment to us. If a payment is declined, abandoned or cannot be confirmed, nothing is credited, and any charge to your card is refunded to that card (clauses 14.5 and 15.7).
+•	Chargebacks. If a card dispute is resolved in our favour, we restore the reversed credit to your Wallet (clause 14.9).
+•	Card refunds. A card refund that fails is not converted into Wallet credit without our telling you; our finance team contacts you to resolve it (clause 15.7).
 
 SUMMARY OF CHANGES IN VERSION 2.1
 This summary explains what changed from version 2.0. It does not replace the full Terms below.
@@ -243,11 +249,11 @@ IMPORTANT: Nothing in this clause excludes or limits our liability for gross neg
 14.2	Not an e-money issuer. We are not a bank, an authorised payment service provider or a registered financial services provider. All card payments are initiated, processed and settled by our third-party payment provider, Paystack.
 14.3	Paying for a match. When you join a Lobby, the R80 Slot Fee is taken (debited) from your Wallet immediately. If the match does not go ahead, the fee is credited back to your Wallet under clause 15.
 14.4	Fees. The Slot Fee is a fixed R80 per player per match, set by FootyFinder. The price you see before you join is the price you pay. We do not add undisclosed charges.
-14.5	Top-ups and no withdrawals. You add money to your Wallet by card, in amounts from R50 to R5,000 per top-up. We pay the payment provider’s fees, so the full amount you pay is credited to your Wallet. The Wallet is closed-loop: you cannot withdraw Wallet credit to a bank account. If your Account is closed, your unspent balance is refunded to the original payment method; if that is not possible, our finance team will review it and contact you.
+14.5	Top-ups and no withdrawals. You add money to your Wallet by card, in amounts from R50 to R5,000 per top-up. We pay the payment provider’s fees, so the full amount you pay is credited to your Wallet. A top-up is credited to your Wallet only once Paystack confirms the payment to us. If a payment is declined, abandoned or cannot be confirmed, nothing is credited; if your card was charged, we refund that charge to your card (clause 15.7). The Wallet is closed-loop: you cannot withdraw Wallet credit to a bank account. If your Account is closed, your unspent balance is refunded to the original payment method; if that is not possible, our finance team will review it and contact you.
 14.6	Promotional credit. Credit awarded by us as a promotion, bonus, referral reward or goodwill gesture is not withdrawable for cash, is not transferable, and may carry an expiry date which will be disclosed when it is awarded.
 14.7	Dormant balances. If your Account has no activity for twenty-four (24) consecutive months and holds a balance, we will contact you at your registered email and mobile number. If we receive no response within ninety (90) days, we will hold the balance for you and deal with it in accordance with applicable law. We will not simply appropriate the funds, and you may reclaim your balance at any time on proof of identity.
 14.8	Errors. If an amount is credited to your Wallet in error, we may reverse it. We will notify you before doing so. If a booking is charged to you in error, we will refund it in full.
-14.9	Chargebacks and fraud. Where a card payment is reversed or disputed (a chargeback) or found to be fraudulent, we reverse the matching Wallet credit, even if this makes your Wallet balance negative. While your balance is negative you cannot join matches or spend from your Wallet until the amount is repaid or the matter is resolved. We may also suspend the Account and recover any charge levied on us by the payment provider. We will notify you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
+14.9	Chargebacks and fraud. Where a card payment is reversed or disputed (a chargeback) or found to be fraudulent, we reverse the matching Wallet credit, even if this makes your Wallet balance negative. While your balance is negative you cannot join matches or spend from your Wallet until the amount is repaid or the matter is resolved. If the dispute is resolved in our favour, we restore the reversed credit to your Wallet. We may also suspend the Account and recover any charge levied on us by the payment provider. We will notify you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
 14.10	No betting or gambling. The Wallet may not be used for wagering. FootyFinder is not a gambling operator and no service on the platform constitutes a bet, a lottery or a game of chance under the National Gambling Act 7 of 2004.
 14.11	Prize competitions. Where we run a competition or promotion, separate rules will be published in compliance with section 36 of the Consumer Protection Act and will be made available before entry.
 15.  Cancellations, Refunds and No-Shows
@@ -268,7 +274,7 @@ Substitute who does not get on the pitch	No refund (clause 11.4)
 15.4	Why late cancellations are not refunded. A late withdrawal is unlikely to be filled in time, leaves the remaining players short, and puts the match at risk of cancellation for everyone. If the match goes ahead, it costs the same to run. The amount kept reflects our actual loss and is not a penalty.
 15.5	Genuine emergencies. If you cannot attend because of injury, illness, bereavement or another genuine emergency, contact support on our website. We may, at our discretion and on reasonable proof, issue a goodwill credit. This is not an entitlement, but we will consider every request fairly.
 15.6	No electronic cooling-off period. The seven-day cooling-off right in section 44 of ECTA does not apply to these bookings. Section 42(2) of ECTA excludes agreements for the provision of leisure services where the supplier undertakes to provide the service on a specific date or within a specific period. A match slot is such a service. Your cancellation rights are those set out in this clause 15.
-15.7	How refunds are paid. Refunds and cancellation credits are paid to your Wallet immediately. They cannot be withdrawn to a bank account (clause 14.5). If a card payment itself has to be refunded (for example a top-up charged in error or twice), we refund it to the original card; if that is not possible, our finance team reviews it manually.
+15.7	How refunds are paid. Refunds and cancellation credits are paid to your Wallet immediately. They cannot be withdrawn to a bank account (clause 14.5). If a card payment itself has to be refunded (for example a top-up charged in error or twice), we refund it to the original card; if that is not possible, our finance team reviews it manually. A failed card refund is not converted into Wallet credit without our telling you; our finance team contacts you to resolve it.
 16.  Code of Conduct and Venue Rules
 16.1	Footwear. You must wear footwear appropriate to the surface. Metal blades and metal studs are prohibited on synthetic pitches. Moulded studs or astroturf boots are required on synthetic surfaces; moulded or screw-in studs are permitted on grass. A Match Host may refuse to allow you to play in unsafe footwear, and no refund is due in that case.
 16.2	Protective equipment. Shin guards are strongly recommended for all matches and may be made compulsory at particular venues.

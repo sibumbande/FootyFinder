@@ -1,6 +1,8 @@
 import { prisma } from '../../database/prisma.js';
 import { registerDurableJobHandler } from '../../jobs/durable-jobs.js';
 import { PAYSTACK_WEBHOOK_JOB_TYPE } from './paystack-webhook.js';
+import { CardRefundsService } from './card-refunds.service.js';
+import { ChargebacksService } from './chargebacks.service.js';
 import { TopUpSettlementService } from './top-up-settlement.service.js';
 
 export type WebhookEventHandler = (event: {
@@ -20,7 +22,11 @@ const record = (value: unknown): Record<string, unknown> =>
 export class PaystackWebhookProcessor {
   private readonly handlers = new Map<string, WebhookEventHandler>();
 
-  constructor(settlement = new TopUpSettlementService()) {
+  constructor(
+    settlement = new TopUpSettlementService(),
+    refunds = new CardRefundsService(),
+    chargebacks = new ChargebacksService(),
+  ) {
     this.on('charge.success', async ({ reference }) => {
       if (!reference) return 'missing_reference';
       const known = await prisma.providerPayment.findUnique({ where: { reference }, select: { id: true } });
@@ -28,6 +34,12 @@ export class PaystackWebhookProcessor {
       const result = await settlement.settleFromVerify(reference, 'webhook');
       return `charge_${result.outcome.toLowerCase()}`;
     });
+    // TKT-606: refunds to card and chargebacks.
+    for (const type of ['refund.pending', 'refund.processing', 'refund.processed', 'refund.failed'])
+      this.on(type, ({ eventType, reference, data }) => refunds.applyWebhook(eventType, reference, data));
+    this.on('charge.dispute.create', ({ reference, data }) => chargebacks.open(reference, data));
+    this.on('charge.dispute.remind', async () => 'dispute_reminder_noted');
+    this.on('charge.dispute.resolve', ({ data }) => chargebacks.resolve(data));
   }
 
   on(eventType: string, handler: WebhookEventHandler) {

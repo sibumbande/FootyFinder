@@ -24,6 +24,7 @@ export const NOTIFICATION_TYPES = [
   'MATCH_POSITION_CHANGED',
   'MATCH_CONFIRMED',
   'MATCH_FILL_REMINDER',
+  'WALLET_DEBIT',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

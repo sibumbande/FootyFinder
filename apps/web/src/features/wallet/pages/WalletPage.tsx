@@ -18,6 +18,14 @@ const STATUS_LABEL: Record<WalletLedgerEntry['status'], string | null> = {
   ERROR: 'Failed – not charged to your wallet',
 };
 
+const CARD_REFUND_LABEL: Record<NonNullable<WalletLedgerEntry['cardRefund']>['state'], string> = {
+  PENDING: 'On its way to your card',
+  PROCESSING: 'On its way to your card',
+  PROCESSED: 'Refunded to your card',
+  FAILED: 'Card refund delayed – our finance team will contact you',
+  RESTORED_TO_WALLET: 'Card refund failed – returned to your wallet',
+};
+
 function LedgerRow({ entry }: { entry: WalletLedgerEntry }) {
   const status = STATUS_LABEL[entry.status];
   const credit = entry.amountCents >= 0;
@@ -37,6 +45,9 @@ function LedgerRow({ entry }: { entry: WalletLedgerEntry }) {
           )}
         </p>
         {status && <p className="mt-1 text-xs font-bold uppercase text-warning-700">{status}</p>}
+        {entry.cardRefund && (
+          <p className="mt-1 text-xs font-bold uppercase text-content-muted">{CARD_REFUND_LABEL[entry.cardRefund.state]}</p>
+        )}
       </div>
       <p
         className={`whitespace-nowrap text-lg font-black ${!entry.countsTowardsBalance ? 'text-content-subtle line-through' : credit ? 'text-brand-700' : 'text-content-strong'}`}

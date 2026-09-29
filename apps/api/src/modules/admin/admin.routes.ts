@@ -4,6 +4,7 @@ import { registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './admin.controller.js';
 import * as moderation from '../moderation/moderation.controller.js';
 import * as disputes from '../disputes/disputes.controller.js';
+import * as finance from '../payments/admin-finance.controller.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
 adminAuthRouter.get('/status', controller.status);
@@ -21,6 +22,8 @@ registerUuidRouteParams(adminRouter, [
   'userId',
   'enforcementId',
   'disputeId',
+  'paymentId',
+  'refundId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -71,6 +74,14 @@ adminRouter.delete(
   controller.removeTestData,
 );
 adminRouter.get('/finance/reconciliation', controller.walletReconciliation);
+// Gate 6 / TKT-606: card top-ups, refunds to card, chargebacks and wallet restrictions.
+adminRouter.get('/finance/top-ups', finance.listTopUps);
+adminRouter.get('/finance/top-ups/:paymentId', finance.getTopUp);
+adminRouter.post('/finance/top-ups/:paymentId/refunds', costlyMutationRateLimit, finance.refundTopUp);
+adminRouter.post('/finance/refunds/:refundId/retry', costlyMutationRateLimit, finance.retryRefund);
+adminRouter.post('/finance/refunds/:refundId/restore', costlyMutationRateLimit, finance.restoreRefund);
+adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
+adminRouter.post('/finance/wallets/:userId/lift-restriction', costlyMutationRateLimit, finance.liftRestriction);
 adminRouter.get('/matches', controller.listManagedMatches);
 adminRouter.post('/matches', costlyMutationRateLimit, controller.createManagedMatch);
 adminRouter.get('/moderation/reports', moderation.listReports);

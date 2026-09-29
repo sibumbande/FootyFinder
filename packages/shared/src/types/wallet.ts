@@ -80,7 +80,17 @@ export type WalletLedgerKind =
   | 'LEAVE_CREDIT'
   | 'REPLACEMENT_CREDIT'
   | 'FIELD_BOOKING'
+  | 'CARD_REFUND'
+  | 'CARD_REFUND_REVERSED'
+  | 'CHARGEBACK'
+  | 'CHARGEBACK_REVERSED'
   | 'LEGACY';
+
+/**
+ * TKT-606: the state of a refund to the player's card, kept separate from the wallet movement.
+ * A failed refund stays FAILED for finance review; it is never silently turned into wallet credit.
+ */
+export type CardRefundState = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'RESTORED_TO_WALLET';
 
 export type WalletLedgerStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'ERROR';
 
@@ -96,6 +106,8 @@ export interface WalletLedgerEntry {
   title: string;
   createdAt: string;
   related?: { type: 'match'; id: string; name: string };
+  /** Present on CARD_REFUND entries: where the money is on its way back to the card. */
+  cardRefund?: { state: CardRefundState };
 }
 
 export interface WalletLedgerPage {

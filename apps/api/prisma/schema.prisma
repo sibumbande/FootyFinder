@@ -88,6 +88,10 @@ enum WalletTransactionType {
   PLAYER_CANCELLATION_PARTIAL_CREDIT
   REPLACEMENT_CREDIT
   FIELD_BOOKING_DEBIT
+  TOP_UP_REFUND_DEBIT
+  TOP_UP_REFUND_RESTORE_CREDIT
+  CHARGEBACK_DEBIT
+  CHARGEBACK_REVERSAL_CREDIT
 }
 
 enum WalletTransactionStatus {
@@ -102,6 +106,20 @@ enum WalletHoldStatus {
   CAPTURED
   RELEASED
   EXPIRED
+}
+
+enum ProviderRefundStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  RESTORED_TO_WALLET
+}
+
+enum ProviderDisputeStatus {
+  OPEN
+  WON
+  LOST
 }
 
 enum ProviderPaymentStatus {
@@ -339,6 +357,7 @@ enum NotificationType {
   MATCH_POSITION_CHANGED
   MATCH_CONFIRMED
   MATCH_FILL_REMINDER
+  WALLET_DEBIT
 }
 
 model User {
@@ -397,6 +416,8 @@ model User {
   approvedVenues            ManagedVenue[]            @relation("VenueApprover")
   deactivatedVenues         ManagedVenue[]            @relation("VenueDeactivator")
   providerPayments          ProviderPayment[]
+  initiatedRefunds          ProviderRefund[]          @relation("RefundInitiator")
+  restoredRefunds           ProviderRefund[]          @relation("RefundRestorer")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -857,15 +878,18 @@ model VerificationToken {
 }
 
 model WalletAccount {
-  id           String              @id @default(uuid()) @db.Uuid
-  userId       String              @unique @db.Uuid
-  currency     String              @default("ZAR")
-  balanceCents Int                 @default(0)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions WalletTransaction[]
-  holds        WalletHold[]
+  id                        String              @id @default(uuid()) @db.Uuid
+  userId                    String              @unique @db.Uuid
+  currency                  String              @default("ZAR")
+  balanceCents              Int                 @default(0)
+  /// TKT-606: set by a chargeback reversal; while set the wallet cannot spend (DB allows balance < 0 only then).
+  spendingRestrictedAt      DateTime?
+  spendingRestrictionReason String?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  user                      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions              WalletTransaction[]
+  holds                     WalletHold[]
 }
 
 model WalletTransaction {
@@ -886,6 +910,10 @@ model WalletTransaction {
   walletAccount     WalletAccount           @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
   matchPayment      MatchPayment?
   providerPayment   ProviderPayment?
+  refundDebit       ProviderRefund?         @relation("RefundDebit")
+  refundRestore     ProviderRefund?         @relation("RefundRestore")
+  disputeDebit      ProviderDispute?        @relation("DisputeDebit")
+  disputeReversal   ProviderDispute?        @relation("DisputeReversal")
 
   @@unique([provider, providerReference])
   @@index([walletAccountId, createdAt])
@@ -938,9 +966,62 @@ model ProviderPayment {
   updatedAt             DateTime              @updatedAt
   user                  User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
   walletTransaction     WalletTransaction     @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
+  refunds               ProviderRefund[]
+  disputes              ProviderDispute[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+}
+
+/// Gate 6 / TKT-606: a refund of a card top-up back to the original card (admin-initiated).
+model ProviderRefund {
+  id                   String               @id @default(uuid()) @db.Uuid
+  providerPaymentId    String               @db.Uuid
+  amountCents          Int
+  status               ProviderRefundStatus @default(PENDING)
+  providerRefundId     String?              @unique
+  debitTransactionId   String               @unique @db.Uuid
+  restoreTransactionId String?              @unique @db.Uuid
+  reason               String
+  initiatedByUserId    String               @db.Uuid
+  restoredByUserId     String?              @db.Uuid
+  restoreReason        String?
+  failureReason        String?
+  reviewReason         String?
+  attempts             Int                  @default(0)
+  processedAt          DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  providerPayment      ProviderPayment      @relation(fields: [providerPaymentId], references: [id], onDelete: Restrict)
+  debitTransaction     WalletTransaction    @relation("RefundDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
+  restoreTransaction   WalletTransaction?   @relation("RefundRestore", fields: [restoreTransactionId], references: [id], onDelete: Restrict)
+  initiatedBy          User                 @relation("RefundInitiator", fields: [initiatedByUserId], references: [id], onDelete: Restrict)
+  restoredBy           User?                @relation("RefundRestorer", fields: [restoredByUserId], references: [id], onDelete: Restrict)
+
+  @@index([providerPaymentId, status])
+  @@index([status, createdAt])
+}
+
+/// Gate 6 / TKT-606: a card chargeback against a top-up (reversed on open, restored if we win).
+model ProviderDispute {
+  id                    String                @id @default(uuid()) @db.Uuid
+  providerPaymentId     String                @db.Uuid
+  providerDisputeId     String                @unique
+  status                ProviderDisputeStatus @default(OPEN)
+  amountCents           Int
+  debitTransactionId    String                @unique @db.Uuid
+  reversalTransactionId String?               @unique @db.Uuid
+  resolution            String?
+  openedAt              DateTime              @default(now())
+  resolvedAt            DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  providerPayment       ProviderPayment       @relation(fields: [providerPaymentId], references: [id], onDelete: Restrict)
+  debitTransaction      WalletTransaction     @relation("DisputeDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
+  reversalTransaction   WalletTransaction?    @relation("DisputeReversal", fields: [reversalTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([providerPaymentId, status])
+  @@index([status, openedAt])
 }
 
 /// Gate 6 / TKT-605: every Paystack webhook delivery (bad signatures keep no payload).

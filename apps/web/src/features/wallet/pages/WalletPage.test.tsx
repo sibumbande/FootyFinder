@@ -93,6 +93,20 @@ describe('WalletPage', () => {
     expect(screen.getByText(/cannot be withdrawn to a bank account/)).toBeInTheDocument();
   });
 
+  it('shows the card refund and chargeback entries in plain words', () => {
+    mocks.history.mockReturnValue(
+      history([
+        [
+          entry({ kind: 'CARD_REFUND', title: 'Refund to your card', amountCents: -5_000, cardRefund: { state: 'FAILED' } }),
+          entry({ kind: 'CHARGEBACK', title: 'Card payment disputed – top-up reversed', amountCents: -16_000 }),
+        ],
+      ]),
+    );
+    renderPage();
+    expect(screen.getByText(/Card refund delayed – our finance team will contact you/)).toBeInTheDocument();
+    expect(screen.getByText('Card payment disputed – top-up reversed')).toBeInTheDocument();
+  });
+
   it('loads the next page on request', () => {
     const fetchNextPage = vi.fn();
     mocks.history.mockReturnValue(history([[entry({})]], { hasNextPage: true, fetchNextPage }));

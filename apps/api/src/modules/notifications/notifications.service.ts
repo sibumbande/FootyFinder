@@ -20,6 +20,7 @@ export class NotificationsService {
     emitDomainEventBestEffort('notification:created', { userId: item.userId, notification });
     if (
       item.type === 'WALLET_CREDIT' ||
+      item.type === 'WALLET_DEBIT' ||
       item.type === 'DEPOSIT_SUCCEEDED' ||
       item.type === 'BOOKING_CONFIRMED' ||
       item.type === 'MATCH_CANCELLED'
