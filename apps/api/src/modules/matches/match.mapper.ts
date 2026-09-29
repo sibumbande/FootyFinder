@@ -1,4 +1,10 @@
-import type { FormationSlot, Match, MatchParticipant, MatchStatus } from '@footy-finder/shared';
+import type {
+  FormationSlot,
+  Match,
+  MatchCancellationReason,
+  MatchParticipant,
+  MatchStatus,
+} from '@footy-finder/shared';
 import { getEffectiveMatchStatus, getMatchEndsAt, isMatchAtCapacity } from '@footy-finder/shared';
 import { toPublicUser } from '../users/user.mapper.js';
 import type { MatchRecord, ParticipantRecord } from './match.query.js';
@@ -27,6 +33,22 @@ export const toFormationSlot = (slot: MatchRecord['formationSlots'][number]): Fo
   participantId: slot.participantId,
   participant: slot.participant ? toMatchParticipant(slot.participant) : null,
 });
+
+/** DEC-018 go/no-go facts, only for matches created under the rule (legacy matches omit them). */
+export const goNoGoFacts = (match: {
+  goNoGoAt: Date | null;
+  confirmedAt: Date | null;
+  cancellationReason: string | null;
+}) =>
+  match.goNoGoAt
+    ? {
+        goNoGoAt: match.goNoGoAt.toISOString(),
+        ...(match.confirmedAt ? { confirmedAt: match.confirmedAt.toISOString() } : {}),
+        ...(match.cancellationReason
+          ? { cancellationReason: match.cancellationReason as MatchCancellationReason }
+          : {}),
+      }
+    : {};
 
 export function toMatch(
   match: MatchRecord,
@@ -118,6 +140,7 @@ export function toMatch(
       availabilityRequestedAt: teamSide.availabilityRequestedAt?.toISOString(),
       lineupFinalizedAt: teamSide.lineupFinalizedAt?.toISOString(),
     })),
+    ...goNoGoFacts(match),
     viewerCanManage: options.viewerCanManage ?? false,
     viewerCanChat: options.viewerCanChat ?? false,
   };

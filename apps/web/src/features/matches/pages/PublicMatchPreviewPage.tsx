@@ -9,6 +9,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
+import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
 import { ShareMatchActions } from '../components/ShareMatchActions.js';
 import { useMatchByPublicSlug, usePublicMatchPreview } from '../hooks/useMatches.js';
 
@@ -74,6 +75,14 @@ export function PublicMatchPreviewPage() {
             <ShareMatchActions facts={shareFacts} />
           </div>
         </section>
+
+        <GoNoGoBanner
+          facts={preview}
+          status={preview.status}
+          feeCents={preview.feeCents}
+          filled={preview.positions?.filled ?? 0}
+          total={preview.positions?.total ?? 0}
+        />
 
         <section className="rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-8">
           <h2 className="text-2xl font-black text-content-strong">Join this match</h2>
@@ -158,6 +167,8 @@ function joinMessage(reason: string) {
       return 'This match has already started and cannot be joined.';
     case 'COMPLETED':
       return 'This match has finished and cannot be joined.';
+    case 'LINEUP_LOCKED':
+      return 'The lineup locked 30 minutes before kickoff, so this match can no longer be joined.';
     default:
       return 'This match is not accepting players.';
   }

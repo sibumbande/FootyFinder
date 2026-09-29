@@ -205,7 +205,19 @@ export interface MatchResult {
   scorers: MatchScorer[];
 }
 
-export interface Match {
+export type MatchCancellationReason = 'ORGANISER_CANCELLED' | 'POSITIONS_UNFILLED';
+
+/**
+ * DEC-018 go/no-go facts. Present only on matches created under DEC-018: the match goes ahead only
+ * if every formation position is claimed by goNoGoAt (kickoff - 30 minutes).
+ */
+export interface MatchGoNoGoFacts {
+  goNoGoAt?: string;
+  confirmedAt?: string;
+  cancellationReason?: MatchCancellationReason;
+}
+
+export interface Match extends MatchGoNoGoFacts {
   id: string;
   publicSlug?: string;
   canonicalUrl?: string;
@@ -247,9 +259,10 @@ export type PublicMatchJoinabilityReason =
   | 'CANCELLED'
   | 'STARTED'
   | 'COMPLETED'
+  | 'LINEUP_LOCKED'
   | 'UNAVAILABLE';
 
-export interface PublicMatchPreview {
+export interface PublicMatchPreview extends MatchGoNoGoFacts {
   slug: string;
   canonicalUrl: string;
   name: string;
@@ -271,6 +284,11 @@ export interface PublicMatchPreview {
     reason: PublicMatchJoinabilityReason;
   };
   capacity: {
+    filled: number;
+    total: number;
+  };
+  /** Aggregate formation positions claimed (no identities). */
+  positions: {
     filled: number;
     total: number;
   };

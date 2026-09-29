@@ -26,7 +26,7 @@ import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { logInfo } from '../../observability/logger.js';
-import { toFormationSlot, toMatch, toMatchParticipant } from './match.mapper.js';
+import { goNoGoFacts, toFormationSlot, toMatch, toMatchParticipant } from './match.mapper.js';
 import { createMatchInviteToken, hashMatchInviteToken } from './invite-token.js';
 import {
   AlreadyJoinedError,
@@ -119,9 +119,11 @@ export class MatchesService {
     });
     const status =
       ['OPEN', 'READY'].includes(lifecycleStatus) && filled >= total ? 'FULL' : lifecycleStatus;
+    const lineupLocked = ['OPEN', 'READY', 'FULL'].includes(status) && isLobbyFrozen(match);
     const reason =
-      status === 'FULL' ? 'FULL'
-        : status === 'CANCELLED' ? 'CANCELLED'
+      status === 'CANCELLED' ? 'CANCELLED'
+        : lineupLocked ? 'LINEUP_LOCKED'
+        : status === 'FULL' ? 'FULL'
           : ['IN_PROGRESS'].includes(status) ? 'STARTED'
             : ['AWAITING_RESULT', 'COMPLETED'].includes(status) ? 'COMPLETED'
               : ['OPEN', 'READY'].includes(status) ? 'AVAILABLE'
@@ -141,6 +143,11 @@ export class MatchesService {
       status,
       joinability: { canJoin: reason === 'AVAILABLE', reason },
       capacity: { filled, total },
+      positions: {
+        filled: match.formationSlots.filter(({ participantId }) => participantId).length,
+        total: match.formationSlots.length,
+      },
+      ...goNoGoFacts(match),
     };
   }
   async create(input: CreateMatchInput, userId: string) {

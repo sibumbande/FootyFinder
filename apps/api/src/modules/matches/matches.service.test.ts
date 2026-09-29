@@ -184,6 +184,30 @@ describe('anonymous public Match preview', () => {
     ...overrides,
   });
 
+  it('adds DEC-018 go/no-go facts and an aggregate position count, and locks joining from T-30', async () => {
+    const goNoGoAt = new Date(Date.now() - 60_000);
+    const repository = {
+      findPublicPreviewBySlug: vi.fn().mockResolvedValue(
+        publicMatch({
+          startsAt: new Date(Date.now() + 29 * 60_000),
+          goNoGoAt,
+          confirmedAt: null,
+          cancellationReason: null,
+          formationSlots: [{ participantId: 'p1' }, { participantId: null }],
+        }),
+      ),
+    } as unknown as MatchesRepository;
+
+    const preview = await new MatchesService(repository).publicPreview('m-0123456789abcdef01234567');
+
+    expect(preview).toMatchObject({
+      goNoGoAt: goNoGoAt.toISOString(),
+      positions: { filled: 1, total: 2 },
+      joinability: { canJoin: false, reason: 'LINEUP_LOCKED' },
+    });
+    expect(JSON.stringify(preview)).not.toMatch(/p1/);
+  });
+
   it('returns exactly the approved aggregate DTO without identities or private metadata', async () => {
     const repository = {
       findPublicPreviewBySlug: vi.fn().mockResolvedValue(publicMatch()),
@@ -213,6 +237,7 @@ describe('anonymous public Match preview', () => {
       status: 'OPEN',
       joinability: { canJoin: true, reason: 'AVAILABLE' },
       capacity: { filled: 1, total: 10 },
+      positions: { filled: 0, total: 0 },
     });
     expect(JSON.stringify(preview)).not.toMatch(
       /internal-match-id|inviteToken|host@example|player@example|wallet|addressLine1/,

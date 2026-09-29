@@ -25,6 +25,7 @@ import {
   QUICK_MATCH_SIDE_BADGES,
   QUICK_MATCH_SIDE_LABELS,
 } from '../constants/quick-match-sides.js';
+import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
@@ -279,6 +280,13 @@ export function MatchLobbyPage() {
           </div>
         )}
       </header>
+      <GoNoGoBanner
+        facts={match}
+        status={match.status}
+        feeCents={match.feeCents}
+        filled={boardSlots.filter((slot) => slot.playerId).length}
+        total={boardSlots.length}
+      />
       <FormError
         message={leave.error?.message ?? deletion.error?.message ?? ready.error?.message}
       />

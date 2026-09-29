@@ -34,6 +34,7 @@ const preview = {
   status: 'OPEN',
   joinability: { canJoin: true, reason: 'AVAILABLE' },
   capacity: { filled: 7, total: 10 },
+  positions: { filled: 3, total: 10 },
 };
 
 const renderPage = () =>

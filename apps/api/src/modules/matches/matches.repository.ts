@@ -126,6 +126,10 @@ export class MatchesRepository {
         feeCents: true,
         venue: { select: { name: true, city: true, region: true } },
         participants: { where: { status: 'JOINED' }, select: { id: true } },
+        goNoGoAt: true,
+        confirmedAt: true,
+        cancellationReason: true,
+        formationSlots: { select: { participantId: true } },
       },
     });
   }

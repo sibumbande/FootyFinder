@@ -346,6 +346,15 @@ test.describe('public join and position claim', () => {
     for (const page of [hostPage, winnerPage])
       await expect(occupiedBy(page, 2, loserName)).toBeVisible({ timeout: 3_000 });
 
+    // DEC-018 messaging: the T-30 rule is explained and the live count follows the socket updates.
+    await expect(
+      hostPage.getByText(/This match goes ahead only if all positions are filled by .* your R80 is refunded to your wallet\./),
+    ).toBeVisible();
+    for (const page of [hostPage, winnerPage, loserPage])
+      await expect(page.getByTestId('positions-filled')).toHaveText('2 of 10 positions filled', {
+        timeout: 3_000,
+      });
+
     // DEC-013 interaction budget, measured in this real browser.
     const timings = await loserPage.evaluate(() => ({
       feedback: window.__footyFormationTimings?.summary('pointer-to-render'),
