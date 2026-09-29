@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), and the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29, and Gate 6 (TKT-601 to TKT-609, in order, one commit per ticket) on 2026-09-29.
 
 
 1. HOW TO USE THIS BACKLOG
@@ -197,6 +197,15 @@ Policy:
 - Chargebacks append an auditable reversal even if the personal wallet becomes negative and restrict spending until repayment/admin resolution.
 - Platform Operations owns production credentials/webhooks; developers use scoped test credentials.
 Blocks resolved by policy: TKT-603 through TKT-606.
+CEO decisions recorded for Gate 6 (Sibu, 2026-09-29):
+- D2. A chargeback is reversed when the dispute opens (the wallet may go negative and spending is restricted); if the dispute is resolved in FootyFinder's favour ("declined"), the reversed credit is restored. ToS 14.9 says so (v2.2).
+- D3. A failed card refund stays FAILED for finance; an admin may retry it or explicitly return it to the wallet with a written reason (audited). It is never re-credited automatically.
+- D5. The database allows a negative wallet balance only while spending is restricted; only the chargeback reversal path may go below zero.
+- D6. The restriction lifts automatically when the balance is back at or above zero and no dispute is open, or by an audited admin action on a wallet that is not below zero.
+- D7. Card refunds are admin-initiated only; players ask through support.
+- D11 (amended by the CEO). The wallet is credited only after FootyFinder's server verifies the payment with Paystack (status success, exact amount, ZAR, card, the player's own reference). The verified webhook, the expiry job and the player's return-page status check all use the same idempotent, row-locked credit path, so a top-up is credited once whatever the order. The browser never credits on its own say-so. Only mismatches, or a success reported after the top-up was closed, go to finance REVIEW.
+- Top-up quick picks: R80, R160 (default), R240, R400, plus a custom amount (R50-R5,000).
+- D12. Terms of Service v2.2 (non-material clarifications): top-ups credited only once Paystack confirms (14.5), restore on a won dispute (14.9), failed card refunds never silently become wallet credit (15.7).
 
 DEC-012 - Weekly dual-control venue settlement
 Status: APPROVED - BENEFICIARY FACTS STILL REQUIRED (2026-09-24)
@@ -209,6 +218,13 @@ Policy:
 - Apply refunds/adjustments before an unpaid settlement or against the next settlement; unmatched exceptions remain visible for finance resolution.
 - Venue/platform cancellation fully reverses the obligation according to the snapshotted policy.
 Blocks resolved by policy: TKT-607 through TKT-609, subject to DEC-005 external data.
+Applied with DEC-018 and CEO decisions for Gate 6 (Sibu, 2026-09-29):
+- D1. The payable is created at kickoff (not at T-30), DUE immediately, in the same transaction that starts the match: exactly once per reservation, from the admin-only priceCentsSnapshot, only for a confirmed go/no-go Quick Match (reservation CONFIRMED, confirmedAt set). A T-30 auto-cancelled or host-cancelled match never kicks off and never creates a payable; a database trigger refuses any ineligible payable.
+- D4. A legacy match (no goNoGoAt/confirmedAt) that reaches kickoff gets no payable; reconciliation lists it as LEGACY_RESERVATION_UNSETTLED for manual finance handling.
+- D8. Venue bank details are encrypted at rest (AES-256-GCM, VENUE_BENEFICIARY_ENCRYPTION_KEY), masked everywhere, usable only after a second admin approves them, and revealed in full only through an audited call.
+- D9. Any two different MFA-verified platform admins (no separate finance role): the approver and the payer must differ from the preparer; approve and mark-paid need an MFA verification from the last 15 minutes.
+- D10. One batch per venue per week, Monday 00:00 to Monday 00:00 Africa/Johannesburg, prepared only after the week has ended.
+- "Created with the reservation" in the policy above is superseded by D1 and DEC-018 ("only a match that went ahead"), so no payable exists for a cancelled match and nothing needs reversing.
 
 DEC-013 - Position claim and organiser override policy
 Status: APPROVED - POLICY RECORDED (2026-09-24)
@@ -383,6 +399,7 @@ Venue settlement rule: a venue is owed money only for a match that went ahead. A
   - Mobile-hardware budget measurement is still pending.
   - See `docs/GATE_5_POSITION_CLAIMS_RUNBOOK_2026-09-28.md`.
 - DEC-018 (fixed R80 fee, hidden venue costs, no host guarantee, T-30 go/no-go) was implemented on 2026-09-29 as TKT-311 to TKT-315 with additive migration `20260930100000_fixed_fee_go_no_go`, verified locally on footy_finder_test. See section 9A and `docs/DEC_018_FIXED_FEE_GO_NO_GO_RUNBOOK_2026-09-29.md`.
+- Gate 6 (TKT-601 to TKT-609) was implemented on 2026-09-29, one commit per ticket, with six additive migrations (20261002100000 to 20261002150000), verified locally (footy_finder reset and footy_finder_test deploy, all 35 migrations) plus a real Paystack TEST API check. Production release still needs live Paystack credentials/webhook, approved venue bank details (DEC-005/TKT-302) and the production encryption key. See section 10 and `docs/GATE_6_PAYMENTS_SETTLEMENT_RUNBOOK_2026-09-29.md`.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
@@ -1133,7 +1150,48 @@ Follow-ups (not implemented, recorded for decision):
 10. GATE 6 - PERSONAL PAYMENTS AND VENUE SETTLEMENT
 ===================================================
 
+Implementation summary (2026-09-29): implemented on `ceo/finish-gate-5` in order, one commit per ticket, under DEC-011, DEC-012, DEC-018 and the CEO's Gate 6 decisions (recorded under DEC-011 and DEC-012).
+Additive migrations:
+- 20261002100000_gate_6_provider_payments
+- 20261002110000_gate_6_payment_webhooks
+- 20261002120000_gate_6_refund_chargeback_enums
+- 20261002130000_gate_6_refunds_chargebacks. This widens two existing CHECKs:
+  - non-negative balance becomes "unless spending is restricted";
+  - the ledger-sign CHECK gains the new ledger types.
+- 20261002140000_gate_6_venue_payables
+- 20261002150000_gate_6_settlement_batches
+No index uses a function.
+
+Verification (2026-09-29):
+- Migrations: `npx prisma migrate reset --force` on local footy_finder applied all 35 migrations (run with the CEO's explicit consent), and the dev legal placeholders were re-published with legal:publish. `migrate deploy` on footy_finder_test applied each Gate 6 migration.
+- Unit tests pass: shared 83, api-client 27, api 283, web 116. The admin app has no unit tests.
+- Type-checks for api/web/admin and the web and admin builds pass.
+- On footy_finder_test these smokes pass:
+  - smoke:payments;
+  - smoke:venue-settlement;
+  - smoke:payment-to-settlement;
+  - smoke:financial-integrity;
+  - smoke:go-no-go;
+  - smoke:position-claims;
+  - smoke:operations;
+  - smoke:api-contract.
+- Playwright wallet, critical-path and position-claim journeys pass (ADMIN_TEST_DATA_ENABLED=true on the disposable DB, as in the Gate 5 runbook).
+- smoke:paystack-sandbox passes against the real Paystack TEST API. A card-only ZAR checkout initialised and verify returned "abandoned", so nothing was credited.
+- Pre-existing, not Gate 6, see follow-ups:
+  - smoke:atomic-notifications does not compile (MatchesRepository.create was removed before Gate 6);
+  - smoke:field-bookings is time-of-day flaky between 18:00 and 18:59 UTC (its kickoff + 3h slot crosses local midnight).
+
+See `docs/GATE_6_PAYMENTS_SETTLEMENT_RUNBOOK_2026-09-29.md`.
+
+Follow-ups (not implemented, recorded for decision):
+- Production release: live Paystack keys, webhook URL and IP whitelist (Platform Operations); approved real venue bank details (DEC-005/TKT-302); production VENUE_BENEFICIARY_ENCRYPTION_KEY; publish ToS v2.2 with legal:publish.
+- External alerting (paging) for REVIEW top-ups, failed card refunds and reconciliation issues. Today these are visible on the admin Finance page only.
+- Venue bank details can be added only from the settlement page once a venue has something due; a venue-page entry point would let finance set them up earlier.
+- Fix the two pre-existing smoke problems above.
+
 TKT-601 - Add paginated wallet transaction-history API
+Status: VERIFIED LOCALLY - COMMIT 20787fb (2026-09-29)
+Implemented: GET /wallet (balance/held/available/spendingRestricted) and GET /wallet/transactions (own wallet only, keyset cursor, 20 default / 50 max, newest first); every ledger type maps to a player-facing kind with its sign; only SUCCEEDED rows count; match-linked rows carry the match id and name only; no provider references or venue data; privacy test extended.
 Depends on: TKT-001
 Risk: Medium
 Scope:
@@ -1144,6 +1202,8 @@ Tests: pagination/order/type/sign/auth/privacy.
 Not in scope: team transactions or external refund state.
 
 TKT-602 - Add wallet page and navigation
+Status: VERIFIED LOCALLY - COMMIT d2a29fa (2026-09-29)
+Implemented: /wallet page (balance, available, on hold, history with "Load more", loading/empty/error states, match links, card-refund/chargeback states added in TKT-606); Wallet in the avatar account menu; header balance links to /wallet; live refresh on wallet-updated.
 Depends on: TKT-601
 Risk: Low
 Scope:
@@ -1154,6 +1214,12 @@ Tests: components/API client/navigation.
 Not in scope: flexible deposit initiation.
 
 TKT-603 - Add flexible deposit contract using demo/test operator
+Status: VERIFIED LOCALLY - COMMIT e44314e (2026-09-29)
+Implemented:
+- Server-validated whole-rand R50-R5,000 top-ups.
+- PAYMENT_PROVIDER env: the demo operator works only in development/test (the route answers 404 otherwise, and production must use paystack).
+- Top-up form: quick picks R80/R160 (default)/R240/R400 plus a custom amount, with a confirm step.
+- The fixed R500 button and copy are removed; the join dialog links to the wallet with the shortfall.
 Depends on: DEC-011
 Risk: Medium
 Scope:
@@ -1165,6 +1231,15 @@ Tests: boundaries, currency, idempotency reuse, UI validation.
 Not in scope: production provider.
 
 TKT-604 - Integrate production payment initiation
+Status: VERIFIED LOCALLY - COMMIT 1ee4681 (2026-09-29). Production release needs live keys.
+Implemented:
+- Paystack hosted checkout: card only, ZAR, our reference and metadata.
+- Idempotent initiation per user: only one request calls Paystack.
+- The ProviderPayment stays PENDING until our server verifies the payment.
+- Single credit path settleFromVerify, shared by webhook, expiry job and status check (D11 as amended).
+- Return page only polls; checkout-host guard.
+- Key-prefix guards: test keys outside production, live keys in production.
+- Provider messages are redacted; keys are never logged.
 Depends on: TKT-603, DEC-011
 Risk: Critical
 Scope:
@@ -1176,6 +1251,13 @@ Tests: provider sandbox/contract adapter, failures/retries, secret/log hygiene.
 Not in scope: webhook processing.
 
 TKT-605 - Implement authenticated idempotent payment webhooks
+Status: VERIFIED LOCALLY - COMMIT 5586f06 (2026-09-29)
+Implemented:
+- POST /payments/paystack/webhook, before express.json.
+- HMAC-SHA512 of the raw body, timing-safe compare; optional IP allowlist.
+- Bad signature: 401, audited without payload.
+- Events deduplicated by body hash and processed by a durable job through settleFromVerify.
+- smoke:payments proves one credit for webhook-then-verify, verify-then-webhook and all three sources at once, plus replays, retries and late success (REVIEW).
 Depends on: TKT-604
 Risk: Critical
 Scope:
@@ -1187,6 +1269,15 @@ Tests: signature, replay, ordering, timeout/retry, reconciliation.
 Not in scope: refunds/chargebacks.
 
 TKT-606 - Implement external refund and chargeback lifecycle
+Status: VERIFIED LOCALLY - COMMIT 48cb48c (2026-09-29)
+Implemented:
+- Admin refund to card: the wallet is debited at initiation; refund.* webhooks, including out-of-order ones.
+- FAILED refunds go to retry or an audited restore-to-wallet (D3); they are never automatic.
+- Chargeback: reversal on open (may go negative, restricts spending) and restore on a won dispute (D2).
+- Automatic restriction release (D6).
+- Admin Finance page for top-ups, refunds and restricted wallets.
+- History shows card-refund and chargeback states.
+- ToS v2.2 in the same commit.
 Depends on: TKT-605, DEC-011
 Risk: Critical
 Scope:
@@ -1199,6 +1290,13 @@ Tests: all terminal/retry/out-of-order states and account restriction policy.
 Not in scope: team wallets.
 
 TKT-607 - Add venue payable and beneficiary model
+Status: VERIFIED LOCALLY WITH FAKE BANK DATA - COMMIT 8f35b6b (2026-09-29). Production needs approved beneficiary facts (DEC-005/TKT-302).
+Implemented:
+- Payable created at kickoff for confirmed go/no-go Quick Matches only (D1), once per reservation, from priceCentsSnapshot.
+- No payable for T-30/host-cancelled or legacy matches (D4); a DB eligibility trigger enforces this.
+- Encrypted, masked, second-admin-approved beneficiaries with audited reveal (D8).
+- Reasoned, audited adjustments.
+- Admin-only; privacy test extended.
 Depends on: DEC-012, TKT-302
 Risk: Critical
 Scope:
@@ -1210,6 +1308,13 @@ Tests: migration, uniqueness, adjustments/refunds, admin authorization/audit.
 Not in scope: automatic bank payout.
 
 TKT-608 - Add admin manual-settlement queue
+Status: VERIFIED LOCALLY - COMMIT 92eebcd (2026-09-29)
+Implemented:
+- Weekly per-venue batches, Monday-Monday Johannesburg time, closed weeks only (D10).
+- prepare -> approve (different admin) -> mark paid with payout reference and evidence (not the preparer); approve and mark-paid need fresh MFA (15 min, D9). Cancel before payment.
+- Paid batches and payables are immutable in the DB, so nothing is paid twice.
+- Adjustments on paid payables carry to the next batch.
+- Every transition audited; admin "Venue settlement" page.
 Depends on: TKT-607
 Risk: High
 Scope:
@@ -1220,6 +1325,12 @@ Tests: authorization, transition matrix, audit immutability, UI states.
 Not in scope: automated payouts.
 
 TKT-609 - Extend financial reconciliation and E2E
+Status: VERIFIED LOCALLY - COMMIT 0f0a365 (2026-09-29)
+Implemented:
+- Reconciliation of wallets, holds, provider top-ups, card refunds, chargebacks, reservations that went ahead, venue payables and settlement batches.
+- smoke:payment-to-settlement: zero issues on known fixtures; each injected inconsistency is detected.
+- smoke:paystack-sandbox (real TEST API).
+- Playwright wallet journey.
 Depends on: TKT-606, TKT-608
 Risk: High
 Scope:
