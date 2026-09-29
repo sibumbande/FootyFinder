@@ -12,7 +12,7 @@ export const matchCancelledEmailDedupeKey = (matchId: string, userId: string) =>
  */
 export const enqueueMatchCancelledEmail = (
   tx: Prisma.TransactionClient,
-  input: { matchId: string; userId: string; refundedCents: number },
+  input: { matchId: string; userId: string; refundedCents: number; teamMember?: boolean },
 ) =>
   enqueueDurableJob(tx, {
     type: MATCH_CANCELLED_EMAIL_JOB_TYPE,

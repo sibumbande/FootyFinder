@@ -2,7 +2,7 @@ import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
 import { registerDurableJobHandler } from '../../jobs/durable-jobs.js';
 import { createEmailProvider, type EmailProvider } from '../auth/email.provider.js';
-import { matchCancelledMessage } from './cancellation-message.js';
+import { isMatchCancellationReason, matchCancelledMessage } from './cancellation-message.js';
 import { MATCH_CANCELLED_EMAIL_JOB_TYPE } from './match-cancelled-email.js';
 
 const invalidPayload = () =>
@@ -10,10 +10,10 @@ const invalidPayload = () =>
 
 export const parseMatchCancelledEmailPayload = (payload: unknown) => {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw invalidPayload();
-  const { matchId, userId, refundedCents } = payload as Record<string, unknown>;
+  const { matchId, userId, refundedCents, teamMember } = payload as Record<string, unknown>;
   if (typeof matchId !== 'string' || typeof userId !== 'string' || typeof refundedCents !== 'number')
     throw invalidPayload();
-  return { matchId, userId, refundedCents };
+  return { matchId, userId, refundedCents, teamMember: teamMember === true };
 };
 
 type MatchCancelledEmailStore = {
@@ -45,17 +45,18 @@ export const sendMatchCancelledEmail = async (
   emails: EmailProvider,
   store: MatchCancelledEmailStore = prismaStore,
 ) => {
-  const { matchId, userId, refundedCents } = parseMatchCancelledEmailPayload(payload);
+  const { matchId, userId, refundedCents, teamMember } = parseMatchCancelledEmailPayload(payload);
   const match = await store.findMatch(matchId);
   if (!match || match.status !== 'CANCELLED') return;
   const to = await store.findEmail(userId);
   if (!to) return;
-  const reason = match.cancellationReason === 'POSITIONS_UNFILLED' ? 'POSITIONS_UNFILLED' : 'ORGANISER_CANCELLED';
+  const reason = isMatchCancellationReason(match.cancellationReason) ? match.cancellationReason : 'ORGANISER_CANCELLED';
   const message = matchCancelledMessage({
     venueName: match.venue.name,
     startsAt: match.startsAt,
     reason,
     refundedCents,
+    teamMember,
   });
   await emails.send({
     to,

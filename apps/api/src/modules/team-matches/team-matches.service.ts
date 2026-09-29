@@ -9,7 +9,14 @@ import {
   type CreateMatchInput,
   type Match,
 } from '@footy-finder/shared';
-import type { Prisma } from '../../generated/prisma/client.js';
+import type { Notification, Prisma } from '../../generated/prisma/client.js';
+import { env } from '../../config/env.js';
+import { prisma } from '../../database/prisma.js';
+import { emitDomainEventBestEffort } from '../../events/domain-events.js';
+import type { EmailProvider } from '../auth/email.provider.js';
+import { lockMatchForFormation, MatchesRepository } from '../matches/matches.repository.js';
+import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';
 import { assertPlayerSlotWindow, BookingsService, rethrowReservationConflict } from '../bookings/bookings.service.js';
@@ -18,6 +25,14 @@ import { matchInclude } from '../matches/match.query.js';
 import { createPublicMatchSlug } from '../matches/public-match.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
+import {
+  enqueueTeamMatchEmail,
+  enqueueTeamMatchSideJobs,
+  TEAM_MATCH_EMAIL_SUBJECT,
+  teamMatchMessage,
+  unmatchedCancelAt,
+  type TeamMatchEmailKind,
+} from './team-match-jobs.js';
 import { copySavedSquad, savedFormation } from './team-squad.js';
 
 /**
@@ -49,12 +64,15 @@ export class TeamMatchesService {
   constructor(
     private readonly bookings = new BookingsService(),
     private readonly teamWallets = new TeamWalletRepository(),
+    private readonly matches = new MatchesRepository(),
+    private readonly notifications = new NotificationsService(),
   ) {}
 
   async create(input: CreateMatchInput, userId: string): Promise<Match> {
     const teamId = input.playAsTeamId;
     if (!teamId || !input.otherSideMode || input.teamSubstituteCount === undefined)
       throw new AppError(400, 'Choose your team, who can take the other side and your number of subs.', 'VALIDATION_ERROR');
+    const otherSideMode = input.otherSideMode;
     const startsAt = new Date(input.startsAt);
     const now = new Date();
     assertPlayerSlotWindow(startsAt, now);
@@ -141,11 +159,96 @@ export class TeamMatchesService {
           matchId: created.id, command: 'TEAM_MATCH_PUBLISHED', teamId, side: 'HOME', actorUserId: userId,
           payload: { otherSideMode: input.otherSideMode, substituteCount: fee.substituteCount, teamFeeCents: fee.totalCents },
         });
+        await enqueueTeamMatchSideJobs(tx, { id: created.id, startsAt, otherSideMode }, now);
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { viewerCanManage: true, viewerCanChat: true });
     } catch (error) {
       return rethrowReservationConflict(error);
     }
+  }
+
+  /**
+   * D10 / decision E: a "Teams only" match whose other side no team has taken 24 hours before
+   * kickoff is cancelled (nothing is held yet; the reservation is released and nothing is owed).
+   * Idempotent: a taken, cancelled, confirmed or "Open to both" match is left alone.
+   */
+  async cancelUnmatched(matchId: string, now = new Date()) {
+    const result = await serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: { status: true, startsAt: true, otherSideMode: true, otherSideTakenBy: true, confirmedAt: true },
+      });
+      if (!match || match.otherSideMode !== 'TEAMS_ONLY' || match.otherSideTakenBy !== null
+        || match.confirmedAt || !['OPEN', 'READY'].includes(match.status))
+        return { outcome: 'NOT_APPLICABLE' as const, notifications: [] as Notification[] };
+      if (now < unmatchedCancelAt(match.startsAt))
+        throw Object.assign(new Error('The unmatched check is not due yet.'), { code: 'TEAM_MATCH_UNMATCHED_NOT_DUE' });
+      const cancelled = await this.matches.cancelInTx(tx, matchId, 'NO_OPPONENT');
+      await appendTeamMatchAudit(tx, { matchId, command: 'TEAM_MATCH_CANCELLED', payload: { reason: 'NO_OPPONENT' } });
+      return { outcome: 'CANCELLED' as const, notifications: cancelled.notifications };
+    });
+    if (result.outcome === 'CANCELLED') {
+      this.notifications.publishPersistedMany(result.notifications);
+      emitDomainEventBestEffort('match:cancelled', { matchId });
+    }
+    return result;
+  }
+
+  /** Warns the home team 48 hours before kickoff that no team has taken a "Teams only" match. */
+  async warnNoOpponent(matchId: string) {
+    const notifications = await serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: {
+          name: true, startsAt: true, status: true, otherSideMode: true, otherSideTakenBy: true,
+          venue: { select: { name: true } },
+          teamSides: { where: { side: 'HOME' }, select: { team: { select: { memberships: { select: { userId: true, role: true } } } } } },
+        },
+      });
+      if (!match || match.otherSideMode !== 'TEAMS_ONLY' || match.otherSideTakenBy !== null || !['OPEN', 'READY'].includes(match.status))
+        return [] as Notification[];
+      const members = match.teamSides[0]?.team?.memberships ?? [];
+      const message = teamMatchMessage('NO_OPPONENT_WARNING', { name: match.name, startsAt: match.startsAt, venueName: match.venue.name });
+      for (const member of members.filter(({ role }) => role === 'OWNER' || role === 'CAPTAIN'))
+        await enqueueTeamMatchEmail(tx, { matchId, userId: member.userId, kind: 'NO_OPPONENT_WARNING', eventKey: 'warning' });
+      return persistNotifications(tx, members.map(({ userId }) => ({
+        userId,
+        type: 'TEAM_MATCH_NO_OPPONENT_WARNING' as const,
+        title: 'No opponent yet',
+        message,
+        targetPath: `/matches/${matchId}`,
+        dedupeKey: notificationDedupeKey('team-match', matchId, 'no-opponent-warning', userId),
+      })));
+    });
+    this.notifications.publishPersistedMany(notifications);
+    return notifications;
+  }
+
+  /** Sends one operational team-match email (at-least-once, like the cancellation email). */
+  async sendEmail(payload: unknown, emails: EmailProvider) {
+    const { matchId, userId, kind, otherTeamName } = (payload ?? {}) as Record<string, unknown>;
+    if (typeof matchId !== 'string' || typeof userId !== 'string'
+      || !['OPPONENT_FOUND', 'NO_OPPONENT_WARNING', 'OPPONENT_WITHDRAWN'].includes(String(kind)))
+      throw Object.assign(new Error('Invalid team-match email payload.'), { code: 'JOB_PAYLOAD_INVALID' });
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: { name: true, startsAt: true, status: true, venue: { select: { name: true } } },
+    });
+    if (!match || match.status === 'CANCELLED') return;
+    const to = (await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }))?.email;
+    if (!to) return;
+    const emailKind = kind as TeamMatchEmailKind;
+    const text = teamMatchMessage(emailKind, {
+      name: match.name, startsAt: match.startsAt, venueName: match.venue.name,
+      otherTeamName: typeof otherTeamName === 'string' ? otherTeamName : null,
+    });
+    await emails.send({
+      to,
+      subject: TEAM_MATCH_EMAIL_SUBJECT[emailKind],
+      text: `${text}\n\nView the match: ${env.CLIENT_URL.replace(/\/$/, '')}/matches/${matchId}`,
+    });
   }
 }

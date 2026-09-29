@@ -25,6 +25,11 @@ export const NOTIFICATION_TYPES = [
   'MATCH_CONFIRMED',
   'MATCH_FILL_REMINDER',
   'WALLET_DEBIT',
+  // Gate 7 team matches (DEC-019).
+  'TEAM_MATCH_OPPONENT_FOUND',
+  'TEAM_MATCH_NO_OPPONENT_WARNING',
+  'TEAM_MATCH_OPPONENT_WITHDRAWN',
+  'TEAM_METER_REMINDER',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

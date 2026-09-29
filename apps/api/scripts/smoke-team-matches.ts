@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { CreateMatchInput } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
+import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
+import { TeamMatchesService } from '../src/modules/team-matches/team-matches.service.js';
+import { noOpponentWarningDedupeKey, unmatchedCancelAt, unmatchedCancelDedupeKey } from '../src/modules/team-matches/team-match-jobs.js';
+import { fillReminderJobDedupeKey } from '../src/modules/matches/fill-reminder.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
 import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
 
@@ -14,6 +18,7 @@ import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
  */
 const world = teamMatchWorld(`gate7-setup-${randomUUID()}`);
 const matches = new MatchesService();
+const teamMatches = new TeamMatchesService();
 
 const teamMatchInput = (teamId: string, overrides: Partial<CreateMatchInput> = {}): CreateMatchInput => ({
   managedFieldId: world.fieldId,
@@ -104,8 +109,30 @@ async function main() {
   await new TeamsRepository().close(other.id, owner.id);
   assert(await rejectsWith(() => publish(teamMatchInput(other.id), owner.id), 'TEAM_ARCHIVED'), 'A closed team published a match.');
 
+  // TKT-706: "Teams only" jobs (48h warning, 24h unmatched cancel) and the "Open to both" reminder.
+  assert(await prisma.durableJob.count({ where: { dedupeKey: { in: [unmatchedCancelDedupeKey(first.id), noOpponentWarningDedupeKey(first.id)] } } }) === 2,
+    'The "Teams only" match is missing its warning or unmatched-cancel job.');
+  assert(await prisma.durableJob.count({ where: { dedupeKey: fillReminderJobDedupeKey(second.id) } }) === 1, 'The "Open to both" match has no fill reminder.');
+  const warned = await teamMatches.warnNoOpponent(first.id);
+  await teamMatches.warnNoOpponent(first.id);
+  assert(warned.length === 3 && await prisma.notification.count({ where: { type: 'TEAM_MATCH_NO_OPPONENT_WARNING' } }) >= 3, 'Every home member was not warned once.');
+  assert(await prisma.durableJob.count({ where: { type: 'TEAM_MATCH_EMAIL', dedupeKey: { contains: first.id } } }) === 2, 'The owner and captain did not each get one warning email.');
+  const early = await teamMatches.cancelUnmatched(first.id).then(() => null, (error: { code?: string }) => error.code);
+  assert(early === 'TEAM_MATCH_UNMATCHED_NOT_DUE', 'An unmatched cancel ran before 24 hours before kickoff.');
+  const due = new Date(unmatchedCancelAt(new Date(first.startsAt)).getTime() + 1_000);
+  const unmatched = await teamMatches.cancelUnmatched(first.id, due);
+  assert(unmatched.outcome === 'CANCELLED' && (await teamMatches.cancelUnmatched(first.id, due)).outcome === 'NOT_APPLICABLE', 'The unmatched cancel was not idempotent.');
+  const cancelled = await prisma.match.findUniqueOrThrow({ where: { id: first.id }, include: { fieldReservation: true } });
+  assert(cancelled.status === 'CANCELLED' && cancelled.cancellationReason === 'NO_OPPONENT' && cancelled.fieldReservation?.status === 'CANCELLED',
+    'The unmatched match was not cancelled with its reservation released.');
+  const notices = await prisma.notification.findMany({ where: { type: 'MATCH_CANCELLED', targetPath: `/matches/${first.id}` } });
+  assert(notices.length === 3 && notices.every(({ message }) => message.includes("the other side wasn't taken in time")), 'Home members were not told once why the match was cancelled.');
+  assert(await prisma.durableJob.count({ where: { type: 'MATCH_CANCELLED_EMAIL', dedupeKey: { contains: first.id } } }) === 3, 'Cancellation emails were not queued once per home member.');
+  const reminder = await new MatchesRepository().sendFillReminder(second.id);
+  assert(reminder.open === 5 && reminder.notifications.length === 3, 'The "Open to both" reminder did not go to the home team about the 5 open positions on the other side.');
+
   assert((await world.ourIssues()).length === 0, `Reconciliation issues: ${JSON.stringify(await world.ourIssues())}`);
-  console.log('Gate 7 team-match setup smoke passed (TKT-704 publish rules, TKT-705 side backstops and audit).');
+  console.log('Gate 7 team-match setup smoke passed (TKT-704 publish rules, TKT-705 side backstops and audit, TKT-706 side jobs).');
 }
 
 try {

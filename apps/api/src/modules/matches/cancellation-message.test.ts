@@ -38,4 +38,14 @@ describe('matchCancelledMessage', () => {
       matchCancelledMessage({ venueName: 'X', startsAt, reason: 'ORGANISER_CANCELLED', refundedCents: 4550 }),
     ).toContain('Your R45.50 has been refunded');
   });
+
+  it('explains team-match cancellations and tells team members their held money went back (Gate 7)', () => {
+    expect(
+      matchCancelledMessage({ venueName: 'Queens Park', startsAt, reason: 'TEAM_FEES_UNFUNDED', refundedCents: 0, teamMember: true }),
+    ).toBe(
+      "Your match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled because a team fee wasn't fully paid 30 minutes before kickoff. Any money held for this match has gone back to your team wallet.",
+    );
+    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'NO_OPPONENT', refundedCents: 0 })).toContain("because the other side wasn't taken in time.");
+    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'TEAM_CANCELLED', refundedCents: 8_000 })).toContain('cancelled by the home team. Your R80 has been refunded');
+  });
 });

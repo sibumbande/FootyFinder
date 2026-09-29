@@ -1,6 +1,7 @@
 import type {
   CreateTeamMatchInput,
   DiscoveryQuery,
+  MatchCancellationReason,
   FormationSlotUpdateInput,
   JoinMatchInput,
   ResultInput,
@@ -26,6 +27,7 @@ import { matchCancelledMessage } from './cancellation-message.js';
 import { enqueueMatchCancelledEmail } from './match-cancelled-email.js';
 import { fillReminderMessage, openPositionsForReminder } from './fill-reminder.js';
 import { copySavedSquad } from '../team-matches/team-squad.js';
+import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -51,7 +53,7 @@ export class PositionAlreadyClaimedError extends Error {}
  * Takes the Match row lock that every formation mutation shares, so claims and organiser moves
  * on one Match serialize in a consistent lock order (Match, then slots).
  */
-const lockMatchForFormation = (tx: Prisma.TransactionClient, matchId: string) =>
+export const lockMatchForFormation = (tx: Prisma.TransactionClient, matchId: string) =>
   tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id" = ${matchId}::uuid FOR UPDATE`;
 
 const bumpFormationVersion = async (tx: Prisma.TransactionClient, matchId: string) =>
@@ -84,7 +86,10 @@ const assertLobbyOpen = (
 };
 
 export class MatchesRepository {
-  constructor(private readonly financial = new FinancialRepository()) {}
+  constructor(
+    private readonly financial = new FinancialRepository(),
+    private readonly teamWallets = new TeamWalletRepository(),
+  ) {}
   listPublic(query: DiscoveryQuery) {
     return prisma.match.findMany({
       where: {
@@ -601,15 +606,27 @@ export class MatchesRepository {
           goNoGoAt: true,
           confirmedAt: true,
           createdById: true,
-          formationSlots: { select: { participantId: true } },
+          otherSideMode: true,
+          otherSideTakenBy: true,
+          formationSlots: { select: { participantId: true, team: true } },
           participants: { where: { status: 'JOINED' }, select: { userId: true } },
+          teamSides: { where: { side: 'HOME' }, select: { team: { select: { memberships: { select: { userId: true } } } } } },
         },
       });
       const none = { notifications: [] as Notification[], open: 0 };
-      const open = match ? openPositionsForReminder(match) : 0;
-      if (!match || open === 0) return none;
+      if (!match) return none;
+      // Gate 7 / decision E: for an "Open to both" team match, remind about the individuals side
+      // (the home team manages its own lineup). "Teams only" and team-taken sides get no reminder.
+      const teamMatch = Boolean(match.otherSideMode);
+      if (teamMatch && (match.otherSideMode !== 'OPEN' || match.otherSideTakenBy === 'TEAM')) return none;
+      const open = openPositionsForReminder({
+        ...match,
+        formationSlots: teamMatch ? match.formationSlots.filter(({ team }) => team === 'AWAY') : match.formationSlots,
+      });
+      if (open === 0) return none;
+      const homeMembers = match.teamSides[0]?.team?.memberships.map(({ userId }) => userId) ?? [];
       const recipients = [
-        ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
+        ...new Set([...match.participants.map(({ userId }) => userId), ...homeMembers, match.createdById]),
       ];
       const notifications = await persistNotifications(
         tx,
@@ -627,14 +644,16 @@ export class MatchesRepository {
   }
 
   /**
-   * Shared cancellation core for organiser cancellation and the T-30 auto-cancel. Every SUCCEEDED
-   * payment gets a full MATCH_CANCELLATION_CREDIT with the stable key match-cancellation:<paymentId>,
-   * so two cancellation paths can never refund the same fee twice. Nothing is owed to the venue.
+   * Shared cancellation core for organiser cancellation, the T-30 auto-cancel and (Gate 7) every
+   * team-match cancellation. Every ACTIVE team-wallet hold for the match is released to its own
+   * team wallet, and every SUCCEEDED individual payment gets a full MATCH_CANCELLATION_CREDIT with
+   * the stable key match-cancellation:<paymentId>, so two cancellation paths can never refund the
+   * same fee twice. Nothing is owed to the venue. Members of attached teams are notified too.
    */
-  private async cancelInTx(
+  async cancelInTx(
     tx: Prisma.TransactionClient,
     matchId: string,
-    reason: 'ORGANISER_CANCELLED' | 'POSITIONS_UNFILLED',
+    reason: MatchCancellationReason,
   ) {
     await lockMatchForFormation(tx, matchId);
     const match = await tx.match.findUniqueOrThrow({
@@ -649,6 +668,19 @@ export class MatchesRepository {
     if (match.status === 'CANCELLED')
       return { match, refundedUserIds: [] as string[], notifications: [] as Notification[] };
     const unfilled = reason === 'POSITIONS_UNFILLED';
+    // Gate 7 (D2): release held fill-meter money first (team wallets lock before personal wallets).
+    const teamHolds = await tx.teamWalletHold.findMany({
+      where: { matchId, status: 'ACTIVE' },
+      select: { id: true, account: { select: { teamId: true } } },
+    });
+    await this.teamWallets.lockAccounts(tx, teamHolds.map(({ account }) => account.teamId));
+    for (const hold of teamHolds) await this.teamWallets.releaseHold(tx, hold.id, `match-cancelled:${reason}`);
+    const teamMemberIds = new Set(
+      (await tx.teamMembership.findMany({
+        where: { team: { matchSides: { some: { matchId } } } },
+        select: { userId: true },
+      })).map(({ userId }) => userId),
+    );
     const refundedUserIds: string[] = [];
     const refundedCentsByUser = new Map<string, number>();
     for (const payment of match.payments) {
@@ -676,6 +708,7 @@ export class MatchesRepository {
       ...new Set([
         ...match.participants.map(({ userId }) => userId),
         ...refundedCentsByUser.keys(),
+        ...teamMemberIds,
         match.createdById,
       ]),
     ];
@@ -691,11 +724,12 @@ export class MatchesRepository {
           startsAt: match.startsAt,
           reason,
           refundedCents,
+          teamMember: teamMemberIds.has(userId),
         }),
         targetPath: `/matches/${matchId}`,
         dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', userId),
       });
-      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents });
+      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents, teamMember: teamMemberIds.has(userId) });
     }
     if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
       // DEC-018: nothing is owed to the venue for a cancelled match and the host is never
