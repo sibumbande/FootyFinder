@@ -27,6 +27,7 @@ export * from './schemas/booking.js';
 export * from './schemas/moderation.js';
 export * from './schemas/dispute.js';
 export * from './schemas/venue.js';
+export * from './schemas/wallet.js';
 export * from './constants/socket-events.js';
 export * from './utils/api.js';
 export * from './utils/match-lifecycle.js';

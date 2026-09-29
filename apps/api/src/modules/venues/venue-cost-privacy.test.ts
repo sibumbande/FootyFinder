@@ -97,14 +97,52 @@ vi.mock('../../database/prisma.js', () => ({
     },
     managedVenueSlugAlias: { findUnique: vi.fn(async () => null) },
     fieldReservation: { findMany: vi.fn(async () => []) },
+    walletAccount: {
+      findUnique: vi.fn(async () => ({ id: 'wallet-1', userId: 'payer', balanceCents: 8_000 })),
+    },
+    walletHold: { aggregate: vi.fn(async () => ({ _sum: { amountCents: null } })) },
+    walletTransaction: {
+      findMany: vi.fn(async () => [
+        { id: '00000000-0000-4000-8000-000000000001', type: 'DEPOSIT_CREDIT', amountCents: 16_000, status: 'SUCCEEDED', referenceType: 'DEPOSIT', referenceId: null, createdAt: now },
+        { id: '00000000-0000-4000-8000-000000000002', type: 'MATCH_ENTRY_DEBIT', amountCents: -8_000, status: 'SUCCEEDED', referenceType: 'MATCH', referenceId: '11111111-1111-4111-8111-111111111111', createdAt: now },
+      ]),
+    },
+    matchPayment: { findMany: vi.fn(async () => []) },
+    participantCancellation: { findMany: vi.fn(async () => []) },
+    // The match row carries a reservation priced at R1000; the wallet DTO must only read its name.
+    match: {
+      findMany: vi.fn(async () => [
+        { id: '11111111-1111-4111-8111-111111111111', name: 'Privacy match', fieldReservation: { priceCentsSnapshot: 100_000 } },
+      ]),
+    },
   },
 }));
+
+// Wallet, payment and payable DTOs legitimately carry the player's own amountCents, so they are
+// checked with a venue-only key list plus the distinctive venue-cost fixture amounts.
+const VENUE_ONLY_KEY =
+  /price|venue|payable|beneficiary|bank|accountNumber|accountHolder|branch|settlement|obligation|guarantee|requiredCents|fundedCents/i;
+const venueOnlyKeys = (value: unknown, path = '$'): string[] => {
+  if (Array.isArray(value)) return value.flatMap((item, index) => venueOnlyKeys(item, `${path}[${index}]`));
+  if (value && typeof value === 'object')
+    return Object.entries(value).flatMap(([key, child]) => [
+      ...(VENUE_ONLY_KEY.test(key) ? [`${path}.${key}`] : []),
+      ...venueOnlyKeys(child, `${path}.${key}`),
+    ]);
+  return [];
+};
+const expectNoVenueCostInMoneyDto = (payload: unknown) => {
+  const json = JSON.parse(JSON.stringify(payload));
+  expect(venueOnlyKeys(json)).toEqual([]);
+  expect(JSON.stringify(json)).not.toMatch(/50000|60000|80000|100000/);
+};
 
 const { VenuesService } = await import('./venues.service.js');
 const { playerBookingDto, adminBookingDto } = await import('../bookings/bookings.service.js');
 const { toMatch } = await import('../matches/match.mapper.js');
 const { bookingsRouter } = await import('../bookings/bookings.routes.js');
 const { errorHandler } = await import('../../middleware/error-handler.js');
+const { WalletHistoryService } = await import('../wallet/wallet-history.service.js');
 
 const user = (id: string) => ({
   id,
@@ -248,5 +286,16 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
       expect(response.status).toBe(410);
       expect(response.body).toMatchObject({ code: 'PLAYER_FIELD_BOOKING_RETIRED' });
     }
+  });
+
+  it('wallet summary and history DTOs carry no venue cost (Gate 6)', async () => {
+    const service = new WalletHistoryService();
+    const summary = await service.summary('payer');
+    const history = await service.history('payer', { limit: 20 });
+    expectNoVenueCostInMoneyDto(summary);
+    expectNoVenueCostInMoneyDto(history);
+    expect(history.entries[1]).toMatchObject({ amountCents: -8_000, related: { name: 'Privacy match' } });
+    // Negative control for the money-DTO detector.
+    expect(() => expectNoVenueCostInMoneyDto({ entries: [{ priceCentsSnapshot: 1 }] })).toThrow();
   });
 });
