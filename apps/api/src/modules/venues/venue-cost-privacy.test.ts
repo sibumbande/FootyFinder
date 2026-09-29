@@ -89,8 +89,8 @@ const venueRow = {
   ],
 };
 
-vi.mock('../../database/prisma.js', () => ({
-  prisma: {
+vi.mock('../../database/prisma.js', () => {
+  const prisma: Record<string, unknown> = {
     managedVenue: {
       findMany: vi.fn(async () => [venueRow]),
       findFirst: vi.fn(async () => venueRow),
@@ -109,14 +109,32 @@ vi.mock('../../database/prisma.js', () => ({
     },
     matchPayment: { findMany: vi.fn(async () => []) },
     participantCancellation: { findMany: vi.fn(async () => []) },
+    // Gate 7: team wallet rows. The hold's match carries a R1000 reservation it must not expose.
+    team: { findUnique: vi.fn(async () => ({ name: 'Privacy FC', archivedAt: null })) },
+    teamMembership: { findUnique: vi.fn(async () => ({ role: 'OWNER' })) },
+    teamWalletAccount: { findUnique: vi.fn(async () => ({ id: 'team-wallet-1', teamId: 'team-1', balanceCents: 112_000 })) },
+    teamWalletHold: {
+      aggregate: vi.fn(async () => ({ _sum: { amountCents: 88_000 } })),
+      findMany: vi.fn(async () => [
+        { id: 'hold-1', side: 'HOME', amountCents: 88_000, createdAt: now, match: { id: '11111111-1111-4111-8111-111111111111', name: 'Privacy match', startsAt: now, fieldReservation: { priceCentsSnapshot: 100_000 } } },
+      ]),
+    },
+    teamWalletTransaction: {
+      findMany: vi.fn(async () => [
+        { id: '00000000-0000-4000-8000-000000000011', type: 'CONTRIBUTION_CREDIT', amountCents: 200_000, createdAt: now, contributorUserId: 'payer', referenceType: 'TEAM', referenceId: 'team-1', contributor: { username: 'payer', profile: { displayName: 'Payer' } }, spentBy: [{ amountCents: 88_000 }] },
+        { id: '00000000-0000-4000-8000-000000000012', type: 'TEAM_MATCH_FEE_DEBIT', amountCents: -88_000, createdAt: now, contributorUserId: null, referenceType: 'MATCH', referenceId: '11111111-1111-4111-8111-111111111111', contributor: null, spentBy: [] },
+      ]),
+    },
     // The match row carries a reservation priced at R1000; the wallet DTO must only read its name.
     match: {
       findMany: vi.fn(async () => [
         { id: '11111111-1111-4111-8111-111111111111', name: 'Privacy match', fieldReservation: { priceCentsSnapshot: 100_000 } },
       ]),
     },
-  },
-}));
+  };
+  prisma.$transaction = vi.fn(async (work: (tx: unknown) => unknown) => work(prisma));
+  return { prisma };
+});
 
 // Wallet, payment and payable DTOs legitimately carry the player's own amountCents, so they are
 // checked with a venue-only key list plus the distinctive venue-cost fixture amounts.
@@ -299,6 +317,19 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     expect(history.entries[1]).toMatchObject({ amountCents: -8_000, related: { name: 'Privacy match' } });
     // Negative control for the money-DTO detector.
     expect(() => expectNoVenueCostInMoneyDto({ entries: [{ priceCentsSnapshot: 1 }] })).toThrow();
+  });
+
+  it('team wallet summary, history and hold DTOs carry no venue cost (Gate 7, TKT-702)', async () => {
+    const { TeamWalletService } = await import('../team-wallet/team-wallet.service.js');
+    const service = new TeamWalletService();
+    const summary = await service.summary('team-1', 'payer');
+    const history = await service.history('team-1', 'payer', { limit: 20 });
+    const holds = await service.holds('team-1', 'payer');
+    for (const dto of [summary, history, holds]) expectNoVenueCostInMoneyDto(dto);
+    expect(summary).toMatchObject({ balanceCents: 112_000, heldCents: 88_000, availableCents: 24_000, viewerUnspentCents: 112_000 });
+    expect(history.entries[1]).toMatchObject({ kind: 'TEAM_MATCH_FEE', related: { name: 'Privacy match' } });
+    expect(holds[0]).toMatchObject({ amountCents: 88_000, match: { name: 'Privacy match' } });
+    expect(JSON.stringify(holds)).not.toContain('fieldReservation');
   });
 
   it('venue payables and bank details stay admin-only (Gate 6, TKT-607)', () => {

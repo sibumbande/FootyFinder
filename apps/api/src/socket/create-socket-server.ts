@@ -135,6 +135,9 @@ export function createSocketServer(server: HttpServer) {
       userId: payload.userId,
     }),
   );
+  domainEvents.on('team:wallet-updated', (payload) =>
+    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamWalletUpdated, { teamId: payload.teamId }),
+  );
   domainEvents.on('team:deleted', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamDeleted, { teamId: payload.teamId }),
   );

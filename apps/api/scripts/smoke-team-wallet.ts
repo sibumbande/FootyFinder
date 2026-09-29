@@ -5,6 +5,7 @@ import { prisma } from '../src/database/prisma.js';
 import { serializableTransaction } from '../src/database/transaction.js';
 import { TeamWalletInsufficientFundsError, TeamWalletRepository } from '../src/modules/team-wallet/team-wallet.repository.js';
 import { TeamWalletTransfers } from '../src/modules/team-wallet/team-wallet.transfers.js';
+import { TeamWalletService } from '../src/modules/team-wallet/team-wallet.service.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
 import { FinancialInsufficientFundsError, FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconciliation.service.js';
@@ -23,6 +24,7 @@ const teamWallets = new TeamWalletRepository();
 const transfers = new TeamWalletTransfers(teamWallets, financial);
 const teams = new TeamsRepository(teamWallets, transfers);
 const reconciliation = new WalletReconciliationService();
+const service = new TeamWalletService(teamWallets, financial, transfers);
 const userIds: string[] = [];
 const teamIds: string[] = [];
 const matchIds: string[] = [];
@@ -218,7 +220,83 @@ async function main() {
   await prisma.teamWalletAccount.update({ where: { id: account.id }, data: { balanceCents: 100 } });
   assert((await ourIssues()).some((issue) => issue.code === 'TEAM_ARCHIVED_WITH_FUNDS'), 'Money in a closed team was not detected.');
   await prisma.teamWalletAccount.update({ where: { id: account.id }, data: { balanceCents: 0 } });
-  console.log('Gate 7 team-wallet smoke passed.');
+
+  await contributionsAndRefunds();
+  console.log('Gate 7 team-wallet smoke passed (TKT-701 ledger + TKT-702 contributions and refunds).');
+}
+
+/** TKT-702 through TeamWalletService: who may contribute, D4 limits, and D8 refunds. */
+async function contributionsAndRefunds() {
+  const owner = await user(11, 1_000);
+  const captain = await user(12, 1_000);
+  const rich = await user(13, 600_000);
+  const regular = await user(14, 20_000);
+  const outsider = await user(15, 20_000);
+  const team = await teams.create({
+    name: `${marker}-service`, primaryFormat: 'SEVEN_A_SIDE', formationKey: getDefaultFormationKey('SEVEN_A_SIDE'),
+  }, owner.id);
+  teamIds.push(team.id);
+  await prisma.teamMembership.createMany({ data: [
+    { teamId: team.id, userId: captain.id, role: 'CAPTAIN' },
+    { teamId: team.id, userId: rich.id, role: 'MEMBER' },
+    { teamId: team.id, userId: regular.id, role: 'MEMBER' },
+  ] });
+
+  const first = await service.contribute(team.id, regular.id, 5_000, 'k1');
+  const again = await service.contribute(team.id, regular.id, 5_000, 'k1');
+  assert(!first.replayed && again.replayed && first.entry.id === again.entry.id, 'A replayed contribution request was not idempotent.');
+  assert(first.entry.kind === 'CONTRIBUTION' && first.entry.contributor?.displayName === 'Wallet Smoke 14', 'The contribution entry does not name the contributor.');
+  assert(first.wallet.balanceCents === 5_000 && first.wallet.viewerUnspentCents === 5_000, 'The team wallet summary after a contribution is wrong.');
+  assert(await rejects(() => service.contribute(team.id, outsider.id, 1_000, 'k1'), code('TEAM_FORBIDDEN')), 'An outsider contributed to a team.');
+  assert(await rejects(() => service.contribute(team.id, regular.id, 1_000, ''), code('IDEMPOTENCY_KEY_REQUIRED')), 'A contribution without an idempotency key was accepted.');
+  assert(await rejects(() => service.contribute(team.id, regular.id, 50_000, 'too-much'), code('INSUFFICIENT_BALANCE')), 'A contribution above the personal balance was accepted.');
+
+  // D4: at most R5,000 and 10 contributions per member per team per rolling 24 hours.
+  await service.contribute(team.id, rich.id, 490_000, 'big');
+  assert(await rejects(() => service.contribute(team.id, rich.id, 20_000, 'over'), code('TEAM_CONTRIBUTION_DAILY_LIMIT')), 'The R5,000 daily limit was not enforced.');
+  for (let index = 2; index <= 10; index += 1) await service.contribute(team.id, regular.id, 1_000, `small-${index}`);
+  assert(await rejects(() => service.contribute(team.id, regular.id, 1_000, 'small-11'), code('TEAM_CONTRIBUTION_DAILY_LIMIT')), 'The 10-contributions daily limit was not enforced.');
+
+  // A restricted personal wallet (open chargeback) cannot contribute.
+  await prisma.walletAccount.update({ where: { userId: outsider.id }, data: { spendingRestrictedAt: new Date(), spendingRestrictionReason: 'smoke' } });
+  await prisma.teamMembership.create({ data: { teamId: team.id, userId: outsider.id, role: 'MEMBER' } });
+  assert(await rejects(() => service.contribute(team.id, outsider.id, 1_000, 'restricted'), code('WALLET_RESTRICTED')), 'A restricted wallet contributed.');
+  await prisma.walletAccount.update({ where: { userId: outsider.id }, data: { spendingRestrictedAt: null, spendingRestrictionReason: null } });
+  await prisma.teamMembership.delete({ where: { teamId_userId: { teamId: team.id, userId: outsider.id } } });
+
+  // Holds are visible to owner/captains only, and demotion removes that at once.
+  assert((await service.holds(team.id, captain.id)).length === 0, 'A captain could not see team holds.');
+  assert(await rejects(() => service.holds(team.id, regular.id), code('TEAM_FORBIDDEN')), 'A member saw actionable holds.');
+  await prisma.teamMembership.update({ where: { teamId_userId: { teamId: team.id, userId: captain.id } }, data: { role: 'MEMBER' } });
+  assert(await rejects(() => service.holds(team.id, captain.id), code('TEAM_FORBIDDEN')), 'A demoted captain kept captain access.');
+  assert(!(await service.summary(team.id, captain.id)).viewerCanManage, 'A demoted captain can still manage the team wallet.');
+
+  // Members see history with contributor names but no internal references.
+  const history = await service.history(team.id, owner.id, { limit: 50 });
+  assert(history.entries.length === 11, `Expected 11 team ledger entries, saw ${history.entries.length}.`);
+  assert(!/idempotency|linkedWalletTransaction|personal|price|venue/i.test(JSON.stringify(history)), 'Team wallet history exposed an internal reference.');
+  assert(await rejects(() => service.history(team.id, outsider.id, { limit: 5 }), code('TEAM_FORBIDDEN')), 'An outsider read team wallet history.');
+
+  // D8: a removed member keeps the right to take back their own unspent money.
+  await teams.removeMember(team.id, regular.id);
+  assert(await rejects(() => service.summary(team.id, regular.id), code('TEAM_FORBIDDEN')), 'A removed member still sees the team wallet.');
+  const reclaim = await service.reclaimable(regular.id);
+  assert(reclaim.length === 1 && reclaim[0]!.unspentCents === 14_000 && reclaim[0]!.refundableCents === 14_000, 'Reclaimable contributions for a removed member are wrong.');
+  assert(await rejects(() => service.contribute(team.id, regular.id, 1_000, 'after-removal'), code('TEAM_FORBIDDEN')), 'A removed member contributed.');
+  const before = await balanceOf(regular.id);
+  await service.refund(team.id, regular.id, 4_000, 'r1');
+  await service.refund(team.id, regular.id, 4_000, 'r1');
+  assert(await balanceOf(regular.id) === before + 4_000, 'A self-refund was not applied exactly once.');
+  assert(await rejects(() => service.refund(team.id, regular.id, 11_000, 'r2'), code('TEAM_WALLET_INSUFFICIENT_FUNDS')), 'A member refunded more than their own unspent money.');
+  assert(await rejects(() => service.refund(team.id, outsider.id, 100, 'r3'), code('TEAM_WALLET_INSUFFICIENT_FUNDS')), 'A non-contributor took money from a team.');
+
+  // Closure returns everyone's own unspent money, including the removed member's.
+  const closed = await teams.close(team.id, owner.id);
+  assert(closed.outcome === 'CLOSED' && closed.refunds.length === 2, 'Closure did not refund both contributors.');
+  assert(closed.refunds.find((row) => row.userId === regular.id)?.amountCents === 10_000, 'Closure did not refund the removed member.');
+  assert(await rejects(() => service.contribute(team.id, rich.id, 1_000, 'closed'), code('TEAM_ARCHIVED')), 'A closed team accepted a contribution.');
+  assert((await service.reclaimable(regular.id)).length === 0, 'A closed team still lists reclaimable money.');
+  assert((await ourIssues()).length === 0, `Reconciliation found issues after the TKT-702 journey: ${JSON.stringify(await ourIssues())}`);
 }
 
 try {

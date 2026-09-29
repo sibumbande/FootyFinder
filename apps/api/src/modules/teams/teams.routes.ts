@@ -5,6 +5,7 @@ import { AppError } from '../../errors/app-error.js';
 import { requireAuth } from '../../middleware/require-auth.js';
 import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './teams.controller.js';
+import * as teamWallet from '../team-wallet/team-wallet.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
 import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
 import { requireOnboardingForMutations } from '../../middleware/require-onboarding.js';
@@ -48,6 +49,12 @@ teamsRouter.post('/:teamId/invites', costlyMutationRateLimit, controller.createI
 teamsRouter.get('/:teamId/invites', controller.listInvites);
 teamsRouter.delete('/:teamId/invites/:inviteId', controller.revokeInvite);
 teamsRouter.get('/:teamId/formations/:format', controller.getFormation);
+// Gate 7 (TKT-702): Team Wallet.
+teamsRouter.get('/:teamId/wallet', teamWallet.summary);
+teamsRouter.get('/:teamId/wallet/transactions', teamWallet.transactions);
+teamsRouter.get('/:teamId/wallet/holds', teamWallet.holds);
+teamsRouter.post('/:teamId/wallet/contributions', costlyMutationRateLimit, teamWallet.contribute);
+teamsRouter.post('/:teamId/wallet/refunds', costlyMutationRateLimit, teamWallet.refund);
 teamsRouter.put('/:teamId/formations/:format', controller.saveFormation);
 teamsRouter.patch('/:teamId/formations/:format/slots/:slotId', controller.updateFormationSlot);
 
