@@ -53,6 +53,7 @@ describe('CreateMatchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByTestId('fixed-fee-notice')).toHaveTextContent(/Every player pays R\s?80[,.]00 to join, including subs\./);
     expect(screen.queryByLabelText(/Entry fee/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('fixed-fee-notice')).toHaveTextContent(/no deposit or guarantee/);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create match' }));
 

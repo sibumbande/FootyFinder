@@ -246,7 +246,7 @@ export function CreateMatchPage() {
           >
             <div className="rounded-2xl bg-surface-muted p-4"><span className="text-xs font-bold uppercase text-content-muted">Selected kickoff</span><strong className="mt-1 block text-content-strong">{startsAt ? new Date(startsAt).toLocaleString() : 'Choose a venue slot'}</strong></div>
             <p data-testid="fixed-fee-notice" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm font-semibold text-brand-700">
-              Every player pays {formatRands(MATCH_FEE_CENTS)} to join, including subs. The fee is set by Footy Finder.
+              Every player pays {formatRands(MATCH_FEE_CENTS)} to join, including subs. The fee is set by Footy Finder. As the host you place no deposit or guarantee, and you only pay if you join a team.
             </p>
           </Step>
         )}

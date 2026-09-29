@@ -5,7 +5,6 @@ import type {
   PlayerFieldBookingInput,
   CreateMatchInput,
 } from '@footy-finder/shared';
-import { randomUUID } from 'node:crypto';
 import { createDefaultFormation, MATCH_DURATION_MINUTES, MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
@@ -128,28 +127,18 @@ export class BookingsService {
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },
         } });
-        const reservationId = randomUUID();
-        let guaranteeHoldId: string | undefined;
-        if (price.amountCents > 0) {
-          try {
-            guaranteeHoldId = (await this.financial.createHold(tx, { userId: actorUserId, amountCents: price.amountCents, idempotencyKey: `quick-match-guarantee:${created.id}`, referenceType: 'FIELD_RESERVATION', referenceId: reservationId, description: 'Quick Match venue-cost guarantee' })).hold.id;
-          } catch (error) {
-            if (error instanceof FinancialInsufficientFundsError) throw new AppError(402, 'Your available wallet balance cannot guarantee this venue cost.', 'INSUFFICIENT_BALANCE');
-            throw error;
-          }
-        }
+        // DEC-018: no host guarantee. The host places no wallet hold and owes nothing for the venue;
+        // they pay the fixed fee only if they join a team like any other player.
         const address = [field.venue.addressLine1, field.venue.addressLine2].filter(Boolean).join(', ');
         const reservation = await tx.fieldReservation.create({ data: {
-          id: reservationId,
           fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId: created.id,
           source: 'PLAYER_BOOKING', status: 'CONFIRMED', startsAt, endsAt, priceCentsSnapshot: price.amountCents,
           venueNameSnapshot: field.venue.name, fieldNameSnapshot: field.name, addressSnapshot: address, citySnapshot: field.venue.city,
           timezoneSnapshot: field.venue.timezone, turnaroundBufferMinutesSnapshot: field.turnaroundBufferMinutes,
           cancellationPolicySnapshot: { fullCreditBeforeHours: cancellationPolicy.fullCreditBeforeHours, lateCreditPercent: cancellationPolicy.lateCreditPercent, venueCancellationPercent: cancellationPolicy.venueCancellationPercent, policyText: cancellationPolicy.policyText },
-          organizerGuaranteeHoldId: guaranteeHoldId, organizerGuaranteeCents: price.amountCents,
+          organizerGuaranteeCents: 0,
           desiredVisibility: input.visibility, confirmedAt: now,
         } });
-        await enqueueDurableJob(tx, { type: 'QUICK_MATCH_GUARANTEE_SETTLE', dedupeKey: `quick-match-guarantee-settle:${reservation.id}`, payload: { reservationId: reservation.id }, runAt: startsAt });
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { inviteToken, viewerCanManage: true, viewerCanChat: true });
@@ -160,16 +149,18 @@ export class BookingsService {
     }
   }
 
+  /**
+   * Legacy handler for QUICK_MATCH_GUARANTEE_SETTLE jobs queued before DEC-018. It only releases a
+   * pre-existing organiser hold and marks the guarantee settled. It never debits the organiser:
+   * hosts no longer guarantee venue costs.
+   */
   async settleQuickMatchGuarantee(reservationId: string) {
     return serializableTransaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "FieldReservation" WHERE "id" = ${reservationId}::uuid FOR UPDATE`;
-      const reservation = await tx.fieldReservation.findUnique({ where: { id: reservationId }, include: { match: { include: { payments: true } } } });
-      if (!reservation || reservation.organizerGuaranteeSettledAt || reservation.status !== 'CONFIRMED') return;
-      const playerFees = reservation.match.payments.filter(({ status }) => status === 'SUCCEEDED').reduce((total, payment) => total + payment.amountCents, 0);
+      const reservation = await tx.fieldReservation.findUnique({ where: { id: reservationId } });
+      if (!reservation || reservation.organizerGuaranteeSettledAt) return;
       if (reservation.organizerGuaranteeHoldId) await this.financial.releaseHold(tx, reservation.organizerGuaranteeHoldId);
-      const due = Math.max(0, reservation.priceCentsSnapshot - playerFees);
-      if (due) await this.financial.debit(tx, { userId: reservation.match.createdById, amountCents: due, type: 'FIELD_BOOKING_DEBIT', idempotencyKey: `quick-match-guarantee-debit:${reservation.id}`, referenceType: 'FIELD_RESERVATION', referenceId: reservation.id, description: 'Quick Match venue-cost remainder' });
-      await tx.fieldReservation.update({ where: { id: reservation.id }, data: { organizerGuaranteeSettledAt: new Date(), playerFeesAppliedCents: Math.min(playerFees, reservation.priceCentsSnapshot) } });
+      await tx.fieldReservation.update({ where: { id: reservation.id }, data: { organizerGuaranteeSettledAt: new Date() } });
     });
   }
 

@@ -5,6 +5,7 @@ import { serializableTransaction } from '../src/database/transaction.js';
 import { MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
+import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 
 const marker = `slice-6-${randomUUID()}`;
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => { if (!condition) throw new Error(message); };
@@ -67,7 +68,29 @@ try {
   reservationIds.push(raceReservation.id);
   if (raceReservation.organizerGuaranteeHoldId) holdIds.push(raceReservation.organizerGuaranteeHoldId);
   assert(winner!.value.feeCents === MATCH_FEE_CENTS, 'Host-created Quick Match did not use the fixed R80 fee.');
-  assert(raceReservation.priceCentsSnapshot === 90_000 && raceReservation.organizerGuaranteeCents === 90_000, 'Race winner did not preserve price and guarantee snapshots.');
+  assert(raceReservation.priceCentsSnapshot === 90_000, 'Race winner did not preserve the admin-only price snapshot.');
+  // DEC-018: no host guarantee. No hold, no guarantee amount, no settlement job.
+  assert(raceReservation.organizerGuaranteeCents === 0 && raceReservation.organizerGuaranteeHoldId === null, 'Host-created reservation still carries a venue guarantee.');
+  const hostId = winner!.value.createdById;
+  assert((await prisma.walletHold.count({ where: { walletAccount: { userId: hostId }, status: 'ACTIVE' } })) === 0, 'Host has an active wallet hold after creating a Quick Match.');
+  assert((await prisma.durableJob.count({ where: { dedupeKey: `quick-match-guarantee-settle:${raceReservation.id}` } })) === 0, 'A guarantee settlement job was queued.');
+  const balanceOf = async (userId: string) => (await prisma.walletAccount.findUniqueOrThrow({ where: { userId } })).balanceCents;
+  const hostBalanceBeforeCancel = await balanceOf(hostId);
+  await new MatchesRepository().cancelMatch(winner!.value.id);
+  assert((await balanceOf(hostId)) === hostBalanceBeforeCancel, 'Host cancellation charged the host.');
+  assert((await prisma.walletTransaction.count({ where: { referenceId: raceReservation.id, type: 'FIELD_BOOKING_DEBIT' } })) === 0, 'Host cancellation created a venue debit.');
+  assert((await prisma.fieldReservation.findUniqueOrThrow({ where: { id: raceReservation.id } })).status === 'CANCELLED', 'Cancelled match left its field reservation active.');
+
+  // A legacy pre-DEC-018 guarantee is released by the settlement job and never debited.
+  const legacyHold = await serializableTransaction((tx) => financial.createHold(tx, { userId: userIds[0]!, amountCents: 5_000, idempotencyKey: `${marker}:legacy-guarantee`, referenceType: 'FIELD_RESERVATION', referenceId: booking.id }));
+  holdIds.push(legacyHold.hold.id);
+  await prisma.fieldReservation.update({ where: { id: booking.id }, data: { organizerGuaranteeHoldId: legacyHold.hold.id, organizerGuaranteeCents: 80_000, organizerGuaranteeSettledAt: null } });
+  const legacyBalance = await balanceOf(userIds[0]!);
+  await service.settleQuickMatchGuarantee(booking.id);
+  await service.settleQuickMatchGuarantee(booking.id);
+  assert((await prisma.walletHold.findUniqueOrThrow({ where: { id: legacyHold.hold.id } })).status === 'RELEASED', 'Legacy guarantee hold was not released.');
+  assert((await balanceOf(userIds[0]!)) === legacyBalance, 'Legacy guarantee settlement debited the organiser.');
+  assert((await prisma.walletTransaction.count({ where: { idempotencyKey: `quick-match-guarantee-debit:${booking.id}` } })) === 0, 'Legacy guarantee settlement created a debit.');
 
   let rolledBack = false;
   try { await prisma.$transaction(async (tx) => { const admin = await tx.user.create({ data: { email: `${marker}-admin@smoke.invalid`, username: `admin_${marker.slice(-18)}`, passwordHash: 'smoke', platformRole: 'ADMIN' } }); await tx.adminAuditLog.create({ data: { actorUserId: admin.id, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', requestId: marker } }); throw new Error('ROLLBACK_ADMIN_LOAD'); }); }

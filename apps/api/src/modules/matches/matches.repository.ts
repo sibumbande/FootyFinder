@@ -18,7 +18,6 @@ import {
 import type { Notification, Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { prisma } from '../../database/prisma.js';
-import { AppError } from '../../errors/app-error.js';
 import {
   notificationDedupeKey,
   persistNotifications,
@@ -569,29 +568,22 @@ export class MatchesRepository {
           ),
         });
       }
-      if (match.fieldReservation && !match.fieldReservation.organizerGuaranteeSettledAt) {
-        const policy = match.fieldReservation.cancellationPolicySnapshot as { fullCreditBeforeHours?: number; lateCreditPercent?: number } | null;
-        const hoursUntilKickoff = (match.startsAt.getTime() - Date.now()) / 3_600_000;
-        const creditPercent = hoursUntilKickoff > (policy?.fullCreditBeforeHours ?? 24) ? 100 : (policy?.lateCreditPercent ?? 0);
-        const nonRefundableCents = Math.round(match.fieldReservation.priceCentsSnapshot * (100 - creditPercent) / 100);
-        if (match.fieldReservation.organizerGuaranteeHoldId)
+      if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
+        // DEC-018: nothing is owed to the venue for a cancelled match and the host is never
+        // charged. A legacy (pre-DEC-018) organiser hold is simply released.
+        if (
+          match.fieldReservation.organizerGuaranteeHoldId &&
+          !match.fieldReservation.organizerGuaranteeSettledAt
+        )
           await this.financial.releaseHold(tx, match.fieldReservation.organizerGuaranteeHoldId);
-        if (nonRefundableCents) {
-          try {
-            await this.financial.debit(tx, {
-              userId: match.createdById, amountCents: nonRefundableCents, type: 'FIELD_BOOKING_DEBIT',
-              idempotencyKey: `quick-match-cancellation-venue-charge:${match.fieldReservation.id}`,
-              referenceType: 'FIELD_RESERVATION', referenceId: match.fieldReservation.id,
-              description: 'Non-refundable venue cost after organiser cancellation',
-            });
-          } catch (error) {
-            if (error instanceof FinancialInsufficientFundsError) throw new AppError(409, 'The organiser venue guarantee could not be settled.', 'FINANCIAL_INTEGRITY_ERROR');
-            throw error;
-          }
-        }
         await tx.fieldReservation.update({
           where: { id: match.fieldReservation.id },
-          data: { status: 'CANCELLED', cancelledAt: new Date(), organizerGuaranteeSettledAt: new Date(), playerFeesAppliedCents: 0 },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: new Date(),
+            organizerGuaranteeSettledAt: match.fieldReservation.organizerGuaranteeSettledAt ?? new Date(),
+            playerFeesAppliedCents: 0,
+          },
         });
       }
       const cancelled = await tx.match.update({

@@ -137,4 +137,14 @@ describe('Quick Match creation fee (DEC-018)', () => {
     await expect(service.createAdmin(input, 'admin-1', 'request-1')).rejects.toBe(STOP);
     expect(captured.match[0]).toMatchObject({ feeCents: MATCH_FEE_CENTS });
   });
+
+  it('places no host wallet hold and queues no guarantee settlement (DEC-018)', async () => {
+    const ledger = financial();
+    const service = new BookingsService(ledger);
+    await expect(service.createQuickMatch(input, 'host-with-empty-wallet')).rejects.toBe(STOP);
+    expect(ledger.createHold).not.toHaveBeenCalled();
+    expect(captured.reservation[0]).toMatchObject({ organizerGuaranteeCents: 0 });
+    expect(captured.reservation[0]).not.toHaveProperty('organizerGuaranteeHoldId');
+    expect(captured.jobs.map(({ type }) => type)).not.toContain('QUICK_MATCH_GUARANTEE_SETTLE');
+  });
 });
