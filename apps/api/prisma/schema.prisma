@@ -943,6 +943,24 @@ model ProviderPayment {
   @@index([status, createdAt])
 }
 
+/// Gate 6 / TKT-605: every Paystack webhook delivery (bad signatures keep no payload).
+model PaymentWebhookEvent {
+  id             String    @id @default(uuid()) @db.Uuid
+  provider       String
+  dedupeKey      String    @unique
+  eventType      String?
+  reference      String?
+  signatureValid Boolean
+  payload        Json?
+  ipHash         String?
+  outcome        String?
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([reference, receivedAt])
+  @@index([signatureValid, receivedAt])
+}
+
 model DurableJob {
   id          String           @id @default(uuid()) @db.Uuid
   type        String

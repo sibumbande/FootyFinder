@@ -1,7 +1,11 @@
 import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
 import { prisma } from '../src/database/prisma.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
+import { createPaystackWebhookRouter } from '../src/modules/payments/paystack-webhook.js';
+import { PaystackWebhookProcessor } from '../src/modules/payments/paystack-webhook.jobs.js';
 import { runTopUpExpiry } from '../src/modules/payments/top-up.jobs.js';
 import { TopUpService } from '../src/modules/payments/top-up.service.js';
 import { TopUpSettlementService } from '../src/modules/payments/top-up-settlement.service.js';
@@ -35,6 +39,8 @@ const topUps = new TopUpService(gateway, settlement, undefined, {
   paystackEnabled: () => true,
 });
 const history = new WalletHistoryService();
+const processor = new PaystackWebhookProcessor(settlement);
+const startedAt = new Date();
 const userIds: string[] = [];
 
 const createUser = async (suffix: string) => {
@@ -144,6 +150,95 @@ try {
   assert((await prisma.walletTransaction.findUniqueOrThrow({ where: { id: down.walletTransactionId } })).status === 'ERROR', 'Failed initiation ledger row not closed.');
   assert((await balance(player)) === beforeFailure, 'A failed top-up changed the balance.');
 
+  // --- TKT-605 webhooks: authenticated, stored once, processed through the same path --------
+  const hook = express().use(
+    '/payments',
+    createPaystackWebhookRouter({ secret: () => FAKE_PAYSTACK_SECRET, ipAllowlist: () => [] }),
+  );
+  const deliver = (raw: string, signature: string) =>
+    request(hook).post('/payments/paystack/webhook').set('Content-Type', 'application/json').set('x-paystack-signature', signature).send(raw);
+  const eventFor = async (reference: string) =>
+    prisma.paymentWebhookEvent.findMany({ where: { reference, signatureValid: true } });
+  const processAll = async (reference: string) => {
+    for (const event of await eventFor(reference)) await processor.process(event.id);
+  };
+  const buyer = await createUser('c');
+
+  // Webhook first, then the status check: one credit. Three identical deliveries at once.
+  const w1 = await topUps.initiate(buyer, 16_000, `${marker}-w1`);
+  fake.pay(w1.reference);
+  const e1 = fake.signedEvent('charge.success', { reference: w1.reference, amount: 16_000 });
+  const deliveries = await Promise.all([deliver(e1.raw, e1.signature), deliver(e1.raw, e1.signature), deliver(e1.raw, e1.signature)]);
+  assert(deliveries.every((response) => response.status === 200), 'A valid webhook delivery was not acknowledged.');
+  assert((await eventFor(w1.reference)).length === 1, 'Replayed webhook stored more than one event.');
+  const w1Event = (await eventFor(w1.reference))[0]!;
+  assert((await prisma.durableJob.count({ where: { dedupeKey: `paystack-webhook:${w1Event.id}` } })) === 1, 'Webhook job not enqueued exactly once.');
+  assert((await balance(buyer)) === 0, 'The webhook receiver credited before verification.');
+  await processAll(w1.reference);
+  await processAll(w1.reference);
+  await topUps.status(buyer, w1.reference, later(30));
+  assert((await balance(buyer)) === 16_000 && (await credits(buyer)) === 1, 'Webhook-then-verify credited more than once.');
+  assert((await payment(w1.reference)).creditedBy === 'webhook', 'Webhook credit not attributed to the webhook.');
+  assert((await prisma.paymentWebhookEvent.findUniqueOrThrow({ where: { id: w1Event.id } })).outcome === 'charge_credit', 'Webhook outcome not recorded.');
+
+  // Status check first, then the webhook: one credit.
+  const w2 = await topUps.initiate(buyer, 8_000, `${marker}-w2`);
+  fake.pay(w2.reference);
+  await topUps.status(buyer, w2.reference, later(40));
+  const e2 = fake.signedEvent('charge.success', { reference: w2.reference });
+  assert((await deliver(e2.raw, e2.signature)).status === 200, 'Late webhook not acknowledged.');
+  await processAll(w2.reference);
+  assert((await balance(buyer)) === 24_000 && (await credits(buyer)) === 2, 'Verify-then-webhook credited more than once.');
+  assert((await eventFor(w2.reference))[0]!.outcome === 'charge_replayed', 'Late webhook was not a replay.');
+
+  // Webhook processing, expiry job and status check all at once: one credit.
+  const w3 = await topUps.initiate(buyer, 8_000, `${marker}-w3`);
+  fake.pay(w3.reference);
+  const e3 = fake.signedEvent('charge.success', { reference: w3.reference });
+  await deliver(e3.raw, e3.signature);
+  const w3Payment = await payment(w3.reference);
+  await Promise.all([
+    processAll(w3.reference),
+    runTopUpExpiry({ providerPaymentId: w3Payment.id, attempt: 0 }, settlement),
+    topUps.status(buyer, w3.reference, later(50)),
+  ]);
+  assert((await balance(buyer)) === 32_000 && (await credits(buyer)) === 3, 'Concurrent webhook/expiry/status credited more than once.');
+
+  // Bad signature: rejected, audited without payload, nothing enqueued or credited.
+  const w4 = await topUps.initiate(buyer, 5_000, `${marker}-w4`);
+  fake.pay(w4.reference);
+  const forged = fake.signedEvent('charge.success', { reference: w4.reference }, 'sk_test_attacker-key');
+  assert((await deliver(forged.raw, forged.signature)).status === 401, 'Forged webhook was accepted.');
+  assert((await eventFor(w4.reference)).length === 0, 'Forged webhook was stored as valid.');
+  assert((await prisma.paymentWebhookEvent.count({ where: { signatureValid: false, outcome: 'invalid_signature', receivedAt: { gte: startedAt } } })) >= 1, 'Forged webhook was not audited.');
+  assert((await balance(buyer)) === 32_000, 'Forged webhook changed the balance.');
+
+  // Provider timeout while processing: the job fails and retries; the retry credits once.
+  const e4 = fake.signedEvent('charge.success', { reference: w4.reference });
+  await deliver(e4.raw, e4.signature);
+  const w4Event = (await eventFor(w4.reference))[0]!;
+  fake.failNext = { path: 'verify', status: 503 };
+  assert((await code(processor.process(w4Event.id))) === 'PAYSTACK_UNAVAILABLE', 'Provider outage during processing was swallowed.');
+  assert((await prisma.paymentWebhookEvent.findUniqueOrThrow({ where: { id: w4Event.id } })).processedAt === null, 'Failed processing was marked done.');
+  await processor.process(w4Event.id);
+  assert((await balance(buyer)) === 37_000 && (await credits(buyer)) === 4, 'Retried webhook did not credit exactly once.');
+
+  // Unknown references and unrelated events are recorded and ignored.
+  const stray = fake.signedEvent('charge.success', { reference: 'ff_topup_ffffffffffffffffffffffffffffffff' });
+  await deliver(stray.raw, stray.signature);
+  await processAll('ff_topup_ffffffffffffffffffffffffffffffff');
+  assert((await eventFor('ff_topup_ffffffffffffffffffffffffffffffff'))[0]!.outcome === 'unknown_reference', 'Unknown reference not recorded.');
+
+  // Out of order: success arrives by webhook after the top-up was closed as abandoned.
+  const w5 = await topUps.initiate(buyer, 5_000, `${marker}-w5`);
+  fake.pay(w5.reference, { status: 'abandoned' });
+  await runTopUpExpiry({ providerPaymentId: (await payment(w5.reference)).id, attempt: 9 }, settlement, later(25 * 3600));
+  fake.pay(w5.reference);
+  const e5 = fake.signedEvent('charge.success', { reference: w5.reference });
+  await deliver(e5.raw, e5.signature);
+  await processAll(w5.reference);
+  assert((await payment(w5.reference)).status === 'REVIEW' && (await balance(buyer)) === 37_000, 'Late webhook after closure was credited instead of reviewed.');
+
   // --- Reconciliation: balance equals the settled ledger ----------------------------------
   for (const userId of userIds) {
     const wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
@@ -153,6 +248,9 @@ try {
 } finally {
   const payments = await prisma.providerPayment.findMany({ where: { userId: { in: userIds } }, select: { id: true } });
   for (const { id } of payments) await prisma.durableJob.deleteMany({ where: { dedupeKey: { startsWith: `paystack-topup-expire:${id}` } } });
+  const events = await prisma.paymentWebhookEvent.findMany({ where: { receivedAt: { gte: startedAt } }, select: { id: true } });
+  await prisma.durableJob.deleteMany({ where: { dedupeKey: { in: events.map(({ id }) => `paystack-webhook:${id}`) } } });
+  await prisma.paymentWebhookEvent.deleteMany({ where: { id: { in: events.map(({ id }) => id) } } });
   await prisma.providerPayment.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
@@ -161,4 +259,4 @@ try {
   await fake.stop();
   await prisma.$disconnect();
 }
-console.log('Gate 6 payments smoke passed: idempotent initiation, throttled status check, single credit across webhook/expiry/status sources, review and failure paths, reconciliation.');
+console.log('Gate 6 payments smoke passed: idempotent initiation, throttled status check, authenticated deduplicated webhooks, single credit across webhook/expiry/status sources in every order, review and failure paths, reconciliation.');

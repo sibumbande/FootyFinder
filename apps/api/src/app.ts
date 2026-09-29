@@ -31,6 +31,7 @@ import { legalRouter } from './modules/legal/legal.routes.js';
 import { citiesRouter } from './modules/cities/cities.routes.js';
 import { venuesRouter } from './modules/venues/venues.routes.js';
 import { publicMatchesRouter } from './modules/matches/public-matches.routes.js';
+import { createPaystackWebhookRouter } from './modules/payments/paystack-webhook.js';
 export const app: Express = express();
 const operations = new OperationsService();
 app.disable('x-powered-by');
@@ -44,6 +45,8 @@ app.use(
 );
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+// TKT-605: must run before express.json() so the signature is checked on the exact raw body.
+app.use('/payments', createPaystackWebhookRouter());
 app.use(express.json());
 app.use(cookieParser());
 app.use(requireTrustedCookieOrigin);

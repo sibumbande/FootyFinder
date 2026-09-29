@@ -11,6 +11,7 @@ import { registerGoNoGoJobHandlers } from './modules/matches/go-no-go.jobs.js';
 import { registerMatchCancelledEmailJobHandlers } from './modules/matches/match-cancelled-email.jobs.js';
 import { registerFillReminderJobHandlers } from './modules/matches/fill-reminder.jobs.js';
 import { registerTopUpJobHandlers } from './modules/payments/top-up.jobs.js';
+import { registerPaystackWebhookJobHandlers } from './modules/payments/paystack-webhook.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -22,5 +23,6 @@ registerGoNoGoJobHandlers();
 registerMatchCancelledEmailJobHandlers();
 registerFillReminderJobHandlers();
 registerTopUpJobHandlers();
+registerPaystackWebhookJobHandlers();
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

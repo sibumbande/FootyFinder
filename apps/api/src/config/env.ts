@@ -48,6 +48,16 @@ export const envSchema = z
     PAYSTACK_BASE_URL: z.string().url().default('https://api.paystack.co'),
     TOP_UP_PENDING_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
     TOP_UP_MAX_PENDING_HOURS: z.coerce.number().int().min(1).max(72).default(24),
+    // TKT-605: optional comma-separated Paystack webhook source IPs (the signature is always checked).
+    PAYSTACK_WEBHOOK_IP_ALLOWLIST: z
+      .string()
+      .optional()
+      .transform((value) =>
+        (value ?? '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
   })
   .superRefine((value, context) => {
     if (resolve(value.PLAYER_UPLOAD_DIR) === resolve(value.TEAM_UPLOAD_DIR))
