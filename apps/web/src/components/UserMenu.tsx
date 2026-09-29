@@ -107,14 +107,6 @@ export function UserMenu() {
           </Link>
           <Link
             role="menuitem"
-            to="/bookings"
-            onClick={() => setOpen(false)}
-            className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"
-          >
-            Book a field
-          </Link>
-          <Link
-            role="menuitem"
             to="/disputes"
             onClick={() => setOpen(false)}
             className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"

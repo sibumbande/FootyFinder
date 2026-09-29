@@ -68,33 +68,28 @@ const applicablePrice = (prices: NonNullable<VenueRow>['fields'][number]['prices
     .sort((a, b) => Number(Boolean(b.format)) - Number(Boolean(a.format)) || Number(b.dayOfWeek !== null) - Number(a.dayOfWeek !== null))[0];
 };
 
-const card = (venue: NonNullable<VenueRow>): PublicVenueCard => {
-  const now = new Date();
+// DEC-018: venue costs (ManagedFieldPrice amounts) are admin-only. These public mappers never read
+// or emit them; prices are used only internally to decide whether a slot is bookable.
+export const toPublicVenueCard = (venue: NonNullable<VenueRow>): PublicVenueCard => {
   const supportedFormats = [...new Set(venue.fields.flatMap((field) => field.supportedFormats.map(({ format }) => format)))];
-  const prices = venue.fields.flatMap((field) => field.prices).filter((price) => price.effectiveFrom <= now && (!price.effectiveTo || price.effectiveTo > now));
-  const fromPriceCents = prices.length ? Math.min(...prices.map(({ amountCents }) => amountCents)) : undefined;
   return {
     slug: venue.slug, name: venue.name, city: venue.city, region: venue.region,
     coverImage: { url: venue.coverImageUrl!, altText: venue.coverImageAlt!, attribution: venue.coverImageAttribution! },
-    supportedFormats, ...(fromPriceCents === undefined ? {} : { fromPriceCents }), currency: 'ZAR', priceUnit: '60_MINUTE_FIELD_SLOT',
+    supportedFormats,
   };
 };
 
-const detail = (venue: NonNullable<VenueRow>): PublicVenueDetail => {
+export const toPublicVenueDetail = (venue: NonNullable<VenueRow>): PublicVenueDetail => {
   const now = new Date();
   const policy = venue.cancellationPolicies.find((item) => item.effectiveFrom <= now && (!item.effectiveTo || item.effectiveTo > now))!;
   return {
-    ...card(venue), description: venue.publicDescription!, addressLine1: venue.addressLine1,
+    ...toPublicVenueCard(venue), description: venue.publicDescription!, addressLine1: venue.addressLine1,
     ...(venue.addressLine2 ? { addressLine2: venue.addressLine2 } : {}), ...(venue.postalCode ? { postalCode: venue.postalCode } : {}),
     countryCode: venue.countryCode, latitude: Number(venue.latitude), longitude: Number(venue.longitude), timezone: venue.timezone,
     amenities: venue.amenities, gallery: venue.media.map(({ url, altText, attribution }) => ({ url, altText, attribution })),
     fields: venue.fields.map((field) => ({
       id: field.id, name: field.name, ...(field.description ? { description: field.description } : {}),
       supportedFormats: field.supportedFormats.map(({ format }) => format), turnaroundBufferMinutes: field.turnaroundBufferMinutes,
-      ...(() => {
-        const prices = field.prices.filter((price) => price.effectiveFrom <= now && (!price.effectiveTo || price.effectiveTo > now));
-        return prices.length ? { fromPriceCents: Math.min(...prices.map(({ amountCents }) => amountCents)) } : {};
-      })(),
     })),
     cancellationPolicy: {
       fullCreditBeforeHours: policy.fullCreditBeforeHours, lateCreditPercent: policy.lateCreditPercent,
@@ -106,7 +101,7 @@ const detail = (venue: NonNullable<VenueRow>): PublicVenueDetail => {
 export class VenuesService {
   async list() {
     const venues = await prisma.managedVenue.findMany({ where: publishedWhere, include: venueInclude, orderBy: [{ city: 'asc' }, { name: 'asc' }] });
-    return venues.map(card);
+    return venues.map(toPublicVenueCard);
   }
 
   async get(slug: string) {
@@ -116,7 +111,7 @@ export class VenuesService {
       if (alias) venue = await loadPublishedVenue({ id: alias.venueId });
     }
     if (!venue) throw new AppError(404, 'Venue not found.', 'VENUE_NOT_FOUND');
-    return { venue: detail(venue), canonicalSlug: venue.slug, wasAlias: venue.slug !== slug };
+    return { venue: toPublicVenueDetail(venue), canonicalSlug: venue.slug, wasAlias: venue.slug !== slug };
   }
 
   async slots(slug: string, query: VenueSlotsQuery, now = new Date()): Promise<VenueAvailabilitySlot[]> {
@@ -152,7 +147,7 @@ export class VenuesService {
         if (reservations.some((item) => item.startsAt < new Date(endsAt.getTime() + field.turnaroundBufferMinutes * 60_000) && new Date(item.endsAt.getTime() + item.turnaroundBufferMinutesSnapshot * 60_000) > startsAt)) continue;
         const price = applicablePrice(field.prices, startsAt, query.format, venue!.timezone);
         if (!price) continue;
-        slots.push({ fieldId: field.id, format: query.format, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), localDate, localTime: `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`, timezone: venue!.timezone, priceCents: price.amountCents, currency: 'ZAR', priceUnit: '60_MINUTE_FIELD_SLOT' });
+        slots.push({ fieldId: field.id, format: query.format, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), localDate, localTime: `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`, timezone: venue!.timezone });
       }
     }
     return slots;

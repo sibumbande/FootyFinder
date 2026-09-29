@@ -1,5 +1,7 @@
 import type { MatchFormat } from '../config/match-formats.js';
 
+// DEC-018: public and player-facing venue DTOs never carry venue costs (ManagedFieldPrice amounts).
+// Prices are admin-only data; see ManagedVenue/ManagedField types used by the admin app.
 export interface PublicVenueMedia {
   url: string;
   altText: string;
@@ -12,7 +14,6 @@ export interface PublicVenueField {
   description?: string;
   supportedFormats: MatchFormat[];
   turnaroundBufferMinutes: number;
-  fromPriceCents?: number;
 }
 
 export interface PublicVenueCard {
@@ -22,9 +23,6 @@ export interface PublicVenueCard {
   region: string;
   coverImage: PublicVenueMedia;
   supportedFormats: MatchFormat[];
-  fromPriceCents?: number;
-  currency: 'ZAR';
-  priceUnit: '60_MINUTE_FIELD_SLOT';
 }
 
 export interface PublicVenueDetail extends PublicVenueCard {
@@ -55,7 +53,4 @@ export interface VenueAvailabilitySlot {
   localDate: string;
   localTime: string;
   timezone: string;
-  priceCents: number;
-  currency: 'ZAR';
-  priceUnit: '60_MINUTE_FIELD_SLOT';
 }

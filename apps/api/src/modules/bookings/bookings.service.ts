@@ -1,5 +1,6 @@
 import type {
   BookingContributionInput,
+  AdminFieldBooking,
   FieldBooking,
   ManagedMatchBookingInput,
   PlayerFieldBookingInput,
@@ -13,7 +14,6 @@ import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';
 import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
 import { appendAdminAudit } from '../admin/admin-audit.js';
-import { AdminCatalogService } from '../admin/admin-catalog.service.js';
 import { matchInclude } from '../matches/match.query.js';
 import { toMatch } from '../matches/match.mapper.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
@@ -53,38 +53,40 @@ export const isWithinFieldAvailability = (
   return start.day === end.day && field.availabilityPeriods.some((period) => period.dayOfWeek === start.day && period.startMinute <= start.minute && period.endMinute >= end.minute);
 };
 
-const bookingDto = (reservation: any, viewerId?: string): FieldBooking => {
+/** ADMIN-ONLY: includes the venue cost snapshot and funding totals. Never returned to players or hosts. */
+export const adminBookingDto = (reservation: any, viewerId?: string): AdminFieldBooking => {
   const contributions = reservation.obligations.flatMap((item: any) => item.contributions);
   const fundedCents = contributions.filter((item: any) => item.status !== 'RELEASED').reduce((sum: number, item: any) => sum + item.amountCents, 0);
   return {
-    id: reservation.id, source: reservation.source, status: reservation.status,
-    startsAt: reservation.startsAt.toISOString(), endsAt: reservation.endsAt.toISOString(),
-    ...(reservation.fundingDeadline ? { fundingDeadline: reservation.fundingDeadline.toISOString() } : {}),
+    ...playerBookingDto(reservation, viewerId),
     priceCents: reservation.priceCentsSnapshot, fundedCents,
     remainingCents: Math.max(0, reservation.priceCentsSnapshot - fundedCents), currency: 'ZAR',
-    venueName: reservation.venueNameSnapshot, fieldName: reservation.fieldNameSnapshot,
-    address: reservation.addressSnapshot, city: reservation.citySnapshot,
-    match: toMatch(reservation.match, { viewerCanManage: reservation.match.createdById === viewerId, viewerCanChat: reservation.match.createdById === viewerId }),
     contributions: contributions.map((item: any) => ({ id: item.id, amountCents: item.amountCents, status: item.status, createdAt: item.createdAt.toISOString(), user: toPublicUser(item.user) })),
-    createdAt: reservation.createdAt.toISOString(),
   };
 };
+
+/**
+ * Player/host booking history (DEC-018): no venue cost, no funding totals, no contribution
+ * amounts. Built field by field so a new admin-only column can never leak through a spread.
+ */
+export const playerBookingDto = (reservation: any, viewerId?: string): FieldBooking => ({
+  id: reservation.id, source: reservation.source, status: reservation.status,
+  startsAt: reservation.startsAt.toISOString(), endsAt: reservation.endsAt.toISOString(),
+  ...(reservation.fundingDeadline ? { fundingDeadline: reservation.fundingDeadline.toISOString() } : {}),
+  venueName: reservation.venueNameSnapshot, fieldName: reservation.fieldNameSnapshot,
+  address: reservation.addressSnapshot, city: reservation.citySnapshot,
+  match: toMatch(reservation.match, { viewerCanManage: reservation.match.createdById === viewerId, viewerCanChat: reservation.match.createdById === viewerId }),
+  contributions: reservation.obligations
+    .flatMap((item: any) => item.contributions)
+    .map((item: any) => ({ id: item.id, status: item.status, createdAt: item.createdAt.toISOString(), user: toPublicUser(item.user) })),
+  createdAt: reservation.createdAt.toISOString(),
+});
 
 export class BookingsService {
   constructor(
     private readonly financial = new FinancialRepository(),
     private readonly notifications = new NotificationsService(),
   ) {}
-
-  async listBookableFields() {
-    return (await new AdminCatalogService().list())
-      .filter((venue) => venue.isActive && venue.publicationStatus === 'PUBLISHED')
-      .map((venue) => ({
-        ...venue,
-        fields: venue.fields.filter((field) => field.status === 'ACTIVE'),
-      }))
-      .filter((venue) => venue.fields.length > 0);
-  }
 
   private async fieldContext(tx: Prisma.TransactionClient, fieldId: string, format: ManagedMatchBookingInput['format'], startsAt: Date) {
     const endsAt = new Date(startsAt.getTime() + MATCH_DURATION_MINUTES * 60_000);
@@ -228,7 +230,7 @@ export class BookingsService {
         if (source === 'ADMIN_LOADED') await appendAdminAudit(tx, { actorUserId, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', entityId: created.id, requestId, metadata: { matchId: match.id, fieldId: field.id, priceCents: price.amountCents } });
         return tx.fieldReservation.findUniqueOrThrow({ where: { id: created.id }, include: bookingInclude });
       });
-      return bookingDto(reservation, actorUserId);
+      return adminBookingDto(reservation, actorUserId);
     } catch (error) {
       if (
         (error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -244,12 +246,12 @@ export class BookingsService {
   createAdmin(input: ManagedMatchBookingInput, adminUserId: string, requestId?: string) { return this.createReservation(input, adminUserId, 'ADMIN_LOADED', requestId); }
   createPlayer(input: PlayerFieldBookingInput, userId: string) { return this.createReservation(input, userId, 'PLAYER_BOOKING'); }
 
-  async listAdmin() { return (await prisma.fieldReservation.findMany({ include: bookingInclude, orderBy: { startsAt: 'asc' }, take: 200 })).map((item) => bookingDto(item)); }
-  async listMine(userId: string) { return (await prisma.fieldReservation.findMany({ where: { OR: [{ match: { createdById: userId } }, { obligations: { some: { contributions: { some: { userId } } } } }] }, include: bookingInclude, orderBy: { startsAt: 'asc' }, take: 100 })).map((item) => bookingDto(item, userId)); }
+  async listAdmin() { return (await prisma.fieldReservation.findMany({ include: bookingInclude, orderBy: { startsAt: 'asc' }, take: 200 })).map((item) => adminBookingDto(item)); }
+  async listMine(userId: string) { return (await prisma.fieldReservation.findMany({ where: { OR: [{ match: { createdById: userId } }, { obligations: { some: { contributions: { some: { userId } } } } }] }, include: bookingInclude, orderBy: { startsAt: 'asc' }, take: 100 })).map((item) => playerBookingDto(item, userId)); }
   async get(id: string, userId: string) {
     const item = await prisma.fieldReservation.findUnique({ where: { id }, include: bookingInclude });
     if (!item || (item.match.visibility === 'PRIVATE' && item.match.createdById !== userId && !item.obligations.some((obligation) => obligation.contributions.some((contribution) => contribution.userId === userId)))) throw new AppError(404, 'Booking not found.', 'BOOKING_NOT_FOUND');
-    return bookingDto(item, userId);
+    return playerBookingDto(item, userId);
   }
 
   async contribute(id: string, userId: string, input: BookingContributionInput, idempotencyKey: string) {
@@ -288,7 +290,7 @@ export class BookingsService {
         return tx.fieldReservation.findUniqueOrThrow({ where: { id }, include: bookingInclude });
       });
       this.notifications.publishPersistedMany(published);
-      return bookingDto(reservation, userId);
+      return adminBookingDto(reservation, userId);
     } catch (error) {
       throw error;
     }
@@ -311,6 +313,6 @@ export class BookingsService {
       return { reservation: await tx.fieldReservation.findUniqueOrThrow({ where: { id }, include: bookingInclude }), notifications };
     });
     this.notifications.publishPersistedMany(result.notifications);
-    return result.reservation ? bookingDto(result.reservation) : null;
+    return result.reservation ? adminBookingDto(result.reservation) : null;
   }
 }

@@ -19,7 +19,7 @@ import type {
   AdminTestDataBatch,
   CreateAdminTestDataBatchInput,
   WalletReconciliationReport,
-  FieldBooking,
+  AdminFieldBooking,
   ManagedMatchBookingInput,
   ModerationReport,
   AdminModerationReportQuery,
@@ -129,9 +129,9 @@ export const adminApi = (client: ApiClient) => ({
     ),
   walletReconciliation: () =>
     client.request<{ data: WalletReconciliationReport }>('/admin/finance/reconciliation'),
-  managedMatches: () => client.request<{ data: FieldBooking[] }>('/admin/matches'),
+  managedMatches: () => client.request<{ data: AdminFieldBooking[] }>('/admin/matches'),
   createManagedMatch: (input: ManagedMatchBookingInput) =>
-    client.request<{ data: FieldBooking }>('/admin/matches', {
+    client.request<{ data: AdminFieldBooking }>('/admin/matches', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

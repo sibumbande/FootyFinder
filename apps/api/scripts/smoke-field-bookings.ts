@@ -39,7 +39,9 @@ try {
   holdIds.push(...(await prisma.fundingContribution.findMany({ where: { obligation: { reservationId: booking.id } }, select: { walletHoldId: true } })).map((item) => item.walletHoldId));
 
   await prisma.managedFieldPrice.update({ where: { id: field.prices[0]!.id }, data: { amountCents: 90_000 } });
-  assert((await service.get(booking.id, userIds[0]!)).priceCents === 80_000, 'Reservation price snapshot changed with catalogue history.');
+  assert((await prisma.fieldReservation.findUniqueOrThrow({ where: { id: booking.id } })).priceCentsSnapshot === 80_000, 'Reservation price snapshot changed with catalogue history.');
+  const playerView = JSON.stringify(await service.get(booking.id, userIds[0]!));
+  assert(!/price|amountCents|funded|remaining/i.test(playerView), 'Player booking view exposed a venue cost (DEC-018).');
   let overlapBlocked = false;
   try { await service.createPlayer({ managedFieldId: field.id, name: 'Overlap Smoke', format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC', startsAt }, userIds[0]!); }
   catch (error) { overlapBlocked = typeof error === 'object' && error !== null && 'code' in error && error.code === 'FIELD_TIME_CONFLICT'; }

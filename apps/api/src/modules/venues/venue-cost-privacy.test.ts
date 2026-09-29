@@ -1,0 +1,252 @@
+import express from 'express';
+import request from 'supertest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// DEC-018 proof: venue costs (ManagedFieldPrice amounts, reservation price snapshots, funding
+// totals) must never appear in any player- or host-facing API response. Every fixture below
+// deliberately carries prices, and every serialised response is scanned for money keys.
+const VENUE_COST_KEY =
+  /price|amountCents|fromPrice|funded|remaining|guarantee|obligation|requiredCents/i;
+const leakedKeys = (value: unknown, path = '$'): string[] => {
+  if (Array.isArray(value)) return value.flatMap((item, index) => leakedKeys(item, `${path}[${index}]`));
+  if (value && typeof value === 'object')
+    return Object.entries(value).flatMap(([key, child]) => [
+      ...(VENUE_COST_KEY.test(key) ? [`${path}.${key}`] : []),
+      ...leakedKeys(child, `${path}.${key}`),
+    ]);
+  return [];
+};
+const expectNoVenueCost = (payload: unknown) => {
+  const json = JSON.parse(JSON.stringify(payload));
+  expect(leakedKeys(json)).toEqual([]);
+  // Belt and braces: the distinctive fixture amounts must not appear anywhere in the payload.
+  expect(JSON.stringify(json)).not.toMatch(/50000|60000|80000|100000/);
+};
+
+const now = new Date();
+const price = (id: string, amountCents: number, format: string | null) => ({
+  id,
+  fieldId: 'field-1',
+  amountCents,
+  currency: 'ZAR',
+  format,
+  dayOfWeek: null,
+  startMinute: null,
+  endMinute: null,
+  effectiveFrom: new Date(now.getTime() - 86_400_000),
+  effectiveTo: null,
+  createdAt: now,
+});
+// Italian Club-style field: one physical pitch with a different admin-only price per format.
+const venueRow = {
+  id: 'venue-1',
+  slug: 'italian-club',
+  name: 'Italian Club',
+  city: 'Cape Town',
+  region: 'Western Cape',
+  addressLine1: '1 Club Road',
+  addressLine2: null,
+  postalCode: null,
+  countryCode: 'ZA',
+  latitude: -33.9,
+  longitude: 18.4,
+  timezone: 'Africa/Johannesburg',
+  amenities: ['Parking'],
+  publicDescription: 'A complete venue used by the venue-cost privacy test.',
+  coverImageUrl: 'https://example.invalid/cover.webp',
+  coverImageAlt: 'Cover',
+  coverImageAttribution: 'Test',
+  media: [{ url: 'https://example.invalid/1.webp', altText: 'One', attribution: 'Test' }],
+  cancellationPolicies: [
+    {
+      effectiveFrom: new Date(now.getTime() - 86_400_000),
+      effectiveTo: null,
+      fullCreditBeforeHours: 24,
+      lateCreditPercent: 0,
+      venueCancellationPercent: 100,
+      policyText: 'Policy',
+    },
+  ],
+  fields: [
+    {
+      id: 'field-1',
+      name: 'Main Pitch',
+      description: null,
+      turnaroundBufferMinutes: 15,
+      supportedFormats: [{ format: 'FIVE_A_SIDE' }, { format: 'SEVEN_A_SIDE' }, { format: 'ELEVEN_A_SIDE' }],
+      prices: [
+        price('p5', 50_000, 'FIVE_A_SIDE'),
+        price('p7', 60_000, 'SEVEN_A_SIDE'),
+        price('p11', 80_000, 'ELEVEN_A_SIDE'),
+      ],
+      availabilityPeriods: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        dayOfWeek,
+        startMinute: 0,
+        endMinute: 1440,
+      })),
+      exceptions: [],
+    },
+  ],
+};
+
+vi.mock('../../database/prisma.js', () => ({
+  prisma: {
+    managedVenue: {
+      findMany: vi.fn(async () => [venueRow]),
+      findFirst: vi.fn(async () => venueRow),
+    },
+    managedVenueSlugAlias: { findUnique: vi.fn(async () => null) },
+    fieldReservation: { findMany: vi.fn(async () => []) },
+  },
+}));
+
+const { VenuesService } = await import('./venues.service.js');
+const { playerBookingDto, adminBookingDto } = await import('../bookings/bookings.service.js');
+const { toMatch } = await import('../matches/match.mapper.js');
+const { bookingsRouter } = await import('../bookings/bookings.routes.js');
+const { errorHandler } = await import('../../middleware/error-handler.js');
+
+const user = (id: string) => ({
+  id,
+  email: `${id}@private.invalid`,
+  username: id,
+  passwordHash: 'private',
+  createdAt: now,
+  updatedAt: now,
+  profile: null,
+  walletAccount: null,
+  teamMemberships: [],
+});
+const matchRecord = {
+  id: '11111111-1111-4111-8111-111111111111',
+  publicSlug: 'm-0123456789abcdef01234567',
+  name: 'Privacy match',
+  description: null,
+  createdById: 'host',
+  venueId: 'venue',
+  mode: 'QUICK_GAME',
+  format: 'FIVE_A_SIDE',
+  substituteCapacityPerTeam: 5,
+  rollingSubstitutes: false,
+  rules: [],
+  visibility: 'PUBLIC',
+  inviteToken: null,
+  inviteTokenHash: null,
+  startsAt: new Date('2099-01-01T18:00:00.000Z'),
+  durationMinutes: 60,
+  feeCents: 8_000,
+  currency: 'ZAR',
+  status: 'OPEN',
+  formationVersion: 0,
+  cancelledAt: null,
+  createdAt: now,
+  updatedAt: now,
+  createdBy: user('host'),
+  venue: {
+    id: 'venue',
+    name: 'Italian Club — Main Pitch',
+    addressLine1: '1 Club Road',
+    addressLine2: null,
+    city: 'Cape Town',
+    region: 'Western Cape',
+    postalCode: null,
+    countryCode: 'ZA',
+    latitude: null,
+    longitude: null,
+    createdAt: now,
+    updatedAt: now,
+  },
+  participants: [],
+  formationSlots: [],
+  result: null,
+  teamSides: [],
+};
+const reservation = {
+  id: 'reservation-1',
+  source: 'PLAYER_BOOKING',
+  status: 'CONFIRMED',
+  startsAt: new Date('2099-01-01T18:00:00.000Z'),
+  endsAt: new Date('2099-01-01T19:00:00.000Z'),
+  fundingDeadline: null,
+  priceCentsSnapshot: 100_000,
+  currencySnapshot: 'ZAR',
+  organizerGuaranteeCents: 100_000,
+  venueNameSnapshot: 'Italian Club',
+  fieldNameSnapshot: 'Main Pitch',
+  addressSnapshot: '1 Club Road',
+  citySnapshot: 'Cape Town',
+  createdAt: now,
+  match: matchRecord,
+  obligations: [
+    {
+      requiredCents: 100_000,
+      contributions: [
+        { id: 'c1', amountCents: 60_000, status: 'CAPTURED', createdAt: now, user: user('payer') },
+      ],
+    },
+  ],
+};
+
+afterEach(() => vi.clearAllMocks());
+
+describe('venue costs never reach players or hosts (DEC-018)', () => {
+  it('public venue list and detail carry no price, even for a multi-format priced field', async () => {
+    const service = new VenuesService();
+    const list = await service.list();
+    const detail = await service.get('italian-club');
+    expectNoVenueCost(list);
+    expectNoVenueCost(detail);
+    expect(detail.venue.fields[0]!.supportedFormats).toEqual([
+      'FIVE_A_SIDE',
+      'SEVEN_A_SIDE',
+      'ELEVEN_A_SIDE',
+    ]);
+  });
+
+  it('calculated slots are offered (a price exists) but never expose it', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(
+      new Date(Date.now() + 86_400_000),
+    );
+    const slots = await new VenuesService().slots('italian-club', {
+      fieldId: 'field-1',
+      format: 'ELEVEN_A_SIDE',
+      dateFrom: today,
+      dateTo: today,
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    expectNoVenueCost(slots);
+  });
+
+  it('player/host booking history carries no venue cost, funding totals, or contribution amounts', () => {
+    expectNoVenueCost(playerBookingDto(reservation, 'host'));
+  });
+
+  it('the admin booking view is the only one that keeps the venue cost', () => {
+    const admin = adminBookingDto(reservation);
+    expect(admin).toMatchObject({ priceCents: 100_000, fundedCents: 60_000 });
+    expect(admin.contributions[0]).toMatchObject({ amountCents: 60_000 });
+    // Negative control: the detector used above really does catch venue-cost keys.
+    expect(leakedKeys(JSON.parse(JSON.stringify(admin)))).toEqual(
+      expect.arrayContaining(['$.priceCents', '$.fundedCents', '$.remainingCents']),
+    );
+  });
+
+  it('match DTOs expose only the fixed player fee', () => {
+    const match = toMatch(matchRecord as never, { viewerCanManage: true });
+    expectNoVenueCost(match);
+    expect(match.feeCents).toBe(8_000);
+  });
+
+  it('retired player funding routes answer 410 PLAYER_FIELD_BOOKING_RETIRED', async () => {
+    const app = express().use(express.json()).use('/bookings', bookingsRouter).use(errorHandler);
+    for (const call of [
+      request(app).get('/bookings/fields'),
+      request(app).post('/bookings').send({}),
+      request(app).post('/bookings/11111111-1111-4111-8111-111111111111/contributions').send({ amountCents: 100 }),
+    ]) {
+      const response = await call;
+      expect(response.status).toBe(410);
+      expect(response.body).toMatchObject({ code: 'PLAYER_FIELD_BOOKING_RETIRED' });
+    }
+  });
+});
