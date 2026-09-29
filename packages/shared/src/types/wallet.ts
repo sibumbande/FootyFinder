@@ -119,18 +119,50 @@ export const WALLET_HISTORY_DEFAULT_LIMIT = 20;
 export const WALLET_HISTORY_MAX_LIMIT = 50;
 
 export interface WalletReconciliationIssue {
-  code: 'BALANCE_LEDGER_MISMATCH' | 'PAYMENT_LEDGER_MISSING' | 'BOOKING_CONTRIBUTION_LEDGER_MISSING' | 'NEGATIVE_AVAILABLE_BALANCE' | 'TERMINAL_DEPOSIT_INCONSISTENT';
+  code: WalletReconciliationIssueCode;
   walletAccountId?: string;
   userId?: string;
   referenceId?: string;
   expectedCents?: number;
   actualCents?: number;
+  /** Short machine-readable hint, never card or bank data. */
+  detail?: string;
 }
+
+/**
+ * TKT-609: every check the finance reconciliation runs. Wallet ledgers and holds (Slice 5),
+ * provider payments, card refunds and chargebacks (Gate 6 personal payments), and
+ * reservations, venue payables and settlement batches (Gate 6 settlement).
+ */
+export type WalletReconciliationIssueCode =
+  | 'BALANCE_LEDGER_MISMATCH'
+  | 'PAYMENT_LEDGER_MISSING'
+  | 'BOOKING_CONTRIBUTION_LEDGER_MISSING'
+  | 'NEGATIVE_AVAILABLE_BALANCE'
+  | 'TERMINAL_DEPOSIT_INCONSISTENT'
+  | 'NEGATIVE_BALANCE_UNRESTRICTED'
+  | 'TOP_UP_PENDING_TOO_LONG'
+  | 'TOP_UP_UNDER_REVIEW'
+  | 'TOP_UP_CREDIT_WITHOUT_VERIFIED_PAYMENT'
+  | 'TOP_UP_SUCCEEDED_WITHOUT_CREDIT'
+  | 'REFUND_LEDGER_MISMATCH'
+  | 'REFUND_NEEDS_FINANCE'
+  | 'REFUNDS_EXCEED_TOP_UP'
+  | 'DISPUTE_LEDGER_MISMATCH'
+  | 'PAYABLE_NOT_ELIGIBLE'
+  | 'PAYABLE_AMOUNT_MISMATCH'
+  | 'STARTED_MATCH_WITHOUT_PAYABLE'
+  | 'LEGACY_RESERVATION_UNSETTLED'
+  | 'SETTLEMENT_TOTAL_MISMATCH'
+  | 'SETTLEMENT_PAYABLE_STATE_MISMATCH';
 export interface WalletReconciliationReport {
   generatedAt: string;
   walletCount: number;
   transactionCount: number;
   activeHoldCount: number;
+  providerPaymentCount?: number;
+  payableCount?: number;
+  settlementBatchCount?: number;
   issueCount: number;
   issues: WalletReconciliationIssue[];
 }

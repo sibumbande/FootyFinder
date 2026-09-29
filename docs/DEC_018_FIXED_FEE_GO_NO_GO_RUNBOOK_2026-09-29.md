@@ -44,7 +44,7 @@ These figures are never hard-coded in application logic.
 - **Snapshots pick the right price.** A reservation snapshots the format-specific price over an all-formats price. `smoke:go-no-go` proves this with R500/R600/R800 on one field.
 - **Completeness still applies.** Every supported format on a field must have an active price before the venue can be submitted.
 
-## Venue settlement (not built; how it will work)
+## Venue settlement (built in Gate 6, see `docs/GATE_6_PAYMENTS_SETTLEMENT_RUNBOOK_2026-09-29.md`)
 
 - **A cancelled match owes nothing.** An organiser cancel or T-30 auto-cancel leaves the reservation `CANCELLED`, with no hold, debit, obligation or payable. The smoke test asserts that no ledger row references the cancelled reservation.
 - **Future payout marker (Gate 6, TKT-607/608, DEC-012).** The settlement worker creates exactly one payable per `FieldReservation`, keyed by reservation id, from the admin-only `priceCentsSnapshot`, and only when all of these hold:

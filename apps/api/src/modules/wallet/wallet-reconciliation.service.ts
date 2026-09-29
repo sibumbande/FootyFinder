@@ -1,14 +1,42 @@
 import type { WalletReconciliationIssue, WalletReconciliationReport } from '@footy-finder/shared';
+import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
 
+const STARTED = ['IN_PROGRESS', 'AWAITING_RESULT', 'COMPLETED'] as const;
+
+/**
+ * Read-only financial reconciliation. It never repairs data; every issue is for finance review.
+ * Slice 5 wallet checks, plus Gate 6 (TKT-609): provider top-ups, card refunds, chargebacks,
+ * reservations that went ahead, venue payables and settlement batches.
+ */
 export class WalletReconciliationService {
-  async report(): Promise<WalletReconciliationReport> {
+  async report(now = new Date()): Promise<WalletReconciliationReport> {
+    const issues: WalletReconciliationIssue[] = [];
+    const wallet = await this.wallets(issues);
+    const providerPaymentCount = await this.topUps(issues, now);
+    await this.refunds(issues);
+    await this.disputes(issues);
+    const payableCount = await this.payables(issues);
+    const settlementBatchCount = await this.batches(issues);
+    return {
+      generatedAt: now.toISOString(),
+      ...wallet,
+      providerPaymentCount,
+      payableCount,
+      settlementBatchCount,
+      issueCount: issues.length,
+      issues,
+    };
+  }
+
+  private async wallets(issues: WalletReconciliationIssue[]) {
     const [wallets, ledgerGroups, transactionCount, payments, contributions] = await Promise.all([
       prisma.walletAccount.findMany({
         select: {
           id: true,
           userId: true,
           balanceCents: true,
+          spendingRestrictedAt: true,
           holds: { where: { status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, select: { amountCents: true } },
         },
       }),
@@ -18,15 +46,17 @@ export class WalletReconciliationService {
       prisma.fundingContribution.findMany({ where: { status: 'CAPTURED' }, select: { id: true, amountCents: true } }),
     ]);
     const ledgerByWallet = new Map(ledgerGroups.map((row) => [row.walletAccountId, row._sum.amountCents ?? 0]));
-    const issues: WalletReconciliationIssue[] = [];
     let activeHoldCount = 0;
     for (const wallet of wallets) {
       const expected = ledgerByWallet.get(wallet.id) ?? 0;
       if (expected !== wallet.balanceCents)
         issues.push({ code: 'BALANCE_LEDGER_MISMATCH', walletAccountId: wallet.id, userId: wallet.userId, expectedCents: expected, actualCents: wallet.balanceCents });
       activeHoldCount += wallet.holds.length;
+      if (wallet.balanceCents < 0 && !wallet.spendingRestrictedAt)
+        issues.push({ code: 'NEGATIVE_BALANCE_UNRESTRICTED', walletAccountId: wallet.id, userId: wallet.userId, actualCents: wallet.balanceCents });
       const available = wallet.balanceCents - wallet.holds.reduce((sum, hold) => sum + hold.amountCents, 0);
-      if (available < 0)
+      // A chargeback may legitimately leave a restricted wallet below zero (DEC-011 / D5).
+      if (available < 0 && !wallet.spendingRestrictedAt)
         issues.push({ code: 'NEGATIVE_AVAILABLE_BALANCE', walletAccountId: wallet.id, userId: wallet.userId, actualCents: available });
     }
     for (const payment of payments)
@@ -44,6 +74,141 @@ export class WalletReconciliationService {
           issues.push({ code: 'BOOKING_CONTRIBUTION_LEDGER_MISSING', referenceId: contribution.id, expectedCents: -contribution.amountCents, actualCents: ledger?.amountCents });
       }
     }
-    return { generatedAt: new Date().toISOString(), walletCount: wallets.length, transactionCount, activeHoldCount, issueCount: issues.length, issues };
+    return { walletCount: wallets.length, transactionCount, activeHoldCount };
+  }
+
+  /** A card top-up is credited exactly when its ProviderPayment was verified and credited. */
+  private async topUps(issues: WalletReconciliationIssue[], now: Date) {
+    const payments = await prisma.providerPayment.findMany({
+      select: {
+        id: true, userId: true, amountCents: true, status: true, verifiedAt: true, createdAt: true, reviewReason: true,
+        walletTransaction: { select: { status: true, amountCents: true, type: true } },
+      },
+    });
+    const maxPendingMs = env.TOP_UP_MAX_PENDING_HOURS * 3_600_000;
+    for (const payment of payments) {
+      const ledger = payment.walletTransaction;
+      const credited = ledger.status === 'SUCCEEDED';
+      if (payment.status === 'SUCCEEDED' && (!credited || ledger.amountCents !== payment.amountCents || ledger.type !== 'DEPOSIT_CREDIT'))
+        issues.push({ code: 'TOP_UP_SUCCEEDED_WITHOUT_CREDIT', userId: payment.userId, referenceId: payment.id, expectedCents: payment.amountCents, actualCents: credited ? ledger.amountCents : 0 });
+      if (credited && (payment.status !== 'SUCCEEDED' || !payment.verifiedAt))
+        issues.push({ code: 'TOP_UP_CREDIT_WITHOUT_VERIFIED_PAYMENT', userId: payment.userId, referenceId: payment.id, actualCents: ledger.amountCents });
+      if (payment.status === 'REVIEW')
+        issues.push({ code: 'TOP_UP_UNDER_REVIEW', userId: payment.userId, referenceId: payment.id, expectedCents: payment.amountCents, detail: payment.reviewReason ?? undefined });
+      if (payment.status === 'INITIALIZED' && now.getTime() - payment.createdAt.getTime() > maxPendingMs + 3_600_000)
+        issues.push({ code: 'TOP_UP_PENDING_TOO_LONG', userId: payment.userId, referenceId: payment.id, expectedCents: payment.amountCents });
+    }
+    // A Paystack deposit credit must always belong to a ProviderPayment.
+    const orphanCredits = await prisma.walletTransaction.findMany({
+      where: { provider: 'paystack', type: 'DEPOSIT_CREDIT', status: 'SUCCEEDED', providerPayment: null },
+      select: { id: true, amountCents: true, walletAccount: { select: { userId: true } } },
+    });
+    for (const credit of orphanCredits)
+      issues.push({ code: 'TOP_UP_CREDIT_WITHOUT_VERIFIED_PAYMENT', userId: credit.walletAccount.userId, referenceId: credit.id, actualCents: credit.amountCents, detail: 'no_provider_payment' });
+    return payments.length;
+  }
+
+  private async refunds(issues: WalletReconciliationIssue[]) {
+    const refunds = await prisma.providerRefund.findMany({
+      include: {
+        debitTransaction: { select: { amountCents: true, status: true, type: true } },
+        restoreTransaction: { select: { amountCents: true, status: true, type: true } },
+        providerPayment: { select: { id: true, userId: true, amountCents: true } },
+      },
+    });
+    const committedByPayment = new Map<string, number>();
+    for (const refund of refunds) {
+      const { debitTransaction: debit, restoreTransaction: restore } = refund;
+      if (debit.status !== 'SUCCEEDED' || debit.type !== 'TOP_UP_REFUND_DEBIT' || debit.amountCents !== -refund.amountCents)
+        issues.push({ code: 'REFUND_LEDGER_MISMATCH', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: -refund.amountCents, actualCents: debit.amountCents, detail: 'debit' });
+      if (refund.status === 'RESTORED_TO_WALLET' && (!restore || restore.status !== 'SUCCEEDED' || restore.type !== 'TOP_UP_REFUND_RESTORE_CREDIT' || restore.amountCents !== refund.amountCents))
+        issues.push({ code: 'REFUND_LEDGER_MISMATCH', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: refund.amountCents, actualCents: restore?.amountCents, detail: 'restore' });
+      if (refund.status === 'FAILED' || refund.reviewReason)
+        issues.push({ code: 'REFUND_NEEDS_FINANCE', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: refund.amountCents, detail: refund.reviewReason ?? refund.failureReason ?? 'failed' });
+      if (refund.status !== 'RESTORED_TO_WALLET')
+        committedByPayment.set(refund.providerPayment.id, (committedByPayment.get(refund.providerPayment.id) ?? 0) + refund.amountCents);
+    }
+    for (const refund of refunds) {
+      const committed = committedByPayment.get(refund.providerPayment.id) ?? 0;
+      if (committed > refund.providerPayment.amountCents) {
+        issues.push({ code: 'REFUNDS_EXCEED_TOP_UP', userId: refund.providerPayment.userId, referenceId: refund.providerPayment.id, expectedCents: refund.providerPayment.amountCents, actualCents: committed });
+        committedByPayment.delete(refund.providerPayment.id);
+      }
+    }
+  }
+
+  private async disputes(issues: WalletReconciliationIssue[]) {
+    const disputes = await prisma.providerDispute.findMany({
+      include: {
+        debitTransaction: { select: { amountCents: true, status: true, type: true } },
+        reversalTransaction: { select: { amountCents: true, status: true, type: true } },
+        providerPayment: { select: { userId: true } },
+      },
+    });
+    for (const dispute of disputes) {
+      const { debitTransaction: debit, reversalTransaction: reversal } = dispute;
+      if (debit.status !== 'SUCCEEDED' || debit.type !== 'CHARGEBACK_DEBIT' || debit.amountCents !== -dispute.amountCents)
+        issues.push({ code: 'DISPUTE_LEDGER_MISMATCH', userId: dispute.providerPayment.userId, referenceId: dispute.id, expectedCents: -dispute.amountCents, actualCents: debit.amountCents, detail: 'debit' });
+      if (dispute.status === 'WON' && (!reversal || reversal.status !== 'SUCCEEDED' || reversal.type !== 'CHARGEBACK_REVERSAL_CREDIT' || reversal.amountCents !== dispute.amountCents))
+        issues.push({ code: 'DISPUTE_LEDGER_MISMATCH', userId: dispute.providerPayment.userId, referenceId: dispute.id, expectedCents: dispute.amountCents, actualCents: reversal?.amountCents, detail: 'reversal' });
+    }
+  }
+
+  /**
+   * DEC-018 / D1 / D4: a payable exists exactly for each confirmed go/no-go Quick Match that went
+   * ahead, equal to its reservation's admin-only price snapshot. Legacy matches are listed apart.
+   */
+  private async payables(issues: WalletReconciliationIssue[]) {
+    const payables = await prisma.venuePayable.findMany({
+      select: {
+        id: true, amountCents: true, matchId: true,
+        reservation: { select: { status: true, priceCentsSnapshot: true } },
+        match: { select: { status: true, confirmedAt: true } },
+      },
+    });
+    for (const payable of payables) {
+      if (payable.reservation.status !== 'CONFIRMED' || !payable.match.confirmedAt || !(STARTED as readonly string[]).includes(payable.match.status))
+        issues.push({ code: 'PAYABLE_NOT_ELIGIBLE', referenceId: payable.id, actualCents: payable.amountCents, detail: `match_${payable.match.status.toLowerCase()}` });
+      if (payable.amountCents !== payable.reservation.priceCentsSnapshot)
+        issues.push({ code: 'PAYABLE_AMOUNT_MISMATCH', referenceId: payable.id, expectedCents: payable.reservation.priceCentsSnapshot, actualCents: payable.amountCents });
+    }
+    const unpaidMatches = await prisma.match.findMany({
+      where: {
+        mode: 'QUICK_GAME',
+        status: { in: [...STARTED] },
+        fieldReservation: { is: { status: 'CONFIRMED' } },
+        venuePayable: { is: null },
+      },
+      select: { id: true, goNoGoAt: true, confirmedAt: true, fieldReservation: { select: { priceCentsSnapshot: true } } },
+    });
+    for (const match of unpaidMatches)
+      issues.push({
+        code: match.goNoGoAt ? 'STARTED_MATCH_WITHOUT_PAYABLE' : 'LEGACY_RESERVATION_UNSETTLED',
+        referenceId: match.id,
+        expectedCents: match.fieldReservation?.priceCentsSnapshot,
+        ...(match.goNoGoAt && !match.confirmedAt && { detail: 'started_without_confirmation' }),
+      });
+    return payables.length;
+  }
+
+  private async batches(issues: WalletReconciliationIssue[]) {
+    const batches = await prisma.venueSettlementBatch.findMany({
+      where: { status: { not: 'CANCELLED' } },
+      select: {
+        id: true, status: true, payablesCents: true, adjustmentsCents: true, totalCents: true,
+        payables: { select: { amountCents: true, status: true } },
+        adjustments: { select: { amountCents: true } },
+      },
+    });
+    for (const batch of batches) {
+      const payablesCents = batch.payables.reduce((sum, payable) => sum + payable.amountCents, 0);
+      const adjustmentsCents = batch.adjustments.reduce((sum, adjustment) => sum + adjustment.amountCents, 0);
+      if (payablesCents !== batch.payablesCents || adjustmentsCents !== batch.adjustmentsCents || payablesCents + adjustmentsCents !== batch.totalCents)
+        issues.push({ code: 'SETTLEMENT_TOTAL_MISMATCH', referenceId: batch.id, expectedCents: payablesCents + adjustmentsCents, actualCents: batch.totalCents });
+      const expectedState = batch.status === 'PAID' ? 'PAID' : 'IN_BATCH';
+      if (batch.payables.some((payable) => payable.status !== expectedState))
+        issues.push({ code: 'SETTLEMENT_PAYABLE_STATE_MISMATCH', referenceId: batch.id, detail: `expected_${expectedState.toLowerCase()}` });
+    }
+    return batches.length;
   }
 }
