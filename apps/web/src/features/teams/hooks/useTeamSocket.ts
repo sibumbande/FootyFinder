@@ -20,6 +20,7 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
       });
       refresh();
     };
+    const refreshWallet = () => void cache.invalidateQueries({ queryKey: [...teamKey(teamId), 'wallet'] });
     const joinAndRecover = () => {
       socket.emit(SocketEvents.joinTeamRoom, { teamId });
       refresh();
@@ -33,6 +34,7 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
     socket.on(SocketEvents.teamFormationUpdated, refreshFormation);
     socket.on(SocketEvents.teamMemberRoleUpdated, refresh);
     socket.on(SocketEvents.teamDeleted, refresh);
+    socket.on(SocketEvents.teamWalletUpdated, refreshWallet);
     return () => {
       socket.emit(SocketEvents.leaveTeamRoom, { teamId });
       socket.off('connect', joinAndRecover);
@@ -42,6 +44,7 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
       socket.off(SocketEvents.teamFormationUpdated, refreshFormation);
       socket.off(SocketEvents.teamMemberRoleUpdated, refresh);
       socket.off(SocketEvents.teamDeleted, refresh);
+      socket.off(SocketEvents.teamWalletUpdated, refreshWallet);
     };
   }, [cache, format, teamId]);
 }

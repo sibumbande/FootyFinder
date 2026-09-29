@@ -29,8 +29,9 @@ export const teamsApi = (client: ApiClient) => ({
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  /** Gate 7 / D7: closes (archives) the team and returns each contributor's unspent money. */
   remove: (teamId: string) =>
-    client.request<{ data: { success: true } }>(`/teams/${teamId}`, { method: 'DELETE' }),
+    client.request<{ data: { success: true; refunds?: Array<{ userId: string; amountCents: number }> } }>(`/teams/${teamId}`, { method: 'DELETE' }),
   createMatch: (teamId: string, input: CreateTeamMatchInput) =>
     client.request<{ data: Match }>(`/teams/${teamId}/matches`, {
       method: 'POST',

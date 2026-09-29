@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { formatDate } from '@/utils/format-date.js';
 import { formatRands } from '@/utils/format-currency.js';
+import { ReclaimableTeamMoney } from '@/features/teams/components/ReclaimableTeamMoney.js';
 import { TopUpForm } from '../components/TopUpForm.js';
 import { useWalletHistory, useWalletSummary } from '../hooks/useWallet.js';
 
@@ -38,7 +39,7 @@ function LedgerRow({ entry }: { entry: WalletLedgerEntry }) {
           {entry.related && (
             <>
               {' · '}
-              <Link className="font-semibold underline" to={`/matches/${entry.related.id}`}>
+              <Link className="font-semibold underline" to={entry.related.type === 'team' ? `/teams/${entry.related.id}` : `/matches/${entry.related.id}`}>
                 {entry.related.name}
               </Link>
             </>
@@ -113,6 +114,8 @@ export function WalletPage() {
       )}
 
       <TopUpForm initialCents={Number.isInteger(suggested) && suggested > 0 ? suggested : undefined} />
+
+      <ReclaimableTeamMoney />
 
       <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="wallet-history">
         <h2 id="wallet-history" className="text-xl font-black uppercase text-content-strong">

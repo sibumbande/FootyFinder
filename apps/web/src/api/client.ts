@@ -7,6 +7,7 @@ import {
   usersApi,
   walletApi,
   teamsApi,
+  teamWalletApi,
   supportApi,
   bookingsApi,
   moderationApi,
@@ -23,6 +24,7 @@ export const walletClient = walletApi(apiClient);
 export const messagingClient = messagingApi(apiClient);
 export const notificationsClient = notificationsApi(apiClient);
 export const teamsClient = teamsApi(apiClient);
+export const teamWalletClient = teamWalletApi(apiClient);
 export const supportClient = supportApi(apiClient);
 export const bookingsClient = bookingsApi(apiClient);
 export const moderationClient = moderationApi(apiClient);

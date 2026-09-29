@@ -10,6 +10,7 @@ import { formatDate } from '@/utils/format-date.js';
 import { TeamAvatar } from '../components/TeamAvatar.js';
 import { TeamFormationEditor } from '../components/TeamFormationEditor.js';
 import { TeamInvitePanel } from '../components/TeamInvitePanel.js';
+import { TeamWalletPanel } from '../components/TeamWalletPanel.js';
 import {
   useDeleteTeam,
   useTeam,
@@ -20,7 +21,7 @@ import {
 } from '../hooks/useTeams.js';
 import { useTeamSocket } from '../hooks/useTeamSocket.js';
 
-type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'invites' | 'settings';
+type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'invites' | 'settings';
 export function TeamPage() {
   const { teamId = '' } = useParams();
   useTeamSocket(teamId);
@@ -29,13 +30,20 @@ export function TeamPage() {
   if (team.isPending) return <div className="h-[40rem] animate-pulse rounded-3xl bg-surface" />;
   if (!team.data || team.error)
     return <FormError message={team.error?.message ?? 'Team not found.'} />;
+  const archived = Boolean(team.data.archivedAt);
   const allowedTabs: Tab[] = ['overview', 'matches', 'squad', 'formation'];
-  if (team.data.viewerRole === 'OWNER' || team.data.viewerRole === 'CAPTAIN')
+  if (team.data.viewerRole) allowedTabs.push('wallet');
+  if (!archived && (team.data.viewerRole === 'OWNER' || team.data.viewerRole === 'CAPTAIN'))
     allowedTabs.push('invites');
-  if (team.data.viewerRole === 'OWNER') allowedTabs.push('settings');
+  if (!archived && team.data.viewerRole === 'OWNER') allowedTabs.push('settings');
   return (
     <section className="grid gap-6">
       <TeamHero team={team.data} />
+      {archived && (
+        <p role="status" className="rounded-2xl border border-line bg-surface-muted p-4 text-sm font-semibold text-content">
+          This team was closed on {formatDate(team.data.archivedAt!)}. Its history is kept, and any unspent contributions were returned to each contributor&apos;s wallet.
+        </p>
+      )}
       <nav
         className="flex gap-1 overflow-x-auto rounded-xl bg-surface-muted p-1"
         aria-label="Team sections"
@@ -55,6 +63,7 @@ export function TeamPage() {
         {tab === 'matches' && <TeamMatches team={team.data} />}
         {tab === 'squad' && <Squad team={team.data} />}
         {tab === 'formation' && <TeamFormationEditor team={team.data} />}
+        {tab === 'wallet' && <TeamWalletPanel team={team.data} />}
         {tab === 'invites' && <TeamInvitePanel team={team.data} />}
         {tab === 'settings' && <TeamSettings team={team.data} />}
       </div>
@@ -91,7 +100,7 @@ function TeamHero({ team }: { team: TeamDetail }) {
             {team.viewerRole.toLowerCase()}
           </span>
         )}
-        {(team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && (
+        {!team.archivedAt && (team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && (
           <Link className="button" to={`/teams/${team.id}/matches/new`}>
             Organise Match
           </Link>
@@ -313,23 +322,24 @@ function TeamSettings({ team }: { team: TeamDetail }) {
         </label>
       </div>
       <div className="border-t border-danger-200 pt-6">
-        <h3 className="font-bold text-danger-700">Delete Team</h3>
+        <h3 className="font-bold text-danger-700">Close Team</h3>
         <p className="mt-1 text-sm text-content-muted">
-          This removes memberships, invites, and saved formations. User accounts and Match history
-          remain untouched.
+          Closing archives the Team: nobody can join, invite or play as it any more, but its match and
+          wallet history is kept. Each member&apos;s unspent contributions go back to their own wallet.
+          You can close a Team only when it has no upcoming team match and no money held for one.
         </p>
         <Button
           variant="secondary"
           className="mt-4"
           loading={deletion.isPending}
           onClick={() => {
-            if (window.confirm(`Permanently delete ${team.name}?`))
+            if (window.confirm(`Close ${team.name}? Unspent contributions will be returned to each member's wallet.`))
               deletion.mutate(undefined, {
                 onSuccess: () => navigate('/teams', { replace: true }),
               });
           }}
         >
-          Delete Team
+          Close Team
         </Button>
       </div>
       <FormError

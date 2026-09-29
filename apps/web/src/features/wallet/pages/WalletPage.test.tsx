@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({ summary: vi.fn(), history: vi.fn() }));
 vi.mock('../components/TopUpForm.js', () => ({
   TopUpForm: ({ initialCents }: { initialCents?: number }) => <p>Top-up form {initialCents ?? 'default'}</p>,
 }));
+vi.mock('@/features/teams/components/ReclaimableTeamMoney.js', () => ({
+  ReclaimableTeamMoney: () => <p>Team money</p>,
+}));
 vi.mock('../hooks/useWallet.js', () => ({
   useWalletSummary: mocks.summary,
   useWalletHistory: mocks.history,
@@ -70,6 +73,16 @@ describe('WalletPage', () => {
     mocks.history.mockReturnValue({ ...history([]), data: undefined, error: new Error('History unavailable') });
     renderPage();
     expect(screen.getByText('History unavailable')).toBeInTheDocument();
+  });
+
+  it('links a team contribution to its team (Gate 7)', () => {
+    const teamId = '22222222-2222-4222-8222-222222222222';
+    mocks.history.mockReturnValue(
+      history([[entry({ kind: 'TEAM_CONTRIBUTION', title: 'Contribution to your team wallet', amountCents: -20_000, related: { type: 'team', id: teamId, name: 'Rondebosch FC' } })]]),
+    );
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Rondebosch FC' })).toHaveAttribute('href', `/teams/${teamId}`);
+    expect(screen.getByText('Team money')).toBeInTheDocument();
   });
 
   it('explains each credit and debit and links the related match', () => {
