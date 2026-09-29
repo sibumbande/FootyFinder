@@ -2,6 +2,7 @@ import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
 import { serializableTransaction } from '../src/database/transaction.js';
+import { MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 
@@ -55,7 +56,7 @@ try {
   for (const [index, userId] of userIds.entries())
     await serializableTransaction((tx) => financial.credit(tx, { userId, amountCents: 100_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:race-funds:${index}`, referenceType: 'SMOKE', referenceId: marker }));
   const raceStartsAt = new Date(kickoff.getTime() + 6 * 60 * 60_000).toISOString();
-  const raceInput = { managedFieldId: field.id, name: 'Gate 3 reservation race', format: 'FIVE_A_SIDE' as const, substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC' as const, startsAt: raceStartsAt, feeCents: 4_000 };
+  const raceInput = { managedFieldId: field.id, name: 'Gate 3 reservation race', format: 'FIVE_A_SIDE' as const, substituteCapacityPerTeam: 5, rollingSubstitutes: true, rules: [], visibility: 'PUBLIC' as const, startsAt: raceStartsAt, feeCents: 4_000 /* host attempt: must be ignored (DEC-018) */ };
   const race = await Promise.allSettled(userIds.map((userId) => service.createQuickMatch(raceInput, userId)));
   const winner = race.find((item): item is PromiseFulfilledResult<Awaited<ReturnType<BookingsService['createQuickMatch']>>> => item.status === 'fulfilled');
   const loser = race.find((item): item is PromiseRejectedResult => item.status === 'rejected');
@@ -65,6 +66,7 @@ try {
   const raceReservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: winner!.value.id } });
   reservationIds.push(raceReservation.id);
   if (raceReservation.organizerGuaranteeHoldId) holdIds.push(raceReservation.organizerGuaranteeHoldId);
+  assert(winner!.value.feeCents === MATCH_FEE_CENTS, 'Host-created Quick Match did not use the fixed R80 fee.');
   assert(raceReservation.priceCentsSnapshot === 90_000 && raceReservation.organizerGuaranteeCents === 90_000, 'Race winner did not preserve price and guarantee snapshots.');
 
   let rolledBack = false;

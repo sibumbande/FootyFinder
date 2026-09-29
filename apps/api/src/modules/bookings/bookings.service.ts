@@ -6,7 +6,7 @@ import type {
   CreateMatchInput,
 } from '@footy-finder/shared';
 import { randomUUID } from 'node:crypto';
-import { createDefaultFormation, getMaxMatchParticipants, MATCH_DURATION_MINUTES, MAX_QUICK_GAME_FEE_CENTS } from '@footy-finder/shared';
+import { createDefaultFormation, MATCH_DURATION_MINUTES, MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
@@ -53,12 +53,6 @@ export const isWithinFieldAvailability = (
   const end = localParts(endsAt, field.venue.timezone);
   return start.day === end.day && field.availabilityPeriods.some((period) => period.dayOfWeek === start.day && period.startMinute <= start.minute && period.endMinute >= end.minute);
 };
-
-export const maximumQuickMatchFeeCents = (venuePriceCents: number, paidCapacity: number) =>
-  Math.min(
-    MAX_QUICK_GAME_FEE_CENTS,
-    Math.floor(venuePriceCents / paidCapacity / 100) * 100,
-  );
 
 const bookingDto = (reservation: any, viewerId?: string): FieldBooking => {
   const contributions = reservation.obligations.flatMap((item: any) => item.contributions);
@@ -123,17 +117,14 @@ export class BookingsService {
         const { field, price, cancellationPolicy, endsAt } = await this.fieldContext(tx, input.managedFieldId, input.format, startsAt);
         const local = localParts(startsAt, field.venue.timezone);
         if (local.minute % 30 !== 0) throw new AppError(409, 'Choose a server-calculated 30-minute-grid slot.', 'FIELD_SLOT_INVALID');
-        const paidCapacity = getMaxMatchParticipants(input.format, input.substituteCapacityPerTeam);
-        const maximumFeeCents = maximumQuickMatchFeeCents(price.amountCents, paidCapacity);
-        if (input.feeCents > maximumFeeCents)
-          throw new AppError(409, `The player fee cannot exceed R${(maximumFeeCents / 100).toFixed(0)} for this venue and capacity.`, 'MATCH_FEE_EXCEEDS_FAIR_SHARE', { maximumFeeCents });
         const created = await tx.match.create({ data: {
           name: input.name, description: input.description, createdBy: { connect: { id: actorUserId } }, mode: 'QUICK_GAME', format: input.format,
           substituteCapacityPerTeam: input.substituteCapacityPerTeam, rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
           visibility: input.visibility,
           publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
           inviteTokenHash: inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
-          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: input.feeCents, status: 'OPEN',
+          // DEC-018: the platform sets the fee; hosts never choose it.
+          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: MATCH_FEE_CENTS, status: 'OPEN',
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },
         } });
@@ -217,7 +208,7 @@ export class BookingsService {
           rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
           visibility: input.visibility,
           publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
-          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: 0,
+          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: MATCH_FEE_CENTS,
           status: source === 'ADMIN_LOADED' ? 'OPEN' : 'DRAFT',
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },

@@ -264,7 +264,7 @@ test.describe('public join and position claim', () => {
         visibility: 'PUBLIC',
         startsAt: startsAt.toISOString(),
         managedFieldId: field.id,
-        feeCents: 2_000,
+        feeCents: 2_000, // a host-sent fee must be ignored (DEC-018)
       },
     });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
@@ -295,7 +295,7 @@ test.describe('public join and position claim', () => {
       await expect(page.getByText('Place confirmed')).toBeVisible();
     }
     const payments = await prisma.matchPayment.findMany({ where: { matchId } });
-    expect(payments.map(({ amountCents }) => amountCents)).toEqual([2_000, 2_000]);
+    expect(payments.map(({ amountCents }) => amountCents)).toEqual([8_000, 8_000]);
 
     // Everyone opens the lobby. Joined players see claimable open positions on their side.
     await Promise.all(

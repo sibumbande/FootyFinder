@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isWithinFieldAvailability, maximumQuickMatchFeeCents } from './bookings.service.js';
+import { isWithinFieldAvailability } from './bookings.service.js';
 
 const field = {
   venue: { timezone: 'Africa/Johannesburg' },
@@ -19,16 +19,3 @@ describe('field booking availability', () => {
   });
 });
 
-describe('maximumQuickMatchFeeCents', () => {
-  it('rounds fair share down to whole rands so organisers cannot profit', () => {
-    expect(maximumQuickMatchFeeCents(123_45, 10)).toBe(1_200);
-  });
-
-  it('caps the player fee at R500', () => {
-    expect(maximumQuickMatchFeeCents(2_000_000, 10)).toBe(50_000);
-  });
-
-  it('supports free promotional venue slots', () => {
-    expect(maximumQuickMatchFeeCents(0, 10)).toBe(0);
-  });
-});

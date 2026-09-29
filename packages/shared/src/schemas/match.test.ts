@@ -32,7 +32,6 @@ const validMatch = {
   format: 'FIVE_A_SIDE' as const,
   visibility: 'PUBLIC' as const,
   startsAt: '2099-08-23T18:00:00.000Z',
-  feeCents: 8_000,
   managedFieldId: 'f03d12a0-9855-4a03-8948-739bad35e733',
 };
 
@@ -87,18 +86,12 @@ describe('createMatchSchema', () => {
     ).toThrow();
   });
 
-  it('defaults the Quick Game fee to R80 when omitted', () => {
-    const { feeCents: _feeCents, ...withoutFee } = validMatch;
-    expect(createMatchSchema.parse(withoutFee).feeCents).toBe(8_000);
-  });
-
-  it.each([0, 8_000, 50_000])('accepts whole-rand Quick Game fee %i cents', (feeCents) => {
-    expect(createMatchSchema.parse({ ...validMatch, feeCents }).feeCents).toBe(feeCents);
-  });
-
-  it.each([-100, 1, 8_050, 50_100])('rejects invalid Quick Game fee %i cents', (feeCents) => {
-    expect(() => createMatchSchema.parse({ ...validMatch, feeCents })).toThrow();
-  });
+  it.each([0, 2_000, 8_000, 50_000])(
+    'never lets a host choose the fee: a client-sent feeCents of %i is stripped (DEC-018)',
+    (feeCents) => {
+      expect(createMatchSchema.parse({ ...validMatch, feeCents })).not.toHaveProperty('feeCents');
+    },
+  );
 });
 
 describe('createTeamMatchSchema', () => {

@@ -1,13 +1,12 @@
 import {
   DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
-  DEFAULT_QUICK_GAME_FEE_CENTS,
   getMaxMatchParticipants,
   MATCH_FORMAT_CONFIG,
   MATCH_FORMATS,
   MATCH_RULE_CONFIG,
   MATCH_RULES,
   MAX_SUBSTITUTES_PER_TEAM,
-  MAX_QUICK_GAME_FEE_CENTS,
+  MATCH_FEE_CENTS,
   type MatchFormat,
   type MatchRule,
   type MatchVisibility,
@@ -26,7 +25,7 @@ const steps = [
   'Visibility',
   'Details',
   'Venue',
-  'Schedule & fee',
+  'Schedule',
   'Review',
 ];
 export function CreateMatchPage() {
@@ -40,32 +39,23 @@ export function CreateMatchPage() {
   const [visibility, setVisibility] = useState<MatchVisibility>('PUBLIC');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [feeRands, setFeeRands] = useState(String(DEFAULT_QUICK_GAME_FEE_CENTS / 100));
   const [search] = useSearchParams();
   const venueSlug = search.get('venue') ?? '';
   const fieldId = search.get('field') ?? '';
   const startsAt = search.get('startsAt') ?? '';
-  const selectedPriceCents = Number(search.get('price') ?? 0);
   const selectedFormat = search.get('format') as MatchFormat | null;
   const venueQuery = useVenue(venueSlug);
   const selectedField = venueQuery.data?.venue.fields.find((item) => item.id === fieldId);
   const navigate = useNavigate();
   const creation = useCreateMatch();
   const config = MATCH_FORMAT_CONFIG[format];
-  const fairShareMaximum = selectedPriceCents > 0 ? Math.min(MAX_QUICK_GAME_FEE_CENTS, Math.floor(selectedPriceCents / getMaxMatchParticipants(format, substituteCapacityPerTeam) / 100) * 100) : MAX_QUICK_GAME_FEE_CENTS;
-  const feeValue = Number(feeRands);
-  const feeIsValid =
-    feeRands.trim() !== '' &&
-    Number.isInteger(feeValue) &&
-    feeValue >= 0 &&
-    feeValue <= fairShareMaximum / 100;
   const valid = [
     true,
     substituteCapacityPerTeam >= 0 && substituteCapacityPerTeam <= MAX_SUBSTITUTES_PER_TEAM,
     true,
     name.trim().length >= 3,
     Boolean(selectedField && startsAt && selectedFormat === format),
-    Boolean(startsAt && feeIsValid),
+    Boolean(startsAt),
     true,
   ][step];
   const submit = () => {
@@ -80,7 +70,6 @@ export function CreateMatchPage() {
         rules,
         visibility,
         startsAt,
-        feeCents: feeValue * 100,
         managedFieldId: selectedField.id,
       },
       { onSuccess: ({ data }) => navigate(`/matches/${data.id}`, { replace: true }) },
@@ -94,7 +83,7 @@ export function CreateMatchPage() {
           Build your next football lobby.
         </h1>
         <p className="mt-2 text-content-muted">
-          Choose the format, squad rules, privacy, venue, schedule and player entry fee.
+          Choose the format, squad rules, privacy, venue and schedule. Every player pays a fixed R80 to join.
         </p>
       </div>
       {(!selectedField || !startsAt) && <div className="rounded-2xl border border-warning-300 bg-warning-50 p-5"><strong className="text-content-strong">Select a live venue slot first.</strong><p className="mt-2 text-sm text-content-muted">Quick Matches can only be created from the managed venue calendar.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to="/#venues">Browse venues</Link></div>}
@@ -252,25 +241,13 @@ export function CreateMatchPage() {
         )}
         {step === 5 && (
           <Step
-            title="Schedule and player fee"
+            title="Schedule"
             detail="Every match lasts 60 minutes. Players pay only when they join a team."
           >
-            <div className="rounded-2xl bg-surface-muted p-4"><span className="text-xs font-bold uppercase text-content-muted">Selected kickoff</span><strong className="mt-1 block text-content-strong">{startsAt ? new Date(startsAt).toLocaleString() : 'Choose a venue slot'}</strong><span className="mt-1 block text-sm text-content-muted">Venue price: {formatRands(selectedPriceCents)} per 60-minute field slot</span></div>
-            <Input
-              label="Entry fee (rands)"
-              type="number"
-              min="0"
-              max={fairShareMaximum / 100}
-              step="1"
-              value={feeRands}
-              onChange={(event) => setFeeRands(event.target.value)}
-              error={
-                feeRands.length > 0 && !feeIsValid
-                  ? `Use a whole-rand amount from R0 to R${fairShareMaximum / 100}.`
-                  : undefined
-              }
-              hint={`The server prevents organiser profit. For this venue and capacity the maximum is R${fairShareMaximum / 100}.`}
-            />
+            <div className="rounded-2xl bg-surface-muted p-4"><span className="text-xs font-bold uppercase text-content-muted">Selected kickoff</span><strong className="mt-1 block text-content-strong">{startsAt ? new Date(startsAt).toLocaleString() : 'Choose a venue slot'}</strong></div>
+            <p data-testid="fixed-fee-notice" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm font-semibold text-brand-700">
+              Every player pays {formatRands(MATCH_FEE_CENTS)} to join, including subs. The fee is set by Footy Finder.
+            </p>
           </Step>
         )}
         {step === 6 && (
@@ -303,7 +280,7 @@ export function CreateMatchPage() {
               />
               <Summary label="Venue" value={`${venueQuery.data?.venue.name ?? ''} — ${selectedField?.name ?? ''}`} />
               <Summary label="Kickoff" value={startsAt ? new Date(startsAt).toLocaleString() : ''} />
-              <Summary label="Player fee" value={formatRands(Math.round(Number(feeRands) * 100))} />
+              <Summary label="Player fee" value={`${formatRands(MATCH_FEE_CENTS)} per player (fixed)`} />
             </dl>
             <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700">
               <strong>You remain host-only after creation.</strong> Hosting does not consume

@@ -5,11 +5,6 @@ import {
   MAX_SUBSTITUTES_PER_TEAM,
 } from '../config/match-formats.js';
 import {
-  DEFAULT_QUICK_GAME_FEE_CENTS,
-  MAX_QUICK_GAME_FEE_CENTS,
-  MIN_QUICK_GAME_FEE_CENTS,
-} from '../types/wallet.js';
-import {
   MATCH_RULES,
   MATCH_VISIBILITIES,
   DISPLACED_PLAYER_ACTIONS,
@@ -69,15 +64,12 @@ const matchDetailsSchema = z.object({
     .datetime()
     .refine((value) => new Date(value).getTime() > Date.now(), 'Choose a future date and time'),
 });
+/**
+ * DEC-018: hosts never choose a fee. Every Quick Match place costs the platform-fixed
+ * MATCH_FEE_CENTS (R80), set by the server. A client-sent feeCents is stripped by this schema.
+ */
 export const createMatchSchema = matchDetailsSchema.extend({
   managedFieldId: z.string().uuid(),
-  feeCents: z
-    .number()
-    .int()
-    .min(MIN_QUICK_GAME_FEE_CENTS)
-    .max(MAX_QUICK_GAME_FEE_CENTS)
-    .refine((value) => value % 100 === 0, 'Player fee must be a whole-rand amount')
-    .default(DEFAULT_QUICK_GAME_FEE_CENTS),
 });
 export const createTeamMatchSchema = matchDetailsSchema
   .omit({ visibility: true })

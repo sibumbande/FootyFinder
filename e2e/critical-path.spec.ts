@@ -250,7 +250,7 @@ test.describe('browser critical path', () => {
     await captainPage.getByLabel('Match name').fill(`${marker} paid match`);
     await captainPage.getByRole('button', { name: 'Continue' }).click();
     await captainPage.getByRole('button', { name: 'Continue' }).click();
-    await captainPage.getByLabel('Entry fee (rands)').fill('20');
+    await expect(captainPage.getByTestId('fixed-fee-notice')).toBeVisible();
     await captainPage.getByRole('button', { name: 'Continue' }).click();
     await captainPage.getByRole('button', { name: 'Create match' }).click();
     await expect(captainPage).toHaveURL(/\/matches\/[0-9a-f-]+$/);

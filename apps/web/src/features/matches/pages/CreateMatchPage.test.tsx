@@ -51,12 +51,13 @@ describe('CreateMatchPage', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByTestId('fixed-fee-notice')).toHaveTextContent(/Every player pays R\s?80[,.]00 to join, including subs\./);
+    expect(screen.queryByLabelText(/Entry fee/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create match' }));
 
     expect(mocks.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        feeCents: 8_000,
         managedFieldId: 'f03d12a0-9855-4a03-8948-739bad35e733',
         substituteCapacityPerTeam: 10,
         rollingSubstitutes: true,
@@ -64,5 +65,7 @@ describe('CreateMatchPage', () => {
       }),
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
+    // DEC-018: the host never sends a fee; the server applies the fixed R80.
+    expect(mocks.mutate.mock.calls[0]![0]).not.toHaveProperty('feeCents');
   });
 });

@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { createMatchSchema } from './match.js';
 
-export const managedMatchBookingSchema = createMatchSchema
-  .omit({ feeCents: true });
+export const managedMatchBookingSchema = createMatchSchema;
 export const playerFieldBookingSchema = managedMatchBookingSchema
   .omit({ visibility: true })
   .extend({ visibility: z.literal('PUBLIC').default('PUBLIC') });
