@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CreateMatchPage } from './CreateMatchPage.js';
 
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
@@ -24,6 +24,8 @@ vi.mock('@/features/venues/hooks/useVenues.js', () => ({
     },
   }),
 }));
+
+afterEach(cleanup);
 
 describe('CreateMatchPage', () => {
   it('persists match-specific capacity, rolling substitutions, and rules', () => {
@@ -68,5 +70,29 @@ describe('CreateMatchPage', () => {
     );
     // DEC-018: the host never sends a fee; the server applies the fixed R80.
     expect(mocks.mutate.mock.calls[0]![0]).not.toHaveProperty('feeCents');
+  });
+
+  it('warns the host about the T-30 go/no-go with the computed time before they confirm', () => {
+    // Kickoff 30 Oct 2026 14:00 SAST (12:00Z) -> go/no-go at 13:30.
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/matches/new?venue=approved-arena&field=f03d12a0-9855-4a03-8948-739bad35e733&format=FIVE_A_SIDE&startsAt=2026-10-30T12%3A00%3A00.000Z',
+        ]}
+      >
+        <CreateMatchPage />
+      </MemoryRouter>,
+    );
+    const expected =
+      "Heads up: if every position isn't filled 30 minutes before kickoff (13:30), this match is cancelled automatically and every player gets their R80 refunded to their wallet.";
+    for (let step = 0; step < 3; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.change(screen.getByLabelText('Match name'), { target: { value: 'Friday football' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByTestId('go-no-go-notice')).toHaveTextContent(expected);
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    // Review step: the notice sits right above the confirm button.
+    expect(screen.getByTestId('go-no-go-notice')).toHaveTextContent(expected);
+    expect(screen.getByRole('button', { name: 'Create match' })).toBeInTheDocument();
   });
 });

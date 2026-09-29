@@ -1,5 +1,6 @@
 import {
   DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+  getGoNoGoAt,
   getMaxMatchParticipants,
   MATCH_FORMAT_CONFIG,
   MATCH_FORMATS,
@@ -19,6 +20,22 @@ import { Input } from '@/components/ui/Input.js';
 import { formatRands } from '@/utils/format-currency.js';
 import { useCreateMatch } from '../hooks/useMatches.js';
 import { useVenue } from '@/features/venues/hooks/useVenues.js';
+import { formatClock, rands } from '../utils/go-no-go-format.js';
+
+/** DEC-018: tell the host, before they confirm, that an unfilled match is cancelled at T-30. */
+function GoNoGoNotice({ startsAt }: { startsAt: string }) {
+  if (!startsAt || Number.isNaN(new Date(startsAt).getTime())) return null;
+  return (
+    <p
+      data-testid="go-no-go-notice"
+      className="rounded-2xl border border-warning-300 bg-warning-50 p-4 text-sm font-semibold text-content"
+    >
+      Heads up: if every position isn&apos;t filled 30 minutes before kickoff (
+      {formatClock(getGoNoGoAt(startsAt).toISOString())}), this match is cancelled automatically and
+      every player gets their {rands(MATCH_FEE_CENTS)} refunded to their wallet.
+    </p>
+  );
+}
 const steps = [
   'Format',
   'Squad rules',
@@ -248,6 +265,7 @@ export function CreateMatchPage() {
             <p data-testid="fixed-fee-notice" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm font-semibold text-brand-700">
               Every player pays {formatRands(MATCH_FEE_CENTS)} to join, including subs. The fee is set by Footy Finder. As the host you place no deposit or guarantee, and you only pay if you join a team.
             </p>
+            <GoNoGoNotice startsAt={startsAt} />
           </Step>
         )}
         {step === 6 && (
@@ -287,6 +305,7 @@ export function CreateMatchPage() {
               capacity or charge your wallet. Join Home or Away from the lobby if you also want to
               play.
             </div>
+            <GoNoGoNotice startsAt={startsAt} />
           </Step>
         )}
         <FormError message={creation.error?.message} />

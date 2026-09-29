@@ -8,6 +8,7 @@ import { useAddFunds } from '@/features/wallet/hooks/useWallet.js';
 import { formatRands } from '@/utils/format-currency.js';
 import { QUICK_MATCH_SIDE_BADGES, QUICK_MATCH_SIDE_LABELS } from '../constants/quick-match-sides.js';
 import { useJoinMatch } from '../hooks/useMatches.js';
+import { formatClock, rands } from '../utils/go-no-go-format.js';
 export function JoinTeamDialog({
   match,
   open,
@@ -111,6 +112,16 @@ export function JoinTeamDialog({
             </dd>
           </div>
         </dl>
+        {match.goNoGoAt && (
+          <p
+            data-testid="join-go-no-go-notice"
+            className="mt-4 rounded-xl border border-warning-300 bg-warning-50 p-3 text-sm font-semibold text-content"
+          >
+            This match goes ahead only if every position is filled by {formatClock(match.goNoGoAt)} (30
+            minutes before kickoff). If not, it&apos;s cancelled automatically and your{' '}
+            {rands(match.feeCents)} is refunded to your wallet.
+          </p>
+        )}
         {join.error && (
           <p className="mt-4 text-sm font-semibold text-danger-700">{join.error.message}</p>
         )}
