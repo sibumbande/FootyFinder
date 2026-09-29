@@ -16,7 +16,7 @@ import { MyTeamsPage } from '@/features/teams/pages/MyTeamsPage.js';
 import { CreateTeamPage } from '@/features/teams/pages/CreateTeamPage.js';
 import { TeamPage } from '@/features/teams/pages/TeamPage.js';
 import { TeamInvitePage } from '@/features/teams/pages/TeamInvitePage.js';
-import { CreateTeamMatchPage } from '@/features/teams/pages/CreateTeamMatchPage.js';
+import { RetiredTeamFixtureRedirect } from '@/features/teams/pages/RetiredTeamFixtureRedirect.js';
 import { PageTransition } from './PageTransition.js';
 import { SupportPage } from '@/features/support/pages/SupportPage.js';
 import { BookingsPage } from '@/features/bookings/pages/BookingsPage.js';
@@ -66,7 +66,7 @@ export function AppRouter() {
             <Route path="/messages/new/:userId" element={animated(<MessagesPage />)} />
             <Route path="/teams" element={animated(<MyTeamsPage />)} />
             <Route path="/teams/create" element={animated(<CreateTeamPage />)} />
-            <Route path="/teams/:teamId/matches/new" element={animated(<CreateTeamMatchPage />)} />
+            <Route path="/teams/:teamId/matches/new" element={<RetiredTeamFixtureRedirect />} />
             <Route path="/teams/:teamId" element={animated(<TeamPage />)} />
             <Route path="/wallet" element={animated(<WalletPage />)} />
             <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />

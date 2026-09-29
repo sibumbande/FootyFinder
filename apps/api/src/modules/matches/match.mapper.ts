@@ -139,7 +139,16 @@ export function toMatch(
       secondaryColorSnapshot: teamSide.secondaryColorSnapshot,
       availabilityRequestedAt: teamSide.availabilityRequestedAt?.toISOString(),
       lineupFinalizedAt: teamSide.lineupFinalizedAt?.toISOString(),
+      ...(teamSide.teamFeeCents !== null && {
+        starterCount: teamSide.starterCount,
+        substituteCount: teamSide.substituteCount,
+        teamFeeCents: teamSide.teamFeeCents,
+      }),
     })),
+    ...(match.otherSideMode && {
+      otherSideMode: match.otherSideMode,
+      otherSideTakenBy: match.otherSideTakenBy,
+    }),
     ...goNoGoFacts(match),
     viewerCanManage: options.viewerCanManage ?? false,
     viewerCanChat: options.viewerCanChat ?? false,

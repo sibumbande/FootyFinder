@@ -84,6 +84,19 @@ export const playerBookingDto = (reservation: any, viewerId?: string): FieldBook
   createdAt: reservation.createdAt.toISOString(),
 });
 
+/** A player-created managed slot must be two hours to 60 days away. */
+export const assertPlayerSlotWindow = (startsAt: Date, now: Date) => {
+  if (startsAt.getTime() < now.getTime() + 2 * 60 * 60_000 || startsAt.getTime() > now.getTime() + 60 * 86_400_000)
+    throw new AppError(400, 'Choose a calculated slot between two hours and 60 days from now.', 'MATCH_START_TIME_INVALID');
+};
+
+/** Maps the reservation exclusion constraint to a stable conflict. */
+export const rethrowReservationConflict = (error: unknown): never => {
+  if ((error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2004' && String(error.meta?.database_error).includes('FieldReservation_no_overlap')) || String(error).includes('FieldReservation_no_overlap'))
+    throw new AppError(409, 'That field is already reserved for this slot.', 'FIELD_TIME_CONFLICT');
+  throw error;
+};
+
 export class BookingsService {
   constructor(
     private readonly financial = new FinancialRepository(),
@@ -110,16 +123,37 @@ export class BookingsService {
     return { field, price, cancellationPolicy, endsAt };
   }
 
+  /**
+   * A bookable player slot on the 30-minute grid, with the Venue snapshot for the match and the
+   * reservation data (including the admin-only price snapshot). Shared by Quick Matches and
+   * Gate 7 team matches so both reserve fields exactly the same way.
+   */
+  async playerSlot(tx: Prisma.TransactionClient, fieldId: string, format: ManagedMatchBookingInput['format'], startsAt: Date) {
+    const { field, price, cancellationPolicy, endsAt } = await this.fieldContext(tx, fieldId, format, startsAt);
+    const local = localParts(startsAt, field.venue.timezone);
+    if (local.minute % 30 !== 0) throw new AppError(409, 'Choose a server-calculated 30-minute-grid slot.', 'FIELD_SLOT_INVALID');
+    const address = [field.venue.addressLine1, field.venue.addressLine2].filter(Boolean).join(', ');
+    return {
+      venue: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude },
+      reservation: (matchId: string, visibility: 'PUBLIC' | 'PRIVATE', now: Date) => ({
+        fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId,
+        source: 'PLAYER_BOOKING' as const, status: 'CONFIRMED' as const, startsAt, endsAt, priceCentsSnapshot: price.amountCents,
+        venueNameSnapshot: field.venue.name, fieldNameSnapshot: field.name, addressSnapshot: address, citySnapshot: field.venue.city,
+        timezoneSnapshot: field.venue.timezone, turnaroundBufferMinutesSnapshot: field.turnaroundBufferMinutes,
+        cancellationPolicySnapshot: { fullCreditBeforeHours: cancellationPolicy.fullCreditBeforeHours, lateCreditPercent: cancellationPolicy.lateCreditPercent, venueCancellationPercent: cancellationPolicy.venueCancellationPercent, policyText: cancellationPolicy.policyText },
+        organizerGuaranteeCents: 0,
+        desiredVisibility: visibility, confirmedAt: now,
+      }),
+    };
+  }
+
   async createQuickMatch(input: CreateMatchInput, actorUserId: string) {
     const startsAt = new Date(input.startsAt); const now = new Date();
-    if (startsAt.getTime() < now.getTime() + 2 * 60 * 60_000 || startsAt.getTime() > now.getTime() + 60 * 86_400_000)
-      throw new AppError(400, 'Choose a calculated slot between two hours and 60 days from now.', 'MATCH_START_TIME_INVALID');
+    assertPlayerSlotWindow(startsAt, now);
     const inviteToken = input.visibility === 'PRIVATE' ? createMatchInviteToken() : undefined;
     try {
       const match = await serializableTransaction(async (tx) => {
-        const { field, price, cancellationPolicy, endsAt } = await this.fieldContext(tx, input.managedFieldId, input.format, startsAt);
-        const local = localParts(startsAt, field.venue.timezone);
-        if (local.minute % 30 !== 0) throw new AppError(409, 'Choose a server-calculated 30-minute-grid slot.', 'FIELD_SLOT_INVALID');
+        const slot = await this.playerSlot(tx, input.managedFieldId, input.format, startsAt);
         const created = await tx.match.create({ data: {
           name: input.name, description: input.description, createdBy: { connect: { id: actorUserId } }, mode: 'QUICK_GAME', format: input.format,
           substituteCapacityPerTeam: input.substituteCapacityPerTeam, rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
@@ -129,30 +163,19 @@ export class BookingsService {
           // DEC-018: the platform sets the fee; hosts never choose it.
           startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: MATCH_FEE_CENTS, status: 'OPEN',
           goNoGoAt: getGoNoGoAt(startsAt),
-          venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
+          venue: { create: slot.venue },
           formationSlots: { create: createDefaultFormation(input.format) },
         } });
         // DEC-018: no host guarantee. The host places no wallet hold and owes nothing for the venue;
         // they pay the fixed fee only if they join a team like any other player.
-        const address = [field.venue.addressLine1, field.venue.addressLine2].filter(Boolean).join(', ');
-        const reservation = await tx.fieldReservation.create({ data: {
-          fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId: created.id,
-          source: 'PLAYER_BOOKING', status: 'CONFIRMED', startsAt, endsAt, priceCentsSnapshot: price.amountCents,
-          venueNameSnapshot: field.venue.name, fieldNameSnapshot: field.name, addressSnapshot: address, citySnapshot: field.venue.city,
-          timezoneSnapshot: field.venue.timezone, turnaroundBufferMinutesSnapshot: field.turnaroundBufferMinutes,
-          cancellationPolicySnapshot: { fullCreditBeforeHours: cancellationPolicy.fullCreditBeforeHours, lateCreditPercent: cancellationPolicy.lateCreditPercent, venueCancellationPercent: cancellationPolicy.venueCancellationPercent, policyText: cancellationPolicy.policyText },
-          organizerGuaranteeCents: 0,
-          desiredVisibility: input.visibility, confirmedAt: now,
-        } });
+        await tx.fieldReservation.create({ data: slot.reservation(created.id, input.visibility, now) });
         await enqueueGoNoGoJob(tx, created.id, startsAt);
         await enqueueFillReminderJob(tx, created.id, startsAt, now);
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { inviteToken, viewerCanManage: true, viewerCanChat: true });
     } catch (error) {
-      if ((error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2004' && String(error.meta?.database_error).includes('FieldReservation_no_overlap')) || String(error).includes('FieldReservation_no_overlap'))
-        throw new AppError(409, 'That field is already reserved for this slot.', 'FIELD_TIME_CONFLICT');
-      throw error;
+      return rethrowReservationConflict(error);
     }
   }
 

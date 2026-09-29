@@ -1,16 +1,21 @@
 import {
   DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+  formatRandAmount,
+  formatTeamFeeBreakdown,
   getGoNoGoAt,
   getMaxMatchParticipants,
+  getTeamFee,
   MATCH_FORMAT_CONFIG,
   MATCH_FORMATS,
   MATCH_RULE_CONFIG,
   MATCH_RULES,
   MAX_SUBSTITUTES_PER_TEAM,
   MATCH_FEE_CENTS,
+  TEAM_MATCH_UNMATCHED_CANCEL_HOURS,
   type MatchFormat,
   type MatchRule,
   type MatchVisibility,
+  type TeamMatchOtherSideMode,
 } from '@footy-finder/shared';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -18,6 +23,8 @@ import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { formatRands } from '@/utils/format-currency.js';
+import { useMyTeams } from '@/features/teams/hooks/useTeams.js';
+import { useTeamWalletSummary } from '@/features/teams/hooks/useTeamWallet.js';
 import { useCreateMatch } from '../hooks/useMatches.js';
 import { useVenue } from '@/features/venues/hooks/useVenues.js';
 import { formatClock, rands } from '../utils/go-no-go-format.js';
@@ -36,16 +43,42 @@ function GoNoGoNotice({ startsAt }: { startsAt: string }) {
     </p>
   );
 }
-const steps = [
-  'Format',
-  'Squad rules',
-  'Visibility',
-  'Details',
-  'Venue',
-  'Schedule',
-  'Review',
-];
+
+/** Gate 7 / DEC-019: the go/no-go rule for a team match, in the words the Terms use. */
+export function TeamGoNoGoNotice({ startsAt, mode }: { startsAt: string; mode: TeamMatchOtherSideMode | null }) {
+  if (!startsAt || Number.isNaN(new Date(startsAt).getTime()) || !mode) return null;
+  const at = formatClock(getGoNoGoAt(startsAt).toISOString());
+  return (
+    <p data-testid="team-go-no-go-notice" className="rounded-2xl border border-warning-300 bg-warning-50 p-4 text-sm font-semibold text-content">
+      {mode === 'TEAMS_ONLY'
+        ? `Heads up: this match goes ahead only if both teams' fill meters are full by ${at} (30 minutes before kickoff). Otherwise it's cancelled and all held money goes back to each team wallet. If no team has taken the other side ${TEAM_MATCH_UNMATCHED_CANCEL_HOURS} hours before kickoff, it's cancelled then.`
+        : `Heads up: this match goes ahead only if, by ${at} (30 minutes before kickoff), your team's fill meter is full and the other side is ready: either the other team's meter is full, or players have claimed every starting position. Otherwise it's cancelled, held money goes back to each team wallet and every player's ${rands(MATCH_FEE_CENTS)} is refunded.`}
+    </p>
+  );
+}
+
+type StepKey = 'playAs' | 'format' | 'squad' | 'visibility' | 'details' | 'venue' | 'schedule' | 'otherSide' | 'subs' | 'review';
+const STEP_LABEL: Record<StepKey, string> = {
+  playAs: 'Play as',
+  format: 'Format',
+  squad: 'Squad rules',
+  visibility: 'Visibility',
+  details: 'Details',
+  venue: 'Venue',
+  schedule: 'Schedule',
+  otherSide: 'Other side',
+  subs: 'Subs and fee',
+  review: 'Review',
+};
+const QUICK_STEPS: StepKey[] = ['format', 'squad', 'visibility', 'details', 'venue', 'schedule', 'review'];
+const TEAM_STEPS: StepKey[] = ['details', 'venue', 'schedule', 'otherSide', 'subs', 'review'];
+
+/**
+ * One wizard for Quick Matches and (Gate 7 / DEC-019) team matches. A team owner or captain can
+ * start it from their team page (play-as locked to that team) or here, by choosing "Play as".
+ */
 export function CreateMatchPage() {
+  const [search, setSearch] = useSearchParams();
   const [step, setStep] = useState(0);
   const [format, setFormat] = useState<MatchFormat>('FIVE_A_SIDE');
   const [substituteCapacityPerTeam, setSubstituteCapacityPerTeam] = useState(
@@ -56,60 +89,80 @@ export function CreateMatchPage() {
   const [visibility, setVisibility] = useState<MatchVisibility>('PUBLIC');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [search] = useSearchParams();
+  const [otherSideMode, setOtherSideMode] = useState<TeamMatchOtherSideMode | null>(null);
+  const [teamSubs, setTeamSubs] = useState(3);
   const venueSlug = search.get('venue') ?? '';
   const fieldId = search.get('field') ?? '';
   const startsAt = search.get('startsAt') ?? '';
   const selectedFormat = search.get('format') as MatchFormat | null;
+  const playAsParam = search.get('playAs') ?? '';
+  const playAsTeamId = playAsParam.startsWith('team:') ? playAsParam.slice(5) : null;
+  const playAsLocked = search.get('lock') === '1' && Boolean(playAsTeamId);
+  const myTeams = useMyTeams();
+  const manageableTeams = (myTeams.data ?? []).filter(
+    (team) => (team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && !team.archivedAt,
+  );
+  const playAsTeam = manageableTeams.find((team) => team.id === playAsTeamId) ?? null;
+  const teamMode = Boolean(playAsTeamId);
   const venueQuery = useVenue(venueSlug);
   const selectedField = venueQuery.data?.venue.fields.find((item) => item.id === fieldId);
   const navigate = useNavigate();
   const creation = useCreateMatch();
-  const config = MATCH_FORMAT_CONFIG[format];
-  const valid = [
-    true,
-    substituteCapacityPerTeam >= 0 && substituteCapacityPerTeam <= MAX_SUBSTITUTES_PER_TEAM,
-    true,
-    name.trim().length >= 3,
-    Boolean(selectedField && startsAt && selectedFormat === format),
-    Boolean(startsAt),
-    true,
-  ][step];
+  const teamWallet = useTeamWalletSummary(playAsTeamId ?? '', teamMode);
+  const matchFormat = teamMode ? (selectedFormat ?? 'FIVE_A_SIDE') : format;
+  const config = MATCH_FORMAT_CONFIG[matchFormat];
+  const teamFee = getTeamFee(matchFormat, teamSubs);
+  const walletShort = teamMode && teamWallet.data ? teamWallet.data.availableCents < teamFee.totalCents : false;
+  const showPlayAs = !playAsLocked && manageableTeams.length > 0;
+  const steps: StepKey[] = [...(showPlayAs ? (['playAs'] as const) : []), ...(teamMode ? TEAM_STEPS : QUICK_STEPS)];
+  const current = steps[Math.min(step, steps.length - 1)]!;
+  const browseVenues = teamMode ? `/?playAs=${encodeURIComponent(playAsParam)}${playAsLocked ? '&lock=1' : ''}#venues` : '/#venues';
+  const choosePlayAs = (teamId: string | null) => {
+    const next = new URLSearchParams(search);
+    if (teamId) next.set('playAs', `team:${teamId}`);
+    else next.delete('playAs');
+    setSearch(next, { replace: true });
+  };
+  const valid: Record<StepKey, boolean> = {
+    playAs: !teamMode || Boolean(playAsTeam),
+    format: true,
+    squad: substituteCapacityPerTeam >= 0 && substituteCapacityPerTeam <= MAX_SUBSTITUTES_PER_TEAM,
+    visibility: true,
+    details: name.trim().length >= 3,
+    venue: Boolean(selectedField && startsAt && (teamMode ? selectedFormat : selectedFormat === format)),
+    schedule: Boolean(startsAt),
+    otherSide: Boolean(otherSideMode),
+    subs: teamSubs >= 0 && teamSubs <= MAX_SUBSTITUTES_PER_TEAM,
+    review: true,
+  };
   const submit = () => {
-    if (!selectedField || !startsAt || !valid) return;
-    creation.mutate(
-      {
-        name,
-        description,
-        format,
-        substituteCapacityPerTeam,
-        rollingSubstitutes,
-        rules,
-        visibility,
-        startsAt,
-        managedFieldId: selectedField.id,
-      },
-      { onSuccess: ({ data }) => navigate(`/matches/${data.id}`, { replace: true }) },
-    );
+    if (!selectedField || !startsAt) return;
+    const base = { name, description, rollingSubstitutes, rules, startsAt, managedFieldId: selectedField.id };
+    const input = teamMode && playAsTeamId && otherSideMode
+      ? { ...base, format: matchFormat, substituteCapacityPerTeam: teamSubs, visibility: 'PUBLIC' as const, playAsTeamId, otherSideMode, teamSubstituteCount: teamSubs }
+      : { ...base, format, substituteCapacityPerTeam, visibility };
+    creation.mutate(input, { onSuccess: ({ data }) => navigate(`/matches/${data.id}`, { replace: true }) });
   };
   return (
     <section className="mx-auto grid max-w-5xl gap-7">
       <div>
-        <p className="anime-kicker">Create a match</p>
+        <p className="anime-kicker">{teamMode ? 'Create a team match' : 'Create a match'}</p>
         <h1 className="mt-3 text-4xl font-black uppercase leading-none text-content-strong">
-          Build your next football lobby.
+          {teamMode ? `Put ${playAsTeam?.name ?? 'your team'} on the pitch.` : 'Build your next football lobby.'}
         </h1>
         <p className="mt-2 text-content-muted">
-          Choose the format, squad rules, privacy, venue and schedule. Every player pays a fixed R80 to join.
+          {teamMode
+            ? 'Team matches are always public. Your team pays R80 for every starting position plus every sub you bring, from the team wallet.'
+            : 'Choose the format, squad rules, privacy, venue and schedule. Every player pays a fixed R80 to join.'}
         </p>
       </div>
-      {(!selectedField || !startsAt) && <div className="rounded-2xl border border-warning-300 bg-warning-50 p-5"><strong className="text-content-strong">Select a live venue slot first.</strong><p className="mt-2 text-sm text-content-muted">Quick Matches can only be created from the managed venue calendar.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to="/#venues">Browse venues</Link></div>}
+      {(!selectedField || !startsAt) && <div className="rounded-2xl border border-warning-300 bg-warning-50 p-5"><strong className="text-content-strong">Select a live venue slot first.</strong><p className="mt-2 text-sm text-content-muted">Matches can only be created from the managed venue calendar.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to={browseVenues}>Browse venues</Link></div>}
       <div>
         <div className="mb-3 flex justify-between text-xs font-bold uppercase tracking-wide text-content-muted">
           <span>
             Step {step + 1} of {steps.length}
           </span>
-          <span>{steps[step]}</span>
+          <span>{STEP_LABEL[current]}</span>
         </div>
         <div className="h-3 -skew-x-12 overflow-hidden rounded-sm border border-line-strong bg-line">
           <div
@@ -119,7 +172,23 @@ export function CreateMatchPage() {
         </div>
       </div>
       <div className="anime-panel p-5 sm:p-8">
-        {step === 0 && (
+        {current === 'playAs' && (
+          <Step title="Play as" detail="Play as yourself in a quick match, or put one of your teams on the pitch.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Choice selected={!teamMode} onClick={() => choosePlayAs(null)}>
+                <strong className="text-lg text-content-strong">Myself (quick match)</strong>
+                <span className="mt-2 block text-sm text-content-muted">Every player pays R80 to join.</span>
+              </Choice>
+              {manageableTeams.map((team) => (
+                <Choice key={team.id} selected={playAsTeamId === team.id} onClick={() => choosePlayAs(team.id)}>
+                  <strong className="text-lg text-content-strong">My team {team.name}</strong>
+                  <span className="mt-2 block text-sm text-content-muted">A public team match paid from the team wallet.</span>
+                </Choice>
+              ))}
+            </div>
+          </Step>
+        )}
+        {current === 'format' && (
           <Step
             title="Choose a match format"
             detail="Format controls the starter count and formation slots."
@@ -145,7 +214,7 @@ export function CreateMatchPage() {
             </div>
           </Step>
         )}
-        {step === 1 && (
+        {current === 'squad' && (
           <Step
             title="Configure the squads"
             detail="Choose how much room each team has beyond its starting lineup."
@@ -186,10 +255,10 @@ export function CreateMatchPage() {
                     type="checkbox"
                     checked={rules.includes(rule)}
                     onChange={(event) =>
-                      setRules((current) =>
+                      setRules((currentRules) =>
                         event.target.checked
-                          ? [...current, rule]
-                          : current.filter((item) => item !== rule),
+                          ? [...currentRules, rule]
+                          : currentRules.filter((item) => item !== rule),
                       )
                     }
                   />
@@ -206,7 +275,7 @@ export function CreateMatchPage() {
             </div>
           </Step>
         )}
-        {step === 2 && (
+        {current === 'visibility' && (
           <Step
             title="Who can discover this match?"
             detail="Visibility cannot be changed after creation."
@@ -227,7 +296,7 @@ export function CreateMatchPage() {
             </div>
           </Step>
         )}
-        {step === 3 && (
+        {current === 'details' && (
           <Step title="Match details" detail="Give players a clear idea of the game.">
             <Input
               label="Match name"
@@ -248,64 +317,121 @@ export function CreateMatchPage() {
             </label>
           </Step>
         )}
-        {step === 4 && (
+        {current === 'venue' && (
           <Step
             title="Select a venue"
             detail="The approved venue and server-calculated slot are carried from the venue calendar."
           >
-            {selectedField ? <div className="rounded-2xl border border-brand-300 bg-brand-50 p-5"><strong className="text-content-strong">{venueQuery.data?.venue.name} — {selectedField.name}</strong><span className="mt-2 block text-sm text-content-muted">{venueQuery.data?.venue.addressLine1}</span></div> : <Link className="font-bold text-brand-700 underline" to="/#venues">Choose a venue and slot</Link>}
+            {selectedField ? <div className="rounded-2xl border border-brand-300 bg-brand-50 p-5"><strong className="text-content-strong">{venueQuery.data?.venue.name} — {selectedField.name}</strong><span className="mt-2 block text-sm text-content-muted">{venueQuery.data?.venue.addressLine1}</span>{teamMode && selectedFormat && <span className="mt-2 block text-sm font-bold text-content">{MATCH_FORMAT_CONFIG[selectedFormat].label}</span>}</div> : <Link className="font-bold text-brand-700 underline" to={browseVenues}>Choose a venue and slot</Link>}
           </Step>
         )}
-        {step === 5 && (
+        {current === 'schedule' && (
           <Step
             title="Schedule"
-            detail="Every match lasts 60 minutes. Players pay only when they join a team."
+            detail={teamMode ? 'Every match lasts 60 minutes.' : 'Every match lasts 60 minutes. Players pay only when they join a team.'}
           >
             <div className="rounded-2xl bg-surface-muted p-4"><span className="text-xs font-bold uppercase text-content-muted">Selected kickoff</span><strong className="mt-1 block text-content-strong">{startsAt ? new Date(startsAt).toLocaleString() : 'Choose a venue slot'}</strong></div>
-            <p data-testid="fixed-fee-notice" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm font-semibold text-brand-700">
-              Every player pays {formatRands(MATCH_FEE_CENTS)} to join, including subs. The fee is set by Footy Finder. As the host you place no deposit or guarantee, and you only pay if you join a team.
-            </p>
-            <GoNoGoNotice startsAt={startsAt} />
+            {!teamMode && (
+              <p data-testid="fixed-fee-notice" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm font-semibold text-brand-700">
+                Every player pays {formatRands(MATCH_FEE_CENTS)} to join, including subs. The fee is set by Footy Finder. As the host you place no deposit or guarantee, and you only pay if you join a team.
+              </p>
+            )}
+            {teamMode ? <TeamGoNoGoNotice startsAt={startsAt} mode={otherSideMode ?? 'TEAMS_ONLY'} /> : <GoNoGoNotice startsAt={startsAt} />}
           </Step>
         )}
-        {step === 6 && (
+        {current === 'otherSide' && (
+          <Step title="Who can take the other side?" detail="Whoever comes first takes it straight away. You can't turn them away; your only way out is cancelling before the 30-minute check.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Choice selected={otherSideMode === 'TEAMS_ONLY'} onClick={() => setOtherSideMode('TEAMS_ONLY')}>
+                <strong className="text-lg text-content-strong">Teams only</strong>
+                <span className="mt-2 block text-sm text-content-muted">Only another team can take the other side. They load their whole team with one button and pay their own team fee.</span>
+              </Choice>
+              <Choice selected={otherSideMode === 'OPEN'} onClick={() => setOtherSideMode('OPEN')}>
+                <strong className="text-lg text-content-strong">Open to both</strong>
+                <span className="mt-2 block text-sm text-content-muted">Another team or individual players, whichever comes first. Players pay R80 each, like a quick match.</span>
+              </Choice>
+            </div>
+          </Step>
+        )}
+        {current === 'subs' && (
+          <Step title="Your subs and team fee" detail="Your team pays R80 for every starting position plus every sub you bring. FootyFinder sets the R80.">
+            <Input
+              label="Subs your team brings"
+              type="number"
+              min="0"
+              max={MAX_SUBSTITUTES_PER_TEAM}
+              step="1"
+              value={teamSubs}
+              onChange={(event) => setTeamSubs(Math.max(0, Math.min(MAX_SUBSTITUTES_PER_TEAM, Math.trunc(Number(event.target.value) || 0))))}
+              hint={`Choose 0–${MAX_SUBSTITUTES_PER_TEAM}. You can change this until 30 minutes before kickoff.`}
+            />
+            <p data-testid="team-fee-breakdown" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-lg font-black text-brand-800">
+              {formatTeamFeeBreakdown(teamFee)}
+            </p>
+            <p className="text-sm text-content-muted">
+              Nothing is taken now. Once the other side is taken, your fill meter starts at {formatRandAmount(0)} / {formatRandAmount(teamFee.totalCents)} and a captain fills it from the team wallet. The money is held, and taken only if the match goes ahead.
+              {otherSideMode === 'OPEN' && ' Individual players on the other side pay R80 each from their own wallets.'}
+            </p>
+          </Step>
+        )}
+        {current === 'review' && (
           <Step
-            title="Review your match"
-            detail="Format and visibility become immutable when you create the match."
+            title={teamMode ? 'Review and publish' : 'Review your match'}
+            detail={teamMode ? 'Your team match is published straight to the lobby.' : 'Format and visibility become immutable when you create the match.'}
           >
             <dl className="grid gap-4 rounded-2xl bg-surface-muted p-5 sm:grid-cols-2">
               <Summary label="Match" value={name} />
+              {teamMode && <Summary label="Playing as" value={playAsTeam?.name ?? ''} />}
               <Summary
                 label="Format"
-                value={`${config.shortLabel} · ${getMaxMatchParticipants(format, substituteCapacityPerTeam)} players`}
+                value={teamMode ? config.label : `${config.shortLabel} · ${getMaxMatchParticipants(format, substituteCapacityPerTeam)} players`}
               />
-              <Summary
-                label="Squads"
-                value={`${config.startersPerTeam} starters + ${substituteCapacityPerTeam} substitutes per team`}
-              />
-              <Summary label="Substitutions" value={rollingSubstitutes ? 'Rolling' : 'Standard'} />
-              <Summary
-                label="Rules"
-                value={
-                  rules.length
-                    ? rules.map((rule) => MATCH_RULE_CONFIG[rule].label).join(', ')
-                    : 'No additional rules'
-                }
-              />
-              <Summary
-                label="Visibility"
-                value={visibility === 'PRIVATE' ? 'Private invitation' : 'Public discovery'}
-              />
+              {teamMode ? (
+                <>
+                  <Summary label="Other side" value={otherSideMode === 'OPEN' ? 'Open to both: a team or individual players' : 'Teams only'} />
+                  <Summary label="Your team fee" value={formatTeamFeeBreakdown(teamFee)} />
+                </>
+              ) : (
+                <>
+                  <Summary
+                    label="Squads"
+                    value={`${config.startersPerTeam} starters + ${substituteCapacityPerTeam} substitutes per team`}
+                  />
+                  <Summary label="Substitutions" value={rollingSubstitutes ? 'Rolling' : 'Standard'} />
+                  <Summary
+                    label="Rules"
+                    value={
+                      rules.length
+                        ? rules.map((rule) => MATCH_RULE_CONFIG[rule].label).join(', ')
+                        : 'No additional rules'
+                    }
+                  />
+                  <Summary
+                    label="Visibility"
+                    value={visibility === 'PRIVATE' ? 'Private invitation' : 'Public discovery'}
+                  />
+                </>
+              )}
               <Summary label="Venue" value={`${venueQuery.data?.venue.name ?? ''} — ${selectedField?.name ?? ''}`} />
               <Summary label="Kickoff" value={startsAt ? new Date(startsAt).toLocaleString() : ''} />
-              <Summary label="Player fee" value={`${formatRands(MATCH_FEE_CENTS)} per player (fixed)`} />
+              {!teamMode && <Summary label="Player fee" value={`${formatRands(MATCH_FEE_CENTS)} per player (fixed)`} />}
             </dl>
-            <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700">
-              <strong>You remain host-only after creation.</strong> Hosting does not consume
-              capacity or charge your wallet. Join Home or Away from the lobby if you also want to
-              play.
-            </div>
-            <GoNoGoNotice startsAt={startsAt} />
+            {teamMode ? (
+              <div data-testid="team-wallet-check" className={`rounded-2xl border p-4 text-sm font-semibold ${walletShort ? 'border-danger-200 bg-danger-50 text-danger-700' : 'border-brand-200 bg-brand-50 text-brand-700'}`}>
+                {teamWallet.data
+                  ? walletShort
+                    ? <>Top up your team wallet to at least {formatRandAmount(teamFee.totalCents)} to publish this match. Available now: {formatRandAmount(teamWallet.data.availableCents)}. <Link className="underline" to={`/teams/${playAsTeamId}?tab=wallet`}>Open the team wallet</Link></>
+                    : <>Team wallet available: {formatRandAmount(teamWallet.data.availableCents)} ✓ Nothing is taken until the match goes ahead.</>
+                  : 'Checking the team wallet…'}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700">
+                <strong>You remain host-only after creation.</strong> Hosting does not consume
+                capacity or charge your wallet. Join Home or Away from the lobby if you also want to
+                play.
+              </div>
+            )}
+            {teamMode ? <TeamGoNoGoNotice startsAt={startsAt} mode={otherSideMode} /> : <GoNoGoNotice startsAt={startsAt} />}
           </Step>
         )}
         <FormError message={creation.error?.message} />
@@ -318,12 +444,12 @@ export function CreateMatchPage() {
             <span />
           )}
           {step < steps.length - 1 ? (
-            <Button disabled={!valid} onClick={() => setStep((value) => value + 1)}>
+            <Button disabled={!valid[current]} onClick={() => setStep((value) => value + 1)}>
               Continue
             </Button>
           ) : (
-            <Button disabled={!selectedField || !startsAt} loading={creation.isPending} onClick={submit}>
-              Create match
+            <Button disabled={!selectedField || !startsAt || walletShort} loading={creation.isPending} onClick={submit}>
+              {teamMode ? 'Publish team match' : 'Create match'}
             </Button>
           )}
         </div>
@@ -364,6 +490,7 @@ function Choice({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={onClick}
       className={`rounded-2xl border text-left transition focus:outline-none focus:ring-4 focus:ring-brand-100 ${compact ? 'min-h-12 p-3 text-center font-bold' : 'p-5'} ${selected ? 'border-brand-500 bg-brand-50' : 'border-line bg-surface hover:border-brand-200 hover:bg-surface-hover'}`}
     >

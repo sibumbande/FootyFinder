@@ -295,6 +295,29 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     expect(match.feeCents).toBe(8_000);
   });
 
+  it('team match DTOs show the DEC-019 team fee but never the venue cost (Gate 7)', () => {
+    const teamMatch = toMatch({
+      ...matchRecord,
+      mode: 'TEAM_MATCH',
+      goNoGoAt: new Date('2099-01-01T17:30:00.000Z'),
+      confirmedAt: null,
+      cancellationReason: null,
+      otherSideMode: 'OPEN',
+      otherSideTakenBy: null,
+      fieldReservation: reservation,
+      teamSides: [{
+        id: 'side-1', matchId: matchRecord.id, teamId: 'team-1', side: 'HOME', organisingUserId: 'host', formationKey: 'x',
+        teamNameSnapshot: 'Privacy FC', teamImageUrlSnapshot: null, primaryColorSnapshot: null, secondaryColorSnapshot: null,
+        availabilityRequestedAt: null, lineupFinalizedAt: null, starterCount: 11, substituteCount: 3, placeFeeCents: 8_000, teamFeeCents: 112_000,
+      }],
+    } as never, { viewerCanManage: true });
+    expectNoVenueCost(teamMatch);
+    expect(teamMatch.teamSides[0]).toMatchObject({ teamFeeCents: 112_000, starterCount: 11, substituteCount: 3 });
+    expect(teamMatch).toMatchObject({ otherSideMode: 'OPEN', otherSideTakenBy: null });
+    // Negative control: the same record with its reservation spread in would be caught.
+    expect(() => expectNoVenueCost({ ...teamMatch, reservation })).toThrow();
+  });
+
   it('retired player funding routes answer 410 PLAYER_FIELD_BOOKING_RETIRED', async () => {
     const app = express().use(express.json()).use('/bookings', bookingsRouter).use(errorHandler);
     for (const call of [

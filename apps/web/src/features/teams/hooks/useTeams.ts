@@ -1,6 +1,5 @@
 import type {
   CreateTeamInput,
-  CreateTeamMatchInput,
   MatchFormat,
   TeamRole,
   UpdateTeamFormationSlotInput,
@@ -9,7 +8,6 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teamsClient } from '@/api/client.js';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
-import { matchKey } from '@/features/matches/hooks/useMatches.js';
 
 export const myTeamsKey = ['teams', 'mine'] as const;
 export const teamKey = (teamId: string) => ['teams', teamId] as const;
@@ -54,16 +52,6 @@ export const useTeamMatches = (teamId: string) =>
     queryFn: async () => (await teamsClient.matches(teamId)).data,
     enabled: Boolean(teamId),
   });
-export function useCreateTeamMatch(teamId: string) {
-  const cache = useQueryClient();
-  return useMutation({
-    mutationFn: (input: CreateTeamMatchInput) => teamsClient.createMatch(teamId, input),
-    onSuccess: ({ data }) => {
-      cache.setQueryData(matchKey(data.id), data);
-      void cache.invalidateQueries({ queryKey: teamMatchesKey(teamId) });
-    },
-  });
-}
 export function useUpdateTeam(teamId: string) {
   const cache = useQueryClient();
   return useMutation({

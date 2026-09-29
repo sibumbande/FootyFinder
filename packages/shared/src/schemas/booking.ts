@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { createMatchSchema } from './match.js';
+import { managedMatchSchema } from './match.js';
 
-export const managedMatchBookingSchema = createMatchSchema;
+export const managedMatchBookingSchema = managedMatchSchema;
 export const playerFieldBookingSchema = managedMatchBookingSchema
   .omit({ visibility: true })
   .extend({ visibility: z.literal('PUBLIC').default('PUBLIC') });

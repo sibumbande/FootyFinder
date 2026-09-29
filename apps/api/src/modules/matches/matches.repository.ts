@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type {
   CreateTeamMatchInput,
   DiscoveryQuery,
@@ -10,11 +9,9 @@ import type {
 import {
   CANCELLATION_CUTOFF_HOURS,
   createDefaultFormation,
-  createFormationPresetSlots,
   getCancellationCreditCents,
   getMaxParticipantsPerTeam,
   isLobbyFrozen,
-  mapTeamPositionToMatchHalf,
 } from '@footy-finder/shared';
 import type { Notification, Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
@@ -28,6 +25,7 @@ import { matchInclude, participantInclude } from './match.query.js';
 import { matchCancelledMessage } from './cancellation-message.js';
 import { enqueueMatchCancelledEmail } from './match-cancelled-email.js';
 import { fillReminderMessage, openPositionsForReminder } from './fill-reminder.js';
+import { copySavedSquad } from '../team-matches/team-squad.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -90,7 +88,8 @@ export class MatchesRepository {
   listPublic(query: DiscoveryQuery) {
     return prisma.match.findMany({
       where: {
-        mode: 'QUICK_GAME',
+        // Gate 7 / DEC-019: public team matches are listed alongside Quick Matches.
+        OR: [{ mode: 'QUICK_GAME' }, { mode: 'TEAM_MATCH', otherSideMode: { not: null } }],
         visibility: 'PUBLIC',
         status: { in: ['OPEN', 'READY'] },
         startsAt: {
@@ -223,50 +222,13 @@ export class MatchesRepository {
         },
         include: matchInclude,
       });
-      const matchTeam = match.teamSides[0]!;
-      const teamFormation = team.formations[0];
-      const presetSlots = createFormationPresetSlots(input.format, input.formationKey);
-      const coordinateSlots =
-        teamFormation?.formationKey === input.formationKey &&
-        teamFormation.slots.length === presetSlots.length
-          ? teamFormation.slots.map(({ slotIndex, positionX, positionY }) => ({
-              slotIndex,
-              positionX: Number(positionX),
-              positionY: Number(positionY),
-            }))
-          : presetSlots;
-      const validSlotIndexes = new Set(coordinateSlots.map(({ slotIndex }) => slotIndex));
-      const assignedUserBySlot = new Map(
-        teamFormation?.slots
-          .filter(
-            ({ membership, slotIndex }) => Boolean(membership) && validSlotIndexes.has(slotIndex),
-          )
-          .map(({ slotIndex, membership }) => [slotIndex, membership!.userId]) ?? [],
-      );
-      const selectionIdByUser = new Map<string, string>();
-      for (const assignedUserId of assignedUserBySlot.values())
-        if (!selectionIdByUser.has(assignedUserId))
-          selectionIdByUser.set(assignedUserId, randomUUID());
-      if (selectionIdByUser.size)
-        await tx.teamMatchSelection.createMany({
-          data: [...selectionIdByUser].map(([selectedUserId, id]) => ({
-            id,
-            matchTeamId: matchTeam.id,
-            userId: selectedUserId,
-            status: 'SELECTED_STARTER',
-            selectedByUserId: userId,
-          })),
-        });
-      await tx.teamMatchLineupSlot.createMany({
-        data: coordinateSlots.map((slot) => {
-          const assignedUserId = assignedUserBySlot.get(slot.slotIndex);
-          return {
-            matchTeamId: matchTeam.id,
-            slotIndex: slot.slotIndex,
-            ...mapTeamPositionToMatchHalf('HOME', slot),
-            selectionId: assignedUserId ? selectionIdByUser.get(assignedUserId) : undefined,
-          };
-        }),
+      await copySavedSquad(tx, {
+        matchTeamId: match.teamSides[0]!.id,
+        teamId,
+        side: 'HOME',
+        format: input.format,
+        formationKey: input.formationKey,
+        actorUserId: userId,
       });
       return tx.match.findUniqueOrThrow({ where: { id: match.id }, include: matchInclude });
     });

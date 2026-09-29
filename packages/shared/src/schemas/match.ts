@@ -12,6 +12,7 @@ import {
   TEAM_MATCH_AVAILABILITY_STATUSES,
   TEAM_SIDES,
 } from '../types/match.js';
+import { TEAM_MATCH_OTHER_SIDE_MODES } from '../config/team-match-fees.js';
 
 const optionalText = (max: number) =>
   z
@@ -68,9 +69,30 @@ const matchDetailsSchema = z.object({
  * DEC-018: hosts never choose a fee. Every Quick Match place costs the platform-fixed
  * MATCH_FEE_CENTS (R80), set by the server. A client-sent feeCents is stripped by this schema.
  */
-export const createMatchSchema = matchDetailsSchema.extend({
+/** A match at a managed venue slot (Quick Match create and admin loads). */
+export const managedMatchSchema = matchDetailsSchema.extend({
   managedFieldId: z.string().uuid(),
 });
+export const createMatchSchema = managedMatchSchema
+  .extend({
+    /**
+     * Gate 7 / DEC-019: "Play as my team". The team match is always public; the captain must say
+     * who can take the other side and how many subs their team brings (the fee is R80 x
+     * (starting positions + subs), paid from the team wallet through the fill meter).
+     */
+    playAsTeamId: z.string().uuid().optional(),
+    otherSideMode: z.enum(TEAM_MATCH_OTHER_SIDE_MODES).optional(),
+    teamSubstituteCount: z.number().int().min(0).max(MAX_SUBSTITUTES_PER_TEAM).optional(),
+  })
+  .superRefine((value, context) => {
+    if (!value.playAsTeamId) return;
+    if (!value.otherSideMode)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['otherSideMode'], message: 'Choose who can take the other side.' });
+    if (value.teamSubstituteCount === undefined)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['teamSubstituteCount'], message: 'Choose how many subs your team brings.' });
+    if (value.visibility !== 'PUBLIC')
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['visibility'], message: 'Team matches are always public.' });
+  });
 export const createTeamMatchSchema = matchDetailsSchema
   .omit({ visibility: true })
   .extend({ venue: venueInputSchema, formationKey: z.string().trim().min(1).max(80) });

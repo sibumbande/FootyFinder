@@ -1,5 +1,6 @@
 import type { MatchFormat } from '../config/match-formats.js';
 import type { PublicUser } from './user.js';
+import type { TeamMatchOtherSideMode, TeamMatchOtherSideTakenBy } from '../config/team-match-fees.js';
 
 export const MATCH_STATUSES = [
   'DRAFT',
@@ -107,6 +108,10 @@ export interface MatchTeamSide {
   secondaryColorSnapshot?: string | null;
   availabilityRequestedAt?: string | null;
   lineupFinalizedAt?: string | null;
+  /** Gate 7 / DEC-019 team fee: R80 x (starterCount + substituteCount). Absent on legacy fixtures. */
+  starterCount?: number | null;
+  substituteCount?: number | null;
+  teamFeeCents?: number | null;
 }
 
 export interface TeamMatchAvailabilityRow {
@@ -205,7 +210,13 @@ export interface MatchResult {
   scorers: MatchScorer[];
 }
 
-export type MatchCancellationReason = 'ORGANISER_CANCELLED' | 'POSITIONS_UNFILLED';
+export type MatchCancellationReason =
+  | 'ORGANISER_CANCELLED'
+  | 'POSITIONS_UNFILLED'
+  // Gate 7 team matches (DEC-019).
+  | 'TEAM_FEES_UNFUNDED'
+  | 'NO_OPPONENT'
+  | 'TEAM_CANCELLED';
 
 /**
  * DEC-018 go/no-go facts. Present only on matches created under DEC-018: the match goes ahead only
@@ -249,6 +260,9 @@ export interface Match extends MatchGoNoGoFacts {
   formationVersion: number;
   result?: MatchResult | null;
   teamSides: MatchTeamSide[];
+  /** Gate 7 / DEC-019 public team matches only: who may take the other side, and who took it. */
+  otherSideMode?: TeamMatchOtherSideMode;
+  otherSideTakenBy?: TeamMatchOtherSideTakenBy | null;
   viewerCanManage: boolean;
   viewerCanChat: boolean;
 }

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { MatchCard } from '@/features/matches/components/MatchCard.js';
@@ -9,6 +9,9 @@ import { useVenues } from '@/features/venues/hooks/useVenues.js';
 export function HomePage() {
   const { user } = useAuth();
   const venues = useVenues();
+  const [params] = useSearchParams();
+  const playAs = params.get('playAs');
+  const venueSearch = playAs?.startsWith('team:') ? `?playAs=${encodeURIComponent(playAs)}${params.get('lock') === '1' ? '&lock=1' : ''}` : '';
   const upcoming = useMatches({ availableOnly: true, limit: 6 });
   const name = user?.displayName || user?.username || 'player';
   return <section className="grid gap-10">
@@ -19,7 +22,7 @@ export function HomePage() {
     <section id="venues" className="grid gap-5"><div><p className="anime-kicker">Cape Town pitches</p><h2 className="mt-2 text-3xl font-black uppercase text-content-strong">Choose a venue</h2><p className="mt-1 text-sm text-content-muted">Only independently approved catalogue records appear here. Prices are VAT-inclusive per 60-minute field slot, not per-player fees.</p></div>
       {venues.isPending && <div className="grid gap-5 md:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-3xl bg-surface" />)}</div>}<FormError message={venues.error?.message} />
       {venues.data?.length === 0 && <div className="rounded-2xl border border-warning-300 bg-warning-50 p-5"><strong className="text-content-strong">Approved venue packs are not published yet.</strong><p className="mt-2 text-sm text-content-muted">Verified facts, schedules, prices, policies, and licensed imagery must complete dual-control approval before appearing here.</p></div>}
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{venues.data?.map((venue) => <VenueCard key={venue.slug} venue={venue} />)}</div>
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{venues.data?.map((venue) => <VenueCard key={venue.slug} venue={venue} search={venueSearch} />)}</div>
       <Link className="w-fit font-bold text-brand-700 underline" to="/waiting-list">Outside Cape Town? Join a city waiting list</Link>
     </section>
     <section className="grid gap-5"><div className="flex items-end justify-between gap-4"><div><p className="anime-kicker">Players wanted</p><h2 className="mt-2 text-3xl font-black uppercase text-content-strong">Upcoming matches</h2><p className="mt-1 text-sm text-content-muted">Future public matches with paid capacity still available.</p></div><Link className="font-bold text-brand-700 underline" to="/matches">View all</Link></div>

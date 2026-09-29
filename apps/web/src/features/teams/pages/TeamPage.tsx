@@ -1,6 +1,6 @@
 import { MATCH_FORMAT_CONFIG, type TeamDetail, type TeamRole } from '@footy-finder/shared';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar.js';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
@@ -26,7 +26,8 @@ export function TeamPage() {
   const { teamId = '' } = useParams();
   useTeamSocket(teamId);
   const team = useTeam(teamId);
-  const [tab, setTab] = useState<Tab>('overview');
+  const [search] = useSearchParams();
+  const [tab, setTab] = useState<Tab>((search.get('tab') as Tab | null) ?? 'overview');
   if (team.isPending) return <div className="h-[40rem] animate-pulse rounded-3xl bg-surface" />;
   if (!team.data || team.error)
     return <FormError message={team.error?.message ?? 'Team not found.'} />;
@@ -101,8 +102,8 @@ function TeamHero({ team }: { team: TeamDetail }) {
           </span>
         )}
         {!team.archivedAt && (team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && (
-          <Link className="button" to={`/teams/${team.id}/matches/new`}>
-            Organise Match
+          <Link className="button" to={`/matches/new?playAs=team:${team.id}&lock=1`}>
+            Create team match
           </Link>
         )}
       </div>
@@ -116,14 +117,14 @@ function TeamMatches({ team }: { team: TeamDetail }) {
     <section className="grid gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-content-strong">Private Team fixtures</h2>
+          <h2 className="text-xl font-bold text-content-strong">Team matches</h2>
           <p className="mt-1 text-sm text-content-muted">
-            Availability, selection, and lineup planning stay inside the Team.
+            Public team matches at FootyFinder venues, plus any earlier private planning drafts.
           </p>
         </div>
-        {canManage && (
-          <Link className="button" to={`/teams/${team.id}/matches/new`}>
-            Organise Match
+        {canManage && !team.archivedAt && (
+          <Link className="button" to={`/matches/new?playAs=team:${team.id}&lock=1`}>
+            Create team match
           </Link>
         )}
       </div>

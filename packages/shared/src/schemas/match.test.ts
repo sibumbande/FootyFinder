@@ -193,3 +193,27 @@ describe('Team Match lineup schemas', () => {
     ).toThrow();
   });
 });
+
+describe('createMatchSchema: play as my team (Gate 7 / DEC-019)', () => {
+  const teamId = '2f5d1c1e-51b8-4b8e-9f3c-6c7c8d0a1b2c';
+  it('accepts a public team match with a side mode and subs', () => {
+    expect(
+      createMatchSchema.parse({ ...validMatch, playAsTeamId: teamId, otherSideMode: 'OPEN', teamSubstituteCount: 3 }),
+    ).toMatchObject({ playAsTeamId: teamId, otherSideMode: 'OPEN', teamSubstituteCount: 3 });
+  });
+
+  it('requires "who can take the other side" and a subs count, and refuses private team matches', () => {
+    expect(createMatchSchema.safeParse({ ...validMatch, playAsTeamId: teamId, teamSubstituteCount: 3 }).success).toBe(false);
+    expect(createMatchSchema.safeParse({ ...validMatch, playAsTeamId: teamId, otherSideMode: 'TEAMS_ONLY' }).success).toBe(false);
+    expect(
+      createMatchSchema.safeParse({ ...validMatch, visibility: 'PRIVATE', playAsTeamId: teamId, otherSideMode: 'TEAMS_ONLY', teamSubstituteCount: 0 }).success,
+    ).toBe(false);
+    expect(
+      createMatchSchema.safeParse({ ...validMatch, playAsTeamId: teamId, otherSideMode: 'TEAMS_ONLY', teamSubstituteCount: 11 }).success,
+    ).toBe(false);
+  });
+
+  it('leaves Quick Match creation unchanged', () => {
+    expect(createMatchSchema.parse(validMatch)).not.toHaveProperty('playAsTeamId');
+  });
+});

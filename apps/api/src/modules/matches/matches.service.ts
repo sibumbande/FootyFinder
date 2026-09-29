@@ -43,6 +43,7 @@ import {
   TeamMatchPlanningError,
 } from './matches.repository.js';
 import { BookingsService } from '../bookings/bookings.service.js';
+import { TeamMatchesService } from '../team-matches/team-matches.service.js';
 import { publicMatchUrl } from './public-match.js';
 
 export class MatchesService {
@@ -50,6 +51,7 @@ export class MatchesService {
     private readonly matches = new MatchesRepository(),
     private readonly notifications = new NotificationsService(),
     private readonly bookings = new BookingsService(),
+    private readonly teamMatches = new TeamMatchesService(),
   ) {}
 
   async list(query: DiscoveryQuery) {
@@ -150,7 +152,9 @@ export class MatchesService {
       ...goNoGoFacts(match),
     };
   }
+  /** Quick Match, or (Gate 7 / DEC-019) a team match when the host plays as their team. */
   async create(input: CreateMatchInput, userId: string) {
+    if (input.playAsTeamId) return this.teamMatches.create(input, userId);
     return this.bookings.createQuickMatch(input, userId);
   }
   async rotateInvite(id: string, userId: string) {
