@@ -13,6 +13,12 @@ import { matchCancelledMessage } from '../src/modules/matches/cancellation-messa
 import { MATCH_CANCELLED_EMAIL_JOB_TYPE } from '../src/modules/matches/match-cancelled-email.js';
 import { registerMatchCancelledEmailJobHandlers } from '../src/modules/matches/match-cancelled-email.jobs.js';
 import {
+  fillReminderJobDedupeKey,
+  fillReminderMessage,
+  getFillReminderAt,
+} from '../src/modules/matches/fill-reminder.js';
+import { registerFillReminderJobHandlers } from '../src/modules/matches/fill-reminder.jobs.js';
+import {
   LineupLockedError,
   MatchClosedError,
   MatchesRepository,
@@ -191,6 +197,7 @@ async function main() {
   registerModerationJobHandlers();
   registerGoNoGoJobHandlers();
   registerMatchCancelledEmailJobHandlers(emails);
+  registerFillReminderJobHandlers();
 
   // Fixtures: one physical field supporting 5/7/11-a-side with admin-only format-scoped costs
   // R500 / R600 / R800 (Italian Club example), all-week availability, and an effective policy.
@@ -468,6 +475,46 @@ async function main() {
   await service.decideGoNoGo(lateMatch.id, lateRecord.goNoGoAt!);
   assert((await balanceOf(players[11]!)) === lateBefore + MATCH_FEE_CENTS, 'Late leaver was not refunded on auto-cancel.');
 
+  // 10b. TKT-319 "not full yet" reminder: scheduled 2h before kickoff at creation; fires once per
+  // host and joined player when positions are open (a second run adds nothing), no-op when full.
+  const runReminder = async (matchId: string) => {
+    const now = new Date();
+    await prisma.durableJob.update({
+      where: { dedupeKey: fillReminderJobDedupeKey(matchId) },
+      data: { status: 'PENDING', runAt: new Date(now.getTime() - 1_000), completedAt: null },
+    });
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const job = await prisma.durableJob.findUniqueOrThrow({ where: { dedupeKey: fillReminderJobDedupeKey(matchId) } });
+      if (job.status === 'SUCCEEDED') return job;
+      if (!(await runOneDurableJob(now))) break;
+    }
+    return prisma.durableJob.findUniqueOrThrow({ where: { dedupeKey: fillReminderJobDedupeKey(matchId) } });
+  };
+  const remindersFor = (matchId: string) =>
+    prisma.notification.findMany({ where: { type: 'MATCH_FILL_REMINDER', targetPath: `/matches/${matchId}` } });
+  const notFull = await createMatch();
+  await joinAndClaim(notFull.id, players.slice(0, 2), { home: 1, away: 0 });
+  const reminderJob = await prisma.durableJob.findUniqueOrThrow({ where: { dedupeKey: fillReminderJobDedupeKey(notFull.id) } });
+  const notFullRecord = await prisma.match.findUniqueOrThrow({ where: { id: notFull.id } });
+  assert(
+    reminderJob.runAt.getTime() === getFillReminderAt(notFullRecord.startsAt).getTime(),
+    'Fill reminder was not scheduled 2 hours before kickoff.',
+  );
+  for (const run of [1, 2]) {
+    assert((await runReminder(notFull.id)).status === 'SUCCEEDED', `Fill reminder run ${run} did not succeed.`);
+    const reminders = await remindersFor(notFull.id);
+    for (const userId of [...players.slice(0, 2), hostId]) {
+      const mine = reminders.filter((item) => item.userId === userId);
+      assert(mine.length === 1, `Run ${run}: ${userId} got ${mine.length} fill reminders.`);
+      assert(mine[0]!.message === fillReminderMessage(9, notFullRecord.startsAt), `Wrong reminder wording: ${mine[0]!.message}`);
+    }
+    assert(reminders.length === 3, `Run ${run}: fill reminder sent to unexpected recipients.`);
+  }
+  const fullForReminder = await createMatch();
+  await joinAndClaim(fullForReminder.id, players.slice(0, 10), { home: 5, away: 5 });
+  assert((await runReminder(fullForReminder.id)).status === 'SUCCEEDED', 'Full-match reminder job did not succeed.');
+  assert((await remindersFor(fullForReminder.id)).length === 0, 'A full match sent a fill reminder.');
+
   // 11. The ledger still reconciles for every smoke wallet.
   const report = await new WalletReconciliationService().report();
   const ours = report.issues.filter((issue) => issue.userId && userIds.includes(issue.userId));
@@ -486,6 +533,7 @@ async function cleanup() {
     where: {
       OR: [
         ...matchIds.map((id) => ({ dedupeKey: goNoGoJobDedupeKey(id) })),
+        ...matchIds.map((id) => ({ dedupeKey: fillReminderJobDedupeKey(id) })),
         ...matchIds.map((id) => ({ dedupeKey: { startsWith: `match-cancelled-email:${id}:` } })),
         ...reservationIds.map((id) => ({ dedupeKey: `reservation-expire:${id}` })),
       ],

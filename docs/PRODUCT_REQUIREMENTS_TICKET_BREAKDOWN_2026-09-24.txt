@@ -1092,10 +1092,43 @@ Scope:
 - The preview adds aggregate positions and LINEUP_LOCKED joinability.
 Tests: banner states (14:00 -> 13:30 example); preview DTO; the position-claim E2E asserts the rule text and "2 of 10 positions filled" converging on three boards.
 
+TKT-316 - Cancellation alert: in-app, toast and email
+Status: VERIFIED LOCALLY (2026-09-29)
+Depends on: TKT-314
+Scope:
+- Auto-cancel at T-30 and host cancel both notify every joined player, every refunded payer and the host.
+- Each recipient gets one MATCH_CANCELLED notification (realtime toast) and one MATCH_CANCELLED_EMAIL durable job, enqueued in the cancelling transaction, so it is sent after commit and deduplicated per recipient.
+- The wording names the venue, date and kickoff time.
+- The wallet refreshes live after the refund.
+- The match page explains both cancellation reasons.
+Tests: message and email-job unit tests; banner tests; smoke:go-no-go asserts one notification and one email per recipient for auto-cancel (decision run twice, queue path, crashed job) and host cancel.
+
+TKT-317 - Go/no-go notice on create-match and join confirmation
+Status: VERIFIED LOCALLY (2026-09-29)
+Depends on: TKT-315
+Scope: the create-match Schedule and Review steps show the T-30 cancellation notice with the computed time; the join dialog shows the same rule before payment.
+Tests: CreateMatchPage (14:00 kickoff -> 13:30) and JoinTeamDialog (rule shown; absent for legacy).
+
+TKT-318 - Admin visibility of go/no-go checks
+Status: VERIFIED LOCALLY (2026-09-29)
+Depends on: TKT-314
+Scope: the operations summary and admin dashboard list QUICK_MATCH_GO_NO_GO jobs that are overdue, failed or stuck, plus go/no-go matches past kickoff that were never decided. No external alerting service.
+Tests: operations.service unit test; smoke:operations with a real overdue and failed job.
+
+TKT-319 - "Not full yet" reminder
+Status: VERIFIED LOCALLY (2026-09-29). Approved by the CEO (Sibu) on 2026-09-29.
+Depends on: TKT-314
+Scope:
+- Durable job QUICK_MATCH_FILL_REMINDER at kickoff - 2h, enqueued at creation only when creation is more than 2h30m before kickoff.
+- A no-op when the match is full, cancelled, confirmed or legacy.
+- Otherwise one in-app notification and toast (no email) to the host and each joined player: "<N> positions still open. Share the match link or it'll be cancelled at <T-30>."
+- Additive migration 20261001100000_match_fill_reminder.
+Tests: unit tests (wording, scheduling window, no-op rules); smoke:go-no-go (fires once per recipient, a second run adds nothing, a full match gets nothing).
+
 Follow-ups (not implemented, recorded for decision):
-- Legal: the Terms of Service text contradicts DEC-018. See the DEC-018 runbook for the clause-by-clause list.
+- Legal: resolved. Terms of Service v2.1 (2026-09-29) matches DEC-018; the database copy must be re-published with legal:publish before launch.
 - Venue commercial terms: a T-30 auto-cancel happens inside most venues' 24-hour late-cancellation window. DEC-018 records that FootyFinder owes the venue nothing for a cancelled match, and venue agreements must say so.
-- Monitoring: an unconfirmed go/no-go match past kickoff means its job did not run. Alert on QUICK_MATCH_GO_NO_GO jobs overdue or FAILED.
+- Monitoring: surfaced on the admin dashboard by TKT-318. External alerting (paging) is still not built.
 
 10. GATE 6 - PERSONAL PAYMENTS AND VENUE SETTLEMENT
 ===================================================

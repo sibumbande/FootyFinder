@@ -386,6 +386,15 @@ export class MatchesService {
     }
   }
 
+  /** TKT-319: "not full yet" reminder; toasts are published after the transaction commits. No email. */
+  async sendFillReminder(matchId: string) {
+    const result = await this.matches.sendFillReminder(matchId);
+    this.notifications.publishPersistedMany(result.notifications);
+    if (result.notifications.length)
+      logInfo('fill_reminder_sent', { matchId, open: result.open, recipients: result.notifications.length });
+    return result;
+  }
+
   /** Called only after the formation transaction commits. */
   private publishFormation(matchId: string, formationVersion: number, slots: FormationSlot[]) {
     emitDomainEventBestEffort('formation:updated', { matchId, slots });

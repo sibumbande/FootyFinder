@@ -23,6 +23,7 @@ export const NOTIFICATION_TYPES = [
   'DISPUTE_RESOLVED',
   'MATCH_POSITION_CHANGED',
   'MATCH_CONFIRMED',
+  'MATCH_FILL_REMINDER',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

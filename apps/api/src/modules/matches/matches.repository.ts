@@ -27,6 +27,7 @@ import {
 import { matchInclude, participantInclude } from './match.query.js';
 import { matchCancelledMessage } from './cancellation-message.js';
 import { enqueueMatchCancelledEmail } from './match-cancelled-email.js';
+import { fillReminderMessage, openPositionsForReminder } from './fill-reminder.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -618,6 +619,48 @@ export class MatchesRepository {
         filled,
         total,
       };
+    });
+  }
+
+  /**
+   * TKT-319 "not full yet" reminder, run by the durable QUICK_MATCH_FILL_REMINDER job 2 hours before
+   * kickoff. Under the same Match row lock as the go/no-go decision. A no-op for legacy, cancelled,
+   * already-confirmed or full matches; otherwise one notification per host and joined player, with
+   * a stable dedupe key so a second run creates nothing new.
+   */
+  sendFillReminder(matchId: string) {
+    return serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: {
+          status: true,
+          startsAt: true,
+          goNoGoAt: true,
+          confirmedAt: true,
+          createdById: true,
+          formationSlots: { select: { participantId: true } },
+          participants: { where: { status: 'JOINED' }, select: { userId: true } },
+        },
+      });
+      const none = { notifications: [] as Notification[], open: 0 };
+      const open = match ? openPositionsForReminder(match) : 0;
+      if (!match || open === 0) return none;
+      const recipients = [
+        ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
+      ];
+      const notifications = await persistNotifications(
+        tx,
+        recipients.map((userId) => ({
+          userId,
+          type: 'MATCH_FILL_REMINDER' as const,
+          title: 'Positions still open',
+          message: fillReminderMessage(open, match.startsAt),
+          targetPath: `/matches/${matchId}`,
+          dedupeKey: notificationDedupeKey('match', matchId, 'fill-reminder', userId),
+        })),
+      );
+      return { notifications, open };
     });
   }
 

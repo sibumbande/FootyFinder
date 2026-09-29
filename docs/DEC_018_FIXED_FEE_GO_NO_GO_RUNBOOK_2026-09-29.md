@@ -13,13 +13,13 @@ Tickets: TKT-311 to TKT-315. See DEC-018 and section 9A of the ticket breakdown.
    - **Every formation position claimed:** the match is confirmed (`confirmedAt`). Subs are optional.
    - **Otherwise:** the match is cancelled with `cancellationReason = POSITIONS_UNFILLED`, and every `SUCCEEDED` payment is refunded in full with a `MATCH_CANCELLATION_CREDIT` keyed `match-cancellation:<paymentId>`, so a fee can never be refunded twice.
    - The field reservation becomes `CANCELLED` and nothing is owed to the venue.
-   - Every joined player and the host are notified.
+   - Every joined player and the host are notified once each: an in-app notification with a realtime toast, and a transactional email (TKT-316). The wording names the venue, date and kickoff time, for example: "Your match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. Your R80 has been refunded to your FootyFinder wallet."
 4. **Freeze (D1).** From T-30 until kickoff, the API rejects joins, leaves, claims, team changes, organiser formation moves and host cancellation with `409 LINEUP_LOCKED`. A player who can't attend after T-30 is a no-show, with no refund.
 5. **Leaving before T-30 (D2).** The existing rule is unchanged:
    - more than 12h before kickoff: full R80 credit;
    - 12h or less: no credit, unless a paid replacement joins their team.
    - If the match is then auto-cancelled at T-30, the unrefunded R80 is refunded.
-6. **Host cancel (D3).** Allowed until T-30 only. Every player gets a full refund and nothing is owed to the venue.
+6. **Host cancel (D3).** Allowed until T-30 only. Every player gets a full refund and nothing is owed to the venue. Every joined player and the host get the same alert and email as an auto-cancel, worded "…was cancelled by the host." (TKT-316).
 7. **Legacy matches (D4).** Matches created before DEC-018 have `goNoGoAt = NULL`. They keep their stored fee and old rules, and are never auto-cancelled.
 8. **Venue costs are admin-only.** No player- or host-facing UI or API returns `ManagedFieldPrice` amounts, reservation price snapshots or funding totals.
 9. **Player pooled field bookings retired (D5).** `GET /bookings/fields`, `POST /bookings` and `POST /bookings/:id/contributions` return `410 PLAYER_FIELD_BOOKING_RETIRED`. Booking history stays readable, with no money fields. Team Matches never used this flow.
@@ -69,6 +69,21 @@ These figures are never hard-coded in application logic.
 | T-30, full | n/a | Confirmed; venue owed after the match (future Gate 6) |
 | Player pooled booking | Players hold funds toward the venue price | Retired (410) |
 
+## Player communication (TKT-316, TKT-317, TKT-319)
+
+- **Cancellation alert (TKT-316).** `cancelInTx` writes one `MATCH_CANCELLED` notification per recipient (key `match:<matchId>:match-cancelled:<userId>`). Recipients are every joined player, every refunded payer and the host. It also enqueues one `MATCH_CANCELLED_EMAIL` durable job per recipient (key `match-cancelled-email:<matchId>:<userId>`) in the same transaction.
+  - The email is sent after commit through the email provider abstraction (Postmark in production, test/console locally), with retries.
+  - Delivery is at-least-once. A crash after Postmark accepts the email but before the job is marked SUCCEEDED can resend it. This is accepted.
+  - The wallet refreshes live after the refund (`wallet:updated` on `MATCH_CANCELLED`).
+  - The match page and public preview show the same explanation for both reasons.
+- **Notices (TKT-317).** Create-match (Schedule and Review steps) shows: "Heads up: if every position isn't filled 30 minutes before kickoff (13:30), this match is cancelled automatically and every player gets their R80 refunded to their wallet." The join dialog shows the rule with the computed time before the player pays.
+- **"Not full yet" reminder (TKT-319).**
+  - Job: durable job `QUICK_MATCH_FILL_REMINDER`, key `quick-match-fill-reminder:<matchId>`.
+  - Timing: runs at kickoff − 2h, and is only enqueued when the match is created more than 2h30m before kickoff.
+  - When it's a no-op: the match is full, cancelled, confirmed or legacy.
+  - Otherwise: one in-app notification and toast (no email) to the host and each joined player, for example "3 positions still open. Share the match link or it'll be cancelled at 13:30." Key `match:<matchId>:fill-reminder:<userId>`.
+  - Migration: `20261001100000_match_fill_reminder` adds the `MATCH_FILL_REMINDER` notification type.
+
 ## Operations
 
 - **Job:** `QUICK_MATCH_GO_NO_GO`, dedupe key `quick-match-go-no-go:<matchId>`, enqueued in the transaction that creates the match.
@@ -79,6 +94,8 @@ These figures are never hard-coded in application logic.
 - **Alert on:**
   - `QUICK_MATCH_GO_NO_GO` jobs overdue or `FAILED`;
   - any unconfirmed, uncancelled go/no-go match past kickoff.
+
+  Both appear on the admin dashboard's **Go/no-go checks** panel (TKT-318), which refreshes every 30 seconds. It shows overdue (pending more than 60s past `runAt`), failed, and stuck (RUNNING past the lock timeout) checks, plus matches past kickoff that were never decided. There is no external alerting service yet.
 - **Metrics:** `go_no_go_confirmed_total` and `go_no_go_cancelled_total`. Log event: `go_no_go_decided`, with outcome and filled/total.
 - **Admin loads** must be more than 30 minutes before kickoff (`MATCH_START_TIME_INVALID`).
 
@@ -100,7 +117,9 @@ npx playwright test e2e/position-claim.spec.ts e2e/critical-path.spec.ts   # bot
   - No `priceCents`, `fromPriceCents`, `fundedCents` or `remainingCents` in the web app, the player shared types (venue, match and player booking), or the player api-client modules.
   - The remaining API matches are admin-only: `adminBookingDto` (used by `/admin/matches` and retired internal paths) and the dispute evidence snapshot, which only the admin view returns.
 
-## Terms of Service contradictions (NOT edited; for legal review)
+## Terms of Service contradictions (resolved in ToS v2.1)
+
+Resolved on 2026-09-29: `docs/legal/TERMS_OF_SERVICE.md` is now on this branch as version 2.1 and matches the rules above. The table below is kept as the record of what changed. The database copy must be re-published with `legal:publish` before launch.
 
 Source: `docs/legal/TERMS_OF_SERVICE.md`, latest version on branch `ceo/tier2-real-venues` (commit `d39eec2`). This file is not on `ceo/finish-gate-5`. The legal documents stored in the local DB are development placeholders with no substantive text.
 
