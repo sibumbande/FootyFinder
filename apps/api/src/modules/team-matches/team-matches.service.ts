@@ -30,6 +30,7 @@ import { matchInclude } from '../matches/match.query.js';
 import { createPublicMatchSlug } from '../matches/public-match.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
+import { assertTeamMatchCommand } from './team-side-authority.js';
 import {
   enqueueTeamMatchEmail,
   enqueueTeamMatchSideJobs,
@@ -281,9 +282,7 @@ export class TeamMatchesService {
       if (!match || !match.otherSideMode || match.otherSideTakenBy !== 'TEAM' || !away?.teamId)
         throw new AppError(409, 'No team has taken the other side of this match.', 'OTHER_SIDE_NOT_TEAM');
       if (!['OPEN', 'READY'].includes(match.status)) throw new AppError(409, 'This match is no longer open.', 'MATCH_CLOSED');
-      const actor = await tx.teamMembership.findUnique({ where: { teamId_userId: { teamId: away.teamId, userId } }, select: { role: true } });
-      if (!actor || (actor.role !== 'OWNER' && actor.role !== 'CAPTAIN'))
-        throw new AppError(403, 'Only the owner or a captain of the team that took the other side can withdraw it.', 'TEAM_FORBIDDEN');
+      await assertTeamMatchCommand(tx, { matchId, userId, command: 'WITHDRAW_TEAM' });
       if (isLobbyFrozen(match, now) || now >= match.startsAt)
         throw new AppError(409, 'The lineup is locked 30 minutes before kickoff.', 'LINEUP_LOCKED');
       const holds = await tx.teamWalletHold.findMany({ where: { matchId, side: 'AWAY', status: 'ACTIVE' }, select: { id: true, amountCents: true } });

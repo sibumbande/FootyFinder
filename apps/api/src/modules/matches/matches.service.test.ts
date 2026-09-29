@@ -66,13 +66,34 @@ describe('host permissions', () => {
         mode: 'TEAM_MATCH',
         createdById: 'captain-1',
       }),
-      findAttachedTeamMembership: vi.fn().mockResolvedValue({ role: 'MEMBER' }),
+      managedTeamSides: vi.fn().mockResolvedValue([]),
       cancelMatch: vi.fn(),
     } as unknown as MatchesRepository;
     await expect(
       new MatchesService(repository).remove('match-1', 'member-1'),
     ).rejects.toMatchObject({ statusCode: 403, code: 'TEAM_FORBIDDEN' });
     expect(repository.cancelMatch).not.toHaveBeenCalled();
+  });
+
+  it('lets only the home team cancel a team match, for both sides (Gate 7, D6/N5)', async () => {
+    const match = {
+      id: 'match-1', mode: 'TEAM_MATCH', createdById: 'captain-1', otherSideMode: 'OPEN', status: 'OPEN',
+      startsAt: new Date(Date.now() + 86_400_000), durationMinutes: 60, goNoGoAt: new Date(Date.now() + 84_600_000),
+    };
+    const away = {
+      findById: vi.fn().mockResolvedValue(match),
+      managedTeamSides: vi.fn().mockResolvedValue(['AWAY']),
+      cancelMatch: vi.fn(),
+    } as unknown as MatchesRepository;
+    await expect(new MatchesService(away).remove('match-1', 'away-captain')).rejects.toMatchObject({ statusCode: 403, code: 'TEAM_FORBIDDEN' });
+    expect(away.cancelMatch).not.toHaveBeenCalled();
+    const home = {
+      findById: vi.fn().mockResolvedValue(match),
+      managedTeamSides: vi.fn().mockResolvedValue(['HOME']),
+      cancelMatch: vi.fn().mockResolvedValue({ notifications: [] }),
+    } as unknown as MatchesRepository;
+    await new MatchesService(home, { publishPersistedMany: vi.fn() } as never).remove('match-1', 'home-captain');
+    expect(home.cancelMatch).toHaveBeenCalledWith('match-1', 'TEAM_CANCELLED', 'home-captain');
   });
 
   it('rejects Quick Game movement across the halfway line before persistence', async () => {

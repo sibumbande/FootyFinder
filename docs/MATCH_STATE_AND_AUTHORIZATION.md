@@ -122,21 +122,25 @@ Status: **implemented in Gate 5** (claim command, organiser audit/notification, 
 - The organiser may move or remove a player before kickoff; the affected player receives a persisted notification and the action is audited.
 - Claims never change payment, participation, or side membership implicitly.
 
-### Team challenge and funding (Gate 7)
+### Team matches (Gate 7, implemented; DEC-019 replaces the DEC-015 challenge flow)
 
 ```text
-HOME draft -> published/open for challenge -> one or more pending challenges
-pending challenge -- challenger withdraws / host declines / expiry --> closed challenge
-pending challenge -- HOME side accepts first valid offer --> accepted AWAY side
-accepted fixture -- both funding obligations satisfied --> READY
-READY -- kickoff --> IN_PROGRESS -> AWAITING_RESULT
+HOME owner/captain publishes (always PUBLIC, OPEN, managed slot, go/no-go at T-30)
+other side open -- another team's owner/captain "Load my team" -------------> taken by TEAM
+other side open -- first individual joins ("Open to both" only) -----------> taken by INDIVIDUALS
+INDIVIDUALS with nobody left joined -- a team loads (N1) -------------------> taken by TEAM
+taken by TEAM -- that team's owner/captain withdraws before T-30 (N5) ------> other side open
+"Teams only", no team 24h before kickoff (published earlier) ------------> CANCELLED (NO_OPPONENT)
+T-30 go/no-go: GO (meters full; individuals side: every AWAY position claimed) -> READY (confirmed)
+T-30 go/no-go: otherwise ------------------------------------------------> CANCELLED
+HOME owner/captain cancels before T-30 (D6/N5) ---------------------------> CANCELLED (TEAM_CANCELLED)
+READY -- kickoff --> IN_PROGRESS (venue payable created) -> AWAITING_RESULT
 ```
 
-- A Team OWNER or active CAPTAIN may publish, create, withdraw, accept, or decline on behalf of their own side only.
-- Multiple pending challenges are allowed. The first accepted challenge atomically assigns AWAY and closes the remaining pending challenges.
-- A challenge expires at the earlier of 48 hours after creation or 24 hours before kickoff.
-- The funding policy in DEC-014 applies after acceptance. Only authorized wallet actors may reserve/capture funds. Cancellation uses the approved actor, timing, release, and audit rules; no role may directly mutate balances.
-- Every challenge transition is idempotent or conflict-safe and produces the approved persisted notification/audit record after transaction commit.
+- There is no approval step and no challenge record: the other side is taken instantly, first come first served. Loading a team and an individual joining both take the Match row lock, so exactly one wins; database triggers refuse an AWAY team unless the side is taken by a team, and a JOINED individual unless it is taken by individuals (and never on HOME).
+- Nobody plays against their own team (N2, `409 OWN_TEAM_CONFLICT`).
+- Only authorized wallet actors (the side's owner/captains) fill that side's meter; money moves only through the team-wallet ledger (holds, captures, releases). Cancellation releases every hold and refunds every individual once.
+- Every side change and team-match command is recorded in the append-only `TeamMatchAuditEvent` with its actor.
 
 ### Team result confirmation (Gate 8)
 
@@ -159,12 +163,13 @@ DISPUTED -- authorized admin append-only resolution --> COMPLETED
 |---|---|---|---|
 | Claim Quick position | Joined participant, self, own side | Underlying `OPEN`/`READY`, before kickoff | First commit wins; stable conflict and refetch |
 | Override/move/remove Quick claim | Quick Match host | Underlying `OPEN`/`READY`, before kickoff | Notify affected player; audit organiser action |
-| Publish Team fixture | HOME OWNER/CAPTAIN | HOME `DRAFT`, required venue/time facts present | Idempotent; notify eligible Team audience |
-| Create/withdraw challenge | Challenger OWNER/CAPTAIN, own Team | Published fixture / own pending challenge | Idempotent close; notify HOME managers |
-| Accept/decline challenge | HOME OWNER/CAPTAIN | Pending, unexpired challenge | First acceptance wins and closes competitors atomically |
-| Expire challenge | Durable system job | Pending at expiry | Idempotent; notify both side managers |
-| Fund accepted fixture | Actor authorized by Team-wallet governance | Accepted, funding open | Ledger/hold idempotency; audit every money transition |
-| Cancel funded fixture | Actor permitted by approved cancellation policy | Pre-kickoff eligible state | Transactional releases/charges; notify both sides |
+| Publish team match (Gate 7) | OWNER/CAPTAIN of the team playing as HOME | Managed slot; team wallet available >= HOME fee; fewer than 2 matches awaiting an opponent | Team row lock; audited; no money moves |
+| Load my team (Gate 7) | OWNER/CAPTAIN of another team | Other side open (or emptied individuals side), before T-30 | Match row lock, first come wins; own fee snapshot; notify both teams |
+| Join the other side as an individual (Gate 7) | Any eligible player not on the home team | "Open to both", side open or taken by individuals, before T-30 | Match row lock; R80 debit (DEC-018) |
+| Withdraw my team (Gate 7, N5) | OWNER/CAPTAIN of the AWAY team | Taken by that team, before T-30 | Holds released; side reopens; notify HOME |
+| Unmatched cancel (Gate 7) | Durable system job | "Teams only", side open 24h before kickoff | Idempotent; nothing owed |
+| Edit / cancel team match (Gate 7) | HOME OWNER/CAPTAIN only | Before T-30 | Cancel releases every hold and refunds individuals; audited |
+| Fill meter / change subs (Gate 7, TKT-709) | OWNER/CAPTAIN of that side | Side taken by a team, before T-30 | Team-wallet hold/release, idempotent |
 | Propose/revise Team result | HOME OWNER/CAPTAIN | `AWAITING_RESULT` / unconfirmed proposal | Revision appends and resets 48-hour timer |
 | Confirm/reject Team result | AWAY OWNER/CAPTAIN | Active proposal | First terminal response wins; persisted notifications |
 | Time out result | Durable system job | Proposal older than 48 hours | Idempotently creates/links dispute |

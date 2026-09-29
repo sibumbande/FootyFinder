@@ -48,6 +48,7 @@ import {
 } from './matches.repository.js';
 import { BookingsService } from '../bookings/bookings.service.js';
 import { TeamMatchesService } from '../team-matches/team-matches.service.js';
+import { assertCanRunTeamMatchCommand, type TeamMatchCommand } from '../team-matches/team-side-authority.js';
 import { publicMatchUrl } from './public-match.js';
 
 /** Gate 7: stable API errors for taking the other side of a team match. */
@@ -88,16 +89,14 @@ export class MatchesService {
   }
   async get(id: string, userId: string) {
     const match = await this.load(id);
-    const attachedMembership =
-      match.mode === 'TEAM_MATCH'
-        ? await this.matches.findAttachedTeamMembership(id, userId)
-        : null;
+    // Gate 7 / TKT-708: the viewer's own and managed side, resolved per side.
+    const sides = match.mode === 'TEAM_MATCH' ? await this.matches.viewerTeamSides(id, userId) : null;
     const isParticipant = match.participants.some((item) => item.userId === userId);
     if (
       match.visibility === 'PRIVATE' &&
       match.createdById !== userId &&
       !isParticipant &&
-      !attachedMembership &&
+      !sides?.member &&
       !(await this.matches.hasParticipation(id, userId))
     )
       throw new AppError(
@@ -108,13 +107,12 @@ export class MatchesService {
     const viewerCanManage =
       match.mode === 'QUICK_GAME'
         ? match.createdById === userId
-        : attachedMembership?.role === 'OWNER' || attachedMembership?.role === 'CAPTAIN';
-    const sides = match.mode === 'TEAM_MATCH' ? await this.matches.viewerTeamSides(id, userId) : null;
+        : Boolean(sides?.managed);
     return toMatch(match, {
       viewerCanManage,
       viewerTeamSide: sides?.member ?? null,
       viewerManagedTeamSide: sides?.managed ?? null,
-      viewerCanChat: match.createdById === userId || isParticipant || Boolean(attachedMembership),
+      viewerCanChat: match.createdById === userId || isParticipant || Boolean(sides?.member),
     });
   }
   async getByInvite(token: string) {
@@ -211,7 +209,7 @@ export class MatchesService {
     });
   }
   async update(id: string, input: UpdateMatchInput, userId: string) {
-    const match = await this.assertManager(id, userId);
+    const match = await this.assertManager(id, userId, 'UPDATE_MATCH');
     this.assertMutable(match);
     if (input.startsAt && new Date(input.startsAt).getTime() <= Date.now())
       throw new AppError(
@@ -233,7 +231,7 @@ export class MatchesService {
     return updated;
   }
   async ready(id: string, userId: string) {
-    const match = await this.assertManager(id, userId);
+    const match = await this.assertManager(id, userId, 'UPDATE_MATCH');
     if (match.mode === 'TEAM_MATCH')
       throw new AppError(
         409,
@@ -250,10 +248,15 @@ export class MatchesService {
   }
 
   async remove(id: string, userId: string) {
-    const match = await this.assertManager(id, userId);
+    // Gate 7 (D6 as narrowed by N5): only the home team cancels a team match, for both sides.
+    const match = await this.assertManager(id, userId, 'CANCEL_MATCH');
     if (match.status === 'CANCELLED') return;
     this.assertMutable(match);
-    const { notifications } = await this.matches.cancelMatch(id);
+    const { notifications } = await this.matches.cancelMatch(
+      id,
+      match.otherSideMode ? 'TEAM_CANCELLED' : 'ORGANISER_CANCELLED',
+      userId,
+    );
     this.notifications.publishPersistedMany(notifications);
     emitDomainEventBestEffort('match:cancelled', { matchId: id });
   }
@@ -480,7 +483,7 @@ export class MatchesService {
     }
   }
   async submitResult(id: string, input: ResultInput, userId: string) {
-    const match = await this.assertManager(id, userId);
+    const match = await this.assertManager(id, userId, 'SUBMIT_RESULT');
     if (
       getEffectiveMatchStatus({
         status: match.status,
@@ -530,20 +533,15 @@ export class MatchesService {
     if (!match) throw new AppError(404, 'Match lobby not found.', 'MATCH_NOT_FOUND');
     return match;
   }
-  private async assertManager(id: string, userId: string) {
+  private async assertManager(id: string, userId: string, command: TeamMatchCommand = 'UPDATE_MATCH') {
     const match = await this.load(id);
     if (match.mode === 'QUICK_GAME') {
       if (match.createdById !== userId)
         throw new AppError(403, 'Only the match organiser can do that.', 'HOST_REQUIRED');
       return match;
     }
-    const membership = await this.matches.findAttachedTeamMembership(id, userId);
-    if (!membership || !['OWNER', 'CAPTAIN'].includes(membership.role))
-      throw new AppError(
-        403,
-        'Owner or captain permission is required for this Team fixture.',
-        'TEAM_FORBIDDEN',
-      );
+    // Gate 7 / TKT-708: a team match command is run only by a manager of the side that owns it.
+    assertCanRunTeamMatchCommand(command, await this.matches.managedTeamSides(id, userId));
     return match;
   }
   private assertMutable(match: Awaited<ReturnType<MatchesRepository['findById']>> & {}) {

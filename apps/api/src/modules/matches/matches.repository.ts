@@ -31,6 +31,7 @@ import { fillReminderMessage, openPositionsForReminder } from './fill-reminder.j
 import { copySavedSquad } from '../team-matches/team-squad.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from '../team-matches/team-match-audit.js';
+import { managedTeamSides } from '../team-matches/team-side-authority.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -170,11 +171,9 @@ export class MatchesRepository {
   findCancellation(matchId: string, userId: string) {
     return prisma.participantCancellation.findFirst({ where: { matchId, userId } });
   }
-  findAttachedTeamMembership(matchId: string, userId: string) {
-    return prisma.teamMembership.findFirst({
-      where: { userId, team: { matchSides: { some: { matchId } } } },
-      select: { teamId: true, role: true },
-    });
+  /** Gate 7 / TKT-708: the sides of this match whose team the user owns or captains. */
+  managedTeamSides(matchId: string, userId: string) {
+    return managedTeamSides(prisma, matchId, userId);
   }
   /** Gate 7: the side(s) of a team match the viewer is a member of, and the side they manage. */
   async viewerTeamSides(matchId: string, userId: string) {
@@ -583,9 +582,17 @@ export class MatchesRepository {
     }
   }
 
-  /** Organiser cancellation (D3: allowed until the go/no-go instant; enforced by the service). */
-  cancelMatch(matchId: string) {
-    return serializableTransaction((tx) => this.cancelInTx(tx, matchId, 'ORGANISER_CANCELLED'));
+  /**
+   * Organiser cancellation (D3: allowed until the go/no-go instant; enforced by the service), or
+   * (Gate 7) the home team cancelling a team match, audited with its actor.
+   */
+  cancelMatch(matchId: string, reason: 'ORGANISER_CANCELLED' | 'TEAM_CANCELLED' = 'ORGANISER_CANCELLED', actorUserId?: string) {
+    return serializableTransaction(async (tx) => {
+      const cancelled = await this.cancelInTx(tx, matchId, reason);
+      if (reason === 'TEAM_CANCELLED')
+        await appendTeamMatchAudit(tx, { matchId, command: 'TEAM_MATCH_CANCELLED', side: 'HOME', actorUserId, payload: { reason } });
+      return cancelled;
+    });
   }
 
   /**
