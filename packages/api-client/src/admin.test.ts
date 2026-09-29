@@ -3,6 +3,36 @@ import type { ApiClient } from './client.js';
 import { adminApi } from './admin.js';
 
 describe('adminApi', () => {
+  it('uses the Gate 6 venue settlement contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.venueBeneficiaries('venue-id');
+    await api.approveVenueBeneficiary('beneficiary-id');
+    await api.revealVenueBeneficiary('beneficiary-id');
+    await api.venuePayables({ status: 'DUE' });
+    await api.adjustVenuePayable('payable-id', { amountCents: -1_000, reason: 'Floodlight failure' });
+    await api.settlementDue();
+    await api.settlementBatches('PREPARED');
+    await api.prepareSettlement({ venueId: 'venue-id', weekStart: '2026-10-26' });
+    await api.approveSettlement('batch-id');
+    await api.markSettlementPaid('batch-id', { payoutReference: 'EFT-1', evidenceNote: 'Bank confirmation 1' });
+    await api.cancelSettlement('batch-id', 'Wrong week selected');
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/venues/venue-id/beneficiaries',
+      '/admin/beneficiaries/beneficiary-id/approve',
+      '/admin/beneficiaries/beneficiary-id/reveal',
+      '/admin/settlement/payables?status=DUE',
+      '/admin/settlement/payables/payable-id/adjustments',
+      '/admin/settlement/due',
+      '/admin/settlement/batches?status=PREPARED',
+      '/admin/settlement/batches',
+      '/admin/settlement/batches/batch-id/approve',
+      '/admin/settlement/batches/batch-id/mark-paid',
+      '/admin/settlement/batches/batch-id/cancel',
+    ]);
+    expect(request.mock.calls[2]![1]).toMatchObject({ method: 'POST' });
+  });
+
   it('uses distinct pre-MFA and privileged Admin routes', async () => {
     const request = vi.fn().mockResolvedValue({ data: {} });
     const api = adminApi({ request } as unknown as ApiClient);

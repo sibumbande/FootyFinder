@@ -162,3 +162,18 @@ export const adminPayableQuerySchema = z.object({
   status: z.enum(['DUE', 'IN_BATCH', 'PAID', 'VOID']).optional(),
   venueId: z.string().uuid().optional(),
 });
+
+/** Gate 6 / TKT-608: weekly dual-control settlement. */
+export const prepareSettlementSchema = z.object({
+  venueId: z.string().uuid(),
+  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the Monday of the week (YYYY-MM-DD).'),
+});
+export type PrepareSettlementInput = z.infer<typeof prepareSettlementSchema>;
+export const markSettlementPaidSchema = z.object({
+  payoutReference: z.string().trim().min(4).max(120),
+  evidenceNote: z.string().trim().min(5).max(1000),
+});
+export type MarkSettlementPaidInput = z.infer<typeof markSettlementPaidSchema>;
+export const adminSettlementQuerySchema = z.object({
+  status: z.enum(['PREPARED', 'APPROVED', 'PAID', 'CANCELLED']).optional(),
+});

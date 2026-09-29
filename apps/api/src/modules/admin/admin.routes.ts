@@ -6,6 +6,8 @@ import * as moderation from '../moderation/moderation.controller.js';
 import * as disputes from '../disputes/disputes.controller.js';
 import * as finance from '../payments/admin-finance.controller.js';
 import * as settlement from '../settlement/venue-settlement.controller.js';
+import * as settlementBatches from '../settlement/settlement-batches.controller.js';
+import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
 adminAuthRouter.get('/status', controller.status);
@@ -92,6 +94,14 @@ adminRouter.post('/beneficiaries/:beneficiaryId/approve', costlyMutationRateLimi
 adminRouter.post('/beneficiaries/:beneficiaryId/reveal', costlyMutationRateLimit, settlement.revealBeneficiary);
 adminRouter.get('/settlement/payables', settlement.listPayables);
 adminRouter.post('/settlement/payables/:payableId/adjustments', costlyMutationRateLimit, settlement.adjustPayable);
+// Gate 6 / TKT-608: weekly dual-control settlement queue. Approve and mark-paid need fresh MFA.
+adminRouter.get('/settlement/due', settlementBatches.due);
+adminRouter.get('/settlement/batches', settlementBatches.list);
+adminRouter.get('/settlement/batches/:batchId', settlementBatches.get);
+adminRouter.post('/settlement/batches', costlyMutationRateLimit, settlementBatches.prepare);
+adminRouter.post('/settlement/batches/:batchId/approve', costlyMutationRateLimit, requireRecentAdminMfa, settlementBatches.approve);
+adminRouter.post('/settlement/batches/:batchId/mark-paid', costlyMutationRateLimit, requireRecentAdminMfa, settlementBatches.markPaid);
+adminRouter.post('/settlement/batches/:batchId/cancel', costlyMutationRateLimit, settlementBatches.cancel);
 adminRouter.get('/matches', controller.listManagedMatches);
 adminRouter.post('/matches', costlyMutationRateLimit, controller.createManagedMatch);
 adminRouter.get('/moderation/reports', moderation.listReports);

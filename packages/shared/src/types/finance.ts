@@ -93,3 +93,40 @@ export interface AdminVenuePayable {
   paidAt?: string;
   adjustments: Array<{ id: string; amountCents: number; reason: string; actorUserId: string; createdAt: string }>;
 }
+
+/** Gate 6 / TKT-608: what is waiting to be settled per venue (admin-only). */
+export interface AdminSettlementDue {
+  venue: { id: string; name: string };
+  payableCount: number;
+  payablesCents: number;
+  unappliedAdjustmentsCents: number;
+  oldestDueAt?: string;
+  approvedBeneficiary?: AdminVenueBeneficiary;
+  /** Monday (YYYY-MM-DD, Johannesburg) of the latest closed week that can be prepared. */
+  latestClosedWeek: string;
+}
+
+export type SettlementBatchStatus = 'PREPARED' | 'APPROVED' | 'PAID' | 'CANCELLED';
+
+export interface AdminSettlementBatch {
+  id: string;
+  venue: { id: string; name: string };
+  beneficiary: AdminVenueBeneficiary;
+  periodStart: string;
+  periodEnd: string;
+  payablesCents: number;
+  adjustmentsCents: number;
+  totalCents: number;
+  status: SettlementBatchStatus;
+  preparedByUserId: string;
+  preparedAt: string;
+  approvedByUserId?: string;
+  approvedAt?: string;
+  paidByUserId?: string;
+  paidAt?: string;
+  payoutReference?: string;
+  evidenceNote?: string;
+  cancelledByUserId?: string;
+  cancelReason?: string;
+  payables: AdminVenuePayable[];
+}

@@ -26,6 +26,7 @@ export const envSchema = z
     RATE_LIMIT_PUBLIC_PREVIEWS_PER_MINUTE: z.coerce.number().int().positive().default(120),
     ADMIN_MFA_ENCRYPTION_KEY: z.string().min(32).optional(),
     ADMIN_MFA_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(720),
+    ADMIN_SETTLEMENT_MFA_MAX_AGE_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
     // TKT-607: encrypts venue bank details at rest. Separate from every other key.
     VENUE_BENEFICIARY_ENCRYPTION_KEY: z.string().min(32).optional(),
     ADMIN_TEST_DATA_ENABLED: z

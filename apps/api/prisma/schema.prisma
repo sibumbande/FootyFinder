@@ -121,6 +121,13 @@ enum VenuePayableStatus {
   VOID
 }
 
+enum VenueSettlementBatchStatus {
+  PREPARED
+  APPROVED
+  PAID
+  CANCELLED
+}
+
 enum ProviderRefundStatus {
   PENDING
   PROCESSING
@@ -434,6 +441,10 @@ model User {
   createdBeneficiaries      VenueBeneficiary[]        @relation("BeneficiaryCreator")
   approvedBeneficiaries     VenueBeneficiary[]        @relation("BeneficiaryApprover")
   payableAdjustments        VenuePayableAdjustment[]
+  preparedSettlements       VenueSettlementBatch[]    @relation("SettlementPreparer")
+  approvedSettlements       VenueSettlementBatch[]    @relation("SettlementApprover")
+  paidSettlements           VenueSettlementBatch[]    @relation("SettlementPayer")
+  cancelledSettlements      VenueSettlementBatch[]    @relation("SettlementCanceller")
   restoredRefunds           ProviderRefund[]          @relation("RefundRestorer")
 
   @@index([isTestAccount, testDataBatchId])
@@ -635,6 +646,7 @@ model ManagedVenue {
   cancellationPolicies  VenueCancellationPolicy[]
   beneficiaries         VenueBeneficiary[]
   payables              VenuePayable[]
+  settlementBatches     VenueSettlementBatch[]
   submittedBy           User?                     @relation("VenueSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
   approvedBy            User?                     @relation("VenueApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   deactivatedBy         User?                     @relation("VenueDeactivator", fields: [deactivatedByUserId], references: [id], onDelete: Restrict)
@@ -1063,6 +1075,7 @@ model VenueBeneficiary {
   linkedUser       User?                  @relation("BeneficiaryLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
   createdBy        User                   @relation("BeneficiaryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   approvedBy       User?                  @relation("BeneficiaryApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  settlementBatches VenueSettlementBatch[]
 
   @@index([venueId, status])
 }
@@ -1078,14 +1091,17 @@ model VenuePayable {
   status        VenuePayableStatus       @default(DUE)
   dueAt         DateTime
   paidAt        DateTime?
+  batchId       String?                  @db.Uuid
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
+  batch         VenueSettlementBatch?    @relation(fields: [batchId], references: [id], onDelete: Restrict)
   reservation   FieldReservation         @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   match         Match                    @relation(fields: [matchId], references: [id], onDelete: Restrict)
   venue         ManagedVenue             @relation(fields: [venueId], references: [id], onDelete: Restrict)
   adjustments   VenuePayableAdjustment[]
 
   @@index([venueId, status, dueAt])
+  @@index([batchId])
 }
 
 /// Gate 6 / TKT-607: a reasoned correction to a payable (applied before or at the next settlement).
@@ -1094,12 +1110,51 @@ model VenuePayableAdjustment {
   payableId   String       @db.Uuid
   amountCents Int
   reason      String
-  actorUserId String       @db.Uuid
-  createdAt   DateTime     @default(now())
-  payable     VenuePayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
-  actor       User         @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  actorUserId    String                @db.Uuid
+  appliedBatchId String?               @db.Uuid
+  createdAt      DateTime              @default(now())
+  payable        VenuePayable          @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  actor          User                  @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  appliedBatch   VenueSettlementBatch? @relation(fields: [appliedBatchId], references: [id], onDelete: Restrict)
 
   @@index([payableId, createdAt])
+  @@index([appliedBatchId])
+}
+
+/// Gate 6 / TKT-608: one venue's weekly manual payout, prepared and approved by different admins.
+model VenueSettlementBatch {
+  id                String                     @id @default(uuid()) @db.Uuid
+  venueId           String                     @db.Uuid
+  beneficiaryId     String                     @db.Uuid
+  periodStart       DateTime
+  periodEnd         DateTime
+  payablesCents     Int
+  adjustmentsCents  Int
+  totalCents        Int
+  status            VenueSettlementBatchStatus @default(PREPARED)
+  preparedByUserId  String                     @db.Uuid
+  preparedAt        DateTime                   @default(now())
+  approvedByUserId  String?                    @db.Uuid
+  approvedAt        DateTime?
+  paidByUserId      String?                    @db.Uuid
+  paidAt            DateTime?
+  payoutReference   String?                    @unique
+  evidenceNote      String?
+  cancelledByUserId String?                    @db.Uuid
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  venue             ManagedVenue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  beneficiary       VenueBeneficiary           @relation(fields: [beneficiaryId], references: [id], onDelete: Restrict)
+  preparedBy        User                       @relation("SettlementPreparer", fields: [preparedByUserId], references: [id], onDelete: Restrict)
+  approvedBy        User?                      @relation("SettlementApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  paidBy            User?                      @relation("SettlementPayer", fields: [paidByUserId], references: [id], onDelete: Restrict)
+  cancelledBy       User?                      @relation("SettlementCanceller", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  payables          VenuePayable[]
+  adjustments       VenuePayableAdjustment[]
+
+  @@index([status, periodStart])
 }
 
 /// Gate 6 / TKT-605: every Paystack webhook delivery (bad signatures keep no payload).

@@ -10,6 +10,8 @@ import { transitionMatchToStarted } from '../src/modules/matches/match-lifecycle
 import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { VenueSettlementService } from '../src/modules/settlement/venue-settlement.service.js';
+import { SettlementBatchesService } from '../src/modules/settlement/settlement-batches.service.js';
+import { settlementWeekOf } from '../src/modules/settlement/settlement-week.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 
 /**
@@ -209,19 +211,80 @@ async function main() {
   assert(adjusted.adjustmentsCents === -10_000, 'Adjustment not recorded.');
   assert((await code(settlement.addAdjustment(adminA, payables[0]!.id, { amountCents: -45_000, reason: 'Too large' }))) === 'ADJUSTMENT_INVALID', 'Adjustment took the payable below zero.');
 
-  // 8. Players never see any of this.
+  // 8. TKT-608 weekly dual-control settlement.
+  const batches = new SettlementBatchesService();
+  const weekStart = settlementWeekOf(new Date(played.startsAt));
+  const afterWeek = new Date(new Date(played.startsAt).getTime() + 14 * 86_400_000);
+  assert((await code(batches.prepare(adminA, { venueId, weekStart }))) === 'SETTLEMENT_WEEK_OPEN', 'An open week could be settled.');
+  assert((await code(batches.prepare(adminA, { venueId, weekStart: '2026-10-27' }, marker, afterWeek))) === 'SETTLEMENT_WEEK_INVALID', 'A non-Monday week was accepted.');
+  const first = await batches.prepare(adminA, { venueId, weekStart }, marker, afterWeek);
+  assert(first.status === 'PREPARED' && first.totalCents === 40_000 && first.payablesCents === 50_000 && first.adjustmentsCents === -10_000, 'Prepared total is wrong.');
+  assert(first.beneficiary.id === replacement.id && !JSON.stringify(first).includes('62000000002'), 'Batch does not snapshot the masked approved beneficiary.');
+  assert((await prisma.venuePayable.findUniqueOrThrow({ where: { id: payables[0]!.id } })).status === 'IN_BATCH', 'Payable not locked into the batch.');
+  assert((await code(batches.prepare(adminA, { venueId, weekStart }, marker, afterWeek))) !== 'OK', 'The same week was prepared twice.');
+  assert((await code(settlement.addAdjustment(adminA, payables[0]!.id, { amountCents: -1_000, reason: 'Late change' }))) === 'PAYABLE_LOCKED', 'A payable in a batch could be adjusted.');
+  assert((await code(batches.approve(adminA, first.id))) === 'SETTLEMENT_DUAL_CONTROL_REQUIRED', 'The preparer approved their own batch.');
+  assert((await code(batches.markPaid(adminB, first.id, { payoutReference: `${marker}-early`, evidenceNote: 'Too early' }))) === 'SETTLEMENT_NOT_APPROVED', 'An unapproved batch was paid.');
+
+  // Cancel returns everything to the queue; preparing again works.
+  const cancelled = await batches.cancel(adminB, first.id, 'Wrong bank details selected');
+  assert(cancelled.status === 'CANCELLED', 'Cancel failed.');
+  assert((await prisma.venuePayable.findUniqueOrThrow({ where: { id: payables[0]!.id } })).status === 'DUE', 'Cancelled batch did not release its payable.');
+  assert((await prisma.venuePayableAdjustment.count({ where: { payableId: payables[0]!.id, appliedBatchId: null } })) === 1, 'Cancelled batch did not release its adjustment.');
+  const second = await batches.prepare(adminA, { venueId, weekStart }, marker, afterWeek);
+  const approvals = await Promise.allSettled([batches.approve(adminB, second.id), batches.approve(adminB, second.id)]);
+  assert(approvals.filter((result) => result.status === 'fulfilled').length === 1, 'Concurrent approvals did not produce exactly one approval.');
+  assert((await code(batches.markPaid(adminA, second.id, { payoutReference: `${marker}-eft`, evidenceNote: 'EFT confirmation (fake)' }))) === 'SETTLEMENT_DUAL_CONTROL_REQUIRED', 'The preparer marked their own batch paid.');
+  const payouts = await Promise.allSettled([
+    batches.markPaid(adminB, second.id, { payoutReference: `${marker}-eft`, evidenceNote: 'EFT confirmation (fake)' }),
+    batches.markPaid(adminB, second.id, { payoutReference: `${marker}-eft-2`, evidenceNote: 'EFT confirmation (fake)' }),
+  ]);
+  assert(payouts.filter((result) => result.status === 'fulfilled').length === 1, 'A batch was paid twice.');
+  const paid = await batches.get(second.id);
+  assert(paid.status === 'PAID' && paid.totalCents === 40_000 && paid.paidByUserId === adminB, 'Paid batch state is wrong.');
+  assert((await prisma.venuePayable.findUniqueOrThrow({ where: { id: payables[0]!.id } })).status === 'PAID', 'Payable not marked paid.');
+  assert((await code(batches.markPaid(adminB, second.id, { payoutReference: `${marker}-eft-3`, evidenceNote: 'Again' }))) === 'SETTLEMENT_ALREADY_PAID', 'A paid batch could be paid again.');
+  assert((await code(batches.cancel(adminB, second.id, 'Too late to cancel'))) === 'SETTLEMENT_NOT_CANCELLABLE', 'A paid batch could be cancelled.');
+  const immutable = async (work: Promise<unknown>) => (await work.then(() => 'OK', (error: unknown) => String(error))).includes('immutable');
+  assert(await immutable(prisma.venuePayable.update({ where: { id: payables[0]!.id }, data: { status: 'DUE', batchId: null, paidAt: null } })), 'DB allowed a paid payable to reopen.');
+  assert(await immutable(prisma.venueSettlementBatch.update({ where: { id: second.id }, data: { totalCents: 1 } })), 'DB allowed a paid batch to change.');
+  const auditActions = (await prisma.adminAuditLog.findMany({ where: { entityId: { in: [first.id, second.id] } } })).map((row) => row.action).sort();
+  assert(
+    JSON.stringify(auditActions) === JSON.stringify(['VENUE_SETTLEMENT_APPROVED', 'VENUE_SETTLEMENT_CANCELLED', 'VENUE_SETTLEMENT_PAID', 'VENUE_SETTLEMENT_PREPARED', 'VENUE_SETTLEMENT_PREPARED']),
+    `Settlement transitions not audited exactly: ${auditActions.join(',')}`,
+  );
+
+  // A correction to an already-paid payable is carried into the venue's next settlement.
+  await settlement.addAdjustment(adminA, payables[0]!.id, { amountCents: 5_000, reason: 'Venue under-billed a 7-a-side booking' });
+  const nextWeek = settlementWeekOf(new Date(new Date(played.startsAt).getTime() + 7 * 86_400_000));
+  const carried = await batches.prepare(adminA, { venueId, weekStart: nextWeek }, marker, new Date(afterWeek.getTime() + 7 * 86_400_000));
+  assert(carried.payablesCents === 0 && carried.adjustmentsCents === 5_000 && carried.totalCents === 5_000, 'Adjustment on a paid payable was not carried forward.');
+  await batches.cancel(adminB, carried.id, 'Smoke cleanup: carried adjustment only');
+  const dueList = await batches.due(afterWeek);
+  assert(dueList.some((row) => row.venue.id === venueId && row.unappliedAdjustmentsCents === 5_000), 'Due summary misses the carried adjustment.');
+
+  // 9. Players never see any of this.
   const participant = players[0]!;
   const playerMatch = await service.get(played.id, participant);
   assert(!JSON.stringify(playerMatch).match(/payable|beneficiary|priceCents|50000/i), 'A player match DTO exposed venue settlement data.');
 
-  console.log('Gate 6 venue settlement smoke passed: one payable per played match at kickoff from the snapshot, none for T-30/host-cancelled or legacy matches, DB eligibility trigger, encrypted dual-control beneficiaries with audited reveal, adjustments, player privacy.');
+  console.log('Gate 6 venue settlement smoke passed: one payable per played match at kickoff from the snapshot, none for T-30/host-cancelled or legacy matches, DB eligibility trigger, encrypted dual-control beneficiaries with audited reveal, adjustments, weekly dual-control batches (prepare/approve/pay, cancel, no double pay, immutable once paid, carried adjustments), player privacy.');
 }
 
+/**
+ * Paid settlement batches and paid payables are immutable by design (DB trigger), so the played
+ * match, its reservation, the venue, the beneficiary it paid and the host stay in the disposable
+ * test database, tagged with the smoke marker. Everything else is removed.
+ */
 async function cleanup() {
-  const reservationIds = (await prisma.fieldReservation.findMany({ where: { matchId: { in: matchIds } }, select: { id: true } })).map(({ id }) => id);
-  await prisma.venuePayableAdjustment.deleteMany({ where: { payable: { matchId: { in: matchIds } } } });
-  await prisma.venuePayable.deleteMany({ where: { matchId: { in: matchIds } } });
-  if (venueId) await prisma.venueBeneficiary.deleteMany({ where: { venueId } });
+  const paidMatchIds = (await prisma.venuePayable.findMany({ where: { matchId: { in: matchIds }, status: 'PAID' }, select: { matchId: true } })).map(({ matchId }) => matchId);
+  const removableMatchIds = matchIds.filter((id) => !paidMatchIds.includes(id));
+  const reservationIds = (await prisma.fieldReservation.findMany({ where: { matchId: { in: removableMatchIds } }, select: { id: true } })).map(({ id }) => id);
+  await prisma.venuePayableAdjustment.deleteMany({ where: { payable: { matchId: { in: matchIds } }, OR: [{ appliedBatchId: null }, { appliedBatch: { status: { not: 'PAID' } } }] } });
+  await prisma.venuePayable.updateMany({ where: { matchId: { in: removableMatchIds }, batchId: { not: null } }, data: { status: 'DUE', batchId: null } });
+  if (venueId) await prisma.venueSettlementBatch.deleteMany({ where: { venueId, status: { not: 'PAID' } } });
+  await prisma.venuePayable.deleteMany({ where: { matchId: { in: removableMatchIds } } });
+  if (venueId) await prisma.venueBeneficiary.deleteMany({ where: { venueId, settlementBatches: { none: {} } } });
   await prisma.durableJob.deleteMany({
     where: {
       OR: [
@@ -234,20 +297,23 @@ async function cleanup() {
   });
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.fieldReservation.deleteMany({ where: { id: { in: reservationIds } } });
-  const venueIds = (await prisma.match.findMany({ where: { id: { in: matchIds } }, select: { venueId: true } })).map(({ venueId: id }) => id);
-  await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
+  const venueIds = (await prisma.match.findMany({ where: { id: { in: removableMatchIds } }, select: { venueId: true } })).map(({ venueId: id }) => id);
+  await prisma.match.deleteMany({ where: { id: { in: removableMatchIds } } });
   await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
-  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
-  if (venueId) {
+  const retainedUserIds = paidMatchIds.length ? [hostId] : [];
+  const removableUserIds = userIds.filter((id) => !retainedUserIds.includes(id));
+  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: removableUserIds } } } });
+  await prisma.matchPayment.deleteMany({ where: { userId: { in: removableUserIds } } });
+  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: removableUserIds } } } });
+  if (venueId && !paidMatchIds.length) {
     await prisma.managedFieldPrice.deleteMany({ where: { field: { venueId } } });
     await prisma.venueCancellationPolicy.deleteMany({ where: { venueId } });
     await prisma.managedField.deleteMany({ where: { venueId } });
     await prisma.managedVenue.update({ where: { id: venueId }, data: { publicationStatus: 'DRAFT', submittedByUserId: null, submittedAt: null, approvedByUserId: null, approvedAt: null } });
     await prisma.managedVenue.delete({ where: { id: venueId } });
   }
-  await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-  assert((await prisma.match.count({ where: { id: { in: matchIds } } })) === 0, 'Smoke matches remained.');
+  await prisma.user.deleteMany({ where: { id: { in: removableUserIds } } });
+  assert((await prisma.match.count({ where: { id: { in: removableMatchIds } } })) === 0, 'Smoke matches remained.');
 }
 
 try {

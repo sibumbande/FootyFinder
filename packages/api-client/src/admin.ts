@@ -38,11 +38,49 @@ import type {
   AdminTopUpStatus,
   AdminCardRefundInput,
   AdminRestrictedWallet,
+  AdminVenueBeneficiary,
+  AdminVenuePayable,
+  AdminSettlementBatch,
+  AdminSettlementDue,
+  CreateVenueBeneficiaryInput,
+  MarkSettlementPaidInput,
+  PrepareSettlementInput,
+  SettlementBatchStatus,
+  VenueBankDetails,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
+const post = (body?: unknown) => ({ method: 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+const id = encodeURIComponent;
+
 export const adminApi = (client: ApiClient) => ({
   operationsSummary: () => client.request<{ data: OperationsSummary }>('/admin/operations/summary'),
+  // Gate 6 / TKT-607-608: venue bank details, payables and the weekly dual-control queue.
+  venueBeneficiaries: (venueId: string) =>
+    client.request<{ data: AdminVenueBeneficiary[] }>(`/admin/venues/${id(venueId)}/beneficiaries`),
+  createVenueBeneficiary: (venueId: string, input: CreateVenueBeneficiaryInput) =>
+    client.request<{ data: AdminVenueBeneficiary }>(`/admin/venues/${id(venueId)}/beneficiaries`, post(input)),
+  approveVenueBeneficiary: (beneficiaryId: string) =>
+    client.request<{ data: AdminVenueBeneficiary }>(`/admin/beneficiaries/${id(beneficiaryId)}/approve`, post()),
+  revealVenueBeneficiary: (beneficiaryId: string) =>
+    client.request<{ data: VenueBankDetails }>(`/admin/beneficiaries/${id(beneficiaryId)}/reveal`, post()),
+  venuePayables: (query: { status?: AdminVenuePayable['status']; venueId?: string } = {}) => {
+    const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value) as Array<[string, string]>).toString();
+    return client.request<{ data: AdminVenuePayable[] }>(`/admin/settlement/payables${search ? `?${search}` : ''}`);
+  },
+  adjustVenuePayable: (payableId: string, input: { amountCents: number; reason: string }) =>
+    client.request<{ data: AdminVenuePayable }>(`/admin/settlement/payables/${id(payableId)}/adjustments`, post(input)),
+  settlementDue: () => client.request<{ data: AdminSettlementDue[] }>('/admin/settlement/due'),
+  settlementBatches: (status?: SettlementBatchStatus) =>
+    client.request<{ data: AdminSettlementBatch[] }>(`/admin/settlement/batches${status ? `?status=${status}` : ''}`),
+  prepareSettlement: (input: PrepareSettlementInput) =>
+    client.request<{ data: AdminSettlementBatch }>('/admin/settlement/batches', post(input)),
+  approveSettlement: (batchId: string) =>
+    client.request<{ data: AdminSettlementBatch }>(`/admin/settlement/batches/${id(batchId)}/approve`, post()),
+  markSettlementPaid: (batchId: string, input: MarkSettlementPaidInput) =>
+    client.request<{ data: AdminSettlementBatch }>(`/admin/settlement/batches/${id(batchId)}/mark-paid`, post(input)),
+  cancelSettlement: (batchId: string, reason: string) =>
+    client.request<{ data: AdminSettlementBatch }>(`/admin/settlement/batches/${id(batchId)}/cancel`, post({ reason })),
   authStatus: () => client.request<{ data: AdminAuthStatus }>('/admin/auth/status'),
   setupMfa: () =>
     client.request<{ data: AdminMfaSetup }>('/admin/auth/mfa/setup', { method: 'POST' }),

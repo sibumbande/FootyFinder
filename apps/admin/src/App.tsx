@@ -7,6 +7,7 @@ import { VenuesPage } from './VenuesPage.js';
 import { SupportPage } from './SupportPage.js';
 import { TestDataPage } from './TestDataPage.js';
 import { FinancePage } from './FinancePage.js';
+import { SettlementsPage } from './SettlementsPage.js';
 import { MatchLoadingPage } from './MatchLoadingPage.js';
 import { ModerationPage } from './ModerationPage.js';
 import { DisputesPage } from './DisputesPage.js';
@@ -315,6 +316,7 @@ function AdminShell() {
           <NavLink to="/support">Support inbox</NavLink>
           <NavLink to="/test-data">Test data</NavLink>
           <NavLink to="/finance">Finance</NavLink>
+          <NavLink to="/settlement">Venue settlement</NavLink>
           <NavLink to="/matches">Load Matches</NavLink>
           <NavLink to="/moderation">Moderation</NavLink>
           <NavLink to="/disputes">Disputes</NavLink>
@@ -331,6 +333,7 @@ function AdminShell() {
           <Route path="support" element={<SupportPage />} />
           <Route path="test-data" element={<TestDataPage />} />
           <Route path="finance" element={<FinancePage />} />
+          <Route path="settlement" element={<SettlementsPage />} />
           <Route path="matches" element={<MatchLoadingPage />} />
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="disputes" element={<DisputesPage />} />
