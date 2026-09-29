@@ -1,4 +1,4 @@
-import type { AdminMfaSetup, AuthenticatedUser } from '@footy-finder/shared';
+import type { AdminMfaSetup, AuthenticatedUser, GoNoGoHealth, GoNoGoProblem } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
@@ -195,6 +195,7 @@ function Dashboard() {
               </article>
             ))}
           </div>
+          <GoNoGoPanel health={data.goNoGo} />
           <p className="muted">
             Updated {new Date(data.generatedAt).toLocaleTimeString()} · API uptime{' '}
             {Math.floor(data.runtime.uptimeSeconds / 60)} minutes · {data.accounts.admins}{' '}
@@ -214,6 +215,49 @@ function Dashboard() {
             </div>
           </details>
         </>
+      )}
+    </section>
+  );
+}
+
+const GO_NO_GO_PROBLEM_LABELS: Record<GoNoGoProblem, string> = {
+  OVERDUE: 'Overdue',
+  FAILED: 'Failed',
+  STALE_RUNNING: 'Stuck (worker stopped)',
+  UNCONFIRMED_PAST_KICKOFF: 'Past kickoff, never decided',
+};
+
+/**
+ * DEC-018: T-30 go/no-go checks that are overdue, failed or stuck, and go/no-go matches past
+ * kickoff that were never decided. Refreshes with the dashboard every 30 seconds.
+ */
+function GoNoGoPanel({ health }: { health: GoNoGoHealth }) {
+  const total = health.overdue + health.staleRunning + health.failed + health.unconfirmedPastKickoff;
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+  return (
+    <section className={`go-no-go-panel${total > 0 ? ' alerting' : ''}`} aria-label="Go/no-go checks">
+      <div className="row between">
+        <h3>Go/no-go checks</h3>
+        <strong>
+          {total > 0
+            ? `${health.overdue} overdue · ${health.failed} failed · ${health.staleRunning} stuck · ${health.unconfirmedPastKickoff} past kickoff`
+            : 'All go/no-go checks on time'}
+        </strong>
+      </div>
+      {health.items.length > 0 && (
+        <ul>
+          {health.items.map((item) => (
+            <li key={item.jobId ?? item.matchId ?? item.problem}>
+              <strong>{GO_NO_GO_PROBLEM_LABELS[item.problem]}</strong>
+              <span>{item.matchName ?? item.matchId ?? 'Unknown match'}</span>
+              <small>
+                Kickoff {when(item.startsAt)} · check due {when(item.runAt)}
+                {item.status ? ` · ${item.status}` : ''} · {item.attempts} attempts
+                {item.lastError ? ` · last error ${item.lastError}` : ''}
+              </small>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

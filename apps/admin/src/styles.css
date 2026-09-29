@@ -599,3 +599,27 @@ nav a.active::before {
     transition-duration: 0.01ms !important;
   }
 }
+.go-no-go-panel {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #6b843c;
+  border-left: 5px solid var(--green);
+}
+.go-no-go-panel.alerting {
+  border-color: #a8322a;
+  border-left-color: #a8322a;
+}
+.go-no-go-panel.alerting > .row strong {
+  color: #ffad95;
+}
+.go-no-go-panel ul {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.go-no-go-panel li {
+  display: grid;
+  gap: 0.2rem;
+}

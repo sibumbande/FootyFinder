@@ -1,3 +1,27 @@
+/** Why a DEC-018 T-30 go/no-go check needs an admin's attention before kickoff. */
+export type GoNoGoProblem = 'OVERDUE' | 'FAILED' | 'STALE_RUNNING' | 'UNCONFIRMED_PAST_KICKOFF';
+
+export interface GoNoGoHealthItem {
+  jobId: string | null;
+  matchId: string | null;
+  matchName: string | null;
+  startsAt: string | null;
+  runAt: string | null;
+  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | null;
+  attempts: number;
+  lastError: string | null;
+  problem: GoNoGoProblem;
+}
+
+export interface GoNoGoHealth {
+  overdue: number;
+  staleRunning: number;
+  failed: number;
+  unconfirmedPastKickoff: number;
+  /** Up to 20 problems, oldest first. */
+  items: GoNoGoHealthItem[];
+}
+
 export interface OperationsSummary {
   generatedAt: string;
   runtime: {
@@ -16,6 +40,7 @@ export interface OperationsSummary {
   };
   matches: { draft: number; open: number; inProgress: number; awaitingResult: number };
   durableJobs: { pending: number; running: number; failed: number; overdue: number };
+  goNoGo: GoNoGoHealth;
   finance24Hours: {
     succeededTransactions: number;
     failedTransactions: number;
