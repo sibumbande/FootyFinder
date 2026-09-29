@@ -7,7 +7,8 @@ const STARTED = ['IN_PROGRESS', 'AWAITING_RESULT', 'COMPLETED'] as const;
 /**
  * Read-only financial reconciliation. It never repairs data; every issue is for finance review.
  * Slice 5 wallet checks, plus Gate 6 (TKT-609): provider top-ups, card refunds, chargebacks,
- * reservations that went ahead, venue payables and settlement batches.
+ * reservations that went ahead, venue payables and settlement batches. Gate 7 (TKT-701): team
+ * wallets, their links to personal wallets, and contribution provenance.
  */
 export class WalletReconciliationService {
   async report(now = new Date()): Promise<WalletReconciliationReport> {
@@ -18,12 +19,14 @@ export class WalletReconciliationService {
     await this.disputes(issues);
     const payableCount = await this.payables(issues);
     const settlementBatchCount = await this.batches(issues);
+    const teamWalletCount = await this.teamWallets(issues);
     return {
       generatedAt: now.toISOString(),
       ...wallet,
       providerPaymentCount,
       payableCount,
       settlementBatchCount,
+      teamWalletCount,
       issueCount: issues.length,
       issues,
     };
@@ -189,6 +192,69 @@ export class WalletReconciliationService {
         ...(match.goNoGoAt && !match.confirmedAt && { detail: 'started_without_confirmation' }),
       });
     return payables.length;
+  }
+
+  /**
+   * Gate 7 (DEC-014, D7/D8): each team wallet equals its ledger; holds never exceed it; every
+   * contribution or refund has an equal and opposite row in the member's own personal wallet;
+   * the unspent contributions add up to the balance; a closed team holds no money.
+   */
+  private async teamWallets(issues: WalletReconciliationIssue[]) {
+    const [accounts, ledgerGroups, linkedRows, orphanPersonal] = await Promise.all([
+      prisma.teamWalletAccount.findMany({
+        select: {
+          id: true, teamId: true, balanceCents: true,
+          team: { select: { archivedAt: true } },
+          holds: { where: { status: 'ACTIVE' }, select: { amountCents: true } },
+          transactions: {
+            select: { id: true, type: true, amountCents: true, spentBy: { select: { amountCents: true } }, spends: { select: { amountCents: true } } },
+          },
+        },
+      }),
+      prisma.teamWalletTransaction.groupBy({ by: ['teamWalletAccountId'], _sum: { amountCents: true } }),
+      prisma.teamWalletTransaction.findMany({
+        where: { linkedWalletTransactionId: { not: null } },
+        select: {
+          id: true, type: true, amountCents: true, contributorUserId: true,
+          account: { select: { teamId: true } },
+          linkedWalletTransaction: { select: { type: true, amountCents: true, status: true, walletAccount: { select: { userId: true } } } },
+        },
+      }),
+      prisma.walletTransaction.findMany({
+        where: { type: { in: ['TEAM_CONTRIBUTION_DEBIT', 'TEAM_CONTRIBUTION_REFUND_CREDIT'] }, status: 'SUCCEEDED', teamWalletLink: null },
+        select: { id: true, amountCents: true, walletAccount: { select: { userId: true } } },
+      }),
+    ]);
+    const ledgerByAccount = new Map(ledgerGroups.map((row) => [row.teamWalletAccountId, row._sum.amountCents ?? 0]));
+    for (const account of accounts) {
+      const expected = ledgerByAccount.get(account.id) ?? 0;
+      if (expected !== account.balanceCents)
+        issues.push({ code: 'TEAM_BALANCE_LEDGER_MISMATCH', walletAccountId: account.id, referenceId: account.teamId, expectedCents: expected, actualCents: account.balanceCents });
+      const held = account.holds.reduce((sum, hold) => sum + hold.amountCents, 0);
+      if (account.balanceCents - held < 0)
+        issues.push({ code: 'TEAM_NEGATIVE_AVAILABLE_BALANCE', walletAccountId: account.id, referenceId: account.teamId, actualCents: account.balanceCents - held });
+      let unspent = 0;
+      for (const row of account.transactions) {
+        if (row.type === 'CONTRIBUTION_CREDIT') unspent += row.amountCents - row.spentBy.reduce((sum, spend) => sum + spend.amountCents, 0);
+        else if (row.spends.reduce((sum, spend) => sum + spend.amountCents, 0) !== -row.amountCents)
+          issues.push({ code: 'TEAM_PROVENANCE_MISMATCH', walletAccountId: account.id, referenceId: row.id, expectedCents: -row.amountCents, actualCents: row.spends.reduce((sum, spend) => sum + spend.amountCents, 0), detail: 'debit_allocation' });
+      }
+      if (unspent !== account.balanceCents)
+        issues.push({ code: 'TEAM_PROVENANCE_MISMATCH', walletAccountId: account.id, referenceId: account.teamId, expectedCents: account.balanceCents, actualCents: unspent, detail: 'unspent_total' });
+      if (account.team.archivedAt && (account.balanceCents !== 0 || held !== 0))
+        issues.push({ code: 'TEAM_ARCHIVED_WITH_FUNDS', walletAccountId: account.id, referenceId: account.teamId, actualCents: account.balanceCents });
+    }
+    const personalType = { CONTRIBUTION_CREDIT: 'TEAM_CONTRIBUTION_DEBIT', CONTRIBUTION_REFUND_DEBIT: 'TEAM_CONTRIBUTION_REFUND_CREDIT', CLOSURE_REFUND_DEBIT: 'TEAM_CONTRIBUTION_REFUND_CREDIT' } as const;
+    for (const row of linkedRows) {
+      const personal = row.linkedWalletTransaction;
+      const expectedType = personalType[row.type as keyof typeof personalType];
+      if (!personal || personal.status !== 'SUCCEEDED' || personal.type !== expectedType
+        || personal.amountCents !== -row.amountCents || personal.walletAccount.userId !== row.contributorUserId)
+        issues.push({ code: 'TEAM_CONTRIBUTION_LINK_MISMATCH', userId: row.contributorUserId ?? undefined, referenceId: row.id, expectedCents: -row.amountCents, actualCents: personal?.amountCents, detail: 'team_row' });
+    }
+    for (const row of orphanPersonal)
+      issues.push({ code: 'TEAM_CONTRIBUTION_LINK_MISMATCH', userId: row.walletAccount.userId, referenceId: row.id, actualCents: row.amountCents, detail: 'personal_row_without_team_row' });
+    return accounts.length;
   }
 
   private async batches(issues: WalletReconciliationIssue[]) {

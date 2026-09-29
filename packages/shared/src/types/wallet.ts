@@ -84,6 +84,8 @@ export type WalletLedgerKind =
   | 'CARD_REFUND_REVERSED'
   | 'CHARGEBACK'
   | 'CHARGEBACK_REVERSED'
+  | 'TEAM_CONTRIBUTION'
+  | 'TEAM_REFUND'
   | 'LEGACY';
 
 /**
@@ -105,7 +107,7 @@ export interface WalletLedgerEntry {
   countsTowardsBalance: boolean;
   title: string;
   createdAt: string;
-  related?: { type: 'match'; id: string; name: string };
+  related?: { type: 'match' | 'team'; id: string; name: string };
   /** Present on CARD_REFUND entries: where the money is on its way back to the card. */
   cardRefund?: { state: CardRefundState };
 }
@@ -154,7 +156,13 @@ export type WalletReconciliationIssueCode =
   | 'STARTED_MATCH_WITHOUT_PAYABLE'
   | 'LEGACY_RESERVATION_UNSETTLED'
   | 'SETTLEMENT_TOTAL_MISMATCH'
-  | 'SETTLEMENT_PAYABLE_STATE_MISMATCH';
+  | 'SETTLEMENT_PAYABLE_STATE_MISMATCH'
+  // Gate 7 (TKT-701): team wallets.
+  | 'TEAM_BALANCE_LEDGER_MISMATCH'
+  | 'TEAM_NEGATIVE_AVAILABLE_BALANCE'
+  | 'TEAM_CONTRIBUTION_LINK_MISMATCH'
+  | 'TEAM_PROVENANCE_MISMATCH'
+  | 'TEAM_ARCHIVED_WITH_FUNDS';
 export interface WalletReconciliationReport {
   generatedAt: string;
   walletCount: number;
@@ -163,6 +171,7 @@ export interface WalletReconciliationReport {
   providerPaymentCount?: number;
   payableCount?: number;
   settlementBatchCount?: number;
+  teamWalletCount?: number;
   issueCount: number;
   issues: WalletReconciliationIssue[];
 }

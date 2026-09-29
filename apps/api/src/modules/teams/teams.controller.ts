@@ -54,8 +54,8 @@ export const update: RequestHandler = async (req, res, next) => {
 };
 export const remove: RequestHandler = async (req, res, next) => {
   try {
-    await service.remove(teamId(req.params), userId(res.locals));
-    res.json({ data: { success: true } });
+    const closed = await service.remove(teamId(req.params), userId(res.locals));
+    res.json({ data: { success: true, ...closed } });
   } catch (error) {
     next(error);
   }

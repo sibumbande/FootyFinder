@@ -92,6 +92,22 @@ enum WalletTransactionType {
   TOP_UP_REFUND_RESTORE_CREDIT
   CHARGEBACK_DEBIT
   CHARGEBACK_REVERSAL_CREDIT
+  TEAM_CONTRIBUTION_DEBIT
+  TEAM_CONTRIBUTION_REFUND_CREDIT
+}
+
+/// Gate 7 / TKT-701: Team Wallet ledger kinds (DEC-014, DEC-019).
+enum TeamWalletTransactionType {
+  CONTRIBUTION_CREDIT
+  CONTRIBUTION_REFUND_DEBIT
+  CLOSURE_REFUND_DEBIT
+  TEAM_MATCH_FEE_DEBIT
+}
+
+enum TeamWalletHoldStatus {
+  ACTIVE
+  CAPTURED
+  RELEASED
 }
 
 enum WalletTransactionStatus {
@@ -446,6 +462,9 @@ model User {
   paidSettlements           VenueSettlementBatch[]    @relation("SettlementPayer")
   cancelledSettlements      VenueSettlementBatch[]    @relation("SettlementCanceller")
   restoredRefunds           ProviderRefund[]          @relation("RefundRestorer")
+  teamWalletActions         TeamWalletTransaction[]   @relation("TeamWalletActor")
+  teamWalletContributions   TeamWalletTransaction[]   @relation("TeamWalletContributor")
+  teamWalletHoldsCreated    TeamWalletHold[]          @relation("TeamWalletHoldCreator")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -945,6 +964,7 @@ model WalletTransaction {
   refundRestore     ProviderRefund?         @relation("RefundRestore")
   disputeDebit      ProviderDispute?        @relation("DisputeDebit")
   disputeReversal   ProviderDispute?        @relation("DisputeReversal")
+  teamWalletLink    TeamWalletTransaction?  @relation("TeamWalletPersonalLink")
 
   @@unique([provider, providerReference])
   @@index([walletAccountId, createdAt])
@@ -1251,6 +1271,7 @@ model Match {
   fieldReservation          FieldReservation?
   formationEvents           MatchFormationEvent[]
   venuePayable              VenuePayable?
+  teamWalletHolds           TeamWalletHold[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1628,6 +1649,8 @@ model Team {
   primaryColor    String?
   secondaryColor  String?
   ownerUserId     String           @db.Uuid
+  /// Gate 7 / D7: a closed team is archived, never deleted, so its money history is kept.
+  archivedAt      DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   owner           User             @relation("TeamOwner", fields: [ownerUserId], references: [id])
@@ -1635,9 +1658,89 @@ model Team {
   invites         TeamInvite[]
   formations      TeamFormation[]
   matchSides      MatchTeam[]
+  wallet          TeamWalletAccount?
 
   @@index([ownerUserId])
   @@index([name])
+}
+
+/// Gate 7 / TKT-701 (DEC-014): a team's own wallet, never a subaccount of a personal wallet.
+/// balanceCents is the sum of its ledger rows and is only changed by TeamWalletRepository.
+model TeamWalletAccount {
+  id           String                  @id @default(uuid()) @db.Uuid
+  teamId       String                  @unique @db.Uuid
+  currency     String                  @default("ZAR")
+  balanceCents Int                     @default(0)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  team         Team                    @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  transactions TeamWalletTransaction[]
+  holds        TeamWalletHold[]
+}
+
+/// Immutable team ledger row (a trigger rejects updates). Signed: credits positive, debits negative.
+model TeamWalletTransaction {
+  id                        String                    @id @default(uuid()) @db.Uuid
+  teamWalletAccountId       String                    @db.Uuid
+  type                      TeamWalletTransactionType
+  amountCents               Int
+  idempotencyKey            String                    @unique
+  actorUserId               String?                   @db.Uuid
+  contributorUserId         String?                   @db.Uuid
+  linkedWalletTransactionId String?                   @unique @db.Uuid
+  referenceType             String?
+  referenceId               String?
+  description               String?
+  createdAt                 DateTime                  @default(now())
+  account                   TeamWalletAccount         @relation(fields: [teamWalletAccountId], references: [id], onDelete: Restrict)
+  actor                     User?                     @relation("TeamWalletActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  contributor               User?                     @relation("TeamWalletContributor", fields: [contributorUserId], references: [id], onDelete: Restrict)
+  linkedWalletTransaction   WalletTransaction?        @relation("TeamWalletPersonalLink", fields: [linkedWalletTransactionId], references: [id], onDelete: Restrict)
+  spentBy                   TeamWalletAllocation[]    @relation("AllocationContribution")
+  spends                    TeamWalletAllocation[]    @relation("AllocationDebit")
+  capturedHold              TeamWalletHold?
+
+  @@index([teamWalletAccountId, createdAt])
+  @@index([contributorUserId])
+}
+
+/// Fill-meter money held for one side of one match (DEC-019 / D2).
+model TeamWalletHold {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  teamWalletAccountId  String                 @db.Uuid
+  matchId              String                 @db.Uuid
+  side                 TeamSide
+  amountCents          Int
+  status               TeamWalletHoldStatus   @default(ACTIVE)
+  idempotencyKey       String                 @unique
+  createdByUserId      String?                @db.Uuid
+  captureTransactionId String?                @unique @db.Uuid
+  releaseReason        String?
+  capturedAt           DateTime?
+  releasedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  account              TeamWalletAccount      @relation(fields: [teamWalletAccountId], references: [id], onDelete: Restrict)
+  match                Match                  @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  createdBy            User?                  @relation("TeamWalletHoldCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  captureTransaction   TeamWalletTransaction? @relation(fields: [captureTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([teamWalletAccountId, status])
+  @@index([matchId, side, status])
+}
+
+/// Which contribution a team debit spent (oldest first, D8). A trigger stops over-spending one.
+model TeamWalletAllocation {
+  id                        String                @id @default(uuid()) @db.Uuid
+  contributionTransactionId String                @db.Uuid
+  debitTransactionId        String                @db.Uuid
+  amountCents               Int
+  createdAt                 DateTime              @default(now())
+  contribution              TeamWalletTransaction @relation("AllocationContribution", fields: [contributionTransactionId], references: [id], onDelete: Restrict)
+  debit                     TeamWalletTransaction @relation("AllocationDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([contributionTransactionId, debitTransactionId], map: "TeamWalletAllocation_contributionTransactionId_debitTransaction")
+  @@index([debitTransactionId])
 }
 
 model TeamMembership {

@@ -24,6 +24,8 @@ const KIND_BY_TYPE: Record<WalletTransactionType, WalletLedgerKind> = {
   TOP_UP_REFUND_RESTORE_CREDIT: 'CARD_REFUND_REVERSED',
   CHARGEBACK_DEBIT: 'CHARGEBACK',
   CHARGEBACK_REVERSAL_CREDIT: 'CHARGEBACK_REVERSED',
+  TEAM_CONTRIBUTION_DEBIT: 'TEAM_CONTRIBUTION',
+  TEAM_CONTRIBUTION_REFUND_CREDIT: 'TEAM_REFUND',
 };
 
 const TITLE_BY_KIND: Record<WalletLedgerKind, string> = {
@@ -37,6 +39,8 @@ const TITLE_BY_KIND: Record<WalletLedgerKind, string> = {
   CARD_REFUND_REVERSED: 'Card refund failed – returned to your wallet',
   CHARGEBACK: 'Card payment disputed – top-up reversed',
   CHARGEBACK_REVERSED: 'Card dispute resolved – top-up restored',
+  TEAM_CONTRIBUTION: 'Contribution to your team wallet',
+  TEAM_REFUND: 'Team contribution returned',
   LEGACY: 'Wallet adjustment',
 };
 
@@ -108,6 +112,7 @@ export class WalletHistoryService {
     });
     const page = rows.slice(0, query.limit);
     const matches = await this.relatedMatches(page);
+    const teams = await this.relatedTeams(page);
     const refundDebits = page.filter((row) => row.type === 'TOP_UP_REFUND_DEBIT').map((row) => row.id);
     const refunds = refundDebits.length
       ? await prisma.providerRefund.findMany({
@@ -119,6 +124,7 @@ export class WalletHistoryService {
     const entries = page.map((row): WalletLedgerEntry => {
       const kind = walletLedgerKind(row.type);
       const match = matches.get(row.id);
+      const team = teams.get(row.id);
       return {
         id: row.id,
         kind,
@@ -129,6 +135,7 @@ export class WalletHistoryService {
         title: TITLE_BY_KIND[kind],
         createdAt: row.createdAt.toISOString(),
         ...(match && { related: { type: 'match' as const, id: match.id, name: match.name } }),
+        ...(team && { related: { type: 'team' as const, id: team.id, name: team.name } }),
         ...(refundState.has(row.id) && { cardRefund: { state: refundState.get(row.id)! } }),
       };
     });
@@ -137,6 +144,22 @@ export class WalletHistoryService {
       entries,
       nextCursor: rows.length > query.limit && last ? encodeCursor(last.createdAt, last.id) : null,
     };
+  }
+
+  /** Gate 7: team contributions and refunds link to the team (id and name only). */
+  private async relatedTeams(rows: Array<{ id: string; referenceType: string | null; referenceId: string | null }>) {
+    const ids = [...new Set(rows.flatMap((row) =>
+      row.referenceType === 'TEAM' && row.referenceId && /^[0-9a-f-]{36}$/i.test(row.referenceId) ? [row.referenceId] : []))];
+    const teams = ids.length
+      ? await prisma.team.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+      : [];
+    const byId = new Map(teams.map((team) => [team.id, team]));
+    const result = new Map<string, { id: string; name: string }>();
+    for (const row of rows) {
+      const team = row.referenceType === 'TEAM' && row.referenceId ? byId.get(row.referenceId) : undefined;
+      if (team) result.set(row.id, team);
+    }
+    return result;
   }
 
   /** Resolves each ledger row's own reference to its match. Only match id and name are read. */

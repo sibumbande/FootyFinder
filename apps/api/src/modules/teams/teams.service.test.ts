@@ -129,7 +129,7 @@ describe('TeamsService', () => {
     const matches = {
       createTeamFixture: vi.fn().mockResolvedValue(teamMatch),
     } as unknown as MatchesRepository;
-    const service = new TeamsService({} as TeamsRepository, notifications, images, matches);
+    const service = new TeamsService({ findById: vi.fn().mockResolvedValue(team) } as unknown as TeamsRepository, notifications, images, matches);
     const input = {
       name: 'Team planning night',
       format: 'FIVE_A_SIDE' as const,
@@ -162,7 +162,7 @@ describe('TeamsService', () => {
     const matches = {
       createTeamFixture: vi.fn().mockRejectedValue(new TeamFixtureForbiddenError()),
     } as unknown as MatchesRepository;
-    const service = new TeamsService({} as TeamsRepository, notifications, images, matches);
+    const service = new TeamsService({ findById: vi.fn().mockResolvedValue(team) } as unknown as TeamsRepository, notifications, images, matches);
     await expect(
       service.createMatch(
         'team-1',
@@ -241,7 +241,7 @@ describe('TeamsService', () => {
     const repository = {
       findById: vi.fn().mockResolvedValue(team),
       update: vi.fn(),
-      delete: vi.fn(),
+      close: vi.fn(),
     } as unknown as TeamsRepository;
     const service = new TeamsService(repository, notifications, images);
     const action =
@@ -249,6 +249,46 @@ describe('TeamsService', () => {
         ? service.update('team-1', { name: 'Nope' }, actor)
         : service.remove('team-1', actor);
     await expect(action).rejects.toMatchObject({ statusCode: 403, code: 'TEAM_OWNER_REQUIRED' });
+  });
+
+  describe('closing a team (Gate 7 / D7)', () => {
+    const closeWith = (result: unknown, found: unknown = team) => {
+      const repository = {
+        findById: vi.fn().mockResolvedValue(found),
+        close: vi.fn().mockResolvedValue(result),
+      } as unknown as TeamsRepository;
+      return { repository, service: new TeamsService(repository, notifications, images) };
+    };
+
+    it('refuses while a public team match is upcoming', async () => {
+      const { service } = closeWith({ outcome: 'UPCOMING_MATCHES', refunds: [], notifications: [] });
+      await expect(service.remove('team-1', 'owner')).rejects.toMatchObject({ statusCode: 409, code: 'TEAM_HAS_UPCOMING_MATCHES' });
+    });
+
+    it('refuses while fill-meter money is held', async () => {
+      const { service } = closeWith({ outcome: 'HOLDS_ACTIVE', refunds: [], notifications: [] });
+      await expect(service.remove('team-1', 'owner')).rejects.toMatchObject({ statusCode: 409, code: 'TEAM_WALLET_HOLDS_ACTIVE' });
+    });
+
+    it('archives the team, returns unspent money and publishes the refund notices after commit', async () => {
+      const persisted = [{ id: 'n-1' }] as unknown as Notification[];
+      const publish = vi.fn();
+      const repository = {
+        findById: vi.fn().mockResolvedValue(team),
+        close: vi.fn().mockResolvedValue({ outcome: 'CLOSED', refunds: [{ userId: 'member', amountCents: 5_000 }], notifications: persisted }),
+      } as unknown as TeamsRepository;
+      const service = new TeamsService(repository, { publishPersistedMany: publish } as unknown as NotificationsService, images);
+      await expect(service.remove('team-1', 'owner')).resolves.toEqual({ refunds: [{ userId: 'member', amountCents: 5_000 }] });
+      expect(repository.close).toHaveBeenCalledWith('team-1', 'owner');
+      expect(publish).toHaveBeenCalledWith(persisted);
+    });
+
+    it('treats a closed team as read-only', async () => {
+      const { service, repository } = closeWith({ outcome: 'CLOSED' }, { ...team, archivedAt: now });
+      await expect(service.remove('team-1', 'owner')).rejects.toMatchObject({ statusCode: 409, code: 'TEAM_ARCHIVED' });
+      await expect(service.createInvite('team-1', 'captain')).rejects.toMatchObject({ code: 'TEAM_ARCHIVED' });
+      expect(repository.close).not.toHaveBeenCalled();
+    });
   });
 
   it('allows a captain to create an invite but prevents a member', async () => {

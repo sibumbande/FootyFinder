@@ -15,6 +15,8 @@ export interface TeamSummary {
   secondaryColor?: string | null;
   memberCount: number;
   viewerRole?: TeamRole | null;
+  /** Gate 7 / D7: set when the team was closed (archived, read-only). */
+  archivedAt?: string | null;
 }
 
 export interface TeamMember {

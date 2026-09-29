@@ -43,6 +43,7 @@ export const toTeamSummary = (team: any, viewerUserId?: string): TeamSummary => 
   secondaryColor: team.secondaryColor,
   memberCount: team._count?.memberships ?? team.memberships?.length ?? 0,
   viewerRole: team.memberships?.find((item: any) => item.userId === viewerUserId)?.role ?? null,
+  archivedAt: team.archivedAt ? team.archivedAt.toISOString() : null,
 });
 
 export const toTeamDetail = (team: any, viewerUserId?: string): TeamDetail => ({

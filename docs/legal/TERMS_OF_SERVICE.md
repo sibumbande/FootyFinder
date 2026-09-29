@@ -5,14 +5,18 @@ MASTER TERMS OF SERVICE,
 PRIVACY NOTICE AND
 PARTICIPATION AGREEMENT
 Document	Master Terms of Service, Privacy Notice and Participation Agreement
-Version	2.2
-Effective date	29 September 2026
+Version	2.3
+Effective date	Set when this version is published (a material change: at least 14 days after notice, clause 26.2)
 Last updated	29 September 2026
-Supersedes	Version 2.1 (29 September 2026)
+Supersedes	Version 2.2 (29 September 2026)
 Applies to	All registered users of the FootyFinder platform, website and mobile applications
 Governing law	Republic of South Africa
 Presented at	Account registration — acceptance required before an account is created
 Queries	Contact support on our website
+
+SUMMARY OF CHANGES IN VERSION 2.3
+This summary explains what changed from version 2.2. It does not replace the full Terms below. This is a material change: you will be asked to accept version 2.3 before you can continue to create, join or pay for matches or manage a Team.
+•	Closing a Team. When a Team is closed, or its owner and Captains cannot be contacted for sixty (60) days, each member's own unspent contributions go back to that member's Wallet. There is no proportional or equal-share split and no cash withdrawal (clause 12.5).
 
 SUMMARY OF CHANGES IN VERSION 2.2
 This summary explains what changed from version 2.1. It does not replace the full Terms below. These are clarifications of how card top-ups, card refunds and chargebacks work; they do not change what you pay.
@@ -234,7 +238,7 @@ IMPORTANT: Nothing in this clause excludes or limits our liability for gross neg
 12.2	Captain’s authority. The Captain may enter fixtures, accept challenges, allocate positions, add and remove members, and spend the Team Treasury on match fees. By joining a Team you authorise the Captain to do so on your behalf.
 12.3	Contributions. Amounts contributed to a Team Treasury are contributed for the purpose of funding that Team’s bookings. Contributions are not personal Wallet credit and are not individually refundable once a fixture has been confirmed and the venue committed.
 12.4	Leaving a Team. If you leave a Team, you are not entitled to a refund of amounts already contributed to and spent by the Team Treasury. Unspent contributions may be refunded at the Captain’s direction, or at our discretion where a member can show that funds were collected for a fixture that did not take place.
-12.5	Disbanded Teams. If a Team is disbanded, or if a Captain becomes uncontactable for more than sixty (60) days, any unspent Team Treasury balance will be distributed to members in proportion to their recorded contributions, or where that cannot be determined, refunded in equal shares to active members.
+12.5	Closing a Team. The Team owner may close a Team when it has no upcoming team match and no Team Treasury money is held for a match. If the owner and every Captain of a Team are uncontactable for more than sixty (60) days, the Team is closed in the same way. When a Team is closed, each contributor's own unspent contributions (clause 12.4) are returned to that contributor's personal Wallet, including a contributor who has since left the Team. There is no proportional or equal-share split, and Team Treasury money is never paid out in cash. A closed Team is archived: its match and payment history is kept.
 12.6	Disputes within a Team. Disputes about squad selection, membership or the internal affairs of a Team are matters between the members. We will not adjudicate them, but we will act where a dispute involves fraud, harassment or misuse of funds.
 12.7	Team names and crests. You may not use a Team name, crest or colours that infringe a third party’s trade mark, that impersonates an existing club or company without authority, or that is offensive, discriminatory or misleading. We may require a change.
 12.8	Institutional teams. Where a Team is registered on behalf of an employer, university residence, club or other institution, the Captain warrants that they are authorised to bind that institution to the fixture and the fees.

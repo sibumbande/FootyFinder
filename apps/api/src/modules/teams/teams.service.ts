@@ -67,13 +67,30 @@ export class TeamsService {
     emitDomainEventBestEffort('team:details-updated', { teamId: id, team });
     return team;
   }
+  /** Gate 7 / D7: "Close team". The team is archived (never deleted) and unspent money returned. */
   async remove(id: string, userId: string) {
-    const team = await this.assertOwner(id, userId);
-    await this.teams.delete(id);
-    emitDomainEventBestEffort('team:deleted', { teamId: id });
-    if (team.profileImageUrl) await this.images.delete(team.profileImageUrl);
+    await this.assertOwner(id, userId);
+    const result = await this.teams.close(id, userId);
+    if (result.outcome === 'UPCOMING_MATCHES')
+      throw new AppError(
+        409,
+        'This team has an upcoming team match. Cancel it or wait until it has been played before closing the team.',
+        'TEAM_HAS_UPCOMING_MATCHES',
+      );
+    if (result.outcome === 'HOLDS_ACTIVE')
+      throw new AppError(
+        409,
+        'Team wallet money is still held for a match. It is released or spent when that match is decided.',
+        'TEAM_WALLET_HOLDS_ACTIVE',
+      );
+    if (result.outcome === 'CLOSED') {
+      this.notifications.publishPersistedMany(result.notifications);
+      emitDomainEventBestEffort('team:deleted', { teamId: id });
+    }
+    return { refunds: result.refunds };
   }
   async createMatch(id: string, input: CreateTeamMatchInput, userId: string) {
+    this.assertNotArchived(await this.load(id));
     this.assertFormation(input.format, input.formationKey);
     try {
       return toMatch(
@@ -252,14 +269,20 @@ export class TeamsService {
     if (!team) throw new AppError(404, 'Team not found.', 'TEAM_NOT_FOUND');
     return team;
   }
+  private assertNotArchived(team: { archivedAt: Date | null }) {
+    if (team.archivedAt)
+      throw new AppError(409, 'This team has been closed.', 'TEAM_ARCHIVED');
+  }
   private async assertOwner(id: string, userId: string) {
     const team = await this.load(id);
     if (team.ownerUserId !== userId)
       throw new AppError(403, 'Only the Team owner can do that.', 'TEAM_OWNER_REQUIRED');
+    this.assertNotArchived(team);
     return team;
   }
   private async assertAdmin(id: string, userId: string) {
     const team = await this.load(id);
+    this.assertNotArchived(team);
     const member = team.memberships.find(({ userId: idOfMember }) => idOfMember === userId);
     if (!member || !['OWNER', 'CAPTAIN'].includes(member.role))
       throw new AppError(403, 'Owner or captain permission is required.', 'TEAM_FORBIDDEN');

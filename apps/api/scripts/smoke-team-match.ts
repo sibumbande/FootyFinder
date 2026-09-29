@@ -9,6 +9,7 @@ import {
   TeamMatchPlanningError,
 } from '../src/modules/matches/matches.repository.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
+import { deleteTeamWalletFixtures } from './team-wallet-fixtures.js';
 
 const marker = `phase-1b-${randomUUID()}`;
 const matches = new MatchesRepository();
@@ -152,7 +153,9 @@ async function main() {
   assert((await balances(userIds)) === balancesBefore, 'Blocked join mutated a wallet.');
 
   await prisma.match.update({ where: { id: ownerFixture.id }, data: { status: 'COMPLETED' } });
-  await teams.delete(team.id);
+  const closed = await teams.close(team.id, owner.id);
+  assert(closed.outcome === 'CLOSED', 'Team closure did not archive the team.');
+  assert((await prisma.team.findUniqueOrThrow({ where: { id: team.id } })).archivedAt, 'Closed Team was not archived.');
   const [historical, unfinished] = await Promise.all([
     prisma.match.findUniqueOrThrow({
       where: { id: ownerFixture.id },
@@ -163,12 +166,12 @@ async function main() {
       include: { teamSides: true },
     }),
   ]);
-  assert(historical.status === 'COMPLETED', 'Team deletion changed completed Match history.');
-  assert(unfinished.status === 'CANCELLED', 'Team deletion did not cancel an unfinished fixture.');
-  assert(historical.teamSides[0]?.teamId === null, 'Deleted Team relation was not nulled.');
+  assert(historical.status === 'COMPLETED', 'Team closure changed completed Match history.');
+  assert(unfinished.status === 'CANCELLED', 'Team closure did not cancel an unfinished private fixture.');
+  assert(historical.teamSides[0]?.teamId === team.id, 'Closed Team lost its match history link.');
   assert(
     historical.teamSides[0]?.teamNameSnapshot === team.name,
-    'Deleted Team lost its historical snapshot.',
+    'Closed Team lost its historical snapshot.',
   );
 
   console.log('Phase 1B PostgreSQL smoke test passed.');
@@ -179,6 +182,7 @@ async function cleanup() {
     where: { name: { startsWith: marker } },
     select: { id: true },
   });
+  await deleteTeamWalletFixtures(markedTeams.map(({ id }) => id));
   if (markedTeams.length)
     await prisma.team.deleteMany({ where: { id: { in: markedTeams.map(({ id }) => id) } } });
   const markedMatches = await prisma.match.findMany({
