@@ -7,6 +7,7 @@ import { formatDate } from '@/utils/format-date.js';
 import { useNotifications } from './NotificationProvider.js';
 import { ensureSocketConnected } from '@/socket/socket.js';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
+import { walletKey } from '@/features/wallet/hooks/useWallet.js';
 const key = ['notifications'] as const;
 export function NotificationsMenu() {
   const [open, setOpen] = useState(false);
@@ -53,7 +54,10 @@ export function NotificationsMenu() {
         message: item.message,
       });
     };
-    const refreshWallet = () => void cache.invalidateQueries({ queryKey: currentUserKey });
+    const refreshWallet = () => {
+      void cache.invalidateQueries({ queryKey: currentUserKey });
+      void cache.invalidateQueries({ queryKey: walletKey });
+    };
     const sessionRevoked = () => {
       cache.clear();
       cache.setQueryData(currentUserKey, null);

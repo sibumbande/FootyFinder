@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UserMenu } from './UserMenu.js';
 
 vi.mock('@/features/auth/hooks/useAuth.js', () => ({
@@ -16,6 +16,8 @@ vi.mock('@/features/auth/hooks/useAuth.js', () => ({
   useLogout: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+afterEach(cleanup);
+
 describe('UserMenu', () => {
   it('links directly to the authenticated player profile', () => {
     render(
@@ -28,5 +30,15 @@ describe('UserMenu', () => {
       'href',
       '/players/11111111-1111-4111-8111-111111111111',
     );
+  });
+
+  it('puts Wallet in the account menu', () => {
+    render(
+      <MemoryRouter>
+        <UserMenu />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /player-one/i }));
+    expect(screen.getByRole('menuitem', { name: 'Wallet' })).toHaveAttribute('href', '/wallet');
   });
 });

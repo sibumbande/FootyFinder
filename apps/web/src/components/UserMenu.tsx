@@ -87,6 +87,14 @@ export function UserMenu() {
           >
             My Profile
           </Link>
+          <Link
+            role="menuitem"
+            to="/wallet"
+            onClick={() => setOpen(false)}
+            className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"
+          >
+            Wallet
+          </Link>
           {!user.onboardingComplete && (
             <Link
               role="menuitem"

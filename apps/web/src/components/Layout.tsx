@@ -70,9 +70,11 @@ export function Layout() {
                 </svg>
                 <span className="hidden sm:inline">Add funds</span>
               </Button>
-              <div
+              <Link
+                to="/wallet"
                 className="rounded-md border border-line-strong bg-brand-900 px-2.5 py-2 text-right text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] sm:px-3"
                 title="Wallet balance"
+                aria-label={`Wallet balance ${formatRands(user.balanceCents)}`}
               >
                 <span className="hidden text-[9px] font-black uppercase tracking-[0.14em] text-warning-200 sm:block">
                   Balance
@@ -80,7 +82,7 @@ export function Layout() {
                 <span className="block whitespace-nowrap text-sm font-black text-content-inverse">
                   {formatRands(user.balanceCents)}
                 </span>
-              </div>
+              </Link>
               <NotificationsMenu />
               <UserMenu />
             </>
