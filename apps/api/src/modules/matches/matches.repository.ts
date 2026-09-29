@@ -25,6 +25,8 @@ import {
   type NotificationDraft,
 } from '../notifications/notification-writer.js';
 import { matchInclude, participantInclude } from './match.query.js';
+import { matchCancelledMessage } from './cancellation-message.js';
+import { enqueueMatchCancelledEmail } from './match-cancelled-email.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -635,6 +637,7 @@ export class MatchesRepository {
       include: {
         payments: { where: { status: 'SUCCEEDED' } },
         fieldReservation: true,
+        venue: { select: { name: true } },
         participants: { where: { status: 'JOINED' }, select: { userId: true } },
       },
     });
@@ -642,7 +645,7 @@ export class MatchesRepository {
       return { match, refundedUserIds: [] as string[], notifications: [] as Notification[] };
     const unfilled = reason === 'POSITIONS_UNFILLED';
     const refundedUserIds: string[] = [];
-    const notificationDrafts: NotificationDraft[] = [];
+    const refundedCentsByUser = new Map<string, number>();
     for (const payment of match.payments) {
       await this.financial.credit(tx, {
         userId: payment.userId,
@@ -657,32 +660,37 @@ export class MatchesRepository {
       });
       await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
       refundedUserIds.push(payment.userId);
+      refundedCentsByUser.set(
+        payment.userId,
+        (refundedCentsByUser.get(payment.userId) ?? 0) + payment.amountCents,
+      );
+    }
+    // One alert per person: every joined player, every refunded payer and the host. Each gets one
+    // in-app notification (realtime toast after commit) and one transactional email job.
+    const recipients = [
+      ...new Set([
+        ...match.participants.map(({ userId }) => userId),
+        ...refundedCentsByUser.keys(),
+        match.createdById,
+      ]),
+    ];
+    const notificationDrafts: NotificationDraft[] = [];
+    for (const userId of recipients) {
+      const refundedCents = refundedCentsByUser.get(userId) ?? 0;
       notificationDrafts.push({
-        userId: payment.userId,
+        userId,
         type: 'MATCH_CANCELLED',
         title: 'Match cancelled',
-        message: unfilled
-          ? `Not all positions were filled 30 minutes before kickoff, so the match was cancelled. Your R${(payment.amountCents / 100).toFixed(2)} was refunded to your Footy Finder wallet.`
-          : 'Your full match fee was credited to your Footy Finder wallet.',
+        message: matchCancelledMessage({
+          venueName: match.venue.name,
+          startsAt: match.startsAt,
+          reason,
+          refundedCents,
+        }),
         targetPath: `/matches/${matchId}`,
-        dedupeKey: notificationDedupeKey('match-payment', payment.id, 'match-cancelled', payment.userId),
+        dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', userId),
       });
-    }
-    if (unfilled) {
-      // Also tell every joined player without a refundable payment, and the host.
-      const others = [
-        ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
-      ].filter((userId) => !refundedUserIds.includes(userId));
-      for (const userId of others)
-        notificationDrafts.push({
-          userId,
-          type: 'MATCH_CANCELLED',
-          title: 'Match cancelled',
-          message:
-            'Not all positions were filled 30 minutes before kickoff, so the match was cancelled.',
-          targetPath: `/matches/${matchId}`,
-          dedupeKey: notificationDedupeKey('match', matchId, 'go-no-go-cancelled', userId),
-        });
+      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents });
     }
     if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
       // DEC-018: nothing is owed to the venue for a cancelled match and the host is never

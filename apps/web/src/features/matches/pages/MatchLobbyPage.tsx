@@ -26,6 +26,7 @@ import {
   QUICK_MATCH_SIDE_LABELS,
 } from '../constants/quick-match-sides.js';
 import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
+import { rands } from '../utils/go-no-go-format.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
@@ -115,7 +116,7 @@ export function MatchLobbyPage() {
   const cancelMatch = () => {
     if (
       !window.confirm(
-        'Cancel this match? Every eligible paid player will receive a full internal wallet credit.',
+        `Cancel this match? Every player gets their ${rands(match.feeCents)} refunded to their wallet and is notified by email.`,
       )
     )
       return;
@@ -124,7 +125,7 @@ export function MatchLobbyPage() {
         notify({
           variant: 'info',
           title: 'Match cancelled',
-          message: 'Eligible player fees were returned to their wallets.',
+          message: 'Every player was refunded and notified.',
         });
         navigate('/matches', { replace: true });
       },
@@ -286,6 +287,9 @@ export function MatchLobbyPage() {
         feeCents={match.feeCents}
         filled={boardSlots.filter((slot) => slot.playerId).length}
         total={boardSlots.length}
+        venueName={match.venue.name}
+        startsAt={match.startsAt}
+        viewerJoined={Boolean(currentParticipant)}
       />
       <FormError
         message={leave.error?.message ?? deletion.error?.message ?? ready.error?.message}

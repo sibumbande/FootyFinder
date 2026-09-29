@@ -8,6 +8,7 @@ import { registerWalletHoldJobHandlers } from './modules/wallet/wallet-hold.jobs
 import { registerBookingJobHandlers } from './modules/bookings/booking.jobs.js';
 import { registerModerationJobHandlers } from './modules/moderation/moderation.jobs.js';
 import { registerGoNoGoJobHandlers } from './modules/matches/go-no-go.jobs.js';
+import { registerMatchCancelledEmailJobHandlers } from './modules/matches/match-cancelled-email.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -16,5 +17,6 @@ registerWalletHoldJobHandlers();
 registerBookingJobHandlers();
 registerModerationJobHandlers();
 registerGoNoGoJobHandlers();
+registerMatchCancelledEmailJobHandlers();
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

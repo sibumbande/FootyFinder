@@ -21,7 +21,8 @@ export class NotificationsService {
     if (
       item.type === 'WALLET_CREDIT' ||
       item.type === 'DEPOSIT_SUCCEEDED' ||
-      item.type === 'BOOKING_CONFIRMED'
+      item.type === 'BOOKING_CONFIRMED' ||
+      item.type === 'MATCH_CANCELLED'
     )
       emitDomainEventBestEffort('wallet:updated', { userId: item.userId });
     return notification;

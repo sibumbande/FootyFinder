@@ -6,6 +6,7 @@ afterEach(cleanup);
 
 // Kickoff 30 Oct 2026 14:00 SAST -> go/no-go at 13:30 SAST (11:30Z).
 const goNoGoAt = '2026-10-30T11:30:00.000Z';
+const kickoff = '2026-10-30T12:00:00.000Z';
 const before = new Date('2026-10-30T09:00:00.000Z');
 const after = new Date('2026-10-30T11:45:00.000Z');
 
@@ -47,7 +48,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
     expect(screen.getByTestId('positions-filled')).toHaveTextContent('10 of 10 positions filled');
   });
 
-  it('shows the automatic cancellation and refund', () => {
+  it('explains the automatic cancellation with venue, date and kickoff, as in the alert', () => {
     render(
       <GoNoGoBanner
         facts={{ goNoGoAt, cancellationReason: 'POSITIONS_UNFILLED' }}
@@ -55,27 +56,55 @@ describe('GoNoGoBanner (DEC-018)', () => {
         feeCents={8_000}
         filled={8}
         total={10}
+        venueName="Italian Club"
+        startsAt={kickoff}
+        viewerJoined
         now={after}
       />,
     );
+    expect(screen.getByRole('status')).toHaveTextContent('Cancelled: not every position was filled');
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Not every position was filled by 13:30 on 30 Oct 2026, so this match was cancelled. Your R80 was refunded to your wallet.',
+      'This match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. Your R80 has been refunded to your FootyFinder wallet.',
     );
   });
 
-  it('renders nothing for legacy matches or an organiser cancellation', () => {
-    const { container, rerender } = render(
-      <GoNoGoBanner facts={{}} status="OPEN" feeCents={2_000} filled={0} total={10} />,
-    );
-    expect(container).toBeEmptyDOMElement();
-    rerender(
+  it('explains a host cancellation, including to viewers who did not join', () => {
+    render(
       <GoNoGoBanner
         facts={{ goNoGoAt, cancellationReason: 'ORGANISER_CANCELLED' }}
         status="CANCELLED"
         feeCents={8_000}
+        filled={2}
+        total={10}
+        venueName="Queens Park"
+        startsAt={kickoff}
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Cancelled by the host');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "This match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled by the host. Every player's R80 has been refunded to their FootyFinder wallet.",
+    );
+  });
+
+  it('explains a host cancellation of a legacy match without a go/no-go time', () => {
+    render(
+      <GoNoGoBanner
+        facts={{ cancellationReason: 'ORGANISER_CANCELLED' }}
+        status="CANCELLED"
+        feeCents={4_550}
         filled={0}
         total={10}
+        venueName="Queens Park"
+        startsAt={kickoff}
+        viewerJoined
       />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('was cancelled by the host. Your R45.50 has been refunded');
+  });
+
+  it('renders nothing for an open legacy match', () => {
+    const { container } = render(
+      <GoNoGoBanner facts={{}} status="OPEN" feeCents={2_000} filled={0} total={10} />,
     );
     expect(container).toBeEmptyDOMElement();
   });

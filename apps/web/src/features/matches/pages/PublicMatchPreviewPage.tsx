@@ -82,6 +82,8 @@ export function PublicMatchPreviewPage() {
           feeCents={preview.feeCents}
           filled={preview.positions?.filled ?? 0}
           total={preview.positions?.total ?? 0}
+          venueName={preview.venue.name}
+          startsAt={preview.startsAt}
         />
 
         <section className="rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-8">

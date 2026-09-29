@@ -1,32 +1,14 @@
 import type { MatchGoNoGoFacts, MatchStatus } from '@footy-finder/shared';
+import { formatClock, formatGoNoGoTime, formatMatchDay, rands } from '../utils/go-no-go-format.js';
 
-/** Cape Town is the launch city; venue times are shown in South African time. */
-const VENUE_TIME_ZONE = 'Africa/Johannesburg';
-
-export const formatGoNoGoTime = (iso: string) => {
-  const date = new Date(iso);
-  const time = new Intl.DateTimeFormat('en-ZA', {
-    timeZone: VENUE_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(date);
-  const day = new Intl.DateTimeFormat('en-GB', {
-    timeZone: VENUE_TIME_ZONE,
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
-  return `${time} on ${day}`;
-};
-
-const rands = (cents: number) => `R${Number.isInteger(cents / 100) ? cents / 100 : (cents / 100).toFixed(2)}`;
+export { formatGoNoGoTime };
 
 /**
  * DEC-018 player messaging: a Quick Match goes ahead only if every formation position is claimed
  * by T-30. Shows the rule, the live "X of Y positions filled" count (which updates with the
- * realtime formation cache), and the confirmed/cancelled outcome. Renders nothing for legacy
- * matches without a go/no-go time.
+ * realtime formation cache), and the confirmed outcome. A cancelled match (T-30 auto-cancel or host
+ * cancel, including legacy matches) shows the same explanation as the cancellation alert and email.
+ * Otherwise renders nothing for legacy matches without a go/no-go time.
  */
 export function GoNoGoBanner({
   facts,
@@ -34,6 +16,9 @@ export function GoNoGoBanner({
   feeCents,
   filled,
   total,
+  venueName,
+  startsAt,
+  viewerJoined = false,
   now = new Date(),
 }: {
   facts: MatchGoNoGoFacts;
@@ -41,8 +26,38 @@ export function GoNoGoBanner({
   feeCents: number;
   filled: number;
   total: number;
+  /** Used for the cancellation explanation, which matches the alert and email wording. */
+  venueName?: string;
+  startsAt?: string;
+  /** A joined viewer reads "Your R80…"; anyone else reads "Every player's R80…". */
+  viewerJoined?: boolean;
   now?: Date;
 }) {
+  if (status === 'CANCELLED' && facts.cancellationReason) {
+    const unfilled = facts.cancellationReason === 'POSITIONS_UNFILLED';
+    const where = venueName ? ` at ${venueName}` : '';
+    const onWhen = startsAt ? ` on ${formatMatchDay(startsAt)} at ${formatClock(startsAt)}` : '';
+    const refund =
+      feeCents > 0
+        ? viewerJoined
+          ? ` Your ${rands(feeCents)} has been refunded to your FootyFinder wallet.`
+          : ` Every player's ${rands(feeCents)} has been refunded to their FootyFinder wallet.`
+        : '';
+    return (
+      <section role="status" className="rounded-2xl border border-danger-200 bg-danger-50 p-5">
+        <p className="font-black text-danger-700">
+          {unfilled ? 'Cancelled: not every position was filled' : 'Cancelled by the host'}
+        </p>
+        <p className="mt-1 text-sm text-content">
+          This match{where}{onWhen} was cancelled{' '}
+          {unfilled
+            ? 'because not every position was filled 30 minutes before kickoff.'
+            : 'by the host.'}
+          {refund}
+        </p>
+      </section>
+    );
+  }
   if (!facts.goNoGoAt) return null;
   const when = formatGoNoGoTime(facts.goNoGoAt);
   const fee = rands(feeCents);
@@ -52,16 +67,6 @@ export function GoNoGoBanner({
     </p>
   );
 
-  if (status === 'CANCELLED' && facts.cancellationReason === 'POSITIONS_UNFILLED')
-    return (
-      <section role="status" className="rounded-2xl border border-danger-200 bg-danger-50 p-5">
-        <p className="font-black text-danger-700">Cancelled: not all positions were filled</p>
-        <p className="mt-1 text-sm text-content">
-          Not every position was filled by {when}, so this match was cancelled. Your {fee} was
-          refunded to your wallet.
-        </p>
-      </section>
-    );
   if (facts.confirmedAt)
     return (
       <section role="status" className="rounded-2xl border border-brand-200 bg-brand-50 p-5">

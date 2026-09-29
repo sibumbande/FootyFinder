@@ -8,6 +8,10 @@ import { registerBookingJobHandlers } from '../src/modules/bookings/booking.jobs
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { goNoGoJobDedupeKey } from '../src/modules/matches/go-no-go.js';
 import { registerGoNoGoJobHandlers } from '../src/modules/matches/go-no-go.jobs.js';
+import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
+import { matchCancelledMessage } from '../src/modules/matches/cancellation-message.js';
+import { MATCH_CANCELLED_EMAIL_JOB_TYPE } from '../src/modules/matches/match-cancelled-email.js';
+import { registerMatchCancelledEmailJobHandlers } from '../src/modules/matches/match-cancelled-email.jobs.js';
 import {
   LineupLockedError,
   MatchClosedError,
@@ -39,6 +43,68 @@ let venueId = '';
 let fieldId = '';
 let matchIndex = 0;
 const matchIds: string[] = [];
+const emails = new TestEmailProvider();
+
+const emailJobsFor = (matchId: string) =>
+  prisma.durableJob.findMany({
+    where: { type: MATCH_CANCELLED_EMAIL_JOB_TYPE, dedupeKey: { startsWith: `match-cancelled-email:${matchId}:` } },
+  });
+const emailsFor = (matchId: string) => emails.messages.filter(({ text }) => text.includes(`/matches/${matchId}`));
+
+/** Run the queue until every cancellation email job for the match has succeeded. */
+async function drainCancellationEmails(matchId: string) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const jobs = await emailJobsFor(matchId);
+    if (jobs.every(({ status }) => status === 'SUCCEEDED')) return jobs;
+    if (!(await runOneDurableJob(new Date()))) break;
+  }
+  return emailJobsFor(matchId);
+}
+
+/**
+ * Each recipient has exactly one MATCH_CANCELLED notification, one email job and, after the queue is
+ * drained twice, exactly one email, all with the expected wording.
+ */
+async function assertCancellationAlertsOnce(
+  matchId: string,
+  recipients: string[],
+  expected: (userId: string) => string,
+  label: string,
+) {
+  const notifications = await prisma.notification.findMany({
+    where: { type: 'MATCH_CANCELLED', targetPath: `/matches/${matchId}` },
+  });
+  for (const userId of recipients) {
+    const mine = notifications.filter((item) => item.userId === userId);
+    assert(mine.length === 1, `${label}: ${userId} got ${mine.length} cancellation notifications.`);
+    assert(mine[0]!.message === expected(userId), `${label}: wrong notification wording: ${mine[0]!.message}`);
+  }
+  assert(notifications.length === recipients.length, `${label}: unexpected cancellation notification recipients.`);
+  const jobs = await drainCancellationEmails(matchId);
+  assert(jobs.length === recipients.length, `${label}: expected one email job per recipient, found ${jobs.length}.`);
+  assert(jobs.every(({ status }) => status === 'SUCCEEDED'), `${label}: an email job did not succeed.`);
+  await drainCancellationEmails(matchId);
+  const sent = emailsFor(matchId);
+  const addresses = await prisma.user.findMany({ where: { id: { in: recipients } }, select: { id: true, email: true } });
+  assert(sent.length === recipients.length, `${label}: expected ${recipients.length} emails, sent ${sent.length}.`);
+  for (const { id, email } of addresses) {
+    const mine = sent.filter(({ to }) => to === email);
+    assert(mine.length === 1, `${label}: ${email} received ${mine.length} emails.`);
+    assert(mine[0]!.text.startsWith(expected(id)), `${label}: wrong email wording: ${mine[0]!.text}`);
+    assert(mine[0]!.subject === 'Your FootyFinder match was cancelled', `${label}: wrong email subject.`);
+  }
+}
+
+async function expectedCancellation(matchId: string, reason: 'POSITIONS_UNFILLED' | 'ORGANISER_CANCELLED') {
+  const match = await prisma.match.findUniqueOrThrow({ where: { id: matchId }, include: { venue: true } });
+  return (userId: string, paid = userId !== hostId) =>
+    matchCancelledMessage({
+      venueName: match.venue.name,
+      startsAt: match.startsAt,
+      reason,
+      refundedCents: paid ? MATCH_FEE_CENTS : 0,
+    });
+}
 
 const balanceOf = async (userId: string) =>
   (await prisma.walletAccount.findUniqueOrThrow({ where: { userId } })).balanceCents;
@@ -124,6 +190,7 @@ async function main() {
   registerBookingJobHandlers();
   registerModerationJobHandlers();
   registerGoNoGoJobHandlers();
+  registerMatchCancelledEmailJobHandlers(emails);
 
   // Fixtures: one physical field supporting 5/7/11-a-side with admin-only format-scoped costs
   // R500 / R600 / R800 (Italian Club example), all-week availability, and an effective policy.
@@ -266,6 +333,10 @@ async function main() {
     [...players.slice(0, 3), hostId].every((userId) => notified.some((item) => item.userId === userId)),
     'Not every joined player and the host were notified of the cancellation.',
   );
+  // Part 4a: one in-app alert and one email per joined player and the host, even though the
+  // decision ran twice; the host did not play, so their message has no refund sentence.
+  const unfilledWording = await expectedCancellation(unfilled.id, 'POSITIONS_UNFILLED');
+  await assertCancellationAlertsOnce(unfilled.id, [...players.slice(0, 3), hostId], (userId) => unfilledWording(userId), 'Auto-cancel');
 
   // 4. The durable queue path, including a job whose worker crashed mid-run (stale RUNNING lock).
   for (const crashed of [false, true]) {
@@ -282,6 +353,8 @@ async function main() {
     assert((await prisma.match.findUniqueOrThrow({ where: { id: queued.id } })).status === 'CANCELLED', 'Queued job did not cancel the unfilled match.');
     await runOneDurableJob(new Date(now.getTime() + 60_000));
     assert((await creditsFor(payments)) === 2, `Queued job refunded more or less than once (crashed=${crashed}).`);
+    const queuedWording = await expectedCancellation(queued.id, 'POSITIONS_UNFILLED');
+    await assertCancellationAlertsOnce(queued.id, [...players.slice(3, 5), hostId], (userId) => queuedWording(userId), `Queued auto-cancel (crashed=${crashed})`);
   }
 
   // 5. Full at T-30: confirmed, no refunds, reservation still owed to the venue after the match.
@@ -370,6 +443,9 @@ async function main() {
   assert(hostCancelRecord.cancellationReason === 'ORGANISER_CANCELLED', 'Host cancellation reason not recorded.');
   assert((await service.decideGoNoGo(hostCancelled.id, hostCancelRecord.goNoGoAt!)).outcome === 'ALREADY_DECIDED', 'T-30 ran again after host cancel.');
   assert((await creditsFor(hostCancelPayments)) === 2, 'Host cancel plus T-30 refunded twice.');
+  // Part 4a: host cancel alerts both players and the host once each, including after the T-30 re-run.
+  const hostCancelWording = await expectedCancellation(hostCancelled.id, 'ORGANISER_CANCELLED');
+  await assertCancellationAlertsOnce(hostCancelled.id, [...players.slice(0, 2), hostId], (userId) => hostCancelWording(userId), 'Host cancel');
 
   // 10. D2: a player who left within 12 hours (no credit) is refunded if the match is auto-cancelled.
   let lateMatch: Awaited<ReturnType<typeof createMatch>> | undefined;
@@ -410,6 +486,7 @@ async function cleanup() {
     where: {
       OR: [
         ...matchIds.map((id) => ({ dedupeKey: goNoGoJobDedupeKey(id) })),
+        ...matchIds.map((id) => ({ dedupeKey: { startsWith: `match-cancelled-email:${id}:` } })),
         ...reservationIds.map((id) => ({ dedupeKey: `reservation-expire:${id}` })),
       ],
     },
