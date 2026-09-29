@@ -20,6 +20,8 @@ import {
   getMaxParticipantsPerTeam,
   getMaxMatchParticipants,
   MATCH_RULE_CONFIG,
+  OTHER_SIDE_REFUSAL_MESSAGE,
+  effectiveOtherSide,
 } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
@@ -41,10 +43,26 @@ import {
   PositionWrongSideError,
   TeamFullError,
   TeamMatchPlanningError,
+  OtherSideRefusedError,
+  OwnTeamConflictError,
 } from './matches.repository.js';
 import { BookingsService } from '../bookings/bookings.service.js';
 import { TeamMatchesService } from '../team-matches/team-matches.service.js';
 import { publicMatchUrl } from './public-match.js';
+
+/** Gate 7: stable API errors for taking the other side of a team match. */
+export const rethrowOtherSideError = (error: unknown) => {
+  if (error instanceof OtherSideRefusedError)
+    throw new AppError(
+      409,
+      error.reason === 'HOME_IS_A_TEAM'
+        ? 'The home side of a team match is the home team. Players can only join the other side.'
+        : OTHER_SIDE_REFUSAL_MESSAGE[error.reason],
+      error.reason === 'TEAMS_ONLY' ? 'TEAM_MATCH_TEAMS_ONLY' : 'OTHER_SIDE_TAKEN',
+    );
+  if (error instanceof OwnTeamConflictError)
+    throw new AppError(409, "You can't play against your own team.", 'OWN_TEAM_CONFLICT');
+};
 
 export class MatchesService {
   constructor(
@@ -91,8 +109,11 @@ export class MatchesService {
       match.mode === 'QUICK_GAME'
         ? match.createdById === userId
         : attachedMembership?.role === 'OWNER' || attachedMembership?.role === 'CAPTAIN';
+    const sides = match.mode === 'TEAM_MATCH' ? await this.matches.viewerTeamSides(id, userId) : null;
     return toMatch(match, {
       viewerCanManage,
+      viewerTeamSide: sides?.member ?? null,
+      viewerManagedTeamSide: sides?.managed ?? null,
       viewerCanChat: match.createdById === userId || isParticipant || Boolean(attachedMembership),
     });
   }
@@ -113,7 +134,13 @@ export class MatchesService {
     if (!match)
       throw new AppError(404, 'Public match not found.', 'PUBLIC_MATCH_NOT_FOUND');
     const filled = match.participants.length;
-    const total = getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
+    // Gate 7: on a team match individuals can only ever fill the other side.
+    const teamMatch = Boolean(match.otherSideMode);
+    const total = teamMatch
+      ? getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam)
+      : getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
+    const individualSlots = teamMatch ? match.formationSlots.filter(({ team }) => team === 'AWAY') : match.formationSlots;
+    const otherSide = teamMatch ? effectiveOtherSide(match.otherSideTakenBy, filled) : null;
     const lifecycleStatus = getEffectiveMatchStatus({
       status: match.status,
       startsAt: match.startsAt,
@@ -125,6 +152,8 @@ export class MatchesService {
     const reason =
       status === 'CANCELLED' ? 'CANCELLED'
         : lineupLocked ? 'LINEUP_LOCKED'
+        : teamMatch && otherSide === 'TEAM' && ['OPEN', 'READY', 'FULL'].includes(status) ? 'TAKEN_BY_TEAM'
+        : teamMatch && match.otherSideMode === 'TEAMS_ONLY' && ['OPEN', 'READY', 'FULL'].includes(status) ? 'TEAMS_ONLY'
         : status === 'FULL' ? 'FULL'
           : ['IN_PROGRESS'].includes(status) ? 'STARTED'
             : ['AWAITING_RESULT', 'COMPLETED'].includes(status) ? 'COMPLETED'
@@ -146,9 +175,17 @@ export class MatchesService {
       joinability: { canJoin: reason === 'AVAILABLE', reason },
       capacity: { filled, total },
       positions: {
-        filled: match.formationSlots.filter(({ participantId }) => participantId).length,
-        total: match.formationSlots.length,
+        filled: individualSlots.filter(({ participantId }) => participantId).length,
+        total: individualSlots.length,
       },
+      ...(match.otherSideMode && {
+        teamMatch: {
+          homeTeamName: match.teamSides.find(({ side }) => side === 'HOME')?.teamNameSnapshot ?? '',
+          ...(otherSide === 'TEAM' && { awayTeamName: match.teamSides.find(({ side }) => side === 'AWAY')?.teamNameSnapshot }),
+          otherSideMode: match.otherSideMode,
+          otherSideTakenBy: otherSide,
+        },
+      }),
       ...goNoGoFacts(match),
     };
   }
@@ -544,6 +581,7 @@ export class MatchesService {
         'ALREADY_JOINED',
       );
     if (error instanceof TeamFullError) throw new AppError(409, 'That team is full.', 'TEAM_FULL');
+    rethrowOtherSideError(error);
     if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
     if (error instanceof LineupLockedError) this.throwLineupLocked();
     if (error instanceof MatchClosedError)

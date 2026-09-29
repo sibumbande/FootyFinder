@@ -86,6 +86,10 @@ export const useCancellationStatus = (id: string, enabled = true) =>
     refetchInterval: 15_000,
   });
 export const useLeaveMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.leave(id));
+/** Gate 7: "Load my team" into, and "Withdraw my team" from, the other side of a team match. */
+export const useLoadTeamIntoMatch = (id: string) =>
+  lobbyMutation<{ teamId: string; substituteCount: number }>(id, (input) => matchApi.loadTeam(id, input));
+export const useWithdrawTeamFromMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.withdrawTeam(id));
 export const useReadyMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.ready(id));
 export function useRotateMatchInvite(id: string) {
   const cache = useQueryClient();

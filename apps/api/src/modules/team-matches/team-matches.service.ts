@@ -1,5 +1,9 @@
 import {
   createDefaultFormation,
+  decideOtherSide,
+  isLobbyFrozen,
+  OTHER_SIDE_REFUSAL_MESSAGE,
+  type LoadTeamIntoMatchInput,
   formatRandAmount,
   getGoNoGoAt,
   getTeamFee,
@@ -15,6 +19,7 @@ import { prisma } from '../../database/prisma.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import type { EmailProvider } from '../auth/email.provider.js';
 import { lockMatchForFormation, MatchesRepository } from '../matches/matches.repository.js';
+import { enqueueFillReminderJob } from '../matches/fill-reminder.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { serializableTransaction } from '../../database/transaction.js';
@@ -28,6 +33,7 @@ import { appendTeamMatchAudit } from './team-match-audit.js';
 import {
   enqueueTeamMatchEmail,
   enqueueTeamMatchSideJobs,
+  enqueueUnmatchedCancelAfterWithdrawal,
   TEAM_MATCH_EMAIL_SUBJECT,
   teamMatchMessage,
   unmatchedCancelAt,
@@ -166,6 +172,150 @@ export class TeamMatchesService {
     } catch (error) {
       return rethrowReservationConflict(error);
     }
+  }
+
+  /**
+   * Gate 7 / DEC-019 decision C: "Load my team". Instant, first come first served, in both modes:
+   * an owner or captain of another team takes the other side with their whole saved squad and
+   * chooses their subs, which sets their own team fee and fill meter. Under the Match row lock,
+   * which an individual joining also takes, so exactly one of them wins. Allowed only while the
+   * side has no individual players (N1: an emptied individuals side reopens) and before T-30.
+   */
+  async loadTeam(matchId: string, userId: string, input: LoadTeamIntoMatchInput): Promise<Match> {
+    const result = await serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
+      const now = new Date();
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: {
+          id: true, name: true, status: true, format: true, startsAt: true, goNoGoAt: true, otherSideMode: true, otherSideTakenBy: true,
+          venue: { select: { name: true } },
+          participants: { where: { status: 'JOINED' }, select: { userId: true } },
+          teamSides: { select: { side: true, teamId: true, teamNameSnapshot: true } },
+        },
+      });
+      if (!match || !match.otherSideMode) throw new AppError(404, 'Team match not found.', 'TEAM_MATCH_NOT_FOUND');
+      if (!['OPEN', 'READY'].includes(match.status)) throw new AppError(409, 'This match is no longer open.', 'MATCH_CLOSED');
+      if (isLobbyFrozen(match, now) || now >= match.startsAt)
+        throw new AppError(409, 'The lineup is locked 30 minutes before kickoff.', 'LINEUP_LOCKED');
+      const decision = decideOtherSide(
+        { mode: match.otherSideMode, takenBy: match.otherSideTakenBy, joinedIndividuals: match.participants.length },
+        'TEAM',
+      );
+      if ('reason' in decision) throw new AppError(409, OTHER_SIDE_REFUSAL_MESSAGE[decision.reason], 'OTHER_SIDE_TAKEN');
+      const home = match.teamSides.find(({ side }) => side === 'HOME');
+      const team = await tx.team.findUnique({
+        where: { id: input.teamId },
+        include: { memberships: { select: { userId: true, role: true } } },
+      });
+      if (!team) throw new AppError(404, 'Team not found.', 'TEAM_NOT_FOUND');
+      if (team.archivedAt) throw new AppError(409, 'This team has been closed.', 'TEAM_ARCHIVED');
+      const actor = team.memberships.find((member) => member.userId === userId);
+      if (!actor || (actor.role !== 'OWNER' && actor.role !== 'CAPTAIN'))
+        throw new AppError(403, 'Only the team owner or a captain can load the team into a match.', 'TEAM_FORBIDDEN');
+      // N2: nobody plays against their own team.
+      const homeMemberIds = home?.teamId
+        ? new Set((await tx.teamMembership.findMany({ where: { teamId: home.teamId }, select: { userId: true } })).map((row) => row.userId))
+        : new Set<string>();
+      if (home?.teamId === team.id || team.memberships.some((member) => homeMemberIds.has(member.userId)))
+        throw new AppError(409, "You can't play against your own team: a player is in both teams.", 'OWN_TEAM_CONFLICT');
+      const fee = getTeamFee(match.format, input.substituteCount);
+      const { formationKey } = await savedFormation(tx, team.id, match.format);
+      await tx.match.update({ where: { id: matchId }, data: { otherSideTakenBy: 'TEAM' } });
+      const away = await tx.matchTeam.create({
+        data: {
+          matchId, teamId: team.id, side: 'AWAY', organisingUserId: userId, formationKey,
+          teamNameSnapshot: team.name, teamImageUrlSnapshot: team.profileImageUrl,
+          primaryColorSnapshot: team.primaryColor, secondaryColorSnapshot: team.secondaryColor,
+          starterCount: fee.starterCount, substituteCount: fee.substituteCount,
+          placeFeeCents: fee.placeFeeCents, teamFeeCents: fee.totalCents,
+        },
+      });
+      await copySavedSquad(tx, { matchTeamId: away.id, teamId: team.id, side: 'AWAY', format: match.format, formationKey, actorUserId: userId });
+      await appendTeamMatchAudit(tx, {
+        matchId, command: 'OTHER_SIDE_TEAM_LOADED', teamId: team.id, side: 'AWAY', actorUserId: userId,
+        payload: { substituteCount: fee.substituteCount, teamFeeCents: fee.totalCents, reopenedFromIndividuals: match.otherSideTakenBy === 'INDIVIDUALS' },
+      });
+      const homeManagers = home?.teamId
+        ? await tx.teamMembership.findMany({ where: { teamId: home.teamId, role: { in: ['OWNER', 'CAPTAIN'] } }, select: { userId: true } })
+        : [];
+      for (const manager of homeManagers)
+        await enqueueTeamMatchEmail(tx, { matchId, userId: manager.userId, kind: 'OPPONENT_FOUND', eventKey: away.id, otherTeamName: team.name });
+      const homeMessage = teamMatchMessage('OPPONENT_FOUND', { name: match.name, startsAt: match.startsAt, venueName: match.venue.name, otherTeamName: team.name });
+      const notifications = await persistNotifications(tx, [
+        ...[...homeMemberIds].map((memberId) => ({
+          userId: memberId, type: 'TEAM_MATCH_OPPONENT_FOUND' as const, title: 'Opponent found', message: homeMessage,
+          targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'opponent-found', away.id, memberId),
+        })),
+        ...team.memberships.map((member) => ({
+          userId: member.userId, type: 'TEAM_MATCH_OPPONENT_FOUND' as const, title: 'Your team is in',
+          message: `${team.name} took the other side of ${match.name} against ${home?.teamNameSnapshot ?? 'the home team'}. Fill your team's meter from the team wallet before the 30-minute check.`,
+          targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'team-loaded', away.id, member.userId),
+        })),
+      ]);
+      return { notifications, match: await tx.match.findUniqueOrThrow({ where: { id: matchId }, include: matchInclude }) };
+    });
+    this.notifications.publishPersistedMany(result.notifications);
+    emitDomainEventBestEffort('match:updated', { matchId });
+    return toMatch(result.match, { viewerCanManage: false, viewerCanChat: true });
+  }
+
+  /**
+   * N5: the team that took the other side may withdraw only its own team, before T-30. Its held
+   * meter money is released, its side is removed, the side reopens (the "Teams only" 24-hour rule
+   * and the "Open to both" rules apply again) and the home team is told in-app and by email.
+   */
+  async withdrawTeam(matchId: string, userId: string) {
+    const result = await serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
+      const now = new Date();
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: {
+          id: true, name: true, status: true, startsAt: true, goNoGoAt: true, otherSideMode: true, otherSideTakenBy: true,
+          venue: { select: { name: true } },
+          teamSides: true,
+        },
+      });
+      const away = match?.teamSides.find(({ side }) => side === 'AWAY');
+      if (!match || !match.otherSideMode || match.otherSideTakenBy !== 'TEAM' || !away?.teamId)
+        throw new AppError(409, 'No team has taken the other side of this match.', 'OTHER_SIDE_NOT_TEAM');
+      if (!['OPEN', 'READY'].includes(match.status)) throw new AppError(409, 'This match is no longer open.', 'MATCH_CLOSED');
+      const actor = await tx.teamMembership.findUnique({ where: { teamId_userId: { teamId: away.teamId, userId } }, select: { role: true } });
+      if (!actor || (actor.role !== 'OWNER' && actor.role !== 'CAPTAIN'))
+        throw new AppError(403, 'Only the owner or a captain of the team that took the other side can withdraw it.', 'TEAM_FORBIDDEN');
+      if (isLobbyFrozen(match, now) || now >= match.startsAt)
+        throw new AppError(409, 'The lineup is locked 30 minutes before kickoff.', 'LINEUP_LOCKED');
+      const holds = await tx.teamWalletHold.findMany({ where: { matchId, side: 'AWAY', status: 'ACTIVE' }, select: { id: true, amountCents: true } });
+      await this.teamWallets.lockAccount(tx, away.teamId);
+      for (const hold of holds) await this.teamWallets.releaseHold(tx, hold.id, 'team-withdrew');
+      await tx.matchTeam.delete({ where: { id: away.id } });
+      await tx.match.update({ where: { id: matchId }, data: { otherSideTakenBy: null } });
+      const audit = await appendTeamMatchAudit(tx, {
+        matchId, command: 'OTHER_SIDE_TEAM_WITHDRAWN', teamId: away.teamId, side: 'AWAY', actorUserId: userId,
+        payload: {
+          teamName: away.teamNameSnapshot, substituteCount: away.substituteCount, teamFeeCents: away.teamFeeCents,
+          releasedCents: holds.reduce((sum, hold) => sum + hold.amountCents, 0),
+        },
+      });
+      if (match.otherSideMode === 'TEAMS_ONLY') await enqueueUnmatchedCancelAfterWithdrawal(tx, match, audit.id, now);
+      else await enqueueFillReminderJob(tx, matchId, match.startsAt, now);
+      const home = match.teamSides.find(({ side }) => side === 'HOME');
+      const homeMembers = home?.teamId
+        ? await tx.teamMembership.findMany({ where: { teamId: home.teamId }, select: { userId: true, role: true } })
+        : [];
+      for (const member of homeMembers.filter(({ role }) => role === 'OWNER' || role === 'CAPTAIN'))
+        await enqueueTeamMatchEmail(tx, { matchId, userId: member.userId, kind: 'OPPONENT_WITHDRAWN', eventKey: audit.id, otherTeamName: away.teamNameSnapshot });
+      const message = teamMatchMessage('OPPONENT_WITHDRAWN', { name: match.name, startsAt: match.startsAt, venueName: match.venue.name, otherTeamName: away.teamNameSnapshot });
+      const notifications = await persistNotifications(tx, homeMembers.map((member) => ({
+        userId: member.userId, type: 'TEAM_MATCH_OPPONENT_WITHDRAWN' as const, title: 'Opponent withdrew', message,
+        targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'opponent-withdrew', audit.id, member.userId),
+      })));
+      return { notifications, releasedCents: holds.reduce((sum, hold) => sum + hold.amountCents, 0) };
+    });
+    this.notifications.publishPersistedMany(result.notifications);
+    emitDomainEventBestEffort('match:updated', { matchId });
+    return { releasedCents: result.releasedCents };
   }
 
   /**

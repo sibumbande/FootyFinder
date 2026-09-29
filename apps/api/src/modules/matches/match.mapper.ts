@@ -56,6 +56,8 @@ export function toMatch(
     inviteToken?: string;
     viewerCanManage?: boolean;
     viewerCanChat?: boolean;
+    viewerTeamSide?: 'HOME' | 'AWAY' | null;
+    viewerManagedTeamSide?: 'HOME' | 'AWAY' | null;
   } = {},
 ): Match {
   const lifecycleStatus = getEffectiveMatchStatus({
@@ -150,6 +152,10 @@ export function toMatch(
       otherSideTakenBy: match.otherSideTakenBy,
     }),
     ...goNoGoFacts(match),
+    ...(match.mode === 'TEAM_MATCH' && {
+      viewerTeamSide: options.viewerTeamSide ?? null,
+      viewerManagedTeamSide: options.viewerManagedTeamSide ?? null,
+    }),
     viewerCanManage: options.viewerCanManage ?? false,
     viewerCanChat: options.viewerCanChat ?? false,
   };

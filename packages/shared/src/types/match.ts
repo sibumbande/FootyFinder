@@ -263,6 +263,9 @@ export interface Match extends MatchGoNoGoFacts {
   /** Gate 7 / DEC-019 public team matches only: who may take the other side, and who took it. */
   otherSideMode?: TeamMatchOtherSideMode;
   otherSideTakenBy?: TeamMatchOtherSideTakenBy | null;
+  /** Gate 7: the side of this team match the viewer's team plays on, and the side they manage. */
+  viewerTeamSide?: TeamSide | null;
+  viewerManagedTeamSide?: TeamSide | null;
   viewerCanManage: boolean;
   viewerCanChat: boolean;
 }
@@ -274,7 +277,10 @@ export type PublicMatchJoinabilityReason =
   | 'STARTED'
   | 'COMPLETED'
   | 'LINEUP_LOCKED'
-  | 'UNAVAILABLE';
+  | 'UNAVAILABLE'
+  // Gate 7 team matches: individuals cannot join these.
+  | 'TEAMS_ONLY'
+  | 'TAKEN_BY_TEAM';
 
 export interface PublicMatchPreview extends MatchGoNoGoFacts {
   slug: string;
@@ -305,6 +311,13 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
   positions: {
     filled: number;
     total: number;
+  };
+  /** Gate 7 / DEC-019 team match labels (team names only; no people, no money beyond the rules). */
+  teamMatch?: {
+    homeTeamName: string;
+    awayTeamName?: string;
+    otherSideMode: TeamMatchOtherSideMode;
+    otherSideTakenBy: TeamMatchOtherSideTakenBy | null;
   };
 }
 

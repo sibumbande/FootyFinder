@@ -3,7 +3,9 @@ import {
   MATCH_RULE_CONFIG,
   TEAM_MATCH_AVAILABILITY_STATUSES,
   type Match,
+  type MatchTeamSide,
   type TeamMatchAvailabilityQuery,
+  type TeamSide,
 } from '@footy-finder/shared';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,16 +28,23 @@ import {
   useTeamMatchLineupMutations,
 } from '../hooks/useTeamMatchDay.js';
 import { useDeleteMatch } from '../hooks/useMatches.js';
+import { TeamMatchOtherSide } from './TeamMatchOtherSide.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
 export function TeamMatchDayLobby({ match }: { match: Match }) {
   const [tab, setTab] = useState<TeamMatchTab>('availability');
-  const attached = match.teamSides[0];
+  // Gate 7: a team match can have two team sides; show the viewer's own side first.
+  const [selectedSide, setSelectedSide] = useState<TeamSide>(match.viewerTeamSide ?? 'HOME');
+  const home = match.teamSides.find(({ side }) => side === 'HOME') ?? match.teamSides[0];
+  const attached: MatchTeamSide | undefined = match.teamSides.find(({ side }) => side === selectedSide) ?? home;
+  const publicTeamMatch = Boolean(match.otherSideMode);
+  // D6 as narrowed by N5: only the home team's owner/captains can cancel the whole match.
+  const canCancel = publicTeamMatch ? match.viewerManagedTeamSide === 'HOME' : match.viewerCanManage;
   const navigate = useNavigate();
   const { notify } = useNotifications();
-  const deletion = useDeleteMatch(match.id, attached?.teamId ?? undefined);
-  if (!attached)
+  const deletion = useDeleteMatch(match.id, home?.teamId ?? undefined);
+  if (!attached || !home)
     return <FormError message="This Team fixture does not have an attached Team side." />;
   return (
     <section className="grid gap-6">
@@ -57,10 +66,13 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
             </div>
             <h1 className="mt-4 text-3xl font-black sm:text-4xl">{match.name}</h1>
             <p className="mt-2 font-semibold text-brand-100">
-              {attached.teamNameSnapshot} · {match.venue.name}
+              {home.teamNameSnapshot}
+              {publicTeamMatch && ` vs ${match.teamSides.find(({ side }) => side === 'AWAY')?.teamNameSnapshot ?? (match.otherSideTakenBy === 'INDIVIDUALS' ? 'Players' : 'Opponent wanted')}`}
+              {' · '}
+              {match.venue.name}
             </p>
             <p className="mt-2 text-sm text-brand-100">
-              {formatDate(match.startsAt)} · {match.durationMinutes} minutes · Private and free
+              {formatDate(match.startsAt)} · {match.durationMinutes} minutes · {publicTeamMatch ? 'Public team match' : 'Private and free'}
             </p>
             {match.description && (
               <p className="mt-4 max-w-2xl text-brand-100">{match.description}</p>
@@ -83,16 +95,16 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
           {match.rules.length > 0 && (
             <span>· {match.rules.map((rule) => MATCH_RULE_CONFIG[rule].label).join(', ')}</span>
           )}
-          {match.viewerCanManage && !['CANCELLED', 'COMPLETED'].includes(match.status) && (
+          {canCancel && !['CANCELLED', 'COMPLETED'].includes(match.status) && (
             <button
               type="button"
               className="ml-auto min-h-10 rounded-xl border border-danger-400 px-3 text-xs font-bold text-danger-400"
               onClick={() => {
-                if (window.confirm('Cancel this private Team fixture?'))
+                if (window.confirm(publicTeamMatch ? 'Cancel this team match for both sides? Held team money goes back to each team wallet and every player is refunded.' : 'Cancel this private Team fixture?'))
                   deletion.mutate(undefined, {
                     onSuccess: () => {
                       notify({ variant: 'info', title: 'Team fixture cancelled' });
-                      navigate(`/teams/${attached.teamId}`, { replace: true });
+                      navigate(`/teams/${home.teamId}`, { replace: true });
                     },
                   });
               }}
@@ -103,6 +115,21 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
         </div>
       </header>
       <FormError message={deletion.error?.message} />
+      {publicTeamMatch && <TeamMatchOtherSide match={match} />}
+      {match.teamSides.length > 1 && (
+        <nav className="grid grid-cols-2 gap-1 rounded-xl bg-surface-muted p-1" aria-label="Team sides">
+          {match.teamSides.map((teamSide) => (
+            <button
+              key={teamSide.side}
+              aria-pressed={selectedSide === teamSide.side}
+              onClick={() => setSelectedSide(teamSide.side)}
+              className={`min-h-11 rounded-lg px-3 text-sm font-bold ${selectedSide === teamSide.side ? 'bg-surface text-brand-700 shadow-sm' : 'text-content-muted'}`}
+            >
+              {teamSide.side === 'HOME' ? 'Home' : 'Away'}: {teamSide.teamNameSnapshot}
+            </button>
+          ))}
+        </nav>
+      )}
       <nav
         className="grid grid-cols-3 gap-1 rounded-xl bg-surface-muted p-1"
         aria-label="Match-Day sections"
@@ -117,16 +144,16 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
           </button>
         ))}
       </nav>
-      {tab === 'availability' && <AvailabilityPanel match={match} />}
-      {tab === 'lineup' && <LineupPanel match={match} />}
+      {tab === 'availability' && <AvailabilityPanel key={attached.side} match={match} teamSide={attached} />}
+      {tab === 'lineup' && <LineupPanel key={attached.side} match={match} teamSide={attached} />}
       {tab === 'chat' && <ChatPanel matchId={match.id} enabled={match.viewerCanChat} />}
     </section>
   );
 }
 
-function AvailabilityPanel({ match }: { match: Match }) {
+function AvailabilityPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSide }) {
   const { user } = useAuth();
-  const side = match.teamSides[0]!.side;
+  const side = teamSide.side;
   const [availability, setAvailability] = useState<TeamMatchAvailabilityQuery['availability']>();
   const [selected, setSelected] = useState<TeamMatchAvailabilityQuery['selected']>();
   const query = useTeamMatchAvailability(match.id, side, { availability, selected });
@@ -240,8 +267,8 @@ function AvailabilityPanel({ match }: { match: Match }) {
   );
 }
 
-function LineupPanel({ match }: { match: Match }) {
-  const attached = match.teamSides[0]!;
+function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSide }) {
+  const attached = teamSide;
   const lineup = useTeamMatchLineup(match.id, attached.side);
   const team = useTeam(attached.teamId ?? '');
   const mutations = useTeamMatchLineupMutations(match.id, attached.side);

@@ -34,6 +34,7 @@ export function teamMatchWorld(marker: string) {
   let venueId = '';
   let fieldId = '';
   let kickoffIndex = 0;
+  let userIndex = 0;
 
   const world = {
     marker,
@@ -50,7 +51,8 @@ export function teamMatchWorld(marker: string) {
       return day;
     },
     async user(label: string, depositCents = 200_000) {
-      const index = userIds.length;
+      // Reserved synchronously so concurrent calls never share an index.
+      const index = userIndex++;
       const created = await prisma.user.create({
         data: {
           email: `${marker}-${index}@smoke.invalid`,

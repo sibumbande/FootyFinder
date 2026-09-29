@@ -31,6 +31,19 @@ describe('serializable transaction retry classification', () => {
     ).toBe(true);
   });
 
+  it('retries a serialization failure detected at COMMIT (raw driver adapter error, Gate 7)', () => {
+    const commitConflict = Object.assign(new Error('TransactionWriteConflict'), {
+      name: 'DriverAdapterError',
+      cause: { originalCode: '40001', kind: 'TransactionWriteConflict' },
+    });
+    expect(isRetryableSerializationError(commitConflict)).toBe(true);
+    const uniqueViolation = Object.assign(new Error('UniqueConstraintViolation'), {
+      name: 'DriverAdapterError',
+      cause: { originalCode: '23505', kind: 'UniqueConstraintViolation' },
+    });
+    expect(isRetryableSerializationError(uniqueViolation)).toBe(false);
+  });
+
   it('does not retry other raw-query or domain failures', () => {
     expect(
       isRetryableSerializationError(

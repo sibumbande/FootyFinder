@@ -80,6 +80,12 @@ export const matchesApi = (client: ApiClient) => ({
     client.request<{ data: ParticipantCancellationStatus | null }>(
       `/matches/${id}/cancellation-status`,
     ),
+  /** Gate 7: load your whole team into the other side of a team match (first come, first served). */
+  loadTeam: (id: string, input: { teamId: string; substituteCount: number }) =>
+    client.request<{ data: Match }>(`/matches/${id}/other-side/team`, { method: 'POST', body: JSON.stringify(input) }),
+  /** Gate 7 / N5: the team that took the other side withdraws itself before T-30. */
+  withdrawTeam: (id: string) =>
+    client.request<{ data: { releasedCents: number } }>(`/matches/${id}/other-side/team/withdraw`, { method: 'POST' }),
   leave: (id: string) =>
     client.request<{ data: unknown }>(`/matches/${id}/leave`, { method: 'POST' }),
   formation: (id: string, slotId: string, input: FormationSlotUpdateInput) =>

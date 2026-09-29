@@ -9,6 +9,8 @@ import type {
 } from '@footy-finder/shared';
 import {
   CANCELLATION_CUTOFF_HOURS,
+  decideOtherSide,
+  type OtherSideRefusal,
   createDefaultFormation,
   getCancellationCreditCents,
   getMaxParticipantsPerTeam,
@@ -28,6 +30,7 @@ import { enqueueMatchCancelledEmail } from './match-cancelled-email.js';
 import { fillReminderMessage, openPositionsForReminder } from './fill-reminder.js';
 import { copySavedSquad } from '../team-matches/team-squad.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
+import { appendTeamMatchAudit } from '../team-matches/team-match-audit.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -48,6 +51,14 @@ export class FormationSlotNotFoundError extends Error {}
 export class NotMatchParticipantError extends Error {}
 export class PositionWrongSideError extends Error {}
 export class PositionAlreadyClaimedError extends Error {}
+/** Gate 7 / DEC-019: the other side of a team match cannot be taken this way right now. */
+export class OtherSideRefusedError extends Error {
+  constructor(readonly reason: OtherSideRefusal | 'HOME_IS_A_TEAM') {
+    super(reason);
+  }
+}
+/** Gate 7 / N2: nobody can play against their own team. */
+export class OwnTeamConflictError extends Error {}
 
 /**
  * Takes the Match row lock that every formation mutation shares, so claims and organiser moves
@@ -66,10 +77,11 @@ const bumpFormationVersion = async (tx: Prisma.TransactionClient, matchId: strin
   ).formationVersion;
 
 const isLobbyOpen = (
-  match: { mode: string; status: string; startsAt: Date; durationMinutes: number },
+  match: { mode: string; status: string; startsAt: Date; durationMinutes: number; otherSideMode?: string | null },
   now: Date,
 ) =>
-  match.mode === 'QUICK_GAME' &&
+  // Gate 7: individuals may also join, leave and claim on the open side of a DEC-019 team match.
+  (match.mode === 'QUICK_GAME' || Boolean(match.otherSideMode)) &&
   ['OPEN', 'READY'].includes(match.status) &&
   now < match.startsAt;
 
@@ -78,7 +90,7 @@ const isLobbyOpen = (
  * started/closed match), or MatchClosedError when the lobby is otherwise closed.
  */
 const assertLobbyOpen = (
-  match: { mode: string; status: string; startsAt: Date; durationMinutes: number; goNoGoAt?: Date | null },
+  match: { mode: string; status: string; startsAt: Date; durationMinutes: number; goNoGoAt?: Date | null; otherSideMode?: string | null },
   now: Date,
 ) => {
   if (isLobbyOpen(match, now) && isLobbyFrozen(match, now)) throw new LineupLockedError();
@@ -136,7 +148,10 @@ export class MatchesRepository {
         goNoGoAt: true,
         confirmedAt: true,
         cancellationReason: true,
-        formationSlots: { select: { participantId: true } },
+        formationSlots: { select: { participantId: true, team: true } },
+        otherSideMode: true,
+        otherSideTakenBy: true,
+        teamSides: { select: { side: true, teamNameSnapshot: true } },
       },
     });
   }
@@ -161,6 +176,17 @@ export class MatchesRepository {
       select: { teamId: true, role: true },
     });
   }
+  /** Gate 7: the side(s) of a team match the viewer is a member of, and the side they manage. */
+  async viewerTeamSides(matchId: string, userId: string) {
+    const sides = await prisma.matchTeam.findMany({
+      where: { matchId, team: { memberships: { some: { userId } } } },
+      select: { side: true, team: { select: { memberships: { where: { userId }, select: { role: true } } } } },
+      orderBy: { side: 'asc' },
+    });
+    const managed = sides.find((side) => side.team?.memberships.some(({ role }) => role === 'OWNER' || role === 'CAPTAIN'));
+    return { member: sides[0]?.side ?? null, managed: managed?.side ?? null };
+  }
+
   listForTeam(teamId: string) {
     return prisma.match.findMany({
       where: { mode: 'TEAM_MATCH', teamSides: { some: { teamId } } },
@@ -273,12 +299,17 @@ export class MatchesRepository {
           notifications: [],
         };
       }
+      // Gate 7: a DEC-019 team match's other side is decided under the Match row lock, the same
+      // lock "Load my team" takes, so a team loading and a player joining can never both win.
+      const peek = await tx.match.findUniqueOrThrow({ where: { id: matchId }, select: { otherSideMode: true } });
+      if (peek.otherSideMode) await lockMatchForFormation(tx, matchId);
       const match = await tx.match.findUniqueOrThrow({
         where: { id: matchId },
         include: { participants: { where: { status: 'JOINED' } } },
       });
-      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
+      if (match.mode === 'TEAM_MATCH' && !match.otherSideMode) throw new TeamMatchPlanningError();
       assertLobbyOpen(match, new Date());
+      if (match.otherSideMode) await this.takeOtherSideForIndividual(tx, match, userId, input.team);
       const previousParticipation = await tx.matchParticipant.findUnique({
         where: { matchId_userId: { matchId, userId } },
         include: { payment: true },
@@ -436,8 +467,10 @@ export class MatchesRepository {
 
   cancelParticipation(matchId: string, userId: string, now: Date) {
     return serializableTransaction(async (tx) => {
+      const peek = await tx.match.findUniqueOrThrow({ where: { id: matchId }, select: { otherSideMode: true } });
+      if (peek.otherSideMode) await lockMatchForFormation(tx, matchId);
       const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
-      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
+      if (match.mode === 'TEAM_MATCH' && !match.otherSideMode) throw new TeamMatchPlanningError();
       assertLobbyOpen(match, now);
       const participant = await tx.matchParticipant.findUniqueOrThrow({
         where: { matchId_userId: { matchId, userId } },
@@ -521,6 +554,33 @@ export class MatchesRepository {
       ]);
       return { cancellation, replayed: false, notifications };
     });
+  }
+
+  /**
+   * Gate 7 (decisions B, C, N1, N2): an individual may join only the away side of an "Open to both"
+   * team match that no team has taken, and never against their own team. The first individual
+   * marks the side as taken by individuals. Called under the Match row lock.
+   */
+  private async takeOtherSideForIndividual(
+    tx: Prisma.TransactionClient,
+    match: { id: string; otherSideMode: 'TEAMS_ONLY' | 'OPEN' | null; otherSideTakenBy: 'TEAM' | 'INDIVIDUALS' | null; participants: Array<{ userId: string }> },
+    userId: string,
+    side: 'HOME' | 'AWAY',
+  ) {
+    if (side !== 'AWAY') throw new OtherSideRefusedError('HOME_IS_A_TEAM');
+    const decision = decideOtherSide(
+      { mode: match.otherSideMode!, takenBy: match.otherSideTakenBy, joinedIndividuals: match.participants.length },
+      'INDIVIDUAL',
+    );
+    if ('reason' in decision) throw new OtherSideRefusedError(decision.reason);
+    const ownTeam = await tx.teamMembership.count({
+      where: { userId, team: { matchSides: { some: { matchId: match.id, side: 'HOME' } } } },
+    });
+    if (ownTeam) throw new OwnTeamConflictError();
+    if (match.otherSideTakenBy !== 'INDIVIDUALS') {
+      await tx.match.update({ where: { id: match.id }, data: { otherSideTakenBy: 'INDIVIDUALS' } });
+      await appendTeamMatchAudit(tx, { matchId: match.id, command: 'OTHER_SIDE_INDIVIDUALS_OPENED', side: 'AWAY', actorUserId: userId });
+    }
   }
 
   /** Organiser cancellation (D3: allowed until the go/no-go instant; enforced by the service). */
@@ -924,17 +984,17 @@ export class MatchesRepository {
     return serializableTransaction(async (tx) => {
       const match = await tx.match.findUnique({
         where: { id: matchId },
-        select: { mode: true, status: true, startsAt: true, durationMinutes: true, goNoGoAt: true },
+        select: { mode: true, status: true, startsAt: true, durationMinutes: true, goNoGoAt: true, otherSideMode: true },
       });
       if (!match) throw new FormationSlotNotFoundError();
-      if (match.mode === 'TEAM_MATCH') throw new TeamMatchPlanningError();
+      if (match.mode === 'TEAM_MATCH' && !match.otherSideMode) throw new TeamMatchPlanningError();
       await lockMatchForFormation(tx, matchId);
       // Evaluate time only after the Match row lock, so a claim racing the go/no-go job at T-30 is
       // judged against the same instant the job sees.
       const now = nowOverride ?? new Date();
       const locked = await tx.match.findUniqueOrThrow({
         where: { id: matchId },
-        select: { mode: true, status: true, startsAt: true, durationMinutes: true, goNoGoAt: true },
+        select: { mode: true, status: true, startsAt: true, durationMinutes: true, goNoGoAt: true, otherSideMode: true },
       });
       assertLobbyOpen(locked, now);
       const participant = await tx.matchParticipant.findUnique({

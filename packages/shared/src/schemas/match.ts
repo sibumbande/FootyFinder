@@ -96,6 +96,12 @@ export const createMatchSchema = managedMatchSchema
 export const createTeamMatchSchema = matchDetailsSchema
   .omit({ visibility: true })
   .extend({ venue: venueInputSchema, formationKey: z.string().trim().min(1).max(80) });
+/** Gate 7 / DEC-019 decision C: "Load my team" into the other side, choosing that team's subs. */
+export const loadTeamIntoMatchSchema = z.object({
+  teamId: z.string().uuid(),
+  substituteCount: z.number().int().min(0).max(MAX_SUBSTITUTES_PER_TEAM),
+});
+export type LoadTeamIntoMatchInput = z.infer<typeof loadTeamIntoMatchSchema>;
 export const updateMatchSchema = z.object({
   name: z.string().trim().min(3).max(120).optional(),
   description: optionalText(1000),
