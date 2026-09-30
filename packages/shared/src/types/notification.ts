@@ -31,6 +31,10 @@ export const NOTIFICATION_TYPES = [
   'TEAM_MATCH_OPPONENT_WITHDRAWN',
   'TEAM_METER_REMINDER',
   'TEAM_CHAT_UNREAD',
+  // Gate 8 (DEC-020): referee assignment notices and admin alerts.
+  'REFEREE_ASSIGNED',
+  'REFEREE_UNASSIGNED',
+  'ADMIN_ALERT',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

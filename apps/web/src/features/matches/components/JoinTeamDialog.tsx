@@ -107,7 +107,8 @@ export function JoinTeamDialog({
             data-testid="join-go-no-go-notice"
             className="mt-4 rounded-xl border border-warning-300 bg-warning-50 p-3 text-sm font-semibold text-content"
           >
-            This match goes ahead only if every position is filled by {formatClock(match.goNoGoAt)} (30
+            This match goes ahead only if every position is filled and a FootyFinder referee is assigned
+            by {formatClock(match.goNoGoAt)} (30
             minutes before kickoff). If not, it&apos;s cancelled automatically and your{' '}
             {rands(match.feeCents)} is refunded to your wallet.
           </p>

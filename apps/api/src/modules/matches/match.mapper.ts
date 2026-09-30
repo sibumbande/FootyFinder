@@ -156,6 +156,13 @@ export function toMatch(
       viewerTeamSide: options.viewerTeamSide ?? null,
       viewerManagedTeamSide: options.viewerManagedTeamSide ?? null,
     }),
+    referee: match.referee
+      ? {
+          id: match.referee.id,
+          displayName: match.referee.profile?.displayName ?? match.referee.username,
+          avatarUrl: match.referee.profile?.avatarUrl ?? null,
+        }
+      : null,
     viewerCanManage: options.viewerCanManage ?? false,
     viewerCanChat: options.viewerCanChat ?? false,
   };

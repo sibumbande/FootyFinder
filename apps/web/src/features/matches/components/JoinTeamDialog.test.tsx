@@ -35,7 +35,7 @@ describe('JoinTeamDialog go/no-go notice (DEC-018)', () => {
   it('shows the T-30 rule with the computed time before the player pays', () => {
     render(<JoinTeamDialog match={match('2026-10-30T11:30:00.000Z')} open onClose={() => undefined} />);
     expect(screen.getByTestId('join-go-no-go-notice')).toHaveTextContent(
-      "This match goes ahead only if every position is filled by 13:30 (30 minutes before kickoff). If not, it's cancelled automatically and your R80 is refunded to your wallet.",
+      "This match goes ahead only if every position is filled and a FootyFinder referee is assigned by 13:30 (30 minutes before kickoff). If not, it's cancelled automatically and your R80 is refunded to your wallet.",
     );
   });
 

@@ -23,6 +23,8 @@ export const matchInclude = {
     },
   },
   teamSides: { orderBy: { side: 'asc' } },
+  // Gate 8 / D18: players see the referee's display name only.
+  referee: { select: { id: true, username: true, profile: { select: { displayName: true, avatarUrl: true } } } },
 } satisfies Prisma.MatchInclude;
 
 export type MatchRecord = Prisma.MatchGetPayload<{ include: typeof matchInclude }>;

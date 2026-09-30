@@ -35,6 +35,8 @@ export function GoNoGoBanner({
 }) {
   if (status === 'CANCELLED' && facts.cancellationReason) {
     const unfilled = facts.cancellationReason === 'POSITIONS_UNFILLED';
+    // Gate 8 (DEC-020, D2): cancelled at T-30 because no FootyFinder referee was assigned.
+    const noReferee = facts.cancellationReason === 'NO_REFEREE';
     const where = venueName ? ` at ${venueName}` : '';
     const onWhen = startsAt ? ` on ${formatMatchDay(startsAt)} at ${formatClock(startsAt)}` : '';
     const refund =
@@ -46,13 +48,19 @@ export function GoNoGoBanner({
     return (
       <section role="status" className="rounded-2xl border border-danger-200 bg-danger-50 p-5">
         <p className="font-black text-danger-700">
-          {unfilled ? 'Cancelled: not every position was filled' : 'Cancelled by the host'}
+          {noReferee
+            ? 'Cancelled: no referee was available'
+            : unfilled
+              ? 'Cancelled: not every position was filled'
+              : 'Cancelled by the host'}
         </p>
         <p className="mt-1 text-sm text-content">
           This match{where}{onWhen} was cancelled{' '}
-          {unfilled
-            ? 'because not every position was filled 30 minutes before kickoff.'
-            : 'by the host.'}
+          {noReferee
+            ? 'because no FootyFinder referee was available.'
+            : unfilled
+              ? 'because not every position was filled 30 minutes before kickoff.'
+              : 'by the host.'}
           {refund}
         </p>
       </section>
@@ -82,7 +90,8 @@ export function GoNoGoBanner({
   return (
     <section role="status" className="rounded-2xl border border-warning-300 bg-warning-50 p-5">
       <p className="text-sm font-semibold text-content">
-        This match goes ahead only if all positions are filled by {when}. Otherwise it&apos;s
+        This match goes ahead only if all positions are filled and a FootyFinder referee is assigned
+        by {when}. Otherwise it&apos;s
         cancelled and your {fee} is refunded to your wallet.
       </p>
       {count}

@@ -70,7 +70,7 @@ const tx = {
   match: {
     create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
       captured.match.push(data);
-      return { id: 'match-1' };
+      return { id: 'match-1', startsAt: data.startsAt, durationMinutes: data.durationMinutes };
     }),
     findUniqueOrThrow: vi.fn(async () => {
       throw STOP;
@@ -92,6 +92,8 @@ const tx = {
     }),
   },
   adminAuditLog: { create: vi.fn(async () => ({})) },
+  // Gate 8 (D28): no default referee is set, so publishing queues the unassigned-referee alerts.
+  refereeSettings: { findUnique: vi.fn(async () => ({ defaultRefereeUserId: null })) },
 };
 
 vi.mock('../../database/transaction.js', () => ({
@@ -165,6 +167,17 @@ describe('Quick Match creation fee (DEC-018)', () => {
           dedupeKey: 'quick-match-go-no-go:match-1',
           payload: { matchId: 'match-1' },
           runAt: goNoGoAt,
+        }),
+      );
+      // Gate 8 (D28, D2): with no default referee, admins are alerted now and again at kickoff -24h.
+      expect(captured.jobs).toContainEqual(
+        expect.objectContaining({ type: 'REFEREE_UNASSIGNED_ALERT', dedupeKey: 'referee-unassigned-alert:match-1:published' }),
+      );
+      expect(captured.jobs).toContainEqual(
+        expect.objectContaining({
+          type: 'REFEREE_UNASSIGNED_ALERT',
+          dedupeKey: 'referee-unassigned-alert:match-1:t-24h',
+          runAt: new Date(kickoff.getTime() - 24 * 3_600_000),
         }),
       );
     },

@@ -32,6 +32,7 @@ import { copySavedSquad } from '../team-matches/team-squad.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from '../team-matches/team-match-audit.js';
 import { managedTeamSides } from '../team-matches/team-side-authority.js';
+import { hasActiveReferee } from '../referees/referee-assignment.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -628,7 +629,10 @@ export class MatchesRepository {
       if (now < match.goNoGoAt) throw new GoNoGoNotDueError();
       const total = match.formationSlots.length;
       const filled = match.formationSlots.filter(({ participantId }) => participantId).length;
-      if (total > 0 && filled === total) {
+      // Gate 8 (DEC-020, D2): the match also needs an active FootyFinder referee.
+      const positionsFilled = total > 0 && filled === total;
+      const refereeReady = await hasActiveReferee(tx, matchId);
+      if (positionsFilled && refereeReady) {
         await tx.match.update({ where: { id: matchId }, data: { confirmedAt: now } });
         const recipients = [
           ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
@@ -644,14 +648,18 @@ export class MatchesRepository {
             dedupeKey: notificationDedupeKey('match', matchId, 'go-no-go-confirmed', userId),
           })),
         );
-        return { outcome: 'CONFIRMED' as const, notifications, filled, total };
+        return { outcome: 'CONFIRMED' as const, notifications, filled, total, refereeReady };
       }
-      const cancelled = await this.cancelInTx(tx, matchId, 'POSITIONS_UNFILLED');
+      // D23: the players' own reason comes first; 'no referee' only when that was the sole problem.
+      const reason = positionsFilled ? 'NO_REFEREE' : 'POSITIONS_UNFILLED';
+      const cancelled = await this.cancelInTx(tx, matchId, reason);
       return {
         outcome: 'CANCELLED' as const,
         notifications: cancelled.notifications,
         filled,
         total,
+        refereeReady,
+        reason,
       };
     });
   }
@@ -734,7 +742,10 @@ export class MatchesRepository {
     });
     if (match.status === 'CANCELLED')
       return { match, refundedUserIds: [] as string[], notifications: [] as Notification[] };
-    const unfilled = reason === 'POSITIONS_UNFILLED';
+    const refundDescription: Partial<Record<MatchCancellationReason, string>> = {
+      POSITIONS_UNFILLED: 'Full refund: not all positions were filled 30 minutes before kickoff',
+      NO_REFEREE: 'Full refund: no FootyFinder referee was available',
+    };
     // Gate 7 (D2): release held fill-meter money first (team wallets lock before personal wallets).
     const teamHolds = await tx.teamWalletHold.findMany({
       where: { matchId, status: 'ACTIVE' },
@@ -758,9 +769,7 @@ export class MatchesRepository {
         idempotencyKey: `match-cancellation:${payment.id}`,
         referenceType: 'MATCH_PAYMENT',
         referenceId: payment.id,
-        description: unfilled
-          ? 'Full refund: not all positions were filled 30 minutes before kickoff'
-          : 'Full credit for cancelled match',
+        description: refundDescription[reason] ?? 'Full credit for cancelled match',
       });
       await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
       refundedUserIds.push(payment.userId);

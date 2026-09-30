@@ -51,8 +51,8 @@ export function TeamGoNoGoNotice({ startsAt, mode }: { startsAt: string; mode: T
   return (
     <p data-testid="team-go-no-go-notice" className="rounded-2xl border border-warning-300 bg-warning-50 p-4 text-sm font-semibold text-content">
       {mode === 'TEAMS_ONLY'
-        ? `Heads up: this match goes ahead only if both teams' fill meters are full by ${at} (30 minutes before kickoff). Otherwise it's cancelled and all held money goes back to each team wallet. If no team has taken the other side ${TEAM_MATCH_UNMATCHED_CANCEL_HOURS} hours before kickoff, it's cancelled then.`
-        : `Heads up: this match goes ahead only if, by ${at} (30 minutes before kickoff), your team's fill meter is full and the other side is ready: either the other team's meter is full, or players have claimed every starting position. Otherwise it's cancelled, held money goes back to each team wallet and every player's ${rands(MATCH_FEE_CENTS)} is refunded.`}
+        ? `Heads up: this match goes ahead only if both teams' fill meters are full by ${at} (30 minutes before kickoff). Otherwise it's cancelled and all held money goes back to each team wallet. If no team has taken the other side ${TEAM_MATCH_UNMATCHED_CANCEL_HOURS} hours before kickoff, it's cancelled then. A FootyFinder referee must also be assigned by ${at}.`
+        : `Heads up: this match goes ahead only if, by ${at} (30 minutes before kickoff), your team's fill meter is full and the other side is ready: either the other team's meter is full, or players have claimed every starting position. Otherwise it's cancelled, held money goes back to each team wallet and every player's ${rands(MATCH_FEE_CENTS)} is refunded. A FootyFinder referee must also be assigned by ${at}.`}
     </p>
   );
 }

@@ -1,4 +1,5 @@
 import './assert-disposable-test-database.js';
+import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { getGoNoGoAt, MATCH_FEE_CENTS, type MatchFormat } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
@@ -34,6 +35,8 @@ import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconc
 // once (including a second run, the durable queue path and a crashed/stale job), full lineup
 // confirmed, the race between the last claim and the T-30 job, the T-30 freeze, and host cancel.
 const marker = `dec-018-${randomUUID()}`;
+// Gate 8: a match also needs an active referee to be confirmed at T-30 (DEC-020).
+const referee = refereeFixture(marker);
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -141,6 +144,7 @@ async function createMatch(format: MatchFormat = 'FIVE_A_SIDE', startsAt = nextK
     hostId,
   );
   matchIds.push(match.id);
+  await referee.assign(match.id);
   return match;
 }
 
@@ -526,6 +530,7 @@ async function main() {
 }
 
 async function cleanup() {
+  await referee.cleanupJobs(matchIds);
   const reservationIds = (
     await prisma.fieldReservation.findMany({ where: { matchId: { in: matchIds } }, select: { id: true } })
   ).map(({ id }) => id);
@@ -556,6 +561,7 @@ async function cleanup() {
     await prisma.managedVenue.delete({ where: { id: venueId } });
   }
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  await referee.cleanup();
   assert((await prisma.user.count({ where: { email: { startsWith: marker } } })) === 0, 'Smoke users remained.');
   assert((await prisma.match.count({ where: { id: { in: matchIds } } })) === 0, 'Smoke matches remained.');
 }

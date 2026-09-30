@@ -13,6 +13,7 @@ import { registerFillReminderJobHandlers } from './modules/matches/fill-reminder
 import { registerTopUpJobHandlers } from './modules/payments/top-up.jobs.js';
 import { registerPaystackWebhookJobHandlers } from './modules/payments/paystack-webhook.jobs.js';
 import { registerTeamMatchJobHandlers } from './modules/team-matches/team-match.jobs.js';
+import { registerRefereeJobHandlers } from './modules/referees/referee.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -26,5 +27,6 @@ registerFillReminderJobHandlers();
 registerTopUpJobHandlers();
 registerPaystackWebhookJobHandlers();
 registerTeamMatchJobHandlers();
+registerRefereeJobHandlers();
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

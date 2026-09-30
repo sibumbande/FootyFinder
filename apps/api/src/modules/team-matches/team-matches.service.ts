@@ -32,6 +32,7 @@ import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
 import { assertTeamMatchCommand } from './team-side-authority.js';
 import { enqueueTeamGoNoGoJobs } from './team-match-meters.js';
+import { onRefereedMatchPublished } from '../referees/referee-assignment.js';
 import {
   enqueueTeamMatchEmail,
   enqueueTeamMatchSideJobs,
@@ -169,6 +170,8 @@ export class TeamMatchesService {
         });
         await enqueueTeamMatchSideJobs(tx, { id: created.id, startsAt, otherSideMode }, now);
         await enqueueTeamGoNoGoJobs(tx, { id: created.id, startsAt }, now);
+        // Gate 8 / DEC-020: every match needs a FootyFinder referee (default referee, D28).
+        await onRefereedMatchPublished(tx, created, now);
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { viewerCanManage: true, viewerCanChat: true });

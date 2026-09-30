@@ -23,6 +23,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { TeamWalletInsufficientFundsError, TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
 import { assertTeamMatchCommand } from './team-side-authority.js';
+import { hasActiveReferee } from '../referees/referee-assignment.js';
 
 /**
  * Gate 7 / TKT-709 (DEC-019 with D1, D2, D3, D5, D11): team fees, fill meters and the team T-30
@@ -200,7 +201,7 @@ export class TeamMatchMetersService {
         return { outcome: 'CONFIRMED' as const, notifications, ...facts };
       }
       const cancelled = await this.matches.cancelInTx(tx, matchId, facts.reason!);
-      await appendTeamMatchAudit(tx, { matchId, command: 'TEAM_MATCH_NO_GO', payload: { reason: facts.reason!, homeFull: facts.homeFull, otherReady: facts.otherReady } });
+      await appendTeamMatchAudit(tx, { matchId, command: 'TEAM_MATCH_NO_GO', payload: { reason: facts.reason!, homeFull: facts.homeFull, otherReady: facts.otherReady, refereeReady: facts.refereeReady } });
       return { outcome: 'CANCELLED' as const, notifications: cancelled.notifications, ...facts };
     });
     if (result.outcome === 'CONFIRMED' || result.outcome === 'CANCELLED') {
@@ -257,15 +258,20 @@ export class TeamMatchMetersService {
       : otherSide === 'INDIVIDUALS'
         ? match.formationSlots.length > 0 && match.formationSlots.every(({ participantId }) => participantId)
         : false;
-    const go = homeFull && otherReady;
+    // Gate 8 (DEC-020, D2): the match also needs an active FootyFinder referee. D23: the teams' own
+    // reason comes first; 'no referee' is given only when that was the sole problem.
+    const refereeReady = await hasActiveReferee(tx, match.id);
+    const go = homeFull && otherReady && refereeReady;
     const reason: MatchCancellationReason | null = go
       ? null
       : otherSide === null
         ? 'NO_OPPONENT'
-        : !homeFull || otherSide === 'TEAM'
+        : !homeFull || (otherSide === 'TEAM' && !otherReady)
           ? 'TEAM_FEES_UNFUNDED'
-          : 'POSITIONS_UNFILLED';
-    return { go, reason, homeFull, otherReady };
+          : !otherReady
+            ? 'POSITIONS_UNFILLED'
+            : 'NO_REFEREE';
+    return { go, reason, homeFull, otherReady, refereeReady };
   }
 
   /** Releases held money above `limit` (newest first); a partial hold is re-held for the rest. */

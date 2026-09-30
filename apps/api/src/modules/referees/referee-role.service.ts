@@ -1,9 +1,10 @@
-import type { AdminReferee, RefereeRoleChangeInput } from '@footy-finder/shared';
+import { getMatchEndsAt, type AdminReferee, type RefereeRoleChangeInput } from '@footy-finder/shared';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';
 import { appendAdminAudit } from '../admin/admin-audit.js';
+import { removeRefereeInTx } from './referee-assignment.js';
 
 const refereeSelect = {
   id: true,
@@ -39,15 +40,6 @@ const toAdminReferee = (row: RefereeRow): AdminReferee => ({
 /** Locks the user row so a grant and a revoke for the same person never interleave. */
 const lockUser = (tx: Prisma.TransactionClient, userId: string) =>
   tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId}::uuid FOR UPDATE`;
-
-/** True when the user holds an active referee grant and an active account (DEC-020). */
-export async function isActiveReferee(tx: Prisma.TransactionClient, userId: string) {
-  const grant = await tx.refereeGrant.findFirst({
-    where: { userId, revokedAt: null, user: { accountStatus: 'ACTIVE' } },
-    select: { id: true },
-  });
-  return Boolean(grant);
-}
 
 /**
  * Gate 8 / TKT-801 (DEC-020): the referee role. An admin grants or removes it on a normal account
@@ -90,8 +82,21 @@ export class RefereeRoleService {
     return toAdminReferee(grant);
   }
 
-  async revoke(userId: string, adminUserId: string, input: RefereeRoleChangeInput, requestId: string) {
+  /**
+   * Removing the role also takes the person off every match they referee that has not finished yet
+   * (admins are alerted for upcoming ones) and clears them as the default referee (D28).
+   */
+  async revoke(userId: string, adminUserId: string, input: RefereeRoleChangeInput, requestId: string, now = new Date()) {
     await serializableTransaction(async (tx) => {
+      // Lock order everywhere: Match rows, then the referee's User row.
+      const assigned = await tx.match.findMany({
+        where: { refereeUserId: userId, status: { notIn: ['CANCELLED', 'COMPLETED'] } },
+        select: { id: true, startsAt: true, durationMinutes: true },
+        orderBy: { id: 'asc' },
+      });
+      const unfinished = assigned.filter((match) => getMatchEndsAt(match) > now);
+      for (const match of unfinished)
+        await removeRefereeInTx(tx, { matchId: match.id, actorUserId: adminUserId, action: 'ROLE_REVOKED', reason: input.reason, expectedRefereeUserId: userId }, now);
       await lockUser(tx, userId);
       const active = await tx.refereeGrant.findFirst({ where: { userId, revokedAt: null } });
       if (!active) throw new AppError(404, 'This person is not a referee.', 'NOT_A_REFEREE');
@@ -105,7 +110,11 @@ export class RefereeRoleService {
         entityType: 'USER',
         entityId: userId,
         requestId,
-        metadata: { refereeGrantId: active.id, reason: input.reason },
+        metadata: { refereeGrantId: active.id, reason: input.reason, unassignedMatchIds: unfinished.map(({ id }) => id) },
+      });
+      await tx.refereeSettings.updateMany({
+        where: { id: 1, defaultRefereeUserId: userId },
+        data: { defaultRefereeUserId: null, updatedById: adminUserId, updatedAt: now },
       });
     });
     return { userId, revoked: true as const };

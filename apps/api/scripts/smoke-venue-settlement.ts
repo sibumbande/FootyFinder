@@ -1,4 +1,5 @@
 import './assert-disposable-test-database.js';
+import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
 import type { MatchFormat } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
@@ -20,6 +21,8 @@ import { FinancialRepository } from '../src/modules/wallet/financial.repository.
  * Bank details are fake, encrypted at rest, dual-control approved and revealed only with audit.
  */
 const marker = `gate6-settle-${randomUUID()}`;
+// Gate 8: a match also needs an active referee to be confirmed at T-30 (DEC-020).
+const referee = refereeFixture(marker);
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -66,6 +69,7 @@ async function createMatch(format: MatchFormat = 'FIVE_A_SIDE') {
     hostId,
   );
   matchIds.push(match.id);
+  await referee.assign(match.id);
   return match;
 }
 
@@ -174,7 +178,7 @@ async function main() {
   // 4. D4: a legacy match (no go/no-go) that kicks off creates no payable.
   const legacy = await createMatch();
   await prisma.durableJob.deleteMany({ where: { dedupeKey: { in: [goNoGoJobDedupeKey(legacy.id), fillReminderJobDedupeKey(legacy.id)] } } });
-  await prisma.match.update({ where: { id: legacy.id }, data: { goNoGoAt: null, confirmedAt: null } });
+  await prisma.match.update({ where: { id: legacy.id }, data: { goNoGoAt: null, confirmedAt: null, refereeUserId: null, refereeAssignedAt: null } });
   assert(await transitionMatchToStarted(legacy.id), 'Legacy match did not start.');
   assert((await prisma.venuePayable.count({ where: { matchId: legacy.id } })) === 0, 'A legacy match created a payable.');
 
@@ -277,6 +281,7 @@ async function main() {
  * test database, tagged with the smoke marker. Everything else is removed.
  */
 async function cleanup() {
+  await referee.cleanupJobs(matchIds);
   const paidMatchIds = (await prisma.venuePayable.findMany({ where: { matchId: { in: matchIds }, status: 'PAID' }, select: { matchId: true } })).map(({ matchId }) => matchId);
   const removableMatchIds = matchIds.filter((id) => !paidMatchIds.includes(id));
   const reservationIds = (await prisma.fieldReservation.findMany({ where: { matchId: { in: removableMatchIds } }, select: { id: true } })).map(({ id }) => id);
@@ -313,6 +318,7 @@ async function cleanup() {
     await prisma.managedVenue.delete({ where: { id: venueId } });
   }
   await prisma.user.deleteMany({ where: { id: { in: removableUserIds } } });
+  await referee.cleanup();
   assert((await prisma.match.count({ where: { id: { in: removableMatchIds } } })) === 0, 'Smoke matches remained.');
 }
 

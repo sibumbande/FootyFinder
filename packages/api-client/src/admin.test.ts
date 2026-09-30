@@ -39,11 +39,25 @@ describe('adminApi', () => {
     await api.referees();
     await api.grantReferee('user-id', { reason: 'Qualified referee' });
     await api.revokeReferee('user-id', { reason: 'Stepped down' });
+    await api.refereeMatches('upcoming');
+    await api.refereeOptions('match-id');
+    await api.assignReferee('match-id', { refereeUserId: 'user-id' });
+    await api.removeReferee('match-id', { reason: 'Unwell' });
+    await api.refereeSettings();
+    await api.updateRefereeSettings({ defaultRefereeUserId: null });
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/referees',
       '/admin/referees/user-id',
       '/admin/referees/user-id/revoke',
+      '/admin/referee-matches?view=upcoming',
+      '/admin/matches/match-id/referee-options',
+      '/admin/matches/match-id/referee',
+      '/admin/matches/match-id/referee/remove',
+      '/admin/referee-settings',
+      '/admin/referee-settings',
     ]);
+    expect(request.mock.calls[5]![1]).toMatchObject({ method: 'PUT' });
+    expect(request.mock.calls[8]![1]).toMatchObject({ method: 'PUT' });
     expect(request.mock.calls[1]![1]).toMatchObject({ method: 'POST', body: JSON.stringify({ reason: 'Qualified referee' }) });
   });
 

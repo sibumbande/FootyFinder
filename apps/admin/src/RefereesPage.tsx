@@ -31,6 +31,13 @@ export function RefereesPage() {
     mutationFn: (userId: string) => adminClient.revokeReferee(userId, { reason: revokeReasons[userId] ?? '' }),
     onSuccess: refresh,
   });
+  // D28: the default referee is assigned automatically to new matches when they are free.
+  const settings = useQuery({ queryKey: [...rootKey, 'settings'], queryFn: async () => (await adminClient.refereeSettings()).data });
+  const [defaultRefereeUserId, setDefaultRefereeUserId] = useState<string>();
+  const saveDefault = useMutation({
+    mutationFn: () => adminClient.updateRefereeSettings({ defaultRefereeUserId: defaultRefereeUserId || null }),
+    onSuccess: refresh,
+  });
   const refereeIds = new Set(referees.data?.map(({ userId }) => userId));
   const submitGrant = (event: FormEvent) => {
     event.preventDefault();
@@ -45,6 +52,41 @@ export function RefereesPage() {
         player names in the matches they referee. Granting or removing the role needs a reason and a fresh
         authenticator check, and is recorded in the audit log.
       </p>
+      <h3>Default referee</h3>
+      <p className="muted">
+        When a match is published it is given the default referee automatically if they are free at that time.
+        Otherwise it goes to Match referees as unassigned and admins are alerted.
+      </p>
+      <div className="row">
+        <label>
+          Default referee
+          <select
+            value={defaultRefereeUserId ?? settings.data?.defaultReferee?.userId ?? ''}
+            onChange={(event) => setDefaultRefereeUserId(event.target.value)}
+          >
+            <option value="">No default referee</option>
+            {referees.data?.map((referee) => (
+              <option key={referee.userId} value={referee.userId}>
+                {referee.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={defaultRefereeUserId === undefined || saveDefault.isPending}
+          onClick={() => saveDefault.mutate()}
+        >
+          Save default referee
+        </button>
+      </div>
+      {settings.data && (
+        <p className="muted">
+          Currently: {settings.data.defaultReferee?.displayName ?? 'none'}
+          {settings.data.updatedBy ? ` · last changed by ${settings.data.updatedBy.displayName} ${new Date(settings.data.updatedAt).toLocaleString()}` : ''}
+        </p>
+      )}
+      <AdminActionError error={saveDefault.error} onVerified={() => saveDefault.reset()} />
       <h3>Current referees</h3>
       {referees.error && <p className="error">{referees.error.message}</p>}
       {referees.data?.length === 0 && <p className="muted">No referees yet.</p>}

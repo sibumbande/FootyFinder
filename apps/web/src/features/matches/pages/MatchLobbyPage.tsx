@@ -26,6 +26,7 @@ import {
   QUICK_MATCH_SIDE_LABELS,
 } from '../constants/quick-match-sides.js';
 import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
+import { MatchRefereeLine } from '../components/MatchRefereeLine.js';
 import { rands } from '../utils/go-no-go-format.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
@@ -291,6 +292,7 @@ export function MatchLobbyPage() {
         startsAt={match.startsAt}
         viewerJoined={Boolean(currentParticipant)}
       />
+      <MatchRefereeLine referee={match.referee} goNoGoAt={match.goNoGoAt} status={match.status} />
       <FormError
         message={leave.error?.message ?? deletion.error?.message ?? ready.error?.message}
       />

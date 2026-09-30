@@ -41,6 +41,8 @@ const CANCELLED_BECAUSE: Record<MatchCancellationReason, string> = {
   TEAM_FEES_UNFUNDED: "because a team fee wasn't fully paid 30 minutes before kickoff",
   NO_OPPONENT: "because the other side wasn't taken in time",
   TEAM_CANCELLED: 'by the home team',
+  // Gate 8 (DEC-020, D2).
+  NO_REFEREE: 'because no FootyFinder referee was available',
 };
 
 export const isMatchCancellationReason = (value: unknown): value is MatchCancellationReason =>

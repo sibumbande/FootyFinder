@@ -1,4 +1,5 @@
 import './assert-disposable-test-database.js';
+import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
 import type { CreateMatchInput } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
@@ -20,6 +21,8 @@ import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
  * match owes its venue at kickoff from the admin-only price snapshot.
  */
 const world = teamMatchWorld(`gate7-gonogo-${randomUUID()}`);
+// Gate 8: a match also needs an active referee to be confirmed at T-30 (DEC-020).
+const referee = refereeFixture(`ref-${world.marker}`);
 const matches = new MatchesService();
 const repository = new MatchesRepository();
 const teamMatches = new TeamMatchesService();
@@ -48,6 +51,7 @@ async function publish(home: Awaited<ReturnType<typeof newTeam>>, otherSideMode:
   };
   const match = await matches.create(input, home.owner.id);
   world.matchIds.push(match.id);
+  await referee.assign(match.id);
   return match;
 }
 /** Pretend the clock has reached T-30 for a match still in the future. */
@@ -117,6 +121,22 @@ async function main() {
   const payable = await prisma.venuePayable.findUniqueOrThrow({ where: { matchId: goMatch.id } });
   const reservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: goMatch.id } });
   assert(payable.amountCents === reservation.priceCentsSnapshot && payable.amountCents === 50_000, 'The venue payable is not the admin-only price snapshot.');
+
+  // 1b. Gate 8 (DEC-020, D2, D23): both meters full but no active referee at T-30: NO-GO with
+  // reason NO_REFEREE. Every hold is released once and nothing is charged.
+  const homeR = await newTeam('home-r');
+  const awayR = await newTeam('away-r', 300_000);
+  const refMatch = await publish(homeR, 'TEAMS_ONLY', 0);
+  await teamMatches.loadTeam(refMatch.id, awayR.owner.id, { teamId: awayR.team.id, substituteCount: 0 });
+  await meters.fill(refMatch.id, 'HOME', homeR.owner.id, undefined, key());
+  await meters.fill(refMatch.id, 'AWAY', awayR.owner.id, undefined, key());
+  await prisma.match.update({ where: { id: refMatch.id }, data: { refereeUserId: null, refereeAssignedAt: null } });
+  await reachT30(refMatch.id);
+  const refDecision = await meters.decideGoNoGo(refMatch.id);
+  assert(refDecision.outcome === 'CANCELLED', 'A team match with no referee went ahead.');
+  assert((await prisma.match.findUniqueOrThrow({ where: { id: refMatch.id } })).cancellationReason === 'NO_REFEREE', 'The team no-go did not give NO_REFEREE.');
+  assert(await activeHolds(refMatch.id) === 0 && await prisma.teamWalletHold.count({ where: { matchId: refMatch.id, status: 'CAPTURED' } }) === 0, 'Team money was captured without a referee.');
+  assert(await teamBalance(homeR.team.id) === 100_000 && await teamBalance(awayR.team.id) === 300_000, 'A team was charged for a match with no referee.');
 
   // 2. "Teams only", away meter short: NO-GO. Every hold released once, nothing charged or owed.
   const homeB = await newTeam('home-b');
@@ -245,5 +265,6 @@ try {
   await main();
 } finally {
   await world.cleanup();
+  await referee.cleanup();
   await prisma.$disconnect();
 }

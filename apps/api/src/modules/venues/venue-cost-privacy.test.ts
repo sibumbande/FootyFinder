@@ -318,6 +318,18 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     expect(() => expectNoVenueCost({ ...teamMatch, reservation })).toThrow();
   });
 
+  it('the referee shown on a match is a display name only, with no venue cost or contact details (Gate 8 / D18)', () => {
+    const match = toMatch({
+      ...matchRecord,
+      goNoGoAt: new Date('2099-01-01T17:30:00.000Z'),
+      fieldReservation: reservation,
+      referee: { id: 'referee-1', username: 'ref_user', email: 'ref@example.invalid', profile: { displayName: 'Sam Ref', avatarUrl: null } },
+    } as never, { viewerCanManage: true });
+    expectNoVenueCost(match);
+    expect(match.referee).toEqual({ id: 'referee-1', displayName: 'Sam Ref', avatarUrl: null });
+    expect(JSON.stringify(match)).not.toMatch(/ref@example|ref_user/);
+  });
+
   it('retired player funding routes answer 410 PLAYER_FIELD_BOOKING_RETIRED', async () => {
     const app = express().use(express.json()).use('/bookings', bookingsRouter).use(errorHandler);
     for (const call of [

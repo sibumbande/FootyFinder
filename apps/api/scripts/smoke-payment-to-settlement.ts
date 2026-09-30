@@ -1,4 +1,5 @@
 import './assert-disposable-test-database.js';
+import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
@@ -29,6 +30,8 @@ import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-serv
  * issues for these fixtures, and every injected inconsistency is detected.
  */
 const marker = `gate6-e2e-${randomUUID()}`;
+// Gate 8: a match also needs an active referee to be confirmed at T-30 (DEC-020).
+const referee = refereeFixture(marker);
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -128,6 +131,7 @@ async function main() {
   kickoff.setUTCHours(10, 0, 0, 0);
   const match = await bookings.createQuickMatch({ managedFieldId: venue.fields[0]!.id, name: marker, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 5, rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', startsAt: kickoff.toISOString() }, hostId);
   matchIds.push(match.id);
+  await referee.assign(match.id);
   const slots = await prisma.formationSlot.findMany({ where: { matchId: match.id }, orderBy: [{ team: 'asc' }, { slotIndex: 'asc' }] });
   for (const [index, player] of players.entries()) {
     const team = index % 2 === 0 ? 'HOME' : 'AWAY';
@@ -204,6 +208,7 @@ async function main() {
 
 /** Paid settlement records are immutable, so the played match, venue, host and admins are retained. */
 async function cleanup() {
+  await referee.cleanupJobs(matchIds);
   const events = await prisma.paymentWebhookEvent.findMany({ where: { receivedAt: { gte: startedAt } }, select: { id: true } });
   await prisma.durableJob.deleteMany({ where: { dedupeKey: { in: events.map(({ id }) => `paystack-webhook:${id}`) } } });
   await prisma.paymentWebhookEvent.deleteMany({ where: { id: { in: events.map(({ id }) => id) } } });
@@ -224,6 +229,7 @@ async function cleanup() {
   await prisma.matchPayment.deleteMany({ where: { userId: { in: players } } });
   await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: players } } } });
   await prisma.user.deleteMany({ where: { id: { in: players } } });
+  await referee.cleanup();
   await fake.stop();
 }
 

@@ -20,7 +20,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
       <GoNoGoBanner facts={{ goNoGoAt }} status="OPEN" feeCents={8_000} filled={7} total={10} now={before} />,
     );
     expect(screen.getByRole('status')).toHaveTextContent(
-      "This match goes ahead only if all positions are filled by 13:30 on 30 Oct 2026. Otherwise it's cancelled and your R80 is refunded to your wallet.",
+      "This match goes ahead only if all positions are filled and a FootyFinder referee is assigned by 13:30 on 30 Oct 2026. Otherwise it's cancelled and your R80 is refunded to your wallet.",
     );
     expect(screen.getByTestId('positions-filled')).toHaveTextContent('7 of 10 positions filled');
     expect(screen.queryByText(/lineup is locked/)).not.toBeInTheDocument();
@@ -65,6 +65,25 @@ describe('GoNoGoBanner (DEC-018)', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Cancelled: not every position was filled');
     expect(screen.getByRole('status')).toHaveTextContent(
       'This match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. Your R80 has been refunded to your FootyFinder wallet.',
+    );
+  });
+
+  it('explains a Gate 8 cancellation because no referee was available', () => {
+    render(
+      <GoNoGoBanner
+        facts={{ goNoGoAt, cancellationReason: 'NO_REFEREE' }}
+        status="CANCELLED"
+        feeCents={8_000}
+        filled={10}
+        total={10}
+        venueName="Queens Park"
+        startsAt={kickoff}
+        viewerJoined
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Cancelled: no referee was available');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled because no FootyFinder referee was available. Your R80 has been refunded to your FootyFinder wallet.',
     );
   });
 

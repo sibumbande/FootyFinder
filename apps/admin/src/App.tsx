@@ -12,6 +12,7 @@ import { MatchLoadingPage } from './MatchLoadingPage.js';
 import { ModerationPage } from './ModerationPage.js';
 import { DisputesPage } from './DisputesPage.js';
 import { RefereesPage } from './RefereesPage.js';
+import { MatchRefereesPage } from './MatchRefereesPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -198,6 +199,7 @@ function Dashboard() {
             ))}
           </div>
           <GoNoGoPanel health={data.goNoGo} />
+          <UnassignedRefereesPanel />
           <p className="muted">
             Updated {new Date(data.generatedAt).toLocaleTimeString()} · API uptime{' '}
             {Math.floor(data.runtime.uptimeSeconds / 60)} minutes · {data.accounts.admins}{' '}
@@ -233,6 +235,24 @@ const GO_NO_GO_PROBLEM_LABELS: Record<GoNoGoProblem, string> = {
  * DEC-018: T-30 go/no-go checks that are overdue, failed or stuck, and go/no-go matches past
  * kickoff that were never decided. Refreshes with the dashboard every 30 seconds.
  */
+/** Gate 8 / D2: matches that still need a referee; each is cancelled at T-30 without one. */
+function UnassignedRefereesPanel() {
+  const unassigned = useQuery({
+    queryKey: ['admin', 'referee-matches', 'unassigned'],
+    queryFn: async () => (await adminClient.refereeMatches('unassigned')).data,
+    refetchInterval: 30_000,
+  });
+  if (!unassigned.data) return null;
+  return (
+    <p className={unassigned.data.length ? 'error' : 'muted'}>
+      {unassigned.data.length
+        ? `${unassigned.data.length} upcoming match(es) have no referee. `
+        : 'Every upcoming match has a referee. '}
+      <NavLink to="/match-referees">Match referees</NavLink>
+    </p>
+  );
+}
+
 function GoNoGoPanel({ health }: { health: GoNoGoHealth }) {
   const total = health.overdue + health.staleRunning + health.failed + health.unconfirmedPastKickoff;
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
@@ -322,6 +342,7 @@ function AdminShell() {
           <NavLink to="/moderation">Moderation</NavLink>
           <NavLink to="/disputes">Disputes</NavLink>
           <NavLink to="/referees">Referees</NavLink>
+          <NavLink to="/match-referees">Match referees</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -340,6 +361,7 @@ function AdminShell() {
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="disputes" element={<DisputesPage />} />
           <Route path="referees" element={<RefereesPage />} />
+          <Route path="match-referees" element={<MatchRefereesPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

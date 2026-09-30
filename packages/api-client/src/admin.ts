@@ -49,6 +49,13 @@ import type {
   VenueBankDetails,
   AdminReferee,
   RefereeRoleChangeInput,
+  AdminRefereeMatch,
+  AdminRefereeMatchQuery,
+  AdminRefereeOption,
+  AdminRefereeSettings,
+  AssignRefereeInput,
+  RemoveRefereeInput,
+  RefereeSettingsInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -63,6 +70,18 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: AdminReferee }>(`/admin/referees/${id(userId)}`, post(input)),
   revokeReferee: (userId: string, input: RefereeRoleChangeInput) =>
     client.request<{ data: { userId: string; revoked: true } }>(`/admin/referees/${id(userId)}/revoke`, post(input)),
+  // Gate 8 / TKT-802: per-match assignment (D27 busy check) and the default referee (D28, fresh MFA).
+  refereeMatches: (view: AdminRefereeMatchQuery['view'] = 'unassigned') =>
+    client.request<{ data: AdminRefereeMatch[] }>(`/admin/referee-matches?view=${view}`),
+  refereeOptions: (matchId: string) =>
+    client.request<{ data: AdminRefereeOption[] }>(`/admin/matches/${id(matchId)}/referee-options`),
+  assignReferee: (matchId: string, input: AssignRefereeInput) =>
+    client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee`, { method: 'PUT', body: JSON.stringify(input) }),
+  removeReferee: (matchId: string, input: RemoveRefereeInput) =>
+    client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee/remove`, post(input)),
+  refereeSettings: () => client.request<{ data: AdminRefereeSettings }>('/admin/referee-settings'),
+  updateRefereeSettings: (input: RefereeSettingsInput) =>
+    client.request<{ data: AdminRefereeSettings }>('/admin/referee-settings', { method: 'PUT', body: JSON.stringify(input) }),
   // Gate 6 / TKT-607-608: venue bank details, payables and the weekly dual-control queue.
   venueBeneficiaries: (venueId: string) =>
     client.request<{ data: AdminVenueBeneficiary[] }>(`/admin/venues/${id(venueId)}/beneficiaries`),

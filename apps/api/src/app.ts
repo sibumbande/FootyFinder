@@ -18,6 +18,7 @@ import { profilesRouter } from './modules/profiles/profiles.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
 import { walletRouter } from './modules/wallet/wallet.routes.js';
 import { teamInvitesRouter, teamsRouter } from './modules/teams/teams.routes.js';
+import { refereeRouter } from './modules/referees/referee.routes.js';
 import { adminAuthRouter, adminRouter } from './modules/admin/admin.routes.js';
 import { requireAdminMfa, requirePlatformAdmin } from './middleware/require-admin.js';
 import { supportRouter } from './modules/support/support.routes.js';
@@ -80,6 +81,7 @@ app.use('/bookings', requireAuth, requireOnboardingForMutations, bookingsRouter)
 app.use('/moderation', requireAuth, moderationRouter);
 app.use('/disputes', requireAuth, disputesRouter);
 app.use('/teams', requireAuth, requireOnboardingForMutations, teamsRouter);
+app.use('/referee', requireAuth, refereeRouter);
 app.use('/team-invites', teamInvitesRouter);
 app.use('/admin/auth', requireAuth, requirePlatformAdmin, adminAuthRouter);
 app.use('/admin', requireAuth, requirePlatformAdmin, requireAdminMfa, adminRouter);

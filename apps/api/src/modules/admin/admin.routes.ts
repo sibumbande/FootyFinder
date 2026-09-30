@@ -30,6 +30,7 @@ registerUuidRouteParams(adminRouter, [
   'refundId',
   'beneficiaryId',
   'payableId',
+  'matchId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -128,3 +129,10 @@ adminRouter.post('/disputes/:disputeId/resolve', costlyMutationRateLimit, disput
 adminRouter.get('/referees', referees.listReferees);
 adminRouter.post('/referees/:userId', costlyMutationRateLimit, requireRecentAdminMfa, referees.grantReferee);
 adminRouter.post('/referees/:userId/revoke', costlyMutationRateLimit, requireRecentAdminMfa, referees.revokeReferee);
+// Gate 8 / TKT-802: per-match assignment (D27 overlap check) and the default referee (D28, fresh MFA).
+adminRouter.get('/referee-matches', referees.listRefereeMatches);
+adminRouter.get('/referee-settings', referees.refereeSettings);
+adminRouter.put('/referee-settings', costlyMutationRateLimit, requireRecentAdminMfa, referees.updateRefereeSettings);
+adminRouter.get('/matches/:matchId/referee-options', referees.refereeOptions);
+adminRouter.put('/matches/:matchId/referee', costlyMutationRateLimit, referees.assignReferee);
+adminRouter.post('/matches/:matchId/referee/remove', costlyMutationRateLimit, referees.removeReferee);

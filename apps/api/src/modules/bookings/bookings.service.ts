@@ -17,6 +17,7 @@ import { appendAdminAudit } from '../admin/admin-audit.js';
 import { matchInclude } from '../matches/match.query.js';
 import { toMatch } from '../matches/match.mapper.js';
 import { enqueueGoNoGoJob } from '../matches/go-no-go.js';
+import { onRefereedMatchPublished } from '../referees/referee-assignment.js';
 import { enqueueFillReminderJob } from '../matches/fill-reminder.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -171,6 +172,8 @@ export class BookingsService {
         await tx.fieldReservation.create({ data: slot.reservation(created.id, input.visibility, now) });
         await enqueueGoNoGoJob(tx, created.id, startsAt);
         await enqueueFillReminderJob(tx, created.id, startsAt, now);
+        // Gate 8 / DEC-020: every match needs a FootyFinder referee (default referee, D28).
+        await onRefereedMatchPublished(tx, created, now);
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { inviteToken, viewerCanManage: true, viewerCanChat: true });
@@ -264,6 +267,7 @@ export class BookingsService {
         if (source === 'ADMIN_LOADED') {
           await enqueueGoNoGoJob(tx, match.id, startsAt);
           await enqueueFillReminderJob(tx, match.id, startsAt, now);
+          await onRefereedMatchPublished(tx, match, now);
         }
         if (fundingDeadline) await enqueueDurableJob(tx, { type: 'RESERVATION_FUNDING_EXPIRE', dedupeKey: `reservation-expire:${created.id}`, payload: { reservationId: created.id }, runAt: fundingDeadline });
         if (source === 'ADMIN_LOADED') await appendAdminAudit(tx, { actorUserId, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', entityId: created.id, requestId, metadata: { matchId: match.id, fieldId: field.id, priceCents: price.amountCents } });

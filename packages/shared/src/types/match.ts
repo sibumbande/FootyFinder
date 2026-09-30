@@ -1,5 +1,6 @@
 import type { MatchFormat } from '../config/match-formats.js';
 import type { PublicUser } from './user.js';
+import type { MatchReferee } from './referee.js';
 import type { TeamMatchOtherSideMode, TeamMatchOtherSideTakenBy } from '../config/team-match-fees.js';
 
 export const MATCH_STATUSES = [
@@ -216,7 +217,9 @@ export type MatchCancellationReason =
   // Gate 7 team matches (DEC-019).
   | 'TEAM_FEES_UNFUNDED'
   | 'NO_OPPONENT'
-  | 'TEAM_CANCELLED';
+  | 'TEAM_CANCELLED'
+  // Gate 8 (DEC-020, D2): no active FootyFinder referee was assigned by T-30.
+  | 'NO_REFEREE';
 
 /**
  * DEC-018 go/no-go facts. Present only on matches created under DEC-018: the match goes ahead only
@@ -266,6 +269,8 @@ export interface Match extends MatchGoNoGoFacts {
   /** Gate 7: the side of this team match the viewer's team plays on, and the side they manage. */
   viewerTeamSide?: TeamSide | null;
   viewerManagedTeamSide?: TeamSide | null;
+  /** Gate 8 / D18: the FootyFinder referee assigned to this match (display name only). */
+  referee?: MatchReferee | null;
   viewerCanManage: boolean;
   viewerCanChat: boolean;
 }

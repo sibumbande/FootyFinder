@@ -410,6 +410,18 @@ enum NotificationType {
   TEAM_MATCH_OPPONENT_WITHDRAWN
   TEAM_METER_REMINDER
   TEAM_CHAT_UNREAD
+  REFEREE_ASSIGNED
+  REFEREE_UNASSIGNED
+  ADMIN_ALERT
+}
+
+/// Gate 8 / TKT-802: permanent referee assignment history.
+enum RefereeAssignmentAction {
+  ASSIGNED
+  AUTO_ASSIGNED
+  REMOVED
+  DECLINED
+  ROLE_REVOKED
 }
 
 model User {
@@ -487,6 +499,11 @@ model User {
   refereeGrants             RefereeGrant[]            @relation("RefereeGrantee")
   grantedRefereeRoles       RefereeGrant[]            @relation("RefereeGrantor")
   revokedRefereeRoles       RefereeGrant[]            @relation("RefereeRevoker")
+  refereedMatches           Match[]                   @relation("MatchReferee")
+  refereeAssignments        MatchRefereeAssignment[]  @relation("RefereeAssignmentReferee")
+  refereeAssignmentActions  MatchRefereeAssignment[]  @relation("RefereeAssignmentActor")
+  defaultRefereeSettings    RefereeSettings[]         @relation("DefaultReferee")
+  refereeSettingsUpdates    RefereeSettings[]         @relation("RefereeSettingsUpdater")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1301,6 +1318,9 @@ model Match {
   otherSideMode             TeamMatchOtherSideMode?
   /// NULL until the other side is taken; changed only under the Match row lock.
   otherSideTakenBy          TeamMatchOtherSideTakenBy?
+  /// Gate 8 / DEC-020: the FootyFinder referee assigned to this match (T-30 go/no-go matches only).
+  refereeUserId             String?                   @db.Uuid
+  refereeAssignedAt         DateTime?
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime                  @updatedAt
   createdBy                 User                      @relation("MatchCreator", fields: [createdById], references: [id])
@@ -1317,9 +1337,40 @@ model Match {
   venuePayable              VenuePayable?
   teamWalletHolds           TeamWalletHold[]
   teamMatchAuditEvents      TeamMatchAuditEvent[]
+  referee                   User?                     @relation("MatchReferee", fields: [refereeUserId], references: [id], onDelete: Restrict)
+  refereeAssignments        MatchRefereeAssignment[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
+  @@index([refereeUserId, startsAt])
+}
+
+/// Gate 8 / TKT-802 (DEC-020): permanent history of referee assignment changes (DB trigger blocks edits).
+/// actorUserId is null for automatic changes (default referee at publish).
+model MatchRefereeAssignment {
+  id            String                  @id @default(uuid()) @db.Uuid
+  matchId       String                  @db.Uuid
+  action        RefereeAssignmentAction
+  refereeUserId String                  @db.Uuid
+  actorUserId   String?                 @db.Uuid
+  reason        String?
+  createdAt     DateTime                @default(now())
+  match         Match                   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  referee       User                    @relation("RefereeAssignmentReferee", fields: [refereeUserId], references: [id], onDelete: Restrict)
+  actor         User?                   @relation("RefereeAssignmentActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@index([refereeUserId, createdAt])
+}
+
+/// Gate 8 / TKT-802 (D28): single row (id = 1) holding the default referee.
+model RefereeSettings {
+  id                   Int      @id @default(1)
+  defaultRefereeUserId String?  @db.Uuid
+  updatedById          String?  @db.Uuid
+  updatedAt            DateTime @default(now())
+  defaultReferee       User?    @relation("DefaultReferee", fields: [defaultRefereeUserId], references: [id], onDelete: Restrict)
+  updatedBy            User?    @relation("RefereeSettingsUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
 }
 
 model FieldReservation {

@@ -30,6 +30,7 @@ import {
 import { useDeleteMatch } from '../hooks/useMatches.js';
 import { TeamMatchOtherSide } from './TeamMatchOtherSide.js';
 import { TeamMeter } from './TeamMeter.js';
+import { MatchRefereeLine } from './MatchRefereeLine.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -115,6 +116,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
           )}
         </div>
       </header>
+      <MatchRefereeLine referee={match.referee} goNoGoAt={match.goNoGoAt} status={match.status} />
       <FormError message={deletion.error?.message} />
       {publicTeamMatch && <TeamMeter match={match} />}
       {publicTeamMatch && <TeamMatchOtherSide match={match} />}
