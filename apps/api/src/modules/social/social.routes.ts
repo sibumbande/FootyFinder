@@ -5,7 +5,7 @@ import * as controller from './social.controller.js';
 
 /** Gate 9: mounted at /social behind requireAuth and requireOnboardingForMutations. */
 export const socialRouter: ExpressRouter = Router();
-registerUuidRouteParams(socialRouter, ['requestId', 'userId', 'matchId', 'inviteId']);
+registerUuidRouteParams(socialRouter, ['requestId', 'userId', 'matchId', 'inviteId', 'postId']);
 socialRouter.get('/summary', controller.summary);
 socialRouter.get('/search', controller.search);
 socialRouter.get('/relationships', controller.relationships);
@@ -26,3 +26,10 @@ socialRouter.delete('/blocks/:userId', controller.unblock);
 socialRouter.get('/team-invites', controller.myTeamInvites);
 socialRouter.post('/team-invites/:inviteId/accept', controller.acceptTeamInvite);
 socialRouter.post('/team-invites/:inviteId/decline', controller.declineTeamInvite);
+socialRouter.get('/recruitment/posts', controller.recruitmentPosts);
+socialRouter.get('/recruitment/looking', controller.lookingPlayers);
+socialRouter.post('/recruitment/posts/:postId/join-requests', costlyMutationRateLimit, controller.askToJoin);
+socialRouter.get('/looking-card', controller.myLookingCard);
+socialRouter.put('/looking-card', controller.updateLookingCard);
+socialRouter.get('/join-requests', controller.myJoinRequests);
+socialRouter.post('/join-requests/:requestId/cancel', controller.cancelJoinRequest);

@@ -30,7 +30,7 @@ export const teamImageUpload = multer({
 });
 
 export const teamsRouter: ExpressRouter = Router();
-registerUuidRouteParams(teamsRouter, ['teamId', 'userId', 'inviteId', 'slotId', 'reviewId']);
+registerUuidRouteParams(teamsRouter, ['teamId', 'userId', 'inviteId', 'slotId', 'reviewId', 'postId', 'requestId']);
 registerRouteParam(teamsRouter, 'format', matchFormatRouteParamSchema);
 teamsRouter.get('/', controller.list);
 teamsRouter.post('/', costlyMutationRateLimit, controller.create);
@@ -54,6 +54,15 @@ teamsRouter.get('/:teamId/member-invites', social.teamMemberInvites);
 teamsRouter.get('/:teamId/invitable-friends', social.invitableFriends);
 teamsRouter.post('/:teamId/member-invites', costlyMutationRateLimit, social.createTeamMemberInvite);
 teamsRouter.post('/:teamId/member-invites/:inviteId/cancel', social.cancelTeamMemberInvite);
+// Gate 9 / TKT-909: recruitment posts and join requests (Owner and Captains).
+teamsRouter.get('/:teamId/recruitment-posts', social.teamRecruitmentPosts);
+teamsRouter.post('/:teamId/recruitment-posts', costlyMutationRateLimit, social.createRecruitmentPost);
+teamsRouter.patch('/:teamId/recruitment-posts/:postId', social.updateRecruitmentPost);
+teamsRouter.post('/:teamId/recruitment-posts/:postId/renew', social.renewRecruitmentPost);
+teamsRouter.post('/:teamId/recruitment-posts/:postId/close', social.closeRecruitmentPost);
+teamsRouter.get('/:teamId/join-requests', social.teamJoinRequests);
+teamsRouter.post('/:teamId/join-requests/:requestId/accept', social.acceptJoinRequest);
+teamsRouter.post('/:teamId/join-requests/:requestId/decline', social.declineJoinRequest);
 teamsRouter.patch('/:teamId/members/:userId', controller.updateMemberRole);
 teamsRouter.delete('/:teamId/members/:userId', controller.removeMember);
 teamsRouter.post('/:teamId/invites', costlyMutationRateLimit, controller.createInvite);

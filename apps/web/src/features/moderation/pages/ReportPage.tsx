@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { moderationClient } from '@/api/client.js';
 
-const targetTypes = new Set<ModerationReportTargetType>(['USER', 'DIRECT_MESSAGE', 'LOBBY_MESSAGE', 'TEAM', 'MATCH']);
+const targetTypes = new Set<ModerationReportTargetType>(['USER', 'DIRECT_MESSAGE', 'LOBBY_MESSAGE', 'TEAM', 'MATCH', 'RECRUITMENT_POST', 'LOOKING_CARD']);
 const reasons: ModerationReportReason[] = ['HARASSMENT', 'ABUSE', 'CHEATING', 'SPAM', 'IMPERSONATION', 'SAFETY', 'OTHER'];
 
 export function ReportPage() {

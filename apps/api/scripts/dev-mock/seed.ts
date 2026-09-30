@@ -18,6 +18,8 @@ import { TeamWalletService } from '../../src/modules/team-wallet/team-wallet.ser
 import { TeamsService } from '../../src/modules/teams/teams.service.js';
 import { DemoPaymentOperator } from '../../src/modules/wallet/demo-payment.operator.js';
 import { DepositsService } from '../../src/modules/wallet/deposits.service.js';
+import { FriendsService } from '../../src/modules/social/friends.service.js';
+import { RecruitmentService } from '../../src/modules/social/recruitment.service.js';
 import { ShiftRefusedError, devSeedMatchLink, shiftDevSeedMatch } from './shift.js';
 import {
   DEV_SEED,
@@ -49,6 +51,8 @@ const lineups = new MatchLineupService();
 const refereeRoles = new RefereeRoleService();
 const refereeAssignments = new RefereeAssignmentService();
 const adminCancel = new AdminMatchCancelService();
+const friendsService = new FriendsService();
+const recruitmentService = new RecruitmentService();
 
 type Players = Map<number, { id: string; n: number }>;
 const log = (message: string) => console.log(`  ${message}`);
@@ -391,6 +395,63 @@ function printTable(rows: Scenario[]) {
   console.log('Move a kick-off: npm run dev:shift-match -- <matchId> <minutes>   (negative = earlier). Keep the dev API running: it runs the T-30 check and kick-off.');
 }
 
+/** Two players become friends through the normal request-and-accept path (idempotent). */
+async function befriend(requesterId: string, recipientId: string) {
+  const relationship = await friendsService.send(requesterId, recipientId);
+  if (relationship.state === 'REQUESTED' && relationship.requestId) await friendsService.accept(recipientId, relationship.requestId);
+}
+
+/**
+ * Gate 9 (CEO D18): friendships, recruitment posts, looking players and a join request, all through
+ * the normal services. With --me, you are friends with player01 and player16, and player03 has sent
+ * you a friend request.
+ */
+async function ensureSocial(players: Players, teamIds: Record<string, string>, meId?: string) {
+  console.log('Social');
+  const id = (n: number) => players.get(n)!.id;
+  for (const [a, b] of [[1, 2], [1, 3], [2, 3], [15, 16], [16, 17], [21, 22], [22, 23], [29, 30], [1, 15]] as const) await befriend(id(a), id(b));
+  if (meId) {
+    const me = await prisma.user.findUniqueOrThrow({ where: { id: meId }, select: { friendRequestsEnabled: true } });
+    if (me.friendRequestsEnabled) {
+      await befriend(id(1), meId);
+      await befriend(id(16), meId);
+      const pending = await friendsService.relationships(id(3), [meId]);
+      if (pending.get(meId)!.state === 'CAN_REQUEST') await friendsService.send(id(3), meId);
+    } else log('Your account has friend requests turned off; skipped your friendships.');
+  }
+  const posts = [
+    { team: 'WANDERERS', owner: 1, input: { positions: ['GOALKEEPER', 'DEFENDER'], playersWanted: 2, format: 'SEVEN_A_SIDE', level: 'COMPETITIVE', days: [2, 4], times: ['EVENING'], area: 'Woodstock, Cape Town', note: 'We need a keeper and a centre-back for Tuesday and Thursday evenings.' } },
+    { team: 'OBSERVATORY', owner: 15, input: { positions: ['GOALKEEPER', 'DEFENDER', 'MIDFIELDER', 'FORWARD'], playersWanted: 5, format: 'ELEVEN_A_SIDE', level: 'CASUAL', days: [6, 0], times: ['MORNING'], area: 'Observatory, Cape Town', note: 'Starting an 11-a-side weekend side. All positions welcome.' } },
+  ] as const;
+  const postIds: Record<string, string> = {};
+  for (const post of posts) {
+    const teamId = teamIds[post.team]!;
+    const existing = await prisma.teamRecruitmentPost.findFirst({ where: { teamId, status: 'OPEN' } });
+    postIds[post.team] = existing?.id ?? (await recruitmentService.createPost(id(post.owner), teamId, { ...post.input, positions: [...post.input.positions], days: [...post.input.days], times: [...post.input.times] })).id;
+  }
+  await recruitmentService.updateCard(id(29), { enabled: true, positions: ['FORWARD', 'MIDFIELDER'], area: 'Salt River', days: [6], times: ['MORNING'], note: 'Quick winger, free on Saturday mornings.' });
+  await recruitmentService.updateCard(id(30), { enabled: true, positions: ['GOALKEEPER'], area: 'Rondebosch', days: [1, 3], times: ['EVENING'], note: 'Keeper looking for a regular weekday side.' });
+  await recruitmentService.askToJoin(id(29), postIds.OBSERVATORY!);
+  log('9 friendships between mock players, 2 recruitment posts, player29 and player30 looking for a team, player29 has asked to join Observatory United.');
+  if (meId) log('You: friends with player01 and player16; player03 has sent you a friend request.');
+}
+
+/** Reset: posts closed, join requests and friend requests cancelled, looking cards off, mock-to-mock friendships removed. */
+async function resetSocial(userIds: string[]) {
+  console.log('Social');
+  const posts = await prisma.teamRecruitmentPost.findMany({ where: { status: 'OPEN', team: { ownerUserId: { in: userIds }, archivedAt: null } }, include: { team: { select: { ownerUserId: true } } } });
+  for (const post of posts) await recruitmentService.closePost(post.team.ownerUserId, post.teamId, post.id);
+  const requests = await prisma.teamJoinRequest.findMany({ where: { userId: { in: userIds }, status: 'PENDING' } });
+  for (const request of requests) await recruitmentService.cancelJoinRequest(request.userId, request.id);
+  const cards = await prisma.playerLookingCard.findMany({ where: { userId: { in: userIds }, enabled: true } });
+  for (const card of cards) await recruitmentService.updateCard(card.userId, { enabled: false, positions: card.positions, days: card.days, times: card.times });
+  const pending = await prisma.friendRequest.findMany({ where: { requesterId: { in: userIds }, status: 'PENDING' } });
+  for (const request of pending) await friendsService.close(request.requesterId, request.id, 'CANCEL');
+  const friendships = await prisma.friendship.findMany({ where: { userLowId: { in: userIds }, userHighId: { in: userIds } } });
+  for (const friendship of friendships) await friendsService.remove(friendship.userLowId, friendship.userHighId);
+  log(`Closed ${posts.length} posts, cancelled ${requests.length} join requests and ${pending.length} friend requests, switched off ${cards.length} looking cards, removed ${friendships.length} mock friendships. Your own friendships are kept.`);
+}
+
 export async function seed(meEmail: string | undefined) {
   const now = new Date();
   const round = await generation();
@@ -398,6 +459,8 @@ export async function seed(meEmail: string | undefined) {
   const players = await ensurePlayers();
   await fundWallets(players, round);
   const teamIds = await ensureTeams(players);
+  const meForSocial = meEmail ? await prisma.user.findUnique({ where: { email: meEmail.trim().toLowerCase() }, select: { id: true, isTestAccount: true } }) : null;
+  await ensureSocial(players, teamIds, meForSocial && !meForSocial.isTestAccount ? meForSocial.id : undefined);
   if (!meEmail) {
     console.log('\nNo --me given: players and teams are ready; scenarios need you as their referee (npm run dev:seed-mock -- --me <your email>).');
     return;
@@ -467,6 +530,7 @@ export async function resetMock(meEmail: string | undefined) {
   for (const line of summary.keptAsHistory) log(`Kept as history: ${line}`);
   for (const line of summary.notCancelled) log(`Could not cancel (left as is): ${line}`);
 
+  await resetSocial(userIds);
   console.log('Mock teams');
   const teams = await prisma.team.findMany({ where: { ownerUserId: { in: userIds }, archivedAt: null } });
   for (const team of teams) {

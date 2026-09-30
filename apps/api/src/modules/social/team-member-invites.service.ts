@@ -74,7 +74,7 @@ export class TeamMemberInvitesService {
   /** Who may be invited: a friend of the inviter, or (TKT-909) a player whose looking card is on. */
   private async eligible(db: Db, actorId: string, inviteeId: string, source: TeamMemberInviteSource) {
     if (source === 'FRIEND') return Boolean(await db.friendship.findUnique({ where: { userLowId_userHighId: orderedPair(actorId, inviteeId) } }));
-    return false;
+    return Boolean(await db.playerLookingCard.findFirst({ where: { userId: inviteeId, enabled: true, removedAt: null } }));
   }
 
   async invite(actorId: string, teamId: string, inviteeId: string, source: TeamMemberInviteSource = 'FRIEND', now = new Date()) {
@@ -163,6 +163,8 @@ export class TeamMemberInvitesService {
       let joined: Awaited<ReturnType<typeof joinTeamAsMember>> | null = null;
       if (accept && !(await tx.teamMembership.findUnique({ where: { teamId_userId: { teamId: row.teamId, userId: viewerId } } })))
         joined = await joinTeamAsMember(tx, row.teamId, viewerId, ['team-member-invite', row.id]);
+      // D13: joining a team switches the player's "Looking for a team" card off.
+      if (accept) await tx.playerLookingCard.updateMany({ where: { userId: viewerId, enabled: true }, data: { enabled: false } });
       const inviteeName = row.invitee.profile?.displayName ?? row.invitee.username;
       const answered = await persistNotifications(tx, [{
         userId: row.invitedById,

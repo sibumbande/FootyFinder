@@ -309,6 +309,8 @@ enum ModerationReportTargetType {
   LOBBY_MESSAGE
   TEAM
   MATCH
+  RECRUITMENT_POST
+  LOOKING_CARD
 }
 
 enum ModerationReportReason {
@@ -430,6 +432,34 @@ enum NotificationType {
   FRIEND_REQUEST_ACCEPTED
   TEAM_INVITE_RECEIVED
   TEAM_INVITE_ANSWERED
+  TEAM_JOIN_REQUEST_RECEIVED
+  TEAM_JOIN_REQUEST_ANSWERED
+}
+
+/// Gate 9 / TKT-909: team recruitment board.
+enum RecruitmentLevel {
+  CASUAL
+  COMPETITIVE
+}
+
+enum TimeOfDay {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+enum RecruitmentPostStatus {
+  OPEN
+  CLOSED
+  REMOVED
+}
+
+enum TeamJoinRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
 }
 
 /// Gate 9 / TKT-904: personal team invites.
@@ -592,6 +622,12 @@ model User {
   blocksReceived            UserBlock[]               @relation("BlockBlocked")
   teamInvitesReceived       TeamMemberInvite[]        @relation("TeamMemberInvitee")
   teamInvitesSent           TeamMemberInvite[]        @relation("TeamMemberInviter")
+  recruitmentPosts          TeamRecruitmentPost[]     @relation("RecruitmentPostCreator")
+  removedRecruitmentPosts   TeamRecruitmentPost[]     @relation("RecruitmentPostRemover")
+  lookingCard               PlayerLookingCard?        @relation("LookingCardOwner")
+  removedLookingCards       PlayerLookingCard[]       @relation("LookingCardRemover")
+  teamJoinRequests          TeamJoinRequest[]         @relation("JoinRequester")
+  answeredJoinRequests      TeamJoinRequest[]         @relation("JoinRequestResponder")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1971,6 +2007,8 @@ model Team {
   /// Gate 7 / D7: a closed team is archived, never deleted, so its money history is kept.
   archivedAt      DateTime?
   memberInvites   TeamMemberInvite[]
+  recruitmentPosts TeamRecruitmentPost[]
+  joinRequests    TeamJoinRequest[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   owner           User             @relation("TeamOwner", fields: [ownerUserId], references: [id])
@@ -2234,4 +2272,76 @@ model TeamMemberInvite {
 
   @@index([inviteeId, status])
   @@index([teamId, status])
+}
+
+/// Gate 9 / TKT-909: a Team recruiting (any number of posts), 30-day expiry, renewable.
+model TeamRecruitmentPost {
+  id            String                @id @default(uuid()) @db.Uuid
+  teamId        String                @db.Uuid
+  createdById   String                @db.Uuid
+  positions     FootballPosition[]
+  playersWanted Int
+  format        MatchFormat
+  level         RecruitmentLevel
+  days          Int[]                 @default([])
+  times         TimeOfDay[]           @default([])
+  area          String
+  note          String?
+  status        RecruitmentPostStatus @default(OPEN)
+  expiresAt     DateTime
+  closedAt      DateTime?
+  removedAt     DateTime?
+  removedById   String?               @db.Uuid
+  removedReason String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  team          Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy     User                  @relation("RecruitmentPostCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  removedBy     User?                 @relation("RecruitmentPostRemover", fields: [removedById], references: [id], onDelete: SetNull)
+  joinRequests  TeamJoinRequest[]
+
+  @@index([status, expiresAt])
+  @@index([teamId, status])
+}
+
+/// Gate 9 / TKT-909: a player's "Looking for a team" card (off by default; one per player).
+model PlayerLookingCard {
+  id            String             @id @default(uuid()) @db.Uuid
+  userId        String             @unique @db.Uuid
+  enabled       Boolean            @default(false)
+  positions     FootballPosition[] @default([])
+  area          String?
+  days          Int[]              @default([])
+  times         TimeOfDay[]        @default([])
+  note          String?
+  removedAt     DateTime?
+  removedById   String?            @db.Uuid
+  removedReason String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  user          User               @relation("LookingCardOwner", fields: [userId], references: [id], onDelete: Cascade)
+  removedBy     User?              @relation("LookingCardRemover", fields: [removedById], references: [id], onDelete: SetNull)
+
+  @@index([enabled, updatedAt])
+}
+
+/// Gate 9 / TKT-909: "Ask to join": one pending per player per team (partial unique), 14-day expiry.
+model TeamJoinRequest {
+  id            String                @id @default(uuid()) @db.Uuid
+  teamId        String                @db.Uuid
+  postId        String?               @db.Uuid
+  userId        String                @db.Uuid
+  status        TeamJoinRequestStatus @default(PENDING)
+  expiresAt     DateTime
+  respondedAt   DateTime?
+  respondedById String?               @db.Uuid
+  createdAt     DateTime              @default(now())
+  team          Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  post          TeamRecruitmentPost?  @relation(fields: [postId], references: [id], onDelete: SetNull)
+  user          User                  @relation("JoinRequester", fields: [userId], references: [id], onDelete: Cascade)
+  respondedBy   User?                 @relation("JoinRequestResponder", fields: [respondedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([teamId, status])
+  @@index([postId, status])
 }

@@ -44,6 +44,9 @@ export const NOTIFICATION_TYPES = [
   // Gate 9 (TKT-904): personal team invites.
   'TEAM_INVITE_RECEIVED',
   'TEAM_INVITE_ANSWERED',
+  // Gate 9 (TKT-909): join requests.
+  'TEAM_JOIN_REQUEST_RECEIVED',
+  'TEAM_JOIN_REQUEST_ANSWERED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

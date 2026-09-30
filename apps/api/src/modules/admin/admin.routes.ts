@@ -9,6 +9,7 @@ import * as settlement from '../settlement/venue-settlement.controller.js';
 import * as settlementBatches from '../settlement/settlement-batches.controller.js';
 import * as referees from '../referees/referees.admin.controller.js';
 import * as teamReviews from '../team-reviews/team-reviews.controller.js';
+import * as social from '../social/social.controller.js';
 import * as matchCancel from '../matches/admin-match-cancel.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
@@ -34,6 +35,8 @@ registerUuidRouteParams(adminRouter, [
   'payableId',
   'matchId',
   'reviewId',
+  'postId',
+  'cardId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -152,3 +155,7 @@ adminRouter.get('/referee-report', referees.refereeReport);
 // Gate 8 / TKT-809 (DEC-017): team review moderation (approve/reject text, hide, restore).
 adminRouter.get('/team-reviews', teamReviews.adminList);
 adminRouter.post('/team-reviews/:reviewId/moderate', costlyMutationRateLimit, teamReviews.moderate);
+// Gate 9 / TKT-909: reported recruitment posts and looking cards.
+adminRouter.get('/recruitment', social.adminRecruitment);
+adminRouter.post('/recruitment/posts/:postId/remove', costlyMutationRateLimit, social.adminRemovePost);
+adminRouter.post('/recruitment/cards/:cardId/remove', costlyMutationRateLimit, social.adminRemoveCard);

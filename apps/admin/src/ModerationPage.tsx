@@ -76,7 +76,7 @@ export function ModerationPage() {
     {view === 'reports' && <>
       <div className="row">
         <label>Status<select value={reportStatus} onChange={(event) => setReportStatus(event.target.value as ModerationReportStatus | '')}><option value="">All</option>{['OPEN','UNDER_REVIEW','RESOLVED','DISMISSED'].map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>Target<select value={targetType} onChange={(event) => setTargetType(event.target.value as ModerationReportTargetType | '')}><option value="">All</option>{['USER','DIRECT_MESSAGE','LOBBY_MESSAGE','TEAM','MATCH'].map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label>Target<select value={targetType} onChange={(event) => setTargetType(event.target.value as ModerationReportTargetType | '')}><option value="">All</option>{['USER','DIRECT_MESSAGE','LOBBY_MESSAGE','TEAM','MATCH','RECRUITMENT_POST','LOOKING_CARD'].map((item) => <option key={item}>{item}</option>)}</select></label>
       </div>
       <div className="support-layout">
         <div className="ticket-list">{reports.data?.map((report) => <button key={report.id} className={selectedReportId === report.id ? 'ticket active-ticket' : 'ticket'} onClick={() => setSelectedReportId(report.id)}><strong>{report.reason.replaceAll('_', ' ')}</strong><span>{report.targetType.replaceAll('_', ' ')} · {report.status.replaceAll('_', ' ')}</span><small>{report.reporter?.displayName} · {new Date(report.createdAt).toLocaleString()}</small></button>)}</div>

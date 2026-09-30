@@ -15,6 +15,7 @@ import { RefereesPage } from './RefereesPage.js';
 import { MatchRefereesPage } from './MatchRefereesPage.js';
 import { ResultsPage } from './ResultsPage.js';
 import { TeamReviewsPage } from './TeamReviewsPage.js';
+import { RecruitmentPage } from './RecruitmentPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -370,6 +371,7 @@ function AdminShell() {
           <NavLink to="/match-referees">Match referees</NavLink>
           <NavLink to="/results">Results</NavLink>
           <NavLink to="/team-reviews">Team reviews</NavLink>
+          <NavLink to="/recruitment">Recruitment</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -391,6 +393,7 @@ function AdminShell() {
           <Route path="match-referees" element={<MatchRefereesPage />} />
           <Route path="results" element={<ResultsPage />} />
           <Route path="team-reviews" element={<TeamReviewsPage />} />
+          <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

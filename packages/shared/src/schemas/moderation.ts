@@ -6,6 +6,8 @@ export const moderationReportTargetTypeSchema = z.enum([
   'LOBBY_MESSAGE',
   'TEAM',
   'MATCH',
+  'RECRUITMENT_POST',
+  'LOOKING_CARD',
 ]);
 export const moderationReportReasonSchema = z.enum([
   'HARASSMENT',

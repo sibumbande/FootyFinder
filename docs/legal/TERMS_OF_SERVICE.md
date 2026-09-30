@@ -190,7 +190,7 @@ The following information is provided in compliance with section 43 of ECTA:
 - **Identity and contact data:** your name, username, email address, date of birth and city.
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
-- **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), and the players you block (clause 18.8).
+- **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), the players you block (clause 18.8), and your Team recruitment posts, "Looking for a team" card and requests to join Teams (clause 18.9).
 - **Transaction data:** Wallet top-ups, Slot Fees, Team Wallet contributions and refunds, refunds and cancellation credits, and payment references. We do not store card numbers; Paystack holds them.
 - **Identity documents,** only if we ask you to verify your age or identity (clause 7).
 - **Technical data:** IP address, browser and device information, and security logs.
@@ -232,6 +232,7 @@ We do not collect your phone number, emergency contact details or health informa
 | Conduct and safety records | 3 years, or longer where an incident is unresolved or subject to legal proceedings |
 | Chat, messages and support requests | 12 months, or longer where reported and under investigation |
 | Friends, friend requests and blocks | While your Account is active, and for 12 months after it is closed |
+| Recruitment posts, "Looking for a team" cards and requests to join | While the post, card or request is shown or waiting, and for 12 months after it closes, expires or is removed |
 | Record of your acceptance of these Terms | While your Account is active, and for as long as we may need it as evidence afterwards |
 | City waiting-list entries | Until you unsubscribe or ask us to delete them |
 
@@ -498,7 +499,7 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 **18.3 Moderation.** We do not routinely monitor private messages. We do review reported content, and we may remove content and suspend Accounts following a report.
 
-**18.4 Reporting.** You can report a user, a Lobby chat message, a direct message, a Team or a match from within the app, or by contacting support. We aim to acknowledge reports within two (2) business days.
+**18.4 Reporting.** You can report a user, a Lobby chat message, a direct message, a Team, a match, a Team recruitment post or a "Looking for a team" card from within the app, or by contacting support. We aim to acknowledge reports within two (2) business days.
 
 **18.5 Preservation.** Where a report may relate to a criminal offence, we may keep the relevant records and provide them to law enforcement on lawful request.
 
@@ -521,6 +522,14 @@ After a finished match, the players in its Lineup Record can see who they played
 
 We do not tell a player that they have been blocked. Blocking does not remove either of you from a Team, match, lineup or result you already share, and it does not stop either of you joining a public match; in Lobby and Team chat, messages from a player you blocked are hidden until you choose to show them. Unblocking does not restore a friendship. If a player is harassing you, report them as well (clause 18.4).
 
+**18.9 Team recruitment and "Looking for a team".** The Teams tab in Social is a recruitment board. No money is involved in anything on it.
+- **Teams recruiting.** A Team's Owner or a Captain can post that the Team is recruiting, for any number of positions and players and as often as they like. A post shows the positions needed, how many players are wanted, the format, the level (casual or competitive), the usual days and times, the area and a note of up to 300 characters. A post is shown for thirty (30) days and can be renewed, edited or closed by the Owner or a Captain; it closes when the Team is closed.
+- **Players looking.** You can switch on a "Looking for a team" card on your profile, with your positions, area, availability and a short note. It is off unless you switch it on, is shown only while it is on, and switches off when you join a Team through an invite or a request to join.
+- **Asking to join.** You can ask to join a Team from its post. The Team's Owner and Captains are told in the app and may accept (you join the Team as a member) or decline. You can have one request waiting per Team and at most ten (10) waiting in total, and a request that is not answered expires after fourteen (14) days.
+- **Inviting.** A Team's Owner or a Captain can invite a player whose card is on (clause 12.1); the player accepts or declines.
+
+Posts and cards must be about football on FootyFinder and must follow clauses 18.2 and 19. You can report a post or card (clause 18.4); we may remove it, and a removed post cannot be renewed. Blocking applies to posts and cards (clause 18.8).
+
 ## 19. Prohibited Conduct on the Platform
 
 You may not:
@@ -529,7 +538,7 @@ You may not:
 - create an Account using another person's identity, or let another person use your Account;
 - join a match with no intention of attending, or repeatedly join and leave in a way that disrupts matches;
 - place, accept or facilitate a wager on any match, or try to fix or influence the outcome of a match for reward;
-- use the platform to recruit users to a competing service, or to advertise goods or services without our written consent;
+- use the platform to recruit users to a competing service, or to advertise goods or services without our written consent, including in Team recruitment posts or "Looking for a team" cards;
 - scrape, crawl, harvest or systematically extract data from the platform, or use automated means to create Accounts or join matches;
 - reverse-engineer, decompile or try to derive the source code of the platform, except where the law does not allow this restriction;
 - interfere with, probe, overload or try to gain unauthorised access to the platform, its servers or other people's accounts;
@@ -676,6 +685,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. The Owner and Captains can invite friends to the team in one tap; invites expire after 14 days. |
 | Reviews | Players who played can rate the opposing team within 14 days. Reviews are anonymous; comments are checked first. |
 | Friends | Send friend requests (up to 20 new ones a day, not counting people you played with) and turn them off if you prefer. Only you see your friends list. |
+| Recruitment | Teams can post that they're recruiting (30 days, renewable) and you can switch on "Looking for a team". Ask to join a team (up to 10 requests waiting, 14 days each). No money involved. |
 | Blocking | Block anyone: they can't message you, add you or ask to join your team, and you stop seeing each other. They aren't told. Shared matches and teams stay as they are. |
 | The risk | Football can injure you. You accept that risk and cover your own medical costs. We are still responsible if we are grossly negligent. |
 | Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can see, correct or delete your data and complain to the Information Regulator. |

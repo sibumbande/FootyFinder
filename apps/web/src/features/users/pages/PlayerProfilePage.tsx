@@ -19,6 +19,7 @@ import { useUploadPlayerPhoto } from '@/features/onboarding/hooks/useOnboarding.
 import { useRequestEmailChange } from '@/features/auth/hooks/useAuth.js';
 import { FriendRequestsSwitch } from '@/features/social/components/FriendRequestsSwitch.js';
 import { PlayerSocialActions } from '@/features/social/components/PlayerSocialActions.js';
+import { LookingCardEditor } from '@/features/social/components/LookingCardEditor.js';
 
 export function PlayerProfilePage() {
   const { userId = '' } = useParams();
@@ -92,8 +93,9 @@ export function PlayerProfilePage() {
           )}
         </div>
         {mine && (
-          <div className="mt-5">
+          <div className="mt-5 grid gap-3">
             <FriendRequestsSwitch />
+            <LookingCardEditor />
           </div>
         )}
         <p className="mt-6 leading-7 text-content">

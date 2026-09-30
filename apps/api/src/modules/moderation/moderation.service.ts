@@ -347,6 +347,23 @@ export class ModerationService {
       if (!team) throw new AppError(404, 'Report target not found.', 'REPORT_TARGET_NOT_FOUND');
       return team;
     }
+    // Gate 9 / TKT-909: recruitment posts and "Looking for a team" cards.
+    if (input.targetType === 'RECRUITMENT_POST') {
+      const post = await prisma.teamRecruitmentPost.findUnique({
+        where: { id: input.targetId },
+        select: { id: true, teamId: true, createdById: true, positions: true, playersWanted: true, format: true, level: true, area: true, note: true, team: { select: { name: true, memberships: { where: { userId: reporterUserId }, select: { role: true } } } } },
+      });
+      if (!post) throw new AppError(404, 'Report target not found.', 'REPORT_TARGET_NOT_FOUND');
+      if (post.team.memberships.length)
+        throw new AppError(400, "You cannot report your own team's post.", 'REPORT_SELF_NOT_ALLOWED');
+      return { id: post.id, teamId: post.teamId, teamName: post.team.name, createdById: post.createdById, positions: post.positions, playersWanted: post.playersWanted, format: post.format, level: post.level, area: post.area, note: post.note };
+    }
+    if (input.targetType === 'LOOKING_CARD') {
+      const card = await prisma.playerLookingCard.findUnique({ where: { id: input.targetId }, select: { id: true, userId: true, positions: true, area: true, note: true } });
+      if (!card) throw new AppError(404, 'Report target not found.', 'REPORT_TARGET_NOT_FOUND');
+      if (card.userId === reporterUserId) throw new AppError(400, 'You cannot report your own card.', 'REPORT_SELF_NOT_ALLOWED');
+      return card;
+    }
     const match = await prisma.match.findUnique({ where: { id: input.targetId }, select: { id: true, name: true, createdById: true, mode: true, status: true, startsAt: true } });
     if (!match) throw new AppError(404, 'Report target not found.', 'REPORT_TARGET_NOT_FOUND');
     return { ...match, startsAt: match.startsAt.toISOString() };

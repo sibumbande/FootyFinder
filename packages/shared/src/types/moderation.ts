@@ -5,7 +5,9 @@ export type ModerationReportTargetType =
   | 'DIRECT_MESSAGE'
   | 'LOBBY_MESSAGE'
   | 'TEAM'
-  | 'MATCH';
+  | 'MATCH'
+  | 'RECRUITMENT_POST'
+  | 'LOOKING_CARD';
 export type ModerationReportReason =
   | 'HARASSMENT'
   | 'ABUSE'

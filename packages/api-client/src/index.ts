@@ -19,3 +19,4 @@ export * from './venues.js';
 export * from './referee.js';
 export * from './team-reviews.js';
 export * from './social.js';
+export * from './recruitment.js';
