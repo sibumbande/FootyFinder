@@ -1,4 +1,5 @@
 import type {
+  AdminCancelMatchInput,
   AdminAuditEntry,
   AdminAuthStatus,
   AdminMfaCodeInput,
@@ -84,6 +85,12 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee`, { method: 'PUT', body: JSON.stringify(input) }),
   removeReferee: (matchId: string, input: RemoveRefereeInput) =>
     client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee/remove`, post(input)),
+  /** CEO Q4: "Cancel match (weather/venue)" before kick-off (fresh MFA, written reason, audited). */
+  cancelMatch: (matchId: string, input: AdminCancelMatchInput) =>
+    client.request<{ data: { matchId: string; status: 'CANCELLED'; refundedUserCount: number } }>(
+      `/admin/matches/${id(matchId)}/cancel`,
+      post(input),
+    ),
   refereeSettings: () => client.request<{ data: AdminRefereeSettings }>('/admin/referee-settings'),
   // Gate 8 / TKT-807: results queue, admin entry and correction (fresh MFA), problems, report.
   resultQueue: (view: 'awaiting' | 'recent' = 'awaiting') =>

@@ -43,6 +43,8 @@ const CANCELLED_BECAUSE: Record<MatchCancellationReason, string> = {
   TEAM_CANCELLED: 'by the home team',
   // Gate 8 (DEC-020, D2).
   NO_REFEREE: 'because no FootyFinder referee was available',
+  // CEO Q4: admin "Cancel match (weather/venue)". The admin's written reason stays in the audit log.
+  FOOTYFINDER_CANCELLED: 'by FootyFinder because of the weather or a problem at the venue',
 };
 
 export const isMatchCancellationReason = (value: unknown): value is MatchCancellationReason =>
@@ -53,13 +55,20 @@ export const matchCancelledMessage = (input: {
   startsAt: Date;
   reason: MatchCancellationReason;
   refundedCents: number;
-  /** Gate 7: the recipient is on a team whose held fill-meter money was released. */
+  /**
+   * Gate 7: the recipient is on a team of the match. For FOOTYFINDER_CANCELLED it is set only when
+   * that team actually had fill-meter money released, so nobody is told about money they didn't pay.
+   */
   teamMember?: boolean;
 }) => {
   const first = `Your match at ${input.venueName} on ${formatMatchDate(input.startsAt)} at ${formatKickoffTime(input.startsAt)} was cancelled ${CANCELLED_BECAUSE[input.reason]}.`;
   const refund = input.refundedCents > 0
     ? ` Your ${formatRands(input.refundedCents)} has been refunded to your FootyFinder wallet.`
     : '';
-  const team = input.teamMember ? ' Any money held for this match has gone back to your team wallet.' : '';
+  const team = !input.teamMember
+    ? ''
+    : input.reason === 'FOOTYFINDER_CANCELLED'
+      ? " Your team's fee has been returned to your team wallet."
+      : ' Any money held for this match has gone back to your team wallet.';
   return `${first}${refund}${team}`;
 };

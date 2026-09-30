@@ -48,4 +48,20 @@ describe('matchCancelledMessage', () => {
     expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'NO_OPPONENT', refundedCents: 0 })).toContain("because the other side wasn't taken in time.");
     expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'TEAM_CANCELLED', refundedCents: 8_000 })).toContain('cancelled by the home team. Your R80 has been refunded');
   });
+
+  it('explains a FootyFinder cancellation (CEO Q4) without mentioning money the person did not pay', () => {
+    expect(
+      matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 8_000 }),
+    ).toBe(
+      'Your match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled by FootyFinder because of the weather or a problem at the venue. Your R80 has been refunded to your FootyFinder wallet.',
+    );
+    expect(
+      matchCancelledMessage({ venueName: 'Queens Park', startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 0, teamMember: true }),
+    ).toBe(
+      "Your match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled by FootyFinder because of the weather or a problem at the venue. Your team's fee has been returned to your team wallet.",
+    );
+    expect(
+      matchCancelledMessage({ venueName: 'X', startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 0 }),
+    ).toBe('Your match at X on Fri 30 Oct 2026 at 14:00 was cancelled by FootyFinder because of the weather or a problem at the venue.');
+  });
 });

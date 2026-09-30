@@ -33,6 +33,7 @@ import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from '../team-matches/team-match-audit.js';
 import { managedTeamSides } from '../team-matches/team-side-authority.js';
 import { hasActiveReferee } from '../referees/referee-assignment.js';
+import { appendAdminAudit } from '../admin/admin-audit.js';
 import {
   FinancialInsufficientFundsError,
   FinancialRepository,
@@ -61,6 +62,12 @@ export class OtherSideRefusedError extends Error {
 }
 /** Gate 7 / N2: nobody can play against their own team. */
 export class OwnTeamConflictError extends Error {}
+/** CEO Q4: why an admin "Cancel match (weather/venue)" was refused. */
+export class AdminCancelRefusedError extends Error {
+  constructor(readonly reason: 'MATCH_NOT_FOUND' | 'ALREADY_CANCELLED' | 'MATCH_STARTED' | 'TEAM_MATCH_LOCKED') {
+    super(reason);
+  }
+}
 
 /**
  * Takes the Match row lock that every formation mutation shares, so claims and organiser moves
@@ -597,6 +604,51 @@ export class MatchesRepository {
   }
 
   /**
+   * CEO Q4: an admin cancels a match for the weather or a venue problem, through the same
+   * cancelInTx core (full refunds, held team money released, in-app + email notices, nothing owed
+   * to the venue), audited with the admin's written reason. Only before kick-off; a team match only
+   * before its T-30 check, because its team fees are taken from the team wallets at T-30 and this
+   * path returns only held money (split window, CEO decision). The referee is told in the app.
+   */
+  cancelByFootyFinder(matchId: string, adminUserId: string, reason: string, requestId: string, now = new Date()) {
+    return serializableTransaction(async (tx) => {
+      await lockMatchForFormation(tx, matchId);
+      const match = await tx.match.findUnique({
+        where: { id: matchId },
+        select: { status: true, startsAt: true, goNoGoAt: true, confirmedAt: true, otherSideMode: true, refereeUserId: true, venue: { select: { name: true } } },
+      });
+      if (!match) throw new AdminCancelRefusedError('MATCH_NOT_FOUND');
+      if (match.status === 'CANCELLED') throw new AdminCancelRefusedError('ALREADY_CANCELLED');
+      if (!['DRAFT', 'OPEN', 'READY'].includes(match.status) || now >= match.startsAt)
+        throw new AdminCancelRefusedError('MATCH_STARTED');
+      if (match.otherSideMode && (match.confirmedAt || (match.goNoGoAt && now >= match.goNoGoAt)))
+        throw new AdminCancelRefusedError('TEAM_MATCH_LOCKED');
+      const cancelled = await this.cancelInTx(tx, matchId, 'FOOTYFINDER_CANCELLED');
+      if (match.otherSideMode)
+        await appendTeamMatchAudit(tx, { matchId, command: 'TEAM_MATCH_CANCELLED', side: 'HOME', actorUserId: adminUserId, payload: { reason: 'FOOTYFINDER_CANCELLED' } });
+      await appendAdminAudit(tx, {
+        actorUserId: adminUserId,
+        action: 'MATCH_CANCELLED_BY_FOOTYFINDER',
+        entityType: 'MATCH',
+        entityId: matchId,
+        requestId,
+        metadata: { reason, refundedUserCount: cancelled.refundedUserIds.length, teamMatch: Boolean(match.otherSideMode) },
+      });
+      const refereeNotice = match.refereeUserId
+        ? await persistNotifications(tx, [{
+            userId: match.refereeUserId,
+            type: 'MATCH_CANCELLED',
+            title: 'Match cancelled',
+            message: matchCancelledMessage({ venueName: match.venue.name, startsAt: match.startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 0 }),
+            targetPath: `/referee/matches/${matchId}`,
+            dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', match.refereeUserId),
+          }])
+        : [];
+      return { ...cancelled, notifications: [...cancelled.notifications, ...refereeNotice] };
+    });
+  }
+
+  /**
    * DEC-018 T-30 go/no-go, run by the durable QUICK_MATCH_GO_NO_GO job. Idempotent and safe to run
    * more than once or late (after a restart): the lobby is frozen from goNoGoAt, so the formation
    * it evaluates is exactly the formation at T-30.
@@ -745,6 +797,7 @@ export class MatchesRepository {
     const refundDescription: Partial<Record<MatchCancellationReason, string>> = {
       POSITIONS_UNFILLED: 'Full refund: not all positions were filled 30 minutes before kickoff',
       NO_REFEREE: 'Full refund: no FootyFinder referee was available',
+      FOOTYFINDER_CANCELLED: 'Full refund: cancelled by FootyFinder (weather or venue)',
     };
     // Gate 7 (D2): release held fill-meter money first (team wallets lock before personal wallets).
     const teamHolds = await tx.teamWalletHold.findMany({
@@ -753,12 +806,17 @@ export class MatchesRepository {
     });
     await this.teamWallets.lockAccounts(tx, teamHolds.map(({ account }) => account.teamId));
     for (const hold of teamHolds) await this.teamWallets.releaseHold(tx, hold.id, `match-cancelled:${reason}`);
-    const teamMemberIds = new Set(
-      (await tx.teamMembership.findMany({
-        where: { team: { matchSides: { some: { matchId } } } },
-        select: { userId: true },
-      })).map(({ userId }) => userId),
-    );
+    const memberships = await tx.teamMembership.findMany({
+      where: { team: { matchSides: { some: { matchId } } } },
+      select: { userId: true, teamId: true },
+    });
+    const teamMemberIds = new Set(memberships.map(({ userId }) => userId));
+    // CEO Q4: a FootyFinder cancellation tells team members about their team's fee only when that
+    // team actually had fill-meter money released.
+    const heldTeamIds = new Set(teamHolds.map(({ account }) => account.teamId));
+    const feeReturnedIds = new Set(memberships.filter(({ teamId }) => heldTeamIds.has(teamId)).map(({ userId }) => userId));
+    const teamNotice = (userId: string) =>
+      reason === 'FOOTYFINDER_CANCELLED' ? feeReturnedIds.has(userId) : teamMemberIds.has(userId);
     const refundedUserIds: string[] = [];
     const refundedCentsByUser = new Map<string, number>();
     for (const payment of match.payments) {
@@ -800,12 +858,12 @@ export class MatchesRepository {
           startsAt: match.startsAt,
           reason,
           refundedCents,
-          teamMember: teamMemberIds.has(userId),
+          teamMember: teamNotice(userId),
         }),
         targetPath: `/matches/${matchId}`,
         dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', userId),
       });
-      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents, teamMember: teamMemberIds.has(userId) });
+      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents, teamMember: teamNotice(userId) });
     }
     if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
       // DEC-018: nothing is owed to the venue for a cancelled match and the host is never

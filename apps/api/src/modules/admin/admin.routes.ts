@@ -9,6 +9,7 @@ import * as settlement from '../settlement/venue-settlement.controller.js';
 import * as settlementBatches from '../settlement/settlement-batches.controller.js';
 import * as referees from '../referees/referees.admin.controller.js';
 import * as teamReviews from '../team-reviews/team-reviews.controller.js';
+import * as matchCancel from '../matches/admin-match-cancel.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -138,6 +139,8 @@ adminRouter.put('/referee-settings', costlyMutationRateLimit, requireRecentAdmin
 adminRouter.get('/matches/:matchId/referee-options', referees.refereeOptions);
 adminRouter.put('/matches/:matchId/referee', costlyMutationRateLimit, referees.assignReferee);
 adminRouter.post('/matches/:matchId/referee/remove', costlyMutationRateLimit, referees.removeReferee);
+// CEO Q4: "Cancel match (weather/venue)" before kick-off: fresh MFA, written reason, audited.
+adminRouter.post('/matches/:matchId/cancel', costlyMutationRateLimit, requireRecentAdminMfa, matchCancel.cancelMatch);
 // Gate 8 / TKT-807: results. Entering and correcting a result need fresh MFA and a reason (D25).
 adminRouter.get('/results', referees.resultQueue);
 adminRouter.get('/results/:matchId', referees.resultDetail);

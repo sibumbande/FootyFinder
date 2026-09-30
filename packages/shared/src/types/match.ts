@@ -234,7 +234,9 @@ export type MatchCancellationReason =
   | 'NO_OPPONENT'
   | 'TEAM_CANCELLED'
   // Gate 8 (DEC-020, D2): no active FootyFinder referee was assigned by T-30.
-  | 'NO_REFEREE';
+  | 'NO_REFEREE'
+  // CEO Q4 (2026-09-30): an admin cancelled before kick-off for weather or a venue problem.
+  | 'FOOTYFINDER_CANCELLED';
 
 /**
  * DEC-018 go/no-go facts. Present only on matches created under DEC-018: the match goes ahead only

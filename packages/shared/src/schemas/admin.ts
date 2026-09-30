@@ -128,6 +128,15 @@ export const createAdminTestDataBatchSchema = z.object({
 });
 export type CreateAdminTestDataBatchInput = z.infer<typeof createAdminTestDataBatchSchema>;
 
+/**
+ * CEO Q4: admin "Cancel match (weather/venue)" before kick-off. The written reason goes to the
+ * audit log only; players see a fixed sentence.
+ */
+export const adminCancelMatchSchema = z.object({
+  reason: z.string().trim().min(5).max(500),
+});
+export type AdminCancelMatchInput = z.infer<typeof adminCancelMatchSchema>;
+
 /** Gate 6 / TKT-606: admin card refund of a top-up (whole cents, reason required). */
 export const adminCardRefundSchema = z.object({
   amountCents: z.number().int().positive().max(500_000),

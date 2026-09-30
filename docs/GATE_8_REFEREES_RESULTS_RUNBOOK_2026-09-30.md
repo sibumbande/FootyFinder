@@ -38,7 +38,8 @@ Tickets: TKT-801 to TKT-811, one commit per ticket. Decisions: DEC-020 (D1 to D2
     - **Editing:** allowed for 7 days after the final result. Authors can delete a review at any time.
     - **Public average:** shown only with three or more reviews that count.
     - **Reports:** team members may report a review; admins approve, reject, hide or restore.
-11. **Referee pay** is not in the platform (D8). Admin → Results → Referee report gives, per referee, the count and list of matches whose result they recorded, for a date range. It shows no money.
+11. **FootyFinder cancellations (CEO, ToS review Q4).** Admin → Match referees → a match → **Cancel match (weather/venue)**. Fresh authenticator check and a written reason (audit `MATCH_CANCELLED_BY_FOOTYFINDER`, reason kept from players). Quick Matches until kick-off; team matches only until their 30-minute check (their fees are taken then). It reuses the normal cancel path: full wallet refunds, held team money released, in-app and email notices with reason `FOOTYFINDER_CANCELLED`, and the referee is told in the app. Covered by `smoke:admin-match-cancel`; migration `20261005100000_footyfinder_cancellation_reason`.
+12. **Referee pay** is not in the platform (D8). Admin → Results → Referee report gives, per referee, the count and list of matches whose result they recorded, for a date range. It shows no money.
 
 ## Operations
 

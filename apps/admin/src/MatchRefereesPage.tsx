@@ -79,6 +79,19 @@ function RefereeMatchCard({ match }: { match: AdminRefereeMatch }) {
       refresh();
     },
   });
+  const [cancelReason, setCancelReason] = useState('');
+  const cancel = useMutation({
+    mutationFn: () => adminClient.cancelMatch(match.matchId, { reason: cancelReason }),
+    onSuccess: () => {
+      setCancelReason('');
+      refresh();
+    },
+  });
+  // CEO Q4 split window: a team match only before its 30-minute check (its fees are taken then).
+  const cancelClosed =
+    match.mode === 'TEAM_MATCH' && Date.now() >= new Date(match.goNoGoAt).getTime()
+      ? 'Team fees have been taken at the 30-minute check, so this team match can no longer be cancelled here.'
+      : null;
   const busyClash =
     assign.error instanceof ApiError && assign.error.code === 'REFEREE_BUSY' ? assign.error.message : undefined;
   const inactive = match.referee && !match.referee.activeReferee;
@@ -146,6 +159,35 @@ function RefereeMatchCard({ match }: { match: AdminRefereeMatch }) {
             </div>
           )}
           <AdminActionError error={remove.error} />
+          <h3>Cancel match (weather/venue)</h3>
+          <p className="muted">
+            Before kick-off only. Every player gets a full refund to their wallet, held team money goes back to each
+            team wallet, and everyone is told in the app and by email. Your reason is kept in the audit log; players see
+            a fixed sentence.
+          </p>
+          {cancelClosed ? (
+            <p className="muted">{cancelClosed}</p>
+          ) : (
+            <div className="row">
+              <input
+                aria-label="Reason for cancelling the match"
+                placeholder="Reason (for the audit log)"
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+              />
+              <button
+                type="button"
+                className="danger"
+                disabled={cancelReason.trim().length < 5 || cancel.isPending}
+                onClick={() => {
+                  if (window.confirm(`Cancel ${match.name} for everyone and refund every player?`)) cancel.mutate();
+                }}
+              >
+                Cancel match
+              </button>
+            </div>
+          )}
+          <AdminActionError error={cancel.error} onVerified={() => cancel.reset()} />
           {match.history.length > 0 && (
             <ul>
               {match.history.map((entry) => (
