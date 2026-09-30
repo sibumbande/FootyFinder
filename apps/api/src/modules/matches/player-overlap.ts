@@ -10,8 +10,8 @@ export type OverlapClash = { id: string; name: string; startsAt: Date; userId: s
  * Gate 9 / TKT-908 (CEO, found in live testing 30 Sep 2026): a player cannot be in two matches whose
  * windows overlap. "In a match" means joined as a player, selected as a starter or substitute in a
  * team lineup (or holding a claimed open slot), or refereeing it. The window is the referee
- * double-booking window: kickoff to scheduled end plus 30 minutes. Cancelled and completed matches
- * never clash. Playing in the match you referee is the same match, so it is allowed (D17).
+ * double-booking window: kickoff to scheduled end plus 30 minutes. Cancelled and completed matches,
+ * and retired team planning fixtures (never played), never clash. Playing in the match you referee is the same match, so it is allowed (D17).
  */
 export async function overlappingMatches(db: Db, userIds: string[], match: TimedMatch): Promise<OverlapClash[]> {
   const ids = [...new Set(userIds)];
@@ -22,6 +22,7 @@ export async function overlappingMatches(db: Db, userIds: string[], match: Timed
     FROM unnest(${ids}::uuid[]) AS u("userId")
     JOIN "Match" m ON m."id" <> ${match.id}::uuid
       AND m."status" NOT IN ('CANCELLED', 'COMPLETED')
+      AND (m."mode" = 'QUICK_GAME' OR m."otherSideMode" IS NOT NULL)
       AND m."startsAt" < ${end}
       AND m."startsAt" + ((m."durationMinutes" + ${REFEREE_TRAVEL_BUFFER_MINUTES}) * INTERVAL '1 minute') > ${match.startsAt}
     WHERE m."refereeUserId" = u."userId"

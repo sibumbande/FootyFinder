@@ -47,12 +47,14 @@ const selectionInclude = {
 const ACTIVE_SELECTION = ['SELECTED_STARTER', 'SELECTED_SUBSTITUTE', 'OPEN_SLOT_CLAIMED'];
 async function assertEntersWithoutOverlap(
   tx: Prisma.TransactionClient,
-  context: { match: { id: string; startsAt: Date; durationMinutes: number } },
+  context: { match: { id: string; mode: string; otherSideMode: string | null; startsAt: Date; durationMinutes: number } },
   playerId: string,
   actorId: string,
   existing?: { status: string } | null,
 ) {
   if (existing && ACTIVE_SELECTION.includes(existing.status)) return;
+  // Retired team planning fixtures are never played, so they do not take part in the rule.
+  if (context.match.mode === 'TEAM_MATCH' && !context.match.otherSideMode) return;
   await assertNoPlayerOverlap(tx, playerId, context.match, playerId === actorId);
 }
 
@@ -67,6 +69,7 @@ const lineupInclude = {
       substituteCapacityPerTeam: true,
       startsAt: true,
       durationMinutes: true,
+      otherSideMode: true,
     },
   },
   team: {
