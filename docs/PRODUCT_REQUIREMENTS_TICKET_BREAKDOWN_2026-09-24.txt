@@ -522,9 +522,11 @@ CEO changes on approval (verbatim, 2026-09-30):
 - "D27 Referee double-booking: a referee can't be assigned to two matches whose times overlap (kickoff to scheduled end, plus a 30-minute travel buffer). If an assignment would overlap, it's refused. The admin panel should show that the referee is busy. Playing in the same match they referee is not a clash (D17)."
 - "D28 Default referee: admins can set one default referee in the admin dashboard (audited, fresh MFA). When a match is published, it's automatically assigned to the default referee if they're free (D27). If they're busy or no default is set, the match goes to "Unassigned" and admins are alerted immediately, as well as at kickoff -24h. Admins can still change or remove the referee manually. Put D27 and D28 in TKT-802 and add them to smoke:referees, including a smoke case where the referee is also in the lineup."
 - "Everything else D10-D26 is approved as written. Record D1-D28 word for word in DEC-020."
-CEO change after Gate 8 (Sibu, 2026-09-30, Gate 8 follow-ups):
-- "CEO DECISION: remove the 50% credit for a match abandoned before half-time from ToS 15.2. Replace it with: once a match has kicked off, fees are not refunded if the referee records it as abandoned, for any reason. Remove every other mention of that credit (docs, runbooks, code, admin tooling). Record this in DEC-020 as a CEO change. No money logic changes."
-- Applied: ToS 15.2 and 10.7 reworded (v2.4). The code never had a partial-credit path: recording ABANDONED moves no money (D13), so no code, admin tooling or money logic changed.
+CEO changes after Gate 8 (Sibu, 2026-09-30, Gate 8 follow-ups):
+- Abandoned matches: "CEO DECISION: remove the 50% credit for a match abandoned before half-time from ToS 15.2. Replace it with: once a match has kicked off, fees are not refunded if the referee records it as abandoned, for any reason. Remove every other mention of that credit (docs, runbooks, code, admin tooling). Record this in DEC-020 as a CEO change. No money logic changes."
+  Applied: ToS 15.2 and 10.7 reworded (v2.4). The code never had a partial-credit path: recording ABANDONED moves no money (D13), so no code, admin tooling or money logic changed.
+- Team reviews (refines D24): "Team reviews can be left for 14 days after the final result (the 7-day edit window stays)."
+  Applied: TEAM_REVIEW_WINDOW_DAYS = 14, ineligible reason REVIEW_WINDOW_CLOSED, ToS 19.6.
 Implementation notes:
 - "Every match" means every match with a T-30 go/no-go (DEC-018 Quick Matches, admin-loaded matches and DEC-019 team matches); legacy matches without a go/no-go never had one.
 - A match "counts as refereed" for the D8 report when the referee submitted its result (their REFEREE_SUBMISSION revision is permanent, so a later admin correction does not remove it).

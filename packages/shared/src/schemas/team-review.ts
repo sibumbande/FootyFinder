@@ -28,3 +28,5 @@ export type AdminTeamReviewQuery = z.infer<typeof adminTeamReviewQuerySchema>;
 export const TEAM_REVIEW_MINIMUM_FOR_AVERAGE = 3;
 /** DEC-017 / D24: authors may edit for this many days after the final result. */
 export const TEAM_REVIEW_EDIT_DAYS = 7;
+/** Gate 8 follow-up (CEO, 2026-09-30): a review can be left for this many days after the final result. */
+export const TEAM_REVIEW_WINDOW_DAYS = 14;

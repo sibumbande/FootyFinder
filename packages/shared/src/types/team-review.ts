@@ -6,7 +6,8 @@ export type TeamReviewIneligibleReason =
   | 'ABANDONED'
   | 'NOT_IN_LINEUP'
   | 'NO_OPPOSING_TEAM'
-  | 'OWN_TEAM';
+  | 'OWN_TEAM'
+  | 'REVIEW_WINDOW_CLOSED';
 
 export interface MyTeamReview {
   id: string;
@@ -23,6 +24,8 @@ export interface TeamReviewContext {
   reason: TeamReviewIneligibleReason | null;
   team: { id: string; name: string } | null;
   editableUntil: string | null;
+  /** A new review can be left until this time (14 days after the final result). */
+  reviewableUntil: string | null;
   review: MyTeamReview | null;
 }
 

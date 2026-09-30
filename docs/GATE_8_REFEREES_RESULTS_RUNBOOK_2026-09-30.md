@@ -34,6 +34,7 @@ Tickets: TKT-801 to TKT-811, one commit per ticket. Decisions: DEC-020 (D1 to D2
 10. **Team reviews (DEC-017, D24).** Players who played may rate the opposing team 1 to 5, with an optional comment, once the result is final.
     - **Anonymous:** the author is never shown publicly.
     - **Comments:** public only after an admin approves them.
+    - **Window:** a review can be left for 14 days after the final result (CEO, 2026-09-30); after that the context answers `REVIEW_WINDOW_CLOSED`.
     - **Editing:** allowed for 7 days after the final result. Authors can delete a review at any time.
     - **Public average:** shown only with three or more reviews that count.
     - **Reports:** team members may report a review; admins approve, reject, hide or restore.

@@ -74,6 +74,12 @@ async function main() {
   assert((await reviews.context(match.id, dual.id)).reason === 'OWN_TEAM', 'A member of the reviewed team was offered a review.');
   assert(await rejectsWith(() => reviews.create(match.id, dual.id, { rating: 1 }), 'REVIEW_NOT_ALLOWED'), 'A self-team review was accepted.');
 
+  // A review can be left for 14 days after the final result (CEO, 2026-09-30).
+  const later = new Date(Date.now() + 15 * 86_400_000);
+  assert((await reviews.context(match.id, home.captain.id, later)).reason === 'REVIEW_WINDOW_CLOSED', 'A review was offered more than 14 days after the final result.');
+  assert(await rejectsWith(() => reviews.create(match.id, home.captain.id, { rating: 3 }, later), 'REVIEW_NOT_ALLOWED'), 'A review was accepted more than 14 days after the final result.');
+  assert(context.reviewableUntil && new Date(context.reviewableUntil).getTime() - new Date(context.editableUntil!).getTime() === 7 * 86_400_000, 'The review window is not 14 days.');
+
   // Ratings count at once; text waits for an admin. Fewer than three: "Not enough reviews."
   await reviews.create(match.id, away.owner.id, { rating: 5 });
   await reviews.create(match.id, away.captain.id, { rating: 4 });
@@ -115,7 +121,7 @@ async function main() {
   assert((await reviews.context(match.id, away.owner.id)).review === null, 'A deleted review was still shown to its author.');
   assert((await prisma.teamReview.findUniqueOrThrow({ where: { matchId_authorUserId: { matchId: match.id, authorUserId: away.owner.id } } })).status === 'DELETED', 'A deleted review was not kept for the audit trail.');
 
-  console.log('Gate 8 team reviews smoke passed: eligibility from the lineup record after a final result (not before, not outsiders, non-players or own-team members), one per match, anonymous public summary with a 3-review minimum, text approval, 7-day edits, reports, hide, restore, author deletion, audited moderation.');
+  console.log('Gate 8 team reviews smoke passed: eligibility from the lineup record after a final result (not before, not outsiders, non-players or own-team members), one per match, anonymous public summary with a 3-review minimum, text approval, 14-day review window, 7-day edits, reports, hide, restore, author deletion, audited moderation.');
 }
 
 try {

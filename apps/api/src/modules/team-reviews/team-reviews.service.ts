@@ -1,6 +1,7 @@
 import {
   TEAM_REVIEW_EDIT_DAYS,
   TEAM_REVIEW_MINIMUM_FOR_AVERAGE,
+  TEAM_REVIEW_WINDOW_DAYS,
   teamReviewInputSchema,
   type AdminTeamReview,
   type AdminTeamReviewQuery,
@@ -51,8 +52,8 @@ const toAdmin = (row: AdminRow): AdminTeamReview => ({
 });
 
 type Eligibility =
-  | { eligible: true; side: 'HOME' | 'AWAY'; team: { id: string; name: string }; editableUntil: Date }
-  | { eligible: false; reason: TeamReviewIneligibleReason; team: { id: string; name: string } | null; editableUntil: Date | null };
+  | { eligible: true; side: 'HOME' | 'AWAY'; team: { id: string; name: string }; editableUntil: Date; reviewableUntil: Date }
+  | { eligible: false; reason: TeamReviewIneligibleReason; team: { id: string; name: string } | null; editableUntil: Date | null; reviewableUntil: Date | null };
 
 /**
  * Gate 8 / TKT-809 (DEC-017, as confirmed by DEC-020 and D24).
@@ -62,12 +63,13 @@ type Eligibility =
  *   of individual players. Members of the reviewed team cannot review it. One review per match.
  * - The rating counts at once; text is public only after an admin approves it. The author is kept
  *   privately for moderation and never shown publicly.
+ * - A review can be left until 14 days after the final result (CEO, 2026-09-30).
  * - Edits until 7 days after the final result; the author may delete at any time (kept as DELETED).
  * - Public: average and count only with at least three visible reviews; hidden, reported and
  *   deleted reviews never count.
  */
 export class TeamReviewsService {
-  private async eligibility(matchId: string, userId: string): Promise<Eligibility> {
+  private async eligibility(matchId: string, userId: string, now: Date): Promise<Eligibility> {
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       select: {
@@ -79,33 +81,36 @@ export class TeamReviewsService {
     if (!match) throw new AppError(404, 'Match not found.', 'MATCH_NOT_FOUND');
     const result = match.result;
     const editableUntil = result ? new Date(result.submittedAt.getTime() + TEAM_REVIEW_EDIT_DAYS * DAY) : null;
+    const reviewableUntil = result ? new Date(result.submittedAt.getTime() + TEAM_REVIEW_WINDOW_DAYS * DAY) : null;
     const entry = match.lineupEntries[0];
     const opposing = entry ? match.teamSides.find(({ side }) => side !== entry.side) : undefined;
     const team = opposing?.teamId ? { id: opposing.teamId, name: opposing.teamNameSnapshot } : null;
-    const no = (reason: TeamReviewIneligibleReason): Eligibility => ({ eligible: false, reason, team, editableUntil });
+    const no = (reason: TeamReviewIneligibleReason): Eligibility => ({ eligible: false, reason, team, editableUntil, reviewableUntil });
     if (!result || result.finalSource === 'LEGACY') return no('NOT_FINAL');
     if (result.outcomeType === 'ABANDONED') return no('ABANDONED');
     if (!entry || entry.didNotPlay) return no('NOT_IN_LINEUP');
     if (!team) return no('NO_OPPOSING_TEAM');
     if (await prisma.teamMembership.count({ where: { teamId: team.id, userId } })) return no('OWN_TEAM');
-    return { eligible: true, side: entry.side === 'HOME' ? 'AWAY' : 'HOME', team, editableUntil: editableUntil! };
+    if (now > reviewableUntil!) return no('REVIEW_WINDOW_CLOSED');
+    return { eligible: true, side: entry.side === 'HOME' ? 'AWAY' : 'HOME', team, editableUntil: editableUntil!, reviewableUntil: reviewableUntil! };
   }
 
-  async context(matchId: string, userId: string): Promise<TeamReviewContext> {
-    const eligibility = await this.eligibility(matchId, userId);
+  async context(matchId: string, userId: string, now = new Date()): Promise<TeamReviewContext> {
+    const eligibility = await this.eligibility(matchId, userId, now);
     const review = await prisma.teamReview.findUnique({ where: { matchId_authorUserId: { matchId, authorUserId: userId } } });
     return {
       eligible: eligibility.eligible,
       reason: 'reason' in eligibility ? eligibility.reason : null,
       team: eligibility.team,
       editableUntil: eligibility.editableUntil?.toISOString() ?? null,
+      reviewableUntil: eligibility.reviewableUntil?.toISOString() ?? null,
       review: review && review.status !== 'DELETED' ? toMine(review) : null,
     };
   }
 
-  async create(matchId: string, userId: string, input: TeamReviewInput) {
+  async create(matchId: string, userId: string, input: TeamReviewInput, now = new Date()) {
     const { rating, text } = teamReviewInputSchema.parse(input);
-    const eligibility = await this.eligibility(matchId, userId);
+    const eligibility = await this.eligibility(matchId, userId, now);
     if ('reason' in eligibility)
       throw new AppError(409, 'You cannot review a team for this match.', 'REVIEW_NOT_ALLOWED', { reason: eligibility.reason });
     try {

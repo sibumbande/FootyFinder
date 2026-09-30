@@ -26,7 +26,8 @@ export function RatingInput({ value, onChange }: { value: number; onChange: (rat
 /**
  * Gate 8 / TKT-810 (DEC-017, D24): after the final result, a player who played can rate the
  * opposing team once (1-5 and an optional comment). Comments appear publicly only after approval;
- * the author's name is never shown. Editable for 7 days after the final result; deletable any time.
+ * the author's name is never shown. A review can be left for 14 days after the final result; it is
+ * editable for 7 days after the final result and deletable any time.
  */
 export function MatchReviewPanel({ match }: { match: Match }) {
   const cache = useQueryClient();
@@ -83,7 +84,10 @@ export function MatchReviewPanel({ match }: { match: Match }) {
   return (
     <form className="grid gap-3 rounded-2xl border border-line bg-surface p-4" onSubmit={submit} aria-label="Rate the opposing team">
       <h2 className="font-black text-content-strong">Rate {data.team.name}</h2>
-      <p className="text-sm text-content-muted">Your name is not shown with your review. A comment appears only after FootyFinder approves it.</p>
+      <p className="text-sm text-content-muted">
+        Your name is not shown with your review. A comment appears only after FootyFinder approves it.
+        {!review && data.reviewableUntil && <> You can leave a review until {at(data.reviewableUntil)}.</>}
+      </p>
       <RatingInput value={rating} onChange={setRating} />
       <label className="grid gap-1 text-sm font-bold text-content-strong">
         Comment (optional)
