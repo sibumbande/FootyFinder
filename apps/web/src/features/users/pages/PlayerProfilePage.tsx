@@ -110,13 +110,15 @@ export function PlayerProfilePage() {
         </div>
       </div>
       {player.statistics && (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-5" aria-label="Player statistics">
+        <section className="grid grid-cols-3 gap-3 sm:grid-cols-6" aria-label="Player statistics">
           {Object.entries(player.statistics).map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-line bg-surface p-4 text-center shadow-sm">
               <strong className="block text-2xl text-content-strong">{value}</strong>
               <span className="text-xs font-bold uppercase text-content-muted">{label.replace(/([A-Z])/g, ' $1')}</span>
             </div>
           ))}
+          {/* Gate 8 / TKT-808: only results recorded by a FootyFinder referee (or FootyFinder) count. */}
+          <p className="col-span-full text-xs text-content-muted">Statistics count final results recorded by FootyFinder referees.</p>
         </section>
       )}
       {player.teams && player.teams.length > 0 && (

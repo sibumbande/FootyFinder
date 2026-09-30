@@ -22,6 +22,7 @@ This summary explains what changed from version 2.3. It does not replace the ful
 •	The Referee’s result is final. After the match the Referee records the score, who scored and who assisted each goal, and which players did not play. That result is final. Only FootyFinder can correct a clear recording error, and every correction is recorded with its reason. Hosts and Captains no longer record or confirm results (clauses 17.6 to 17.8).
 •	Your version and reporting a problem. A Team’s owner or Captains, or the Host of a match, may send their own version of the result within 24 hours after the match ends. It helps FootyFinder if the Referee does not record the result, but it never changes the Referee’s result. Results can no longer be disputed; instead, a Captain or Host may report a problem within 24 hours of the result, and FootyFinder reviews it (clauses 17.9 and 17.10).
 •	Own goals. An own goal counts for the team it was scored for, not for any player (clause 17.6).
+•	Statistics on your profile. Your profile shows your match statistics: matches played, wins, draws and losses, goals and assists. They are worked out only from Final Results recorded by a Referee or by FootyFinder, and change if FootyFinder corrects a result. Cancelled and abandoned matches, and matches you did not play in, do not count. Other users can see them (clauses 8.1 and 8.3).
 
 SUMMARY OF CHANGES IN VERSION 2.3
 This summary explains what changed from version 2.2. It does not replace the full Terms below. This is a material change: you will be asked to accept version 2.3 before you can continue to create, join or pay for matches or manage a Team.
@@ -181,7 +182,7 @@ For that reason your consent to biometric verification is requested separately w
 What we collect
 •	Identity and contact data — full name, date of birth, email address, mobile number, suburb or area of residence.
 •	Verification data — identity document or passport image and live face image, as described in clause 7.
-•	Football profile data — preferred positions, playing standard, Team membership, attendance record, conduct history and match statistics.
+•	Football profile data — preferred positions, playing standard, Team membership, attendance record, conduct history and match statistics (matches played, wins, draws and losses, goals and assists, worked out from Final Results under clause 17).
 •	Transaction data — Wallet top-ups, Slot Fees, refunds and cancellation credits, and payment references. We do not store full card numbers; these are held by our payment providers.
 •	Emergency contact data — the name and contact number of the person you nominate as your In Case of Emergency (ICE) contact.
 •	Health data you choose to give us — any medical condition, allergy or injury you voluntarily disclose so that we can respond appropriately in an emergency. Providing this is optional.
@@ -197,7 +198,7 @@ Why we process it, and on what lawful basis
 
 Who we share it with
 8.2	Partner Venues. We share the match roster — your name and, where the venue requires it for access control, confirmation that you are verified. We do not share your identity document, face image, date of birth or contact details with venues unless you ask us to or an emergency requires it.
-8.3	Other users. Other users in a Lobby or Team can see your display name, profile photograph, preferred positions and match statistics. They cannot see your identity document, contact details, date of birth or ICE contact. The Referee assigned to a match can see the display names, positions and sides of the players in that match so that they can referee it (clause 17.5). A Referee cannot see your contact details, identity document, date of birth, ICE contact or payment information.
+8.3	Other users. Other users can see your display name, profile photograph, preferred positions and match statistics on your player profile, in Lobbies and in Teams. Match statistics come only from Final Results (clause 17.7). They cannot see your identity document, contact details, date of birth or ICE contact. The Referee assigned to a match can see the display names, positions and sides of the players in that match so that they can referee it (clause 17.5). A Referee cannot see your contact details, identity document, date of birth, ICE contact or payment information.
 8.4	Operators. We use third-party operators for hosting, payment processing, identity verification, communications and analytics. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instruction and to maintain appropriate security safeguards.
 8.5	Employers and institutions. Where your participation is funded by an employer, university residence, club or other institution, we may confirm to that institution which of its members attended a fixture, and the fees applied. We do not share your individual performance data, conduct history or personal contact details with them without your consent.
 8.6	We never sell your data. We do not sell, rent or trade your Personal Information, and we do not share your identity documents or biometric data with third parties for marketing purposes.

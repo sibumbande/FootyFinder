@@ -24,6 +24,8 @@ export interface PlayerStatistics {
   draws: number;
   losses: number;
   goals: number;
+  /** Gate 8 / TKT-808 (DEC-020): assists recorded by the referee. */
+  assists: number;
 }
 
 export interface PublicPlayerProfile {

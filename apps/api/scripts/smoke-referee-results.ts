@@ -19,6 +19,7 @@ import request from 'supertest';
 import { app } from '../src/app.js';
 import { allowedOrigins } from '../src/config/cors.js';
 import { SessionsService } from '../src/modules/auth/sessions.service.js';
+import { UsersService } from '../src/modules/users/users.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { refereeFixture } from './referee-fixture.js';
 
@@ -126,12 +127,14 @@ async function main() {
   const racedId = await refereeResultSection(host, players, matchId);
   await captainEvidenceSection(host, players, matchId, racedId);
   await adminResultsSection(host, players, matchId);
+  await statisticsSection(players);
   console.log(
     'Gate 8 referee results smoke passed: kickoff lineup record (starters, substitutes, snapshots, once, permanent except didNotPlay); '
       + 'referee final result (only the assigned referee, from kickoff, validated against the lineup, goals/assists/own goals, didNotPlay, '
       + 'one revision, COMPLETED, notices once, first submission wins under a race, legacy self-report blocked, overdue alert); '
       + 'captain/host own version (window, authority, score-only, latest kept, permanent), report a problem (24h, one open), result disputes retired; '
-      + 'admin results queue (overdue, mismatch, referee also played), admin entry and correction (fresh MFA, reason, revisions, audit, notices), problem resolution, matches-refereed report.',
+      + 'admin results queue (overdue, mismatch, referee also played), admin entry and correction (fresh MFA, reason, revisions, audit, notices), problem resolution, matches-refereed report; '
+      + 'profile statistics from final results (goals, assists, corrections, did-not-play, abandoned excluded).',
   );
 }
 
@@ -336,6 +339,28 @@ async function adminResultsSection(host: { id: string }, players: Array<{ id: st
   assert(row && row.matches.some((match: { matchId: string }) => match.matchId === matchId) && !row.matches.some((match: { matchId: string }) => match.matchId === noShow), `The referee report is wrong: ${JSON.stringify(report8.body)}`);
   assert(!/amount|cents|price|pay/i.test(JSON.stringify(report8.body.data)), 'The referee report shows money.');
   assert((await get('/admin/referee-report?from=2026-10-10&to=2026-10-01')).status === 400, 'A reversed date range was accepted.');
+}
+
+/** TKT-808: profile statistics come only from referee-final or admin-final results. */
+async function statisticsSection(players: Array<{ id: string }>) {
+  const users = new UsersService();
+  const stats = async (index: number) => (await users.get(players[index]!.id)).statistics!;
+  // p0 scored once in the corrected match (1-1) and once in the admin-entered match (1-0 win).
+  const p0 = await stats(0);
+  assert(p0.goals === 2 && p0.assists === 0 && p0.wins >= 1, `p0 statistics are wrong: ${JSON.stringify(p0)}`);
+  // p1 assisted in the corrected match; the referee's first version had the same assist.
+  const p1 = await stats(1);
+  assert(p1.assists === 1 && p1.goals === 0, `p1 statistics are wrong: ${JSON.stringify(p1)}`);
+  // p5 scored in the corrected match only (the own goal of the first version credited nobody).
+  const p5 = await stats(5);
+  assert(p5.goals === 1, `p5 statistics are wrong: ${JSON.stringify(p5)}`);
+  // Recalculated each time, so the same answer twice.
+  assert(JSON.stringify(await stats(0)) === JSON.stringify(p0), 'Statistics changed without a new result.');
+  // A player marked as not playing gets no match played.
+  const before = await stats(11);
+  const correctedMatch = (await prisma.matchLineupEntry.findFirstOrThrow({ where: { userId: players[11]!.id, didNotPlay: false, match: { result: { finalSource: 'ADMIN' } } } })).matchId;
+  await prisma.matchLineupEntry.updateMany({ where: { matchId: correctedMatch, userId: players[11]!.id }, data: { didNotPlay: true } });
+  assert((await stats(11)).matchesPlayed === before.matchesPlayed - 1, 'A player who did not play still got a match played.');
 }
 
 async function cleanup() {
