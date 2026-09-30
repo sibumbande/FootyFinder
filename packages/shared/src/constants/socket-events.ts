@@ -37,6 +37,7 @@ export const SocketEvents = {
   teamMemberRoleUpdated: 'team:member-role-updated',
   teamDeleted: 'team:deleted',
   teamWalletUpdated: 'team:wallet-updated',
+  teamChatMessage: 'team:chat-message',
   joinTeamRoom: 'team:join-room',
   leaveTeamRoom: 'team:leave-room',
 } as const;

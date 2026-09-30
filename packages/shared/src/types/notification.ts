@@ -30,6 +30,7 @@ export const NOTIFICATION_TYPES = [
   'TEAM_MATCH_NO_OPPONENT_WARNING',
   'TEAM_MATCH_OPPONENT_WITHDRAWN',
   'TEAM_METER_REMINDER',
+  'TEAM_CHAT_UNREAD',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

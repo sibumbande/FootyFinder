@@ -6,8 +6,9 @@ import { requireAuth } from '../../middleware/require-auth.js';
 import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './teams.controller.js';
 import * as teamWallet from '../team-wallet/team-wallet.controller.js';
+import * as teamChat from '../team-chat/team-chat.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
-import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
+import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 import { requireOnboardingForMutations } from '../../middleware/require-onboarding.js';
 
 export const teamImageUpload = multer({
@@ -55,6 +56,10 @@ teamsRouter.get('/:teamId/wallet/transactions', teamWallet.transactions);
 teamsRouter.get('/:teamId/wallet/holds', teamWallet.holds);
 teamsRouter.post('/:teamId/wallet/contributions', costlyMutationRateLimit, teamWallet.contribute);
 teamsRouter.post('/:teamId/wallet/refunds', costlyMutationRateLimit, teamWallet.refund);
+// Gate 7 (TKT-710): team chat.
+teamsRouter.get('/:teamId/chat/messages', teamChat.history);
+teamsRouter.post('/:teamId/chat/messages', messageRateLimit, teamChat.send);
+teamsRouter.post('/:teamId/chat/read', teamChat.markRead);
 teamsRouter.put('/:teamId/formations/:format', controller.saveFormation);
 teamsRouter.patch('/:teamId/formations/:format/slots/:slotId', controller.updateFormationSlot);
 

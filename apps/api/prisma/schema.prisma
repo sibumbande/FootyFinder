@@ -409,6 +409,7 @@ enum NotificationType {
   TEAM_MATCH_NO_OPPONENT_WARNING
   TEAM_MATCH_OPPONENT_WITHDRAWN
   TEAM_METER_REMINDER
+  TEAM_CHAT_UNREAD
 }
 
 model User {
@@ -481,6 +482,8 @@ model User {
   teamWalletContributions   TeamWalletTransaction[]   @relation("TeamWalletContributor")
   teamWalletHoldsCreated    TeamWalletHold[]          @relation("TeamWalletHoldCreator")
   teamMatchAuditActions     TeamMatchAuditEvent[]
+  teamMessages              TeamMessage[]
+  teamChatReadStates        TeamChatReadState[]
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1686,6 +1689,8 @@ model Team {
   matchSides      MatchTeam[]
   wallet          TeamWalletAccount?
   matchAuditEvents TeamMatchAuditEvent[]
+  chatMessages    TeamMessage[]
+  chatReadStates  TeamChatReadState[]
 
   @@index([ownerUserId])
   @@index([name])
@@ -1787,6 +1792,31 @@ model TeamMatchAuditEvent {
 
   @@index([matchId, createdAt])
   @@index([teamId, createdAt])
+}
+
+/// Gate 7 / TKT-710: the team's one permanent conversation (current members only).
+model TeamMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @db.Uuid
+  senderId  String   @db.Uuid
+  content   String
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([teamId, createdAt, id])
+}
+
+/// When each member last read their team chat (drives the single first-unread notice).
+model TeamChatReadState {
+  teamId     String   @db.Uuid
+  userId     String   @db.Uuid
+  lastReadAt DateTime
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@index([userId])
 }
 
 model TeamMembership {
