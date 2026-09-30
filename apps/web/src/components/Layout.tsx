@@ -1,5 +1,5 @@
 import { TERMS_ANCHORS } from '@footy-finder/shared';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { NotificationsMenu } from '@/features/notifications/NotificationsMenu.js';
 import { formatRands } from '@/utils/format-currency.js';
@@ -12,6 +12,8 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
 
 export function Layout() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
+  const inSocial = pathname.startsWith('/social') || pathname.startsWith('/messages');
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -25,8 +27,8 @@ export function Layout() {
             <NavLink to="/matches" className={navClass}>
               Matches
             </NavLink>
-            <NavLink to="/messages" className={navClass}>
-              Messages
+            <NavLink to="/social" className={() => navClass({ isActive: inSocial })}>
+              Social
             </NavLink>
             <NavLink to="/teams" className={navClass}>
               Teams

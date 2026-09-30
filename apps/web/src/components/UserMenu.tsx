@@ -65,7 +65,7 @@ export function UserMenu() {
             {[
               ['Home', '/'],
               ['Matches', '/matches'],
-              ['Messages', '/messages'],
+              ['Social', '/social'],
               ['Teams', '/teams'],
             ].map(([label, path]) => (
               <Link

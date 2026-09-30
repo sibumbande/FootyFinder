@@ -29,6 +29,7 @@ import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
 import { MatchRefereeLine } from '../components/MatchRefereeLine.js';
 import { MatchResultPanel } from '../components/MatchResultPanel.js';
 import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
+import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js';
 import { rands } from '../utils/go-no-go-format.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
@@ -47,6 +48,7 @@ import {
   useReadyMatch,
   useRotateMatchInvite,
 } from '../hooks/useMatches.js';
+import { FriendButton } from '@/features/social/components/FriendButton.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -393,6 +395,7 @@ export function MatchLobbyPage() {
                   <Link className="min-w-0 flex-1 truncate" to={`/players/${player.userId}`}>
                     {player.user?.displayName}
                   </Link>
+                  <FriendButton userId={player.userId} />
                   {player.userId === user?.id && (
                     <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-black uppercase text-content-inverse">
                       You
@@ -429,6 +432,7 @@ export function MatchLobbyPage() {
       {/* Gate 8 (DEC-020): a refereed match shows the referee's final result; results cannot be disputed (D21). */}
       <MatchResultPanel match={match} />
       <MatchReviewPanel match={match} />
+      <PlayedWithPanel match={match} />
       {match.result && !match.goNoGoAt && (
         <section className="rounded-3xl border border-brand-200 bg-brand-50 p-8 text-center">
           <p className="text-sm font-black uppercase tracking-widest text-brand-700">Full time</p>

@@ -1,5 +1,6 @@
 import type { MatchParticipant, TeamSide } from '@footy-finder/shared';
 import { Avatar } from '@/components/ui/Avatar.js';
+import { FriendButton } from '@/features/social/components/FriendButton.js';
 export function TeamRoster({
   team,
   participants,
@@ -19,9 +20,10 @@ export function TeamRoster({
         {players.map((participant) => (
           <div key={participant.id} className="flex items-center gap-3 rounded-xl bg-surface p-3">
             {participant.user && <Avatar user={participant.user} size="sm" />}
-            <span className="font-semibold text-content-strong">
+            <span className="flex-1 font-semibold text-content-strong">
               {participant.user?.displayName ?? 'Player'}
             </span>
+            <FriendButton userId={participant.userId} />
           </div>
         ))}
         {players.length === 0 && <p className="text-sm text-content-muted">No players yet.</p>}

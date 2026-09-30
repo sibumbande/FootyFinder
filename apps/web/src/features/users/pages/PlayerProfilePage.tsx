@@ -17,6 +17,8 @@ import { usePlayerProfile, useUpdatePlayerProfile } from '../hooks/usePlayerProf
 import { TeamAvatar } from '@/features/teams/components/TeamAvatar.js';
 import { useUploadPlayerPhoto } from '@/features/onboarding/hooks/useOnboarding.js';
 import { useRequestEmailChange } from '@/features/auth/hooks/useAuth.js';
+import { FriendRequestsSwitch } from '@/features/social/components/FriendRequestsSwitch.js';
+import { PlayerSocialActions } from '@/features/social/components/PlayerSocialActions.js';
 
 export function PlayerProfilePage() {
   const { userId = '' } = useParams();
@@ -86,11 +88,14 @@ export function PlayerProfilePage() {
               {editing ? 'Cancel editing' : 'Edit profile'}
             </Button>
           ) : (
-            <Link className="button" to={`/messages/new/${player.id}`}>
-              Message
-            </Link>
+            <PlayerSocialActions userId={player.id} displayName={player.displayName} />
           )}
         </div>
+        {mine && (
+          <div className="mt-5">
+            <FriendRequestsSwitch />
+          </div>
+        )}
         <p className="mt-6 leading-7 text-content">
           {player.bio || 'This player has not added a bio yet.'}
         </p>

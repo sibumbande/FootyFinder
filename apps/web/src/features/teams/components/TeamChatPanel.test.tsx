@@ -2,6 +2,7 @@ import type { TeamDetail } from '@footy-finder/shared';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamChatPanel } from './TeamChatPanel.js';
+vi.mock('@/features/social/hooks/useSocial.js', async () => (await import('@/test/social-hooks-mock.js')).socialHooksMock);
 
 const mocks = vi.hoisted(() => ({ send: vi.fn(), read: vi.fn(), pages: [] as unknown[] }));
 vi.mock('../hooks/useTeamChat.js', () => ({

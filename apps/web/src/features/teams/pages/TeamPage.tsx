@@ -22,6 +22,7 @@ import {
   useUploadTeamImage,
 } from '../hooks/useTeams.js';
 import { useTeamSocket } from '../hooks/useTeamSocket.js';
+import { FriendButton } from '@/features/social/components/FriendButton.js';
 
 type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'chat' | 'invites' | 'settings';
 export function TeamPage() {
@@ -221,14 +222,17 @@ function Squad({ team }: { team: TeamDetail }) {
                   'Positions not set'}
               </p>
             </div>
-            {member.userId !== team.ownerUserId && (
-              <Link
-                className="text-xs font-bold text-brand-700"
-                to={`/messages/new/${member.userId}`}
-              >
-                Message
-              </Link>
-            )}
+            <div className="flex flex-col items-end gap-2">
+              <FriendButton userId={member.userId} />
+              {member.userId !== team.ownerUserId && (
+                <Link
+                  className="text-xs font-bold text-brand-700"
+                  to={`/messages/new/${member.userId}`}
+                >
+                  Message
+                </Link>
+              )}
+            </div>
           </div>
           {owner && member.role !== 'OWNER' && (
             <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-3">

@@ -5,6 +5,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { formatDate } from '@/utils/format-date.js';
 import { useMarkTeamChatRead, useSendTeamChatMessage, useTeamChat } from '../hooks/useTeamChat.js';
+import { ChatMessageText } from '@/features/social/components/ChatMessageText.js';
 
 /**
  * Gate 7 / TKT-711: the team's one permanent chat, for current members. New messages arrive live
@@ -57,7 +58,7 @@ export function TeamChatPanel({ team }: { team: TeamDetail }) {
                 <p className="text-xs font-bold text-content-muted">
                   {mine ? 'You' : message.sender.displayName ?? message.sender.username} · {formatDate(message.createdAt)}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-content-strong">{message.content}</p>
+                <ChatMessageText senderId={message.senderId} content={message.content} className="mt-1 whitespace-pre-wrap break-words text-sm text-content-strong" />
               </li>
             );
           })}

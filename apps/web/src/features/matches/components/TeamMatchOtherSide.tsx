@@ -25,6 +25,7 @@ import {
   useWithdrawTeamFromMatch,
 } from '../hooks/useMatches.js';
 import { formatClock } from '../utils/go-no-go-format.js';
+import { FriendButton } from '@/features/social/components/FriendButton.js';
 
 /**
  * Gate 7 / DEC-019 decisions B, C, N1, N5: the other side of a public team match. The first team
@@ -176,6 +177,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
                 {awaySlots.map((slot) => (
                   <li key={slot.id} className="flex items-center justify-between gap-2">
                     <span>Position {slot.slotIndex + 1}: {slot.participant?.user?.displayName ?? slot.participant?.user?.username ?? 'open'}</span>
+                    {slot.participant && <FriendButton userId={slot.participant.userId} />}
                     {!slot.participantId && !locked && (
                       <Button variant="ghost" loading={claim.isPending} onClick={() => claim.mutate(slot.id)}>Claim</Button>
                     )}

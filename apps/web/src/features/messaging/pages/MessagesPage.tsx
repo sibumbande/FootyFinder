@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { messagingClient } from '@/api/client.js';
 import { Avatar } from '@/components/ui/Avatar.js';
+import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
@@ -96,7 +97,7 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
         ) : conversation.data ? (
           <>
             <header className="flex items-center gap-3 border-b border-line p-4">
-              <Link className="md:hidden" to="/messages">
+              <Link className="md:hidden" to="/social?tab=dms">
                 ←
               </Link>
               <Avatar user={conversation.data.otherParticipant} size="sm" />
@@ -108,6 +109,7 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
                   @{conversation.data.otherParticipant.username}
                 </p>
               </div>
+              <FriendButton userId={conversation.data.otherParticipant.id} className="ml-auto" />
             </header>
             <div className="flex-1 space-y-3 overflow-y-auto bg-surface-muted p-4">
               {conversation.data.messages?.map((message) => (
@@ -129,6 +131,9 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
               ))}
             </div>
             <FormError message={send.error?.message} />
+            {conversation.data.canMessage === false ? (
+              <p className="border-t border-line p-4 text-sm font-semibold text-content-muted">You can't message this player.</p>
+            ) : (
             <div className="flex gap-2 border-t border-line p-4">
               <input
                 className="min-h-11 min-w-0 flex-1 rounded-xl border border-line-strong bg-surface px-3"
@@ -143,6 +148,7 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
                 Send
               </Button>
             </div>
+            )}
           </>
         ) : (
           <FormError message={conversation.error?.message} />

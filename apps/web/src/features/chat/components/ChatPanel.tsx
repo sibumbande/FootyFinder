@@ -6,6 +6,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { formatDate } from '@/utils/format-date.js';
 import { useLobbyMessages, useSendLobbyMessage } from '@/features/matches/hooks/useMatches.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { ChatMessageText } from '@/features/social/components/ChatMessageText.js';
 export function ChatPanel({ matchId, enabled = true }: { matchId: string; enabled?: boolean }) {
   const { user } = useAuth();
   const [content, setContent] = useState('');
@@ -42,7 +43,7 @@ export function ChatPanel({ matchId, enabled = true }: { matchId: string; enable
                   {formatDate(message.createdAt)}
                 </span>
               </div>
-              <p className="mt-1 break-words text-sm text-content">{message.content}</p>
+              <ChatMessageText senderId={message.senderId} content={message.content} className="mt-1 break-words text-sm text-content" />
               {message.senderId !== user?.id && <Link className="mt-1 inline-block text-[10px] text-content-subtle hover:text-danger-700" to={`/report/LOBBY_MESSAGE/${message.id}`}>Report message</Link>}
             </div>
           </div>

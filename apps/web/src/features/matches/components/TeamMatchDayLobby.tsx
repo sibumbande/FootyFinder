@@ -33,6 +33,8 @@ import { TeamMeter } from './TeamMeter.js';
 import { MatchRefereeLine } from './MatchRefereeLine.js';
 import { MatchResultPanel } from './MatchResultPanel.js';
 import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
+import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js';
+import { FriendButton } from '@/features/social/components/FriendButton.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -121,6 +123,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
       <MatchRefereeLine referee={match.referee} goNoGoAt={match.goNoGoAt} status={match.status} />
       <MatchResultPanel match={match} />
       <MatchReviewPanel match={match} />
+      <PlayedWithPanel match={match} />
       <FormError message={deletion.error?.message} />
       {publicTeamMatch && <TeamMeter match={match} />}
       {publicTeamMatch && <TeamMatchOtherSide match={match} />}
@@ -247,6 +250,7 @@ function AvailabilityPanel({ match, teamSide }: { match: Match; teamSide: MatchT
                 <p className="mt-1 text-xs font-bold uppercase text-brand-700">
                   {row.status.replace('_', ' ')}
                 </p>
+                <FriendButton userId={row.userId} className="mt-2" />
               </div>
               {row.selectionStatus && (
                 <span className="rounded-full bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase text-brand-700">
@@ -373,6 +377,7 @@ function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSid
                       {slot.isOpen ? 'Open' : (slot.selection?.user.displayName ?? 'Empty')}
                     </span>
                   </div>
+                  {slot.selection && <FriendButton userId={slot.selection.userId} className="mt-2" />}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {lineup.data.viewerCanManage && slot.selection && (
                       <>
@@ -491,6 +496,7 @@ function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSid
                       {selection?.status.replaceAll('_', ' ') ?? 'Not selected'}
                     </span>
                   </div>
+                  <FriendButton userId={member.userId} className="mt-2" />
                   <div className="mt-3 flex flex-wrap gap-1">
                     <Button variant="ghost" onClick={() => mutations.invite.mutate(member.userId)}>
                       Invite

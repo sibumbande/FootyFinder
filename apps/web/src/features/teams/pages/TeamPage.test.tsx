@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamPage } from './TeamPage.js';
+vi.mock('@/features/social/hooks/useSocial.js', async () => (await import('@/test/social-hooks-mock.js')).socialHooksMock);
 
 const state = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'CAPTAIN' | 'MEMBER' }));
 const user = (id: string, displayName: string) => ({

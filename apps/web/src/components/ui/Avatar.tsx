@@ -1,5 +1,5 @@
 import type { PublicUser } from '@footy-finder/shared';
-export function Avatar({ user, size = 'md' }: { user: PublicUser; size?: 'sm' | 'md' | 'lg' }) {
+export function Avatar({ user, size = 'md' }: { user: Pick<PublicUser, 'displayName' | 'username' | 'avatarUrl'>; size?: 'sm' | 'md' | 'lg' }) {
   const initials =
     user.displayName
       .split(/\s+/)

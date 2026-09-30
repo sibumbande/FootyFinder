@@ -10,6 +10,7 @@ import { CreateMatchPage } from '@/features/matches/pages/CreateMatchPage.js';
 import { MatchLobbyPage } from '@/features/matches/pages/MatchLobbyPage.js';
 import { InviteMatchPage } from '@/features/matches/pages/InviteMatchPage.js';
 import { MessagesPage } from '@/features/messaging/pages/MessagesPage.js';
+import { SocialPage } from '@/features/social/pages/SocialPage.js';
 import { PlayerProfilePage } from '@/features/users/pages/PlayerProfilePage.js';
 import { HomePage } from '@/features/users/pages/HomePage.js';
 import { MyTeamsPage } from '@/features/teams/pages/MyTeamsPage.js';
@@ -65,7 +66,8 @@ export function AppRouter() {
             <Route path="/referee/matches/:matchId" element={animated(<RefereeMatchPage />)} />
             <Route path="/matches/invite/:token" element={animated(<InviteMatchPage />)} />
             <Route path="/players/:userId" element={animated(<PlayerProfilePage />)} />
-            <Route path="/messages" element={animated(<MessagesPage />)} />
+            <Route path="/social" element={animated(<SocialPage />)} />
+            <Route path="/messages" element={<Navigate to="/social?tab=dms" replace />} />
             <Route path="/messages/:conversationId" element={animated(<MessagesPage />)} />
             <Route path="/messages/new/:userId" element={animated(<MessagesPage />)} />
             <Route path="/teams" element={animated(<MyTeamsPage />)} />
