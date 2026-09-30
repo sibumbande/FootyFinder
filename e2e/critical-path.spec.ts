@@ -180,7 +180,19 @@ async function cleanFixtures() {
     where: { participants: { some: { userId: { in: userIds } } } },
     select: { id: true },
   });
+  const matchIds = matches.map(({ id }) => id);
+  const teamIds = (await prisma.team.findMany({ where: { ownerUserId: { in: userIds } }, select: { id: true } })).map(({ id }) => id);
+  const accountIds = (await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } })).map(({ id }) => id);
+  const teamTransactionIds = (await prisma.teamWalletTransaction.findMany({ where: { teamWalletAccountId: { in: accountIds } }, select: { id: true } })).map(({ id }) => id);
   await prisma.$transaction(async (tx) => {
+    // Gate 7 rows (team match jobs, audit, team wallet) are removed before their teams and matches.
+    if (matchIds.length) await tx.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
+    await tx.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { teamId: { in: teamIds } }] } });
+    await tx.teamWalletAllocation.deleteMany({ where: { OR: [{ contributionTransactionId: { in: teamTransactionIds } }, { debitTransactionId: { in: teamTransactionIds } }] } });
+    await tx.teamWalletHold.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
+    await tx.teamWalletTransaction.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
+    await tx.teamWalletAccount.deleteMany({ where: { id: { in: accountIds } } });
+    await tx.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } }, type: { in: ['TEAM_CONTRIBUTION_DEBIT', 'TEAM_CONTRIBUTION_REFUND_CREDIT'] } } });
     await tx.conversation.deleteMany({ where: { id: { in: conversations.map(({ id }) => id) } } });
     await tx.durableJob.deleteMany({ where: { OR: reservations.map(({ id }) => ({ dedupeKey: `quick-match-guarantee-settle:${id}` })) } });
     await tx.fieldReservation.deleteMany({ where: { id: { in: reservations.map(({ id }) => id) } } });
@@ -312,7 +324,8 @@ test.describe('browser critical path', () => {
     });
     expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
 
-    const fixture = await api<{ id: string }>(captainPage, `/teams/${team.body.data!.id}/matches`, {
+    // Gate 7 / N3: private free fixtures at a typed-in venue are retired...
+    const retired = await api(captainPage, `/teams/${team.body.data!.id}/matches`, {
       method: 'POST',
       body: {
         name: `${marker} team fixture`,
@@ -329,6 +342,36 @@ test.describe('browser critical path', () => {
           countryCode: 'ZA',
         },
         startsAt: new Date(Date.now() + 72 * 60 * 60_000).toISOString(),
+      },
+    });
+    expect(retired.status, JSON.stringify(retired.body)).toBe(410);
+    // ...so the fixture is a DEC-019 team match at the managed venue, paid from the team wallet.
+    const teamDeposit = await api(captainPage, '/wallet/deposits/demo', {
+      method: 'POST',
+      body: { amountCents: 50_000 },
+      headers: { 'Idempotency-Key': `${marker}-deposit-captain-team` },
+    });
+    expect(teamDeposit.status, JSON.stringify(teamDeposit.body)).toBe(200);
+    const contribution = await api(captainPage, `/teams/${team.body.data!.id}/wallet/contributions`, {
+      method: 'POST',
+      body: { amountCents: 40_000 },
+      headers: { 'Idempotency-Key': `${marker}-team-fund` },
+    });
+    expect(contribution.status, JSON.stringify(contribution.body)).toBe(201);
+    const fixture = await api<{ id: string }>(captainPage, '/matches', {
+      method: 'POST',
+      body: {
+        name: `${marker} team fixture`,
+        format: 'FIVE_A_SIDE',
+        substituteCapacityPerTeam: 0,
+        rollingSubstitutes: true,
+        rules: ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'],
+        visibility: 'PUBLIC',
+        startsAt: new Date(venueFixture.startsAt.getTime() + 3 * 60 * 60_000).toISOString(),
+        managedFieldId: venueFixture.field.id,
+        playAsTeamId: team.body.data!.id,
+        otherSideMode: 'TEAMS_ONLY',
+        teamSubstituteCount: 0,
       },
     });
     expect(fixture.status, JSON.stringify(fixture.body)).toBe(201);

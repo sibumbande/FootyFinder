@@ -6,7 +6,7 @@ import { CreateMatchPage } from './CreateMatchPage.js';
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), teams: [] as unknown[], wallet: undefined as unknown }));
 
 vi.mock('@/features/teams/hooks/useTeams.js', () => ({ useMyTeams: () => ({ data: mocks.teams }) }));
-vi.mock('@/features/teams/hooks/useTeamWallet.js', () => ({ useTeamWalletSummary: () => ({ data: mocks.wallet }) }));
+vi.mock('@/features/teams/hooks/useTeamWallet.js', () => ({ useTeamWalletSummary: () => ({ data: mocks.wallet, refetch: vi.fn() }) }));
 
 vi.mock('../hooks/useMatches.js', () => ({
   useCreateMatch: () => ({

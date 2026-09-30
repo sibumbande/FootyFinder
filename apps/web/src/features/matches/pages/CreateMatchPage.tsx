@@ -17,7 +17,7 @@ import {
   type MatchVisibility,
   type TeamMatchOtherSideMode,
 } from '@footy-finder/shared';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
@@ -116,6 +116,11 @@ export function CreateMatchPage() {
   const showPlayAs = !playAsLocked && manageableTeams.length > 0;
   const steps: StepKey[] = [...(showPlayAs ? (['playAs'] as const) : []), ...(teamMode ? TEAM_STEPS : QUICK_STEPS)];
   const current = steps[Math.min(step, steps.length - 1)]!;
+  // Re-check the team wallet each time the review opens (members may have just topped it up).
+  const refetchTeamWallet = teamWallet.refetch;
+  useEffect(() => {
+    if (teamMode && current === 'review') void refetchTeamWallet();
+  }, [current, teamMode, refetchTeamWallet]);
   const browseVenues = teamMode ? `/?playAs=${encodeURIComponent(playAsParam)}${playAsLocked ? '&lock=1' : ''}#venues` : '/#venues';
   const choosePlayAs = (teamId: string | null) => {
     const next = new URLSearchParams(search);
@@ -420,7 +425,7 @@ export function CreateMatchPage() {
               <div data-testid="team-wallet-check" className={`rounded-2xl border p-4 text-sm font-semibold ${walletShort ? 'border-danger-200 bg-danger-50 text-danger-700' : 'border-brand-200 bg-brand-50 text-brand-700'}`}>
                 {teamWallet.data
                   ? walletShort
-                    ? <>Top up your team wallet to at least {formatRandAmount(teamFee.totalCents)} to publish this match. Available now: {formatRandAmount(teamWallet.data.availableCents)}. <Link className="underline" to={`/teams/${playAsTeamId}?tab=wallet`}>Open the team wallet</Link></>
+                    ? <>Top up your team wallet to at least {formatRandAmount(teamFee.totalCents)} to publish this match. Available now: {formatRandAmount(teamWallet.data.availableCents)}. <Link className="underline" to={`/teams/${playAsTeamId}?tab=wallet`} target="_blank" rel="noreferrer">Open the team wallet</Link>{' '}<button type="button" className="font-bold underline" onClick={() => void teamWallet.refetch()}>Check again</button></>
                     : <>Team wallet available: {formatRandAmount(teamWallet.data.availableCents)} ✓ Nothing is taken until the match goes ahead.</>
                   : 'Checking the team wallet…'}
               </div>

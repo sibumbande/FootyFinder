@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29, and Gate 6 (TKT-601 to TKT-609, in order, one commit per ticket) on 2026-09-29.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29, Gate 6 (TKT-601 to TKT-609, in order, one commit per ticket) on 2026-09-29, and Gate 7 (TKT-701 to TKT-712, in order, one commit per ticket, under DEC-019) on 2026-09-29.
 
 
 1. HOW TO USE THIS BACKLOG
@@ -251,6 +251,7 @@ Policy:
 - Current members see balance, transaction amount/type/time, and contributor display name. Only owner/captains see actionable holds; only platform admins see provider/internal references.
 - Block closure while balance, holds, or obligations remain. Settle/release/refund to zero, archive the team, and retain immutable audit/financial history.
 Blocks resolved by policy: TKT-701 through TKT-703, TKT-709.
+Refined by DEC-019 (2026-09-29): D4 sets the daily limit (R5,000 and 10 contributions per member per team per rolling 24h); D7 closes a team by archiving it and returning each contributor's own unspent money to their personal wallet (no cash-out; N7 applies the same to the 60-day rule); D8 spends contributions oldest first and lets a contributor, including a former member, refund their own unspent money. "Exceptional refunds require review" is unchanged.
 
 DEC-015 - Challenge lifecycle, authority, and funding
 Status: APPROVED - POLICY RECORDED (2026-09-24)
@@ -264,6 +265,7 @@ Policy:
 - A unilateral cancelling side bears the non-refundable venue amount; mutual cancellation splits it equally; venue/platform cancellation releases both sides fully.
 - Retain private zero-cost manual-venue planning fixtures, but exclude them from public discovery, challenge, settlement, and funded-ready states.
 Blocks resolved by policy: TKT-704 through TKT-709.
+Superseded in part by DEC-019 (2026-09-29): there is no challenge approval step, so no multiple pending challenges, HOME accept/decline or 48h/24h challenge expiry (the other side is taken instantly, first come first served); the 50/50 venue split, odd cent and HOME/AWAY holds at publication/acceptance are replaced by per-team fees (R80 x (starting positions + that team's subs)) filled through meters once an opponent is found; the unilateral/mutual venue-amount cancellation charges are replaced by full release before T-30 (only HOME cancels the whole match; the loading team may only withdraw itself, N5); private zero-cost manual-venue planning fixtures can no longer be created (N3; existing drafts stay readable and cancellable). "Eligible teams must match the fixture format" still holds (a team loads with its saved formation for the match format).
 
 DEC-016 - Result confirmation, corrections, and statistics
 Status: APPROVED - POLICY RECORDED (2026-09-24)
@@ -366,6 +368,119 @@ Entered by admins as format-scoped ManagedFieldPrice records (admin app "Format 
 
 Venue settlement rule: a venue is owed money only for a match that went ahead. A cancelled match (organiser cancel or T-30 auto-cancel) leaves its FieldReservation CANCELLED with no hold, debit, obligation or payable. When Gate 6 settlement (TKT-607/TKT-608, DEC-012) is built, a payable is created exactly once per reservation (keyed by reservation id) from the admin-only priceCentsSnapshot, only when the reservation is CONFIRMED, the match has confirmedAt set and has reached kickoff/COMPLETED; it is marked due after kickoff and settled weekly under dual control.
 
+DEC-019 - Team match pricing, fill meters, instant side-taking and team go/no-go
+Status: APPROVED - CEO DECISION (Sibu), 2026-09-29. IMPLEMENTED AS TKT-701 TO TKT-712 (see section 11).
+Depends on: DEC-014, DEC-018. Supersedes: the 50/50 venue-cost split, the HOME/AWAY holds at publication/acceptance, the challenge approval lifecycle (multiple pending challenges, HOME accept/decline, 48h/24h challenge expiry) and the unilateral/mutual venue-amount cancellation charges in DEC-015; private zero-cost manual-venue planning fixtures (N3). Refines DEC-014 closure (D7) and provenance (D8).
+
+Part 1 - team match pricing, as recorded (word for word):
+
+CEO DECISION (Sibu), 2026-09-29, team match pricing. This REPLACES the 50/50 venue-cost
+split in TKT-709. Record it as a new decision (DEC-019) in the ticket breakdown, word
+for word:
+- Each team pays a fixed team fee = R80 x (starting positions for the format + the
+  number of subs THAT team chooses). Example 11-a-side with 3 subs: R880 + R240 =
+  R1,120. FootyFinder sets the R80; teams cannot change it.
+- The captain chooses their number of subs when creating the fixture; the opponent
+  chooses theirs when accepting. Each team's fee is calculated separately.
+- Venue costs are never shown to teams, captains or players (same as DEC-018); extend
+  the venue-cost privacy test to all new team, challenge and team-wallet DTOs.
+- Fill meter: once an opponent is found, each team sees its own meter, e.g.
+  "0 / R1,120", filled from its TEAM WALLET. Both teams work the same way. Before an
+  opponent is found, show the fee breakdown (e.g. "R880 (11 players) + R240 (3 subs) =
+  R1,120") but the meter is not active yet.
+- Venue payable (Gate 6) for team matches: only when the match goes ahead, same rules
+  as DEC-018 (created at kickoff from the admin-only price snapshot; cancelled matches
+  owe nothing).
+
+Part 2 - follow-up decisions of 2026-09-29, as recorded (word for word):
+
+A) Setting up a team match.
+   - Only a team owner/captain can create a team match, and it is ALWAYS PUBLIC in
+     the lobby (listed alongside quick matches, clearly labelled as a team match).
+   - The captain can start it from EITHER place:
+     1. their TEAM DASHBOARD ("Create team match"), or
+     2. the NORMAL CREATE-MATCH flow, where a user who is owner/captain of a team gets
+        the choice "Play as: myself (quick match) / my team <team name>" (list only
+        teams they own/captain). Both entry points use the same wizard and rules.
+   - During setup the captain MUST answer: "Who can take the other side?"
+     1. "Teams only": only another team can take the other side.
+     2. "Open to both": the other side can be taken by another team OR filled by
+        individual players, whichever comes first.
+   - The captain also chooses their number of subs (fee breakdown shown, e.g.
+     "R880 (11 players) + R240 (3 subs) = R1,120"). The home team always pays via its
+     team fee + fill meter from the team wallet.
+
+B) "Open to both" details: individual players join exactly like a quick match: each
+   pays R80 from their personal wallet on join (DEC-018 rules: subs pay too, 12h leave
+   credit, lobby lock at T-30, position claims). Another team's owner/captain may load
+   their WHOLE TEAM into the other side with one button ("Load my team"), but ONLY
+   while that side has no individual players yet. Once the first individual joins, the
+   side is individuals-only.
+
+C) No approval. Loading a team into the other side is INSTANT, first come first
+   served, in BOTH modes (replaces D9 and the HOME-accepts challenge flow). A side can
+   only be taken once, race-safe (a team loading vs an individual joining at the same
+   moment: exactly one wins). The loading team chooses its number of subs at that
+   moment and gets its own fee + fill meter. The home captain's only way out is
+   cancelling before T-30 (D6). Simplify the challenge schema/state machine
+   accordingly and explain what remains of TKT-705/706/707.
+
+D) Go/no-go at T-30:
+   - Other side taken by a team (either mode): both meters full.
+   - "Open to both" with an individual side: home meter full AND every starting
+     position on the other side claimed (subs optional), same as DEC-018.
+   - No-go: cancel, release all team holds, refund every individual's R80 to their
+     wallet, notify everyone in-app + email.
+
+E) D10 (unmatched cancel at T-24h) applies only to "Teams only" mode. "Open to both"
+   fills until T-30 like a quick match (include the kickoff-2h "positions still open"
+   reminder for it).
+
+F) Approved as recommended: D1–D8, D11. D12 changed: publishing requires HOME's team
+   wallet AVAILABLE balance >= HOME's team fee (a check, not a hold), and a team may
+   have at most 2 published fixtures whose other side isn't taken/filled yet; clear UI
+   errors ("Top up your team wallet to at least R1,120 to publish this match").
+   D13: ToS v2.3, material, reacceptance required; remove "counsel sign-off" and
+   "venue agreements" from the plan and report (CEO decisions). Leave the ToS 12.5
+   60-day uncontactable-captain wording unchanged and flag it.
+
+G) The ToS must describe: both modes, both entry points (plain wording), instant
+   first-come team loading, individuals paying R80 each, the home team fee + meter,
+   and the go/no-go rules above.
+
+Part 3 - answers to the open questions, as recorded (word for word):
+
+N1: Accept (reopen to "Load my team" when zero individuals are joined).
+N2: Accept (block own-team conflict, 409 OWN_TEAM_CONFLICT).
+N3: Accept (retire private manual-venue creation; existing DRAFTs stay readable and
+    cancellable).
+N4: Accept (individuals side subs = HOME's subs, never below subs already joined).
+N5: CHANGED. The team that loaded the other side can only WITHDRAW ITS OWN TEAM before
+    T-30: its holds are released, its AWAY MatchTeam is removed/closed, the side
+    reopens (otherSideTakenBy back to NULL, "Teams only" T-24h rule and "Open to both"
+    rules apply again), and HOME is notified in-app + email. Only HOME's owner/captains
+    can cancel the WHOLE match (D6). Add tests (withdraw then another team loads;
+    withdraw then individuals join in "Open to both"; withdraw at/after T-30 rejected
+    with LINEUP_LOCKED) and ToS wording.
+N6: Accept.
+N7: Align clause 12.5 now: if the owner/captains are uncontactable for 60 days, the team
+    is closed per D7 and each contributor's own unspent contributions are returned to
+    their personal FootyFinder wallet (no proportional or equal-share split).
+
+Approved defaults (D1-D8, D11 as recommended; D12 and D13 as changed in F; D9 removed by C; D10 narrowed by E; D6 narrowed by N5):
+- D1. Deadline: the same T-30 go/no-go as Quick Matches (durable job TEAM_MATCH_GO_NO_GO). GO rules per D above; otherwise the match is cancelled, every hold released, every individual refunded, nothing owed to the venue; every current member of both teams and every joined individual is notified in-app and by email.
+- D2. Meter money is a HOLD on the team wallet, captured only on GO; released on cancel, no-go, withdrawal or when subs are lowered.
+- D3. Only the owner and current captains of a side fill its meter. Partial fills are allowed; over-filling is refused; there is no manual un-fill.
+- D4. Any current member tops up the team wallet from their personal wallet: whole-rand R10-R5,000 per contribution, at most R5,000 and 10 contributions per member per team per rolling 24 hours.
+- D5. A side's owner/captains may change its subs (0-10) until T-30 (then 409 LINEUP_LOCKED); the fee is recalculated and any held money above the new fee is released at once.
+- D6. Only HOME's owner/captains cancel the whole match, until T-30 (N5); everything is released or refunded and nothing is owed. From T-30 nobody can cancel.
+- D7. Closing a team archives it (never deletes). Blocked while money is held or a public team match is upcoming. Every contributor's own unspent money returns to their personal wallet; no cash-out.
+- D8. Team spending uses the oldest contributions first (FIFO). A contributor, including a former member, may self-refund their own unspent money, capped at the team's available balance.
+- D10 (as narrowed by E). A "Teams only" match with no team on the other side 24 hours before kickoff is cancelled; the home team is warned 48 hours before kickoff. Scheduled only when the match is published early enough; otherwise the T-30 check decides.
+- D11. From T-30 money, subs, side-taking, withdrawal and cancellation are frozen; captains may still arrange their own lineup until kickoff.
+- D12 (as changed in F). Publishing checks (does not hold) HOME's available team-wallet balance >= HOME's fee; at most 2 published matches per team waiting for an opponent (N6: a side counts as taken when a team loaded it, or every starting position of an individuals side is claimed).
+- D13 (as changed in F). Terms of Service v2.3, material, reacceptance required.
+
 
 3A. CROSS-CUTTING APPROVED PRODUCT/UX RULES
 ============================================
@@ -400,11 +515,12 @@ Venue settlement rule: a venue is owed money only for a match that went ahead. A
   - See `docs/GATE_5_POSITION_CLAIMS_RUNBOOK_2026-09-28.md`.
 - DEC-018 (fixed R80 fee, hidden venue costs, no host guarantee, T-30 go/no-go) was implemented on 2026-09-29 as TKT-311 to TKT-315 with additive migration `20260930100000_fixed_fee_go_no_go`, verified locally on footy_finder_test. See section 9A and `docs/DEC_018_FIXED_FEE_GO_NO_GO_RUNBOOK_2026-09-29.md`.
 - Gate 6 (TKT-601 to TKT-609) was implemented on 2026-09-29, one commit per ticket, with six additive migrations (20261002100000 to 20261002150000), verified locally (footy_finder reset and footy_finder_test deploy, all 35 migrations) plus a real Paystack TEST API check. Production release still needs live Paystack credentials/webhook, approved venue bank details (DEC-005/TKT-302) and the production encryption key. See section 10 and `docs/GATE_6_PAYMENTS_SETTLEMENT_RUNBOOK_2026-09-29.md`.
+- Gate 7 (TKT-701 to TKT-712) was implemented on 2026-09-29 under DEC-019, one commit per ticket, with eight additive migrations (20261003100000 to 20261003170000), verified locally (footy_finder reset and footy_finder_test deploy, all 43 migrations; 17 smokes; 4 Playwright journeys). Production release still needs Terms v2.3 published with legal:publish (material, reacceptance required) and the Gate 6 production items. See section 11 and `docs/GATE_7_TEAM_MATCHES_RUNBOOK_2026-09-29.md`.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
 - Postmark and Paystack abstractions/test adapters may be built with test configuration, but production verification/release requires Platform Operations to provide the verified domain, scoped credentials, webhook setup, secret rotation, and operational ownership.
-- TKT-607 additionally needs approved encrypted beneficiary facts. TKT-906 starts only after TKT-712 and proven Gate 7 reconciliation. TKT-907 is not selectable.
+- TKT-607 additionally needs approved encrypted beneficiary facts. TKT-906 starts only after TKT-712 and proven Gate 7 reconciliation (both done 2026-09-29; TKT-906 still needs its own approval against DEC-019, which replaced the challenge model it was written for). TKT-907 is not selectable.
 - Never substitute synthetic production content, browser-written balances, or inferred consent to bypass a blocker. Move to an independent READY stream when the execution order permits it.
 
 
@@ -1344,7 +1460,42 @@ Not in scope: team-wallet reconciliation.
 11. GATE 7 - TEAM FINANCE, CHALLENGES, AND CHAT
 ================================================
 
+Implementation summary (2026-09-29): implemented on `ceo/finish-gate-5` in order, one commit per ticket, under DEC-014, DEC-018 and DEC-019 (which replaced the DEC-015 challenge flow and 50/50 split; TKT-705 to TKT-709 were rescoped accordingly, see each ticket).
+Additive migrations:
+- 20261003100000_gate_7_team_wallet_enums
+- 20261003110000_gate_7_team_wallet (widens WalletTransaction_sign_matches_type with the two team ledger types)
+- 20261003120000_gate_7_team_matches (recreates Match_cancellationReason_check with the team reasons)
+- 20261003130000_gate_7_side_taking
+- 20261003140000_gate_7_team_match_notifications
+- 20261003150000_gate_7_team_match_payables (replaces the venue-payable eligibility trigger function: also requires goNoGoAt)
+- 20261003160000_gate_7_team_chat_enums
+- 20261003170000_gate_7_team_chat
+No index uses a function.
+
+Verification (2026-09-29):
+- Migrations: `npx prisma migrate reset --force` on local footy_finder applied all 43 migrations (with the CEO's explicit consent) and the dev legal placeholders were re-published with legal:publish; `migrate deploy` on footy_finder_test applied each Gate 7 migration; `prisma migrate diff` shows no drift beyond the pre-existing id-default noise.
+- Unit tests pass: shared 109, api-client 30, api 381 (including the exhaustive side-authority matrix), web 136. Type-checks for api/web/admin and the web and admin builds pass.
+- On footy_finder_test these smokes pass: api-contract, financial-integrity, payments, go-no-go, venue-settlement, payment-to-settlement, position-claims, operations, field-bookings, team-match, team-match-ui, and the new team-wallet, team-matches, team-sides-race (both race outcomes, 3 consecutive passes), team-authz, team-go-no-go (fill vs T-30 race, stale job) and team-chat (with a real socket server).
+- Playwright (ADMIN_TEST_DATA_ENABLED=true, PAYMENT_PROVIDER=demo on the disposable DB): team-match (new), critical-path (updated for N3), position-claim and wallet all pass.
+- Pre-existing, not Gate 7: smoke:team-match-lineup, smoke:team-match-availability and smoke:match-capacity do not compile (MatchesRepository.create was removed in 8204cad, the same cause as smoke:atomic-notifications).
+
+See `docs/GATE_7_TEAM_MATCHES_RUNBOOK_2026-09-29.md`.
+
+Follow-ups (not implemented, recorded for decision):
+- Publish Terms of Service v2.3 with legal:publish before release (material; users must re-accept). Its effective date is set on publication, at least 14 days after notice (clause 26.2).
+- A "Teams only" match published less than 24 hours before kickoff has no T-24h unmatched cancel; the T-30 check decides it (interpretation of D10/E, recorded in ToS 12.13).
+- Closing a team releases its short name for reuse (DEC-003 names stay in the audit history).
+- TKT-906 (advanced escrow) was written for the challenge model and needs re-scoping against DEC-019 before it is selectable.
+- Fix the three pre-existing smoke compile errors above.
+
 TKT-701 - Add team-wallet ledger and reconciliation foundation
+Status: VERIFIED LOCALLY - COMMIT 099483e (2026-09-29)
+Implemented:
+- Separate TeamWalletAccount/TeamWalletTransaction/TeamWalletHold/TeamWalletAllocation aggregates; the balance equals the immutable ledger and cannot go negative (CHECK); ledger rows and terminal holds cannot be edited and a contribution cannot be spent twice (triggers).
+- TeamWalletRepository: locked, idempotent credit/debit/hold/capture/release; debits spend contributions oldest first (D8).
+- Closing a team archives it (D7): blocked while money is held or a public team match is upcoming; every contributor's own unspent money returns to their personal wallet.
+- Reconciliation: team balance vs ledger, available >= 0, personal/team link, provenance total, archived team with funds.
+- smoke:team-wallet; ToS v2.3 started (12.5, N7).
 Depends on: DEC-014, TKT-609
 Risk: Critical
 Scope:
@@ -1357,6 +1508,11 @@ Tests: migration, balance invariant, idempotency, concurrent ledger writes.
 Not in scope: contributions or match payment.
 
 TKT-702 - Implement personal-to-team contributions and refunds
+Status: VERIFIED LOCALLY - COMMIT bd57a61 (2026-09-29)
+Implemented:
+- POST /teams/:id/wallet/contributions (any current member, R10-R5,000, R5,000 and 10 per 24h, restricted wallets refused) and POST /teams/:id/wallet/refunds (own unspent money, never held money, also for former members).
+- GET wallet summary, history (contributor names), holds (owner/captains only) and GET /wallet/team-contributions.
+- Venue-cost privacy test covers the team wallet DTOs; ToS 12.3 and 12.4.
 Depends on: TKT-701
 Risk: Critical
 Scope:
@@ -1367,6 +1523,9 @@ Tests: insufficient balance, concurrency, duplicate request, member removal/capt
 Not in scope: team match spending.
 
 TKT-703 - Add team wallet UI/history/contribution flow
+Status: VERIFIED LOCALLY - COMMIT 373074b (2026-09-29)
+Implemented:
+- Team page Wallet tab (balance, held, available, history, contribute, take back your unspent money), holds for owners/captains, reclaimable team money on the personal wallet page, "Close Team".
 Depends on: TKT-702
 Risk: Medium
 Scope:
@@ -1378,6 +1537,11 @@ Tests: role-based component/API client behavior.
 Not in scope: challenge payment.
 
 TKT-704 - Extend team fixture creation to public managed venues
+Status: VERIFIED LOCALLY - COMMIT 8a16234 (2026-09-29)
+Implemented:
+- One wizard, two entry points (team page "Create team match", and "Play as" in create-match); always public; managed slot reserved; HOME squad loaded; "Who can take the other side?" and subs with the fee breakdown; publish checks the team wallet AVAILABLE balance and the 2-waiting limit (D12, N6).
+- Fee snapshot per side (CHECK fee = R80 x (starters + subs)); listed in the lobby with a "Team match" badge; private manual-venue creation retired (N3, 410).
+- ToS 12.9-12.12.
 Depends on: TKT-306, DEC-015
 Risk: High
 Scope:
@@ -1389,6 +1553,9 @@ Tests: role/format/slot/state behavior.
 Not in scope: challenger or team payment.
 
 TKT-705 - Add challenge schema and state machine
+Status: VERIFIED LOCALLY - COMMIT 9244b65 (2026-09-29)
+Implemented:
+- Rescoped by DEC-019 (decision C): no challenge table or approval lifecycle. What remains: the other-side transition table (open -> TEAM / INDIVIDUALS; emptied INDIVIDUALS -> TEAM; TEAM -> open only by withdrawal), DB triggers that refuse an AWAY team or a JOINED individual that does not match the side state, and the append-only TeamMatchAuditEvent.
 Depends on: TKT-704, DEC-015
 Risk: High
 Scope:
@@ -1400,6 +1567,10 @@ Tests: migration and transition table tests.
 Not in scope: endpoints/UI.
 
 TKT-706 - Add challenge commands and notifications
+Status: VERIFIED LOCALLY - COMMIT 585f7ed (2026-09-29)
+Implemented:
+- Rescoped by DEC-019: the shared cancellation core now releases team holds and notifies both teams (in-app + email); "Teams only" 48h warning and T-24h unmatched cancel (D10/E); the kickoff-2h reminder covers "Open to both"; TEAM_MATCH_EMAIL (opponent found / no opponent yet / opponent withdrew) replaces the challenge emails.
+- ToS 12.13.
 Depends on: TKT-705
 Risk: High
 Scope:
@@ -1411,6 +1582,11 @@ Tests: role matrix, transitions, notification dedupe, durable retry.
 Not in scope: acceptance and AWAY attachment.
 
 TKT-707 - Atomically accept challenge and attach AWAY team
+Status: VERIFIED LOCALLY - COMMIT e08b355 (2026-09-29)
+Implemented:
+- Rescoped by DEC-019: "Load my team" (instant, first come) and individual joins both take the Match row lock, so exactly one wins; own-team conflict (N2); emptied individuals side reopens (N1); "Withdraw my team" (N5) releases holds and reopens the side; lobby "The other side" panel and side switcher.
+- serializableTransaction now also retries a serialization failure raised at COMMIT.
+- smoke:team-sides-race; ToS 12.14-12.15.
 Depends on: TKT-706
 Risk: Critical
 Scope:
@@ -1423,6 +1599,10 @@ Tests: concurrent acceptance, format mismatch, removed member, rollback.
 Not in scope: funding capture.
 
 TKT-708 - Implement side-scoped captain authorization
+Status: VERIFIED LOCALLY - COMMIT 3e8a4e3 (2026-09-29)
+Implemented:
+- Command-to-side matrix replaces the broad attached-manager check: HOME owns the match (edit, cancel, result), AWAY only withdraws itself, each side manages its lineup, subs and meter; demotion/removal immediate; no implicit admin authority.
+- Exhaustive unit matrix and smoke:team-authz (10 actors); ToS 12.2 and 12.16.
 Depends on: TKT-707, TKT-005
 Risk: High
 Scope:
@@ -1433,6 +1613,11 @@ Tests: exhaustive authorization matrix including admin/MFA.
 Not in scope: result confirmation logic.
 
 TKT-709 - Add team-wallet funding to publish/accept
+Status: VERIFIED LOCALLY - COMMIT dcf551b (2026-09-29)
+Implemented:
+- Rescoped by DEC-019 (replaces the 50/50 split): per-side fill meters as team-wallet holds (owner/captains, partial fills, never over the fee), subs changes with automatic release (D5, N4), TEAM_MATCH_GO_NO_GO at T-30 capturing every hold once on GO or releasing/refunding everything on NO-GO, 2h meter reminder, T-30 freeze (D11).
+- Confirmed team matches start and owe their venue at kickoff from the admin-only snapshot; reconciliation adds orphaned holds, over-filled meters and capture/fee mismatches.
+- smoke:team-go-no-go; ToS definitions, 6.4, 11.10, 12.11, 12.17-12.20, 14.1, 15.1.
 Depends on: TKT-702, TKT-707, TKT-708
 Risk: Critical
 Scope:
@@ -1445,6 +1630,9 @@ Tests: every transition/retry/concurrency/insufficient-balance path.
 Not in scope: optional advanced multi-party escrow beyond minimum policy.
 
 TKT-710 - Add persistent team chat model and API
+Status: VERIFIED LOCALLY - COMMIT 5b89b4b (2026-09-29)
+Implemented:
+- TeamMessage and TeamChatReadState; paginated history, send and mark-read for current members only; closed teams read-only; smoke:team-chat.
 Depends on: TKT-708
 Risk: Medium
 Scope:
@@ -1455,6 +1643,9 @@ Tests: repository/service/API role and pagination tests.
 Not in scope: socket/UI.
 
 TKT-711 - Add team chat realtime UI
+Status: VERIFIED LOCALLY - COMMIT 1d5ad8a (2026-09-29)
+Implemented:
+- Messages pushed to the team room (removed members evicted); one TEAM_CHAT_UNREAD notice per member per read cycle, never for your own messages, never by email; team page Chat tab.
 Depends on: TKT-710
 Risk: Medium
 Scope:
@@ -1465,6 +1656,11 @@ Tests: socket authorization, components, multi-client behavior.
 Not in scope: social navigation.
 
 TKT-712 - Add full team challenge E2E
+Status: VERIFIED LOCALLY (2026-09-29) - see the commit recording Gate 7
+Implemented:
+- e2e/team-match.spec.ts: team-page entry -> "Teams only" -> publish blocked until the team wallet covers the fee -> publish -> another team loads -> both meters fill -> both lineups -> team chat; then "Play as my team" -> "Open to both" -> a player joins for R80 -> "Load my team" refused; no venue cost in any browser response; team wallets reconcile.
+- The create-match review re-checks the team wallet ("Check again") after a top-up; critical-path updated for N3.
+- This section, DEC-019 and docs/GATE_7_TEAM_MATCHES_RUNBOOK_2026-09-29.md.
 Depends on: TKT-709, TKT-711
 Risk: High
 Scope:
