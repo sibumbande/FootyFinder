@@ -3,7 +3,7 @@
  * (/legal/terms#clause-8). The published text (docs/legal/TERMS_OF_SERVICE.md) uses a small,
  * safe subset of Markdown, parsed here into blocks; nothing is ever rendered as raw HTML.
  * - "## 8. Privacy Notice" -> a clause heading with the anchor "clause-8"
- * - "### What we collect" -> a sub-heading ("## Annexure A ..." gets the anchor "annexure-a")
+ * - "### What we collect" -> a sub-heading ("### 14.1 ..." gets "clause-14-1", "## Annexure A ..." gets "annexure-a")
  * - "**8.3 Other users.** ..." -> a paragraph with the anchor "clause-8-3"
  * - "> ..." lines -> one shaded box (the CPA s49 / liability notices)
  * - "- ..." lines -> a bullet list; "| a | b |" lines -> a table
@@ -54,7 +54,9 @@ export function parseTerms(source: string): TermsBlock[] {
     else if (line.startsWith('## ') || line.startsWith('### ')) {
       const text = line.replace(/^#+\s+/, '');
       const annexure = /^Annexure ([A-Z])\b/.exec(text);
-      blocks.push({ kind: 'subheading', ...(annexure ? { id: `annexure-${annexure[1]!.toLowerCase()}` } : {}), text });
+      const numbered = /^(\d+\.\d+)\s/.exec(text);
+      const id = annexure ? `annexure-${annexure[1]!.toLowerCase()}` : numbered ? clauseAnchor(numbered[1]!) : undefined;
+      blocks.push({ kind: 'subheading', ...(id ? { id } : {}), text });
     }
     else if (line.startsWith('>')) {
       const paragraphs: InlinePart[][] = [];

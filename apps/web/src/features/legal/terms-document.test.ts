@@ -8,6 +8,10 @@ describe('Terms page parser (CEO Q1)', () => {
     expect(blocks[1]).toMatchObject({ kind: 'paragraph', id: 'clause-8-3' });
     expect(blocks[2]).toMatchObject({ kind: 'clause', id: 'clause-9' });
     expect(clauseAnchor('14.2')).toBe('clause-14-2');
+    expect(parseTerms('### 14.1 If the match is cancelled\n\n## Annexure A: Plain-Language Summary')).toEqual([
+      { kind: 'subheading', id: 'clause-14-1', text: '14.1 If the match is cancelled' },
+      { kind: 'subheading', id: 'annexure-a', text: 'Annexure A: Plain-Language Summary' },
+    ]);
   });
 
   it('groups shaded boxes, lists and tables, and skips table separator rows', () => {
