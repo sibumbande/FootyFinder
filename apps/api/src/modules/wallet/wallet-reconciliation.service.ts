@@ -177,7 +177,8 @@ export class WalletReconciliationService {
     }
     const unpaidMatches = await prisma.match.findMany({
       where: {
-        mode: 'QUICK_GAME',
+        // Gate 7: DEC-019 team matches owe their venue the same way.
+        OR: [{ mode: 'QUICK_GAME' }, { mode: 'TEAM_MATCH', otherSideMode: { not: null } }],
         status: { in: [...STARTED] },
         fieldReservation: { is: { status: 'CONFIRMED' } },
         venuePayable: { is: null },
@@ -254,7 +255,49 @@ export class WalletReconciliationService {
     }
     for (const row of orphanPersonal)
       issues.push({ code: 'TEAM_CONTRIBUTION_LINK_MISMATCH', userId: row.walletAccount.userId, referenceId: row.id, actualCents: row.amountCents, detail: 'personal_row_without_team_row' });
+    await this.teamMeters(issues);
     return accounts.length;
+  }
+
+  /**
+   * Gate 7 / TKT-709 (DEC-019, D2): fill-meter money is held only while its match is undecided,
+   * a meter never holds more than its team's fee, and a confirmed match captured exactly each
+   * team's fee from that team's wallet.
+   */
+  private async teamMeters(issues: WalletReconciliationIssue[]) {
+    const holds = await prisma.teamWalletHold.findMany({
+      where: { status: { in: ['ACTIVE', 'CAPTURED'] } },
+      select: {
+        id: true, matchId: true, side: true, status: true, amountCents: true,
+        account: { select: { id: true, teamId: true } },
+        match: { select: { status: true, confirmedAt: true, teamSides: { select: { side: true, teamId: true, teamFeeCents: true } } } },
+      },
+    });
+    const bySide = new Map<string, { matchId: string; side: string; teamId: string; accountId: string; held: number; captured: number; feeCents: number | null; confirmed: boolean }>();
+    for (const hold of holds) {
+      if (hold.status === 'ACTIVE' && (hold.match.status === 'CANCELLED' || hold.match.confirmedAt))
+        issues.push({ code: 'TEAM_HOLD_ORPHANED', walletAccountId: hold.account.id, referenceId: hold.id, actualCents: hold.amountCents, detail: `match_${hold.match.status.toLowerCase()}` });
+      const key = `${hold.matchId}:${hold.side}:${hold.account.teamId}`;
+      const side = hold.match.teamSides.find((candidate) => candidate.side === hold.side && candidate.teamId === hold.account.teamId);
+      const entry = bySide.get(key) ?? { matchId: hold.matchId, side: hold.side, teamId: hold.account.teamId, accountId: hold.account.id, held: 0, captured: 0, feeCents: side?.teamFeeCents ?? null, confirmed: Boolean(hold.match.confirmedAt) };
+      if (hold.status === 'ACTIVE') entry.held += hold.amountCents;
+      else entry.captured += hold.amountCents;
+      bySide.set(key, entry);
+    }
+    for (const entry of bySide.values())
+      if (entry.feeCents !== null && entry.held + entry.captured > entry.feeCents)
+        issues.push({ code: 'TEAM_METER_OVERFUNDED', walletAccountId: entry.accountId, referenceId: entry.matchId, expectedCents: entry.feeCents, actualCents: entry.held + entry.captured, detail: entry.side.toLowerCase() });
+    const confirmed = await prisma.match.findMany({
+      where: { otherSideMode: { not: null }, confirmedAt: { not: null } },
+      select: { id: true, teamSides: { select: { side: true, teamId: true, teamFeeCents: true } } },
+    });
+    for (const match of confirmed)
+      for (const side of match.teamSides) {
+        if (!side.teamId || side.teamFeeCents === null) continue;
+        const captured = bySide.get(`${match.id}:${side.side}:${side.teamId}`)?.captured ?? 0;
+        if (captured !== side.teamFeeCents)
+          issues.push({ code: 'TEAM_FEE_CAPTURE_MISMATCH', referenceId: match.id, expectedCents: side.teamFeeCents, actualCents: captured, detail: side.side.toLowerCase() });
+      }
   }
 
   private async batches(issues: WalletReconciliationIssue[]) {

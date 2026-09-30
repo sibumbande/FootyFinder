@@ -78,3 +78,31 @@ export interface ReclaimableTeamContribution {
   unspentCents: number;
   refundableCents: number;
 }
+
+/**
+ * Gate 7 / DEC-019 fill meter for one team's side of a team match, e.g. "R0 / R1,120". Each team
+ * sees only its own meter. Before the other side is taken the meter is not active yet and only
+ * the fee breakdown is shown. Never carries a venue cost.
+ */
+export interface TeamMeterView {
+  matchId: string;
+  side: TeamSide;
+  teamId: string;
+  teamName: string;
+  starterCount: number;
+  substituteCount: number;
+  placeFeeCents: number;
+  feeCents: number;
+  heldCents: number;
+  capturedCents: number;
+  remainingCents: number;
+  /** True once the other side is taken (a team loaded, or players joined). */
+  active: boolean;
+  /** From the T-30 go/no-go: no more filling or sub changes. */
+  locked: boolean;
+  full: boolean;
+  /** Owner or captain of this side: may fill the meter and change subs. */
+  viewerCanManage: boolean;
+  /** Only for owners/captains: what the team wallet can still put in. */
+  teamWalletAvailableCents?: number;
+}

@@ -144,6 +144,11 @@ function starterSlotFor(context: TeamMatchLineupRecord, selectionId: string | un
     : undefined;
 }
 
+/** Gate 7 / DEC-019: each team brings its own number of subs; legacy sides use the match setting. */
+export function substituteCapacity(context: { substituteCount: number | null; match: { substituteCapacityPerTeam: number } }) {
+  return context.substituteCount ?? context.match.substituteCapacityPerTeam;
+}
+
 function substituteCount(context: TeamMatchLineupRecord, excludeUserId?: string) {
   return context.selections.filter(
     (selection) => selection.status === 'SELECTED_SUBSTITUTE' && selection.userId !== excludeUserId,
@@ -349,7 +354,7 @@ export class MatchLineupRepository {
       if (
         displaced &&
         input.displacedPlayerAction === 'BENCH' &&
-        substituteCount(context, input.userId) >= context.match.substituteCapacityPerTeam
+        substituteCount(context, input.userId) >= substituteCapacity(context)
       )
         throw new SubstituteCapacityReachedError();
 
@@ -420,7 +425,7 @@ export class MatchLineupRepository {
       if (!slot.selection) throw new LineupSelectionNotFoundError();
       if (
         playerAction === 'BENCH' &&
-        substituteCount(context) >= context.match.substituteCapacityPerTeam
+        substituteCount(context) >= substituteCapacity(context)
       )
         throw new SubstituteCapacityReachedError();
       await saveSelection(
@@ -464,7 +469,7 @@ export class MatchLineupRepository {
       if (
         slot.selection &&
         input.occupiedPlayerAction === 'BENCH' &&
-        substituteCount(context) >= context.match.substituteCapacityPerTeam
+        substituteCount(context) >= substituteCapacity(context)
       )
         throw new SubstituteCapacityReachedError();
       if (slot.selection)
@@ -558,7 +563,7 @@ export class MatchLineupRepository {
       if (!membership(context, selectedUserId)) throw new LineupTeamMemberNotFoundError();
       const existing = findSelection(context, selectedUserId);
       if (existing?.status === 'SELECTED_SUBSTITUTE') return unchanged(context);
-      if (substituteCount(context) >= context.match.substituteCapacityPerTeam)
+      if (substituteCount(context) >= substituteCapacity(context))
         throw new SubstituteCapacityReachedError();
       const source = starterSlotFor(context, existing?.id);
       if (source)
@@ -683,7 +688,7 @@ export class MatchLineupRepository {
       if (
         !completeSlots ||
         hasOrphanStarter ||
-        substitutes.length > context.match.substituteCapacityPerTeam
+        substitutes.length > substituteCapacity(context)
       )
         throw new LineupIncompleteError();
       const activeUserIds = new Set([

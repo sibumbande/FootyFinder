@@ -29,6 +29,7 @@ import {
 } from '../hooks/useTeamMatchDay.js';
 import { useDeleteMatch } from '../hooks/useMatches.js';
 import { TeamMatchOtherSide } from './TeamMatchOtherSide.js';
+import { TeamMeter } from './TeamMeter.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -115,6 +116,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
         </div>
       </header>
       <FormError message={deletion.error?.message} />
+      {publicTeamMatch && <TeamMeter match={match} />}
       {publicTeamMatch && <TeamMatchOtherSide match={match} />}
       {match.teamSides.length > 1 && (
         <nav className="grid grid-cols-2 gap-1 rounded-xl bg-surface-muted p-1" aria-label="Team sides">

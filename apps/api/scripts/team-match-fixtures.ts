@@ -113,8 +113,10 @@ export function teamMatchWorld(marker: string) {
     /** Reconciliation issues that concern this run's own fixtures. */
     async ourIssues() {
       const report = await new WalletReconciliationService().report();
+      const accounts = new Set((await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } })).map(({ id }) => id));
       return report.issues.filter((issue) =>
         (issue.userId && userIds.includes(issue.userId))
+        || (issue.walletAccountId && accounts.has(issue.walletAccountId))
         || (issue.referenceId && (teamIds.includes(issue.referenceId) || matchIds.includes(issue.referenceId))));
     },
     async cleanup() {

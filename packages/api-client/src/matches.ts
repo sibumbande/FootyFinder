@@ -9,6 +9,7 @@ import type {
   JoinMatchInput,
   LobbyMessage,
   Match,
+  TeamMeterView,
   MatchParticipant,
   PublicMatchPreview,
   ParticipantCancellationStatus,
@@ -86,6 +87,20 @@ export const matchesApi = (client: ApiClient) => ({
   /** Gate 7 / N5: the team that took the other side withdraws itself before T-30. */
   withdrawTeam: (id: string) =>
     client.request<{ data: { releasedCents: number } }>(`/matches/${id}/other-side/team/withdraw`, { method: 'POST' }),
+  /** Gate 7 / DEC-019: a team's own fill meter, filling it from the team wallet, and its subs. */
+  teamMeter: (id: string, side: 'HOME' | 'AWAY') =>
+    client.request<{ data: TeamMeterView }>(`/matches/${id}/team-sides/${side}/meter`),
+  fillTeamMeter: (id: string, side: 'HOME' | 'AWAY', amountCents: number | undefined, idempotencyKey: string) =>
+    client.request<{ data: TeamMeterView }>(`/matches/${id}/team-sides/${side}/meter/fill`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(amountCents ? { amountCents } : {}),
+    }),
+  changeTeamSubstitutes: (id: string, side: 'HOME' | 'AWAY', substituteCount: number) =>
+    client.request<{ data: TeamMeterView & { releasedCents: number } }>(`/matches/${id}/team-sides/${side}/substitutes`, {
+      method: 'PATCH',
+      body: JSON.stringify({ substituteCount }),
+    }),
   leave: (id: string) =>
     client.request<{ data: unknown }>(`/matches/${id}/leave`, { method: 'POST' }),
   formation: (id: string, slotId: string, input: FormationSlotUpdateInput) =>

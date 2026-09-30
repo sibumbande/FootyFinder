@@ -6,6 +6,12 @@ import {
   TEAM_MATCH_UNMATCHED_CANCEL_JOB_TYPE,
 } from './team-match-jobs.js';
 import { TeamMatchesService } from './team-matches.service.js';
+import {
+  TEAM_MATCH_GO_NO_GO_JOB_TYPE,
+  TEAM_METER_REMINDER_JOB_TYPE,
+  TeamGoNoGoNotDueError,
+  TeamMatchMetersService,
+} from './team-match-meters.js';
 
 const matchIdOf = (payload: unknown) => {
   const matchId = payload && typeof payload === 'object' && !Array.isArray(payload)
@@ -19,7 +25,21 @@ const matchIdOf = (payload: unknown) => {
 export const registerTeamMatchJobHandlers = (
   service = new TeamMatchesService(),
   emails: EmailProvider = createEmailProvider(),
+  meters = new TeamMatchMetersService(),
 ) => {
+  // DEC-019 / D1: the team T-30 go/no-go. An early run fails with GO_NO_GO_NOT_DUE and is retried.
+  registerDurableJobHandler(TEAM_MATCH_GO_NO_GO_JOB_TYPE, async (payload) => {
+    try {
+      await meters.decideGoNoGo(matchIdOf(payload));
+    } catch (error) {
+      if (error instanceof TeamGoNoGoNotDueError)
+        throw Object.assign(new Error('The team go/no-go check is not due yet.'), { code: 'GO_NO_GO_NOT_DUE' });
+      throw error;
+    }
+  });
+  registerDurableJobHandler(TEAM_METER_REMINDER_JOB_TYPE, async (payload) => {
+    await meters.remindUnfilledMeters(matchIdOf(payload));
+  });
   registerDurableJobHandler(TEAM_MATCH_UNMATCHED_CANCEL_JOB_TYPE, async (payload) => {
     await service.cancelUnmatched(matchIdOf(payload));
   });

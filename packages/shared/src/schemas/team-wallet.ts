@@ -41,3 +41,15 @@ export const teamWalletHistoryQuerySchema = z.object({
     .default(TEAM_WALLET_HISTORY_DEFAULT_LIMIT),
 });
 export type TeamWalletHistoryQuery = z.infer<typeof teamWalletHistoryQuerySchema>;
+
+/** DEC-019 / D3: fill the meter with a whole-rand amount, or omit it to fill what is left. */
+export const fillTeamMeterSchema = z.object({
+  amountCents: z.number().int().positive().refine((value) => value % 100 === 0, 'Enter a whole rand amount.').optional(),
+});
+export type FillTeamMeterInput = z.infer<typeof fillTeamMeterSchema>;
+
+/** D5: a team changes its own number of subs (0-10) until the 30-minute check. */
+export const changeTeamSubstitutesSchema = z.object({
+  substituteCount: z.number().int().min(0).max(10),
+});
+export type ChangeTeamSubstitutesInput = z.infer<typeof changeTeamSubstitutesSchema>;

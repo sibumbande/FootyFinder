@@ -20,6 +20,9 @@ matchesRouter.post('/:id/join', costlyMutationRateLimit, controller.join);
 // Gate 7 / DEC-019: take or withdraw from the other side of a team match.
 matchesRouter.post('/:id/other-side/team', costlyMutationRateLimit, teamMatches.loadTeam);
 matchesRouter.post('/:id/other-side/team/withdraw', teamMatches.withdrawTeam);
+matchesRouter.get('/:id/team-sides/:side/meter', teamMatches.meter);
+matchesRouter.post('/:id/team-sides/:side/meter/fill', costlyMutationRateLimit, teamMatches.fillMeter);
+matchesRouter.patch('/:id/team-sides/:side/substitutes', teamMatches.changeSubstitutes);
 matchesRouter.get('/:id/cancellation-quote', controller.cancellationQuote);
 matchesRouter.get('/:id/cancellation-status', controller.cancellationStatus);
 matchesRouter.post('/:id/leave', controller.leave);

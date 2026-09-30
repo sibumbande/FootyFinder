@@ -25,10 +25,10 @@ export async function runMatchLifecycleTick(
 ) {
   const starting = await prisma.match.findMany({
     where: {
-      mode: 'QUICK_GAME',
+      // Gate 7: DEC-019 team matches start (and owe their venue) exactly like Quick Matches.
+      AND: [{ OR: [{ mode: 'QUICK_GAME' }, { mode: 'TEAM_MATCH', otherSideMode: { not: null } }] }, STARTABLE],
       status: { in: ['OPEN', 'READY'] },
       startsAt: { lte: now },
-      ...STARTABLE,
     },
     select: { id: true },
   });
@@ -38,7 +38,7 @@ export async function runMatchLifecycleTick(
   }
 
   const inProgress = await prisma.match.findMany({
-    where: { mode: 'QUICK_GAME', status: 'IN_PROGRESS' },
+    where: { OR: [{ mode: 'QUICK_GAME' }, { mode: 'TEAM_MATCH', otherSideMode: { not: null } }], status: 'IN_PROGRESS' },
     select: { id: true, startsAt: true, durationMinutes: true },
   });
   for (const match of inProgress) {
@@ -74,11 +74,13 @@ export async function transitionMatchToStarted(
         name: true,
         createdById: true,
         participants: { where: { status: 'JOINED' }, select: { userId: true } },
+        teamSides: { select: { team: { select: { memberships: { select: { userId: true } } } } } },
       },
     });
     const recipients = new Set([
       match.createdById,
       ...match.participants.map(({ userId }) => userId),
+      ...match.teamSides.flatMap(({ team }) => team?.memberships.map(({ userId }) => userId) ?? []),
     ]);
     return {
       matchId: match.id,

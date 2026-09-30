@@ -31,6 +31,7 @@ import {
   PositionNotOpenError,
   PositionOutsideTeamHalfError,
   SubstituteCapacityReachedError,
+  substituteCapacity,
   type TeamMatchLineupRecord,
   type TeamMatchLineupMutationResult,
   type TeamMatchSelectionRecord,
@@ -60,7 +61,7 @@ const toLineup = (context: TeamMatchLineupRecord, userId: string): TeamMatchLine
     format: context.match.format,
     formationKey: context.formationKey,
     starterCapacity: getPlayersPerTeam(context.match.format),
-    substituteCapacity: context.match.substituteCapacityPerTeam,
+    substituteCapacity: substituteCapacity(context),
     lineupFinalizedAt: context.lineupFinalizedAt?.toISOString() ?? null,
     viewerCanManage,
     slots: context.lineupSlots.map((slot) => ({

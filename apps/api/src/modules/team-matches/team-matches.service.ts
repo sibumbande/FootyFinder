@@ -31,6 +31,7 @@ import { createPublicMatchSlug } from '../matches/public-match.js';
 import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
 import { assertTeamMatchCommand } from './team-side-authority.js';
+import { enqueueTeamGoNoGoJobs } from './team-match-meters.js';
 import {
   enqueueTeamMatchEmail,
   enqueueTeamMatchSideJobs,
@@ -167,6 +168,7 @@ export class TeamMatchesService {
           payload: { otherSideMode: input.otherSideMode, substituteCount: fee.substituteCount, teamFeeCents: fee.totalCents },
         });
         await enqueueTeamMatchSideJobs(tx, { id: created.id, startsAt, otherSideMode }, now);
+        await enqueueTeamGoNoGoJobs(tx, { id: created.id, startsAt }, now);
         return tx.match.findUniqueOrThrow({ where: { id: created.id }, include: matchInclude });
       });
       return toMatch(match, { viewerCanManage: true, viewerCanChat: true });

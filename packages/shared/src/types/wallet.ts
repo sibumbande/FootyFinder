@@ -162,7 +162,11 @@ export type WalletReconciliationIssueCode =
   | 'TEAM_NEGATIVE_AVAILABLE_BALANCE'
   | 'TEAM_CONTRIBUTION_LINK_MISMATCH'
   | 'TEAM_PROVENANCE_MISMATCH'
-  | 'TEAM_ARCHIVED_WITH_FUNDS';
+  | 'TEAM_ARCHIVED_WITH_FUNDS'
+  // Gate 7 (TKT-709): fill meters.
+  | 'TEAM_HOLD_ORPHANED'
+  | 'TEAM_METER_OVERFUNDED'
+  | 'TEAM_FEE_CAPTURE_MISMATCH';
 export interface WalletReconciliationReport {
   generatedAt: string;
   walletCount: number;
