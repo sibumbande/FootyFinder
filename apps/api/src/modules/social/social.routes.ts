@@ -1,0 +1,22 @@
+import { Router, type Router as ExpressRouter } from 'express';
+import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
+import { registerUuidRouteParams } from '../../middleware/route-params.js';
+import * as controller from './social.controller.js';
+
+/** Gate 9: mounted at /social behind requireAuth and requireOnboardingForMutations. */
+export const socialRouter: ExpressRouter = Router();
+registerUuidRouteParams(socialRouter, ['requestId', 'userId', 'matchId']);
+socialRouter.get('/summary', controller.summary);
+socialRouter.get('/search', controller.search);
+socialRouter.get('/relationships', controller.relationships);
+socialRouter.get('/friends', controller.list);
+socialRouter.delete('/friends/:userId', controller.remove);
+socialRouter.get('/friend-requests', controller.requests);
+socialRouter.post('/friend-requests', costlyMutationRateLimit, controller.send);
+socialRouter.post('/friend-requests/:requestId/accept', controller.accept);
+socialRouter.post('/friend-requests/:requestId/decline', controller.decline);
+socialRouter.post('/friend-requests/:requestId/cancel', controller.cancel);
+socialRouter.get('/settings', controller.settings);
+socialRouter.put('/settings', controller.updateSettings);
+socialRouter.get('/matches/:matchId/played-with', controller.playedWith);
+socialRouter.post('/matches/:matchId/add-all', costlyMutationRateLimit, controller.addAll);

@@ -42,7 +42,7 @@ You accept these Terms with a single checkbox that names the Privacy Notice (cla
 - [15. Code of Conduct and Venue Rules](#clause-15)
 - [16. Referees, Results and Statistics](#clause-16)
 - [17. Content You Upload](#clause-17)
-- [18. Messages, Team Reviews and Moderation](#clause-18)
+- [18. Messages, Friends, Team Reviews and Moderation](#clause-18)
 - [19. Prohibited Conduct on the Platform](#clause-19)
 - [20. Suspension, Termination and Closing Your Account](#clause-20)
 - [21. Intellectual Property](#clause-21)
@@ -190,6 +190,7 @@ The following information is provided in compliance with section 43 of ECTA:
 - **Identity and contact data:** your name, username, email address, date of birth and city.
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
+- **Social data:** your friends, the friend requests you send and receive, and whether you accept friend requests (clause 18.7).
 - **Transaction data:** Wallet top-ups, Slot Fees, Team Wallet contributions and refunds, refunds and cancellation credits, and payment references. We do not store card numbers; Paystack holds them.
 - **Identity documents,** only if we ask you to verify your age or identity (clause 7).
 - **Technical data:** IP address, browser and device information, and security logs.
@@ -210,7 +211,7 @@ We do not collect your phone number, emergency contact details or health informa
 
 **8.2 Partner Venues.** We may give a Partner Venue the names of the players booked for a match, for access control. We do not share your date of birth, contact details or payment information with venues unless an emergency requires it.
 
-**8.3 Other users.** Signed-in users can see your player profile: your display name, username, profile photo, preferred positions, preferred foot, home area, years of experience, bio, city, Teams and match statistics. Players in a match see each other in the Lobby. Other users cannot see your email address, date of birth, identity documents or payment information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Public match pages (the share link for a public match) show the venue, time, format, fee and how many places are filled, but never who is playing. Team reviews are shown without the author's name (clause 18.6).
+**8.3 Other users.** Signed-in users can see your player profile: your display name, username, profile photo, preferred positions, preferred foot, home area, years of experience, bio, city, Teams and match statistics. Players in a match see each other in the Lobby. Other users cannot see your email address, date of birth, identity documents or payment information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Public match pages (the share link for a public match) show the venue, time, format, fee and how many places are filled, but never who is playing. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
 
 **8.4 Operators.** We use third-party operators for hosting, card payments (Paystack) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
 
@@ -230,6 +231,7 @@ We do not collect your phone number, emergency contact details or health informa
 | Match results and Lineup Records | While the match history is kept, because other players' statistics depend on them |
 | Conduct and safety records | 3 years, or longer where an incident is unresolved or subject to legal proceedings |
 | Chat, messages and support requests | 12 months, or longer where reported and under investigation |
+| Friends and friend requests | While your Account is active, and for 12 months after it is closed |
 | Record of your acceptance of these Terms | While your Account is active, and for as long as we may need it as evidence afterwards |
 | City waiting-list entries | Until you unsubscribe or ask us to delete them |
 
@@ -486,7 +488,7 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 **17.3 Removal.** We may remove any content that breaches these Terms, infringes someone else's rights, or that we are required by law to remove.
 
-## 18. Messages, Team Reviews and Moderation
+## 18. Messages, Friends, Team Reviews and Moderation
 
 **18.1 Purpose.** Lobby chat, Team chat and direct messages are for lawful, courteous, match-related communication. Any signed-in user can send you a direct message. Only current members of a Team can read its Team chat.
 
@@ -499,6 +501,15 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 **18.5 Preservation.** Where a report may relate to a criminal offence, we may keep the relevant records and provide them to law enforcement on lawful request.
 
 **18.6 Team reviews.** Once a match has a Final Result and was played or forfeited, each player in the Lineup Record who played may leave one review of the opposing Team within fourteen (14) days after the Final Result: a rating from 1 to 5 and, if they wish, a short comment. You cannot review your own Team, or a side made up of individual players. The rating counts straight away; a comment is shown only after FootyFinder approves it. Reviews are shown publicly without the author's name; FootyFinder keeps the author's identity for moderation only. The author may edit a review for seven (7) days after the Final Result and may delete it at any time; a deleted review stops counting, and FootyFinder keeps a record of it. Members of the reviewed Team may report a review, and FootyFinder may hide a review that breaks these Terms. Reported, hidden and deleted reviews do not count. A Team's average rating and number of reviews are shown only once it has at least three reviews that count; until then "Not enough reviews" is shown. Clause 18.2 applies to review comments.
+
+**18.7 Friends.** You can send another player a friend request from their profile, from search, or from anywhere else in the app where you see them. They can accept or decline it; declining and removing a friend are silent, and the other player is not told. The rules are:
+- only one request can be waiting between the same two players at a time, and a request that is not answered expires after thirty (30) days;
+- you can have at most one hundred (100) requests waiting for an answer;
+- you can send at most twenty (20) new requests in any twenty-four (24) hours, but requests to players who were in the same match's Lineup Record as you (on either side) do not count towards that limit;
+- after a decline or an expiry you may ask again, subject to these limits;
+- you can turn off incoming friend requests on your profile, and then nobody can send you one.
+
+After a finished match, the players in its Lineup Record can see who they played with and against and send each of them a request, or all of them at once. Friends can find each other in the Friends list, and a Team's Owner or a Captain can invite a friend to the Team (clause 12.1). Being friends gives no access to anyone's email address, date of birth or payment information, and no money is involved.
 
 ## 19. Prohibited Conduct on the Platform
 
@@ -653,6 +664,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | Referees and results | A FootyFinder referee runs every match and records the score, scorers and assisters. Their result is final; only we can fix a clear recording error. You can still complain. |
 | Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. |
 | Reviews | Players who played can rate the opposing team within 14 days. Reviews are anonymous; comments are checked first. |
+| Friends | Send friend requests (up to 20 new ones a day, not counting people you played with) and turn them off if you prefer. Only you see your friends list. |
 | The risk | Football can injure you. You accept that risk and cover your own medical costs. We are still responsible if we are grossly negligent. |
 | Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can see, correct or delete your data and complain to the Information Regulator. |
 | Behaviour | Violence, racism and abuse mean a permanent ban and possibly a police report. |

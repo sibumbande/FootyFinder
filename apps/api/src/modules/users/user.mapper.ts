@@ -47,13 +47,20 @@ type SafeUserSource = {
   }>;
 };
 
-export function toPublicUser(user: SafeUserSource): PublicUser {
-  const profile = user.profile;
-  const avatarUrl = profile?.photo
+/** The player photo proxy URL, or null while an admin has hidden the photo. */
+export const playerAvatarUrl = (
+  userId: string,
+  profile: { avatarUrl: string | null; photo?: { hiddenAt: Date | null } | null } | null | undefined,
+) =>
+  profile?.photo
     ? profile.photo.hiddenAt
       ? null
-      : `${env.PUBLIC_API_URL.replace(/\/$/, '')}/players/${user.id}/photo`
+      : `${env.PUBLIC_API_URL.replace(/\/$/, '')}/players/${userId}/photo`
     : profile?.avatarUrl;
+
+export function toPublicUser(user: SafeUserSource): PublicUser {
+  const profile = user.profile;
+  const avatarUrl = playerAvatarUrl(user.id, profile);
   return {
     id: user.id,
     userId: user.id,

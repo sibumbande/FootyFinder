@@ -38,6 +38,9 @@ export const NOTIFICATION_TYPES = [
   'RESULT_FINAL',
   'RESULT_CORRECTED',
   'RESULT_PROBLEM_RESOLVED',
+  // Gate 9 (TKT-901): friends.
+  'FRIEND_REQUEST_RECEIVED',
+  'FRIEND_REQUEST_ACCEPTED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

@@ -426,6 +426,17 @@ enum NotificationType {
   RESULT_FINAL
   RESULT_CORRECTED
   RESULT_PROBLEM_RESOLVED
+  FRIEND_REQUEST_RECEIVED
+  FRIEND_REQUEST_ACCEPTED
+}
+
+/// Gate 9 / TKT-901: friend request lifecycle.
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
 }
 
 /// Gate 8 / TKT-809 (DEC-017): team reviews.
@@ -555,6 +566,12 @@ model User {
   resolvedResultProblems    ResultProblemReport[]     @relation("ResultProblemResolver")
   teamReviews               TeamReview[]              @relation("TeamReviewAuthor")
   moderatedTeamReviews      TeamReview[]              @relation("TeamReviewModerator")
+  /// Gate 9 / TKT-901: false turns off incoming friend requests.
+  friendRequestsEnabled     Boolean                   @default(true)
+  sentFriendRequests        FriendRequest[]           @relation("FriendRequester")
+  receivedFriendRequests    FriendRequest[]           @relation("FriendRecipient")
+  friendshipsLow            Friendship[]              @relation("FriendshipLow")
+  friendshipsHigh           Friendship[]              @relation("FriendshipHigh")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -2133,4 +2150,35 @@ model TeamFormationSlot {
   @@unique([formationId, slotIndex])
   @@unique([formationId, membershipId])
   @@index([membershipId])
+}
+
+/// Gate 9 / TKT-901: one pending request per pair (partial unique index on pairKey), 30-day expiry.
+model FriendRequest {
+  id           String              @id @default(uuid()) @db.Uuid
+  requesterId  String              @db.Uuid
+  recipientId  String              @db.Uuid
+  pairKey      String
+  status       FriendRequestStatus @default(PENDING)
+  sharedLineup Boolean             @default(false)
+  expiresAt    DateTime
+  respondedAt  DateTime?
+  createdAt    DateTime            @default(now())
+  requester    User                @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient    User                @relation("FriendRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([requesterId, status, createdAt])
+  @@index([recipientId, status, createdAt])
+}
+
+/// Gate 9 / TKT-901: stored once per pair, lowest user id first.
+model Friendship {
+  id         String   @id @default(uuid()) @db.Uuid
+  userLowId  String   @db.Uuid
+  userHighId String   @db.Uuid
+  createdAt  DateTime @default(now())
+  userLow    User     @relation("FriendshipLow", fields: [userLowId], references: [id], onDelete: Cascade)
+  userHigh   User     @relation("FriendshipHigh", fields: [userHighId], references: [id], onDelete: Cascade)
+
+  @@unique([userLowId, userHighId])
+  @@index([userHighId])
 }
