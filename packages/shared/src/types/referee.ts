@@ -107,6 +107,43 @@ export interface RefereeMatchResultView {
   }>;
 }
 
+/** Gate 8 / TKT-806: a captain's own version of the result (visible to them and admins only). */
+export interface CaptainResultSubmissionView {
+  id: string;
+  side: 'HOME' | 'AWAY' | null;
+  outcomeType: 'PLAYED' | 'FORFEIT' | 'ABANDONED';
+  homeScore: number;
+  awayScore: number;
+  forfeitWinner: 'HOME' | 'AWAY' | null;
+  goals: Array<{ side: 'HOME' | 'AWAY'; ownGoal: boolean; scorerUserId: string | null; assistUserId: string | null }>;
+  createdAt: string;
+}
+
+export interface ResultProblemReportView {
+  id: string;
+  message: string;
+  status: 'OPEN' | 'RESOLVED';
+  resolutionNote: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+/** Gate 8 / TKT-806: what the match page needs around the result, for the viewer. */
+export interface MatchResultContext {
+  referee: MatchReferee | null;
+  lineupRecorded: boolean;
+  lineup: MatchLineupPlayer[];
+  /** The side the viewer captains (null for a Quick Match host, who acts for the match). */
+  viewerSide: 'HOME' | 'AWAY' | null;
+  canSubmitVersion: boolean;
+  submitVersionFrom: string | null;
+  submitVersionUntil: string | null;
+  mySubmission: CaptainResultSubmissionView | null;
+  canReportProblem: boolean;
+  reportProblemUntil: string | null;
+  myReports: ResultProblemReportView[];
+}
+
 export interface RefereeMatchDetail extends RefereeMatchSummary {
   /** The kickoff lineup record once the match has kicked off; the current lineup before. */
   lineupRecorded: boolean;

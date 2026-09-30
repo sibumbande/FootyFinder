@@ -6,6 +6,7 @@ import { TeamMatchDayLobby } from './TeamMatchDayLobby.js';
 
 const request = vi.hoisted(() => vi.fn());
 vi.mock('@/features/auth/hooks/useAuth.js', () => ({ useAuth: () => ({ user: { id: 'owner' } }) }));
+vi.mock('./MatchResultPanel.js', () => ({ MatchResultPanel: () => null }));
 vi.mock('@/features/chat/components/ChatPanel.js', () => ({
   ChatPanel: () => <div>Team chat panel</div>,
 }));

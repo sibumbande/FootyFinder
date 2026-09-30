@@ -425,6 +425,13 @@ enum NotificationType {
   ADMIN_ALERT
   RESULT_FINAL
   RESULT_CORRECTED
+  RESULT_PROBLEM_RESOLVED
+}
+
+/// Gate 8 / TKT-806 (D6): a "report a problem" about a final result.
+enum ResultProblemStatus {
+  OPEN
+  RESOLVED
 }
 
 /// Gate 8 / TKT-803: the kickoff lineup record.
@@ -530,6 +537,9 @@ model User {
   lineupEntries             MatchLineupEntry[]        @relation("MatchLineupPlayer")
   finalizedResults          MatchResult[]             @relation("ResultFinalizer")
   authoredResultRevisions   MatchResultRevision[]     @relation("ResultRevisionAuthor")
+  captainResultSubmissions  CaptainResultSubmission[] @relation("CaptainResultSubmitter")
+  resultProblemReports      ResultProblemReport[]     @relation("ResultProblemReporter")
+  resolvedResultProblems    ResultProblemReport[]     @relation("ResultProblemResolver")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1366,6 +1376,8 @@ model Match {
   referee                   User?                     @relation("MatchReferee", fields: [refereeUserId], references: [id], onDelete: Restrict)
   refereeAssignments        MatchRefereeAssignment[]
   lineupEntries             MatchLineupEntry[]
+  captainSubmissions        CaptainResultSubmission[]
+  resultProblemReports      ResultProblemReport[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1413,6 +1425,45 @@ model MatchLineupEntry {
   @@unique([matchId, userId])
   @@index([matchId, side])
   @@index([userId])
+}
+
+/// Gate 8 / TKT-806 (D10, D11): a captain's (or Quick Match host's) own version of the result, as
+/// evidence for admins only; it never changes the referee's result. Permanent; the latest is used.
+model CaptainResultSubmission {
+  id            String            @id @default(uuid()) @db.Uuid
+  matchId       String            @db.Uuid
+  side          TeamSide?
+  submittedById String            @db.Uuid
+  outcomeType   ResultOutcomeType
+  homeScore     Int
+  awayScore     Int
+  forfeitWinner TeamSide?
+  goals         Json              @default("[]")
+  createdAt     DateTime          @default(now())
+  match         Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  submittedBy   User              @relation("CaptainResultSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@index([submittedById])
+}
+
+/// Gate 8 / TKT-806 (D6): "report a problem" with a final result within 24 hours; admin queue.
+model ResultProblemReport {
+  id             String              @id @default(uuid()) @db.Uuid
+  matchId        String              @db.Uuid
+  reporterUserId String              @db.Uuid
+  side           TeamSide?
+  message        String
+  status         ResultProblemStatus @default(OPEN)
+  resolutionNote String?
+  resolvedById   String?             @db.Uuid
+  resolvedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  match          Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  reporter       User                @relation("ResultProblemReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  resolvedBy     User?               @relation("ResultProblemResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
 }
 
 /// Gate 8 / TKT-802 (D28): single row (id = 1) holding the default referee.

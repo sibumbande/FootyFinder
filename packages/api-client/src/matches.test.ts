@@ -125,3 +125,19 @@ describe('matchesApi Team lineup', () => {
     );
   });
 });
+
+describe('matchesApi Gate 8 result evidence (TKT-806)', () => {
+  it('reads the result context, sends an own version and reports a problem', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = matchesApi({ request } as unknown as ApiClient);
+    await api.resultContext('match-1');
+    await api.submitResultVersion('match-1', { outcome: 'PLAYED', homeScore: 2, awayScore: 1, goals: [] });
+    await api.reportResultProblem('match-1', { message: 'The first goal was scored by Ann.' });
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/matches/match-1/result-context',
+      '/matches/match-1/result-version',
+      '/matches/match-1/result-problems',
+    ]);
+    expect(request.mock.calls[2]![1]).toMatchObject({ method: 'POST' });
+  });
+});

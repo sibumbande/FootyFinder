@@ -61,9 +61,10 @@ export class DisputesService {
   constructor(private readonly notifications = new NotificationsService()) {}
 
   async create(userId: string, input: CreateDisputeInput) {
-    const evidenceSnapshot = input.type === 'MATCH_RESULT'
-      ? await this.resultEvidence(userId, input.referenceId)
-      : await this.bookingEvidence(userId, input.referenceId);
+    // Gate 8 (DEC-020, D21): results can no longer be disputed; captains report a problem instead.
+    if (input.type === 'MATCH_RESULT')
+      throw new AppError(409, 'Match results are recorded by the FootyFinder referee and are final. A team captain or the host can report a problem from the match page within 24 hours.', 'RESULT_DISPUTES_RETIRED');
+    const evidenceSnapshot = await this.bookingEvidence(userId, input.referenceId);
     const existing = await prisma.dispute.findFirst({
       where: { openedByUserId: userId, type: input.type, referenceId: input.referenceId, status: { in: ['OPEN', 'UNDER_REVIEW'] } },
       include: disputeInclude,

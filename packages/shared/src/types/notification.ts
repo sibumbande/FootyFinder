@@ -37,6 +37,7 @@ export const NOTIFICATION_TYPES = [
   'ADMIN_ALERT',
   'RESULT_FINAL',
   'RESULT_CORRECTED',
+  'RESULT_PROBLEM_RESOLVED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

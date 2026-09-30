@@ -3,6 +3,7 @@ import { teamSideRouteParamSchema } from '@footy-finder/shared';
 import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './matches.controller.js';
 import * as teamMatches from '../team-matches/team-matches.controller.js';
+import * as resultEvidence from '../referees/result-evidence.controller.js';
 import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 export const matchesRouter: ExpressRouter = Router();
 registerUuidRouteParams(matchesRouter, ['id', 'slotId', 'participantId', 'userId']);
@@ -30,6 +31,11 @@ matchesRouter.patch('/:id/formation/slots/:slotId', controller.formation);
 matchesRouter.post('/:id/formation/slots/:slotId/claim', controller.claimPosition);
 matchesRouter.patch('/:id/participants/:participantId/team', controller.changeTeam);
 matchesRouter.post('/:id/result', controller.submitResult);
+// Gate 8 / TKT-806 (DEC-020): the referee's result is final; captains may send their own version
+// as evidence (D10, D11) and report a problem within 24 hours (D6).
+matchesRouter.get('/:id/result-context', resultEvidence.resultContext);
+matchesRouter.post('/:id/result-version', costlyMutationRateLimit, resultEvidence.submitVersion);
+matchesRouter.post('/:id/result-problems', costlyMutationRateLimit, resultEvidence.reportProblem);
 matchesRouter.get('/:id/participants', controller.participants);
 matchesRouter.post('/:id/team-sides/:side/availability/request', controller.requestAvailability);
 matchesRouter.get('/:id/team-sides/:side/availability', controller.teamAvailability);

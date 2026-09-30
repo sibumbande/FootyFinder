@@ -10,6 +10,7 @@ import { transitionMatchToStarted } from '../src/modules/matches/match-lifecycle
 import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { MatchLineupService } from '../src/modules/match-lineup/match-lineup.service.js';
+import { ResultEvidenceService } from '../src/modules/referees/result-evidence.service.js';
 import { registerTeamMatchJobHandlers } from '../src/modules/team-matches/team-match.jobs.js';
 import { TeamMatchMetersService, teamGoNoGoDedupeKey } from '../src/modules/team-matches/team-match-meters.js';
 import { TeamMatchesService } from '../src/modules/team-matches/team-matches.service.js';
@@ -135,6 +136,14 @@ async function main() {
   assert(kickoffLineup.some(({ side, teamId }) => side === 'HOME' && teamId === homeA.team.id) && kickoffLineup.some(({ side, teamId }) => side === 'AWAY' && teamId === away.team.id), 'The lineup record does not cover both teams.');
   assert(await rejectsWith(() => new MatchLineupService().invite(goMatch.id, 'HOME', homeA.member.id, homeA.owner.id), 'LINEUP_LOCKED'), 'A team lineup changed after kickoff.');
   assert((await new MatchLineupService().get(goMatch.id, 'HOME', homeA.member.id)).matchTeamId, 'The lineup could not be read after kickoff.');
+  // Gate 8 / TKT-806 (D10): each team's owner/captains may send their own version after the end;
+  // plain members may not.
+  await prisma.match.update({ where: { id: goMatch.id }, data: { startsAt: new Date(Date.now() - 2 * 3_600_000), goNoGoAt: new Date(Date.now() - 2.5 * 3_600_000) } });
+  const evidence = new ResultEvidenceService();
+  const awayVersion = await evidence.submitVersion(goMatch.id, away.captain.id, { outcome: 'PLAYED', homeScore: 0, awayScore: 1, goals: [] });
+  assert(awayVersion.side === 'AWAY' && (await evidence.context(goMatch.id, homeA.owner.id)).viewerSide === 'HOME', 'Captains did not act for their own side.');
+  assert(await rejectsWith(() => evidence.submitVersion(goMatch.id, homeA.member.id, { outcome: 'PLAYED', homeScore: 1, awayScore: 0, goals: [] }), 'RESULT_VERSION_FORBIDDEN'), 'A plain team member sent a version.');
+  assert((await evidence.context(goMatch.id, homeA.owner.id)).mySubmission === null, "A captain saw the other team's version.");
   const payable = await prisma.venuePayable.findUniqueOrThrow({ where: { matchId: goMatch.id } });
   const reservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: goMatch.id } });
   assert(payable.amountCents === reservation.priceCentsSnapshot && payable.amountCents === 50_000, 'The venue payable is not the admin-only price snapshot.');

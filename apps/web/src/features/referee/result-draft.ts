@@ -56,8 +56,8 @@ export function toRefereeResultInput(draft: ResultDraft): RefereeResultInput {
 }
 
 /** The same checks the server makes, as plain sentences for the form. */
-export const draftProblems = (draft: ResultDraft, lineup: MatchLineupPlayer[]) =>
-  validateMatchResult(toRefereeResultInput(draft), lineup).map((problem) => MATCH_RESULT_PROBLEM_MESSAGES[problem]);
+export const draftProblems = (draft: ResultDraft, lineup: MatchLineupPlayer[], options: { captain?: boolean } = {}) =>
+  validateMatchResult(toRefereeResultInput(draft), lineup, options).map((problem) => MATCH_RESULT_PROBLEM_MESSAGES[problem]);
 
 /** One line per goal for the confirmation screen, e.g. "Team A: Sam (assist Lee)". */
 export function describeGoals(draft: ResultDraft, lineup: MatchLineupPlayer[], sides: { HOME: string; AWAY: string }) {

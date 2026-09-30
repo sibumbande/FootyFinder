@@ -13,6 +13,8 @@ import { RefereeJobs } from '../src/modules/referees/referee.jobs.js';
 import { RefereeResultsService } from '../src/modules/referees/referee-results.service.js';
 import { resultOverdueDedupeKey } from '../src/modules/referees/referee-results.js';
 import { RefereeViewService } from '../src/modules/referees/referee-view.service.js';
+import { ResultEvidenceService } from '../src/modules/referees/result-evidence.service.js';
+import { DisputesService } from '../src/modules/disputes/disputes.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { refereeFixture } from './referee-fixture.js';
 
@@ -32,6 +34,7 @@ const venue = managedVenueFixture(marker);
 const referee = refereeFixture(marker);
 const results = new RefereeResultsService();
 const refereeView = new RefereeViewService();
+const evidence = new ResultEvidenceService();
 const jobs = new RefereeJobs(undefined, new TestEmailProvider());
 const rejectsWith = async (work: () => Promise<unknown>, code: string) => {
   try {
@@ -116,11 +119,13 @@ async function main() {
   const flagged = await prisma.matchLineupEntry.updateMany({ where: { matchId, userId: players[11]!.id }, data: { didNotPlay: true } });
   assert(flagged.count === 1, 'didNotPlay could not be set.');
 
-  await refereeResultSection(host, players, matchId);
+  const racedId = await refereeResultSection(host, players, matchId);
+  await captainEvidenceSection(host, players, matchId, racedId);
   console.log(
     'Gate 8 referee results smoke passed: kickoff lineup record (starters, substitutes, snapshots, once, permanent except didNotPlay); '
       + 'referee final result (only the assigned referee, from kickoff, validated against the lineup, goals/assists/own goals, didNotPlay, '
-      + 'one revision, COMPLETED, notices once, first submission wins under a race, legacy self-report blocked, overdue alert).',
+      + 'one revision, COMPLETED, notices once, first submission wins under a race, legacy self-report blocked, overdue alert); '
+      + 'captain/host own version (window, authority, score-only, latest kept, permanent), report a problem (24h, one open), result disputes retired.',
   );
 }
 
@@ -202,6 +207,49 @@ async function refereeResultSection(host: { id: string }, players: Array<{ id: s
   await prisma.notification.deleteMany({ where: { userId: admin.id } });
   const after = await jobs.alertResultOverdue(overdueJob.payload);
   assert(after.length === 0, 'An overdue alert fired for a match that has a result.');
+  return raced;
+}
+
+/** TKT-806 (D6, D10, D11, D21), with the Quick Match host acting as captain. */
+async function captainEvidenceSection(host: { id: string }, players: Array<{ id: string }>, matchId: string, racedId: string) {
+  const p0 = players[0]!;
+  // The own-version window opens at the scheduled end; the raced match has not reached it yet.
+  assert(await rejectsWith(() => evidence.submitVersion(racedId, host.id, { outcome: 'PLAYED', homeScore: 1, awayScore: 0, goals: [] }), 'RESULT_VERSION_CLOSED'), 'A version was accepted before the match ended.');
+  // Move the first match's schedule back so its end has passed.
+  const startsAt = new Date(Date.now() - 2 * 3_600_000);
+  await prisma.match.update({ where: { id: matchId }, data: { startsAt, goNoGoAt: new Date(startsAt.getTime() - 30 * 60_000) } });
+  const context = await evidence.context(matchId, host.id);
+  assert(context.canSubmitVersion && context.canReportProblem && context.viewerSide === null && context.lineup.length === 12, 'The host does not get the captain options.');
+  const playerContext = await evidence.context(matchId, p0.id);
+  assert(!playerContext.canSubmitVersion && !playerContext.canReportProblem && playerContext.lineup.length === 0, 'A plain player got captain options.');
+  assert(await rejectsWith(() => evidence.submitVersion(matchId, p0.id, { outcome: 'PLAYED', homeScore: 3, awayScore: 0, goals: [] }), 'RESULT_VERSION_FORBIDDEN'), 'A plain player sent a version.');
+  assert(await rejectsWith(() => evidence.submitVersion(matchId, host.id, { outcome: 'PLAYED', homeScore: 1, awayScore: 0, goals: [{ side: 'HOME', scorerUserId: players[5]!.id, ownGoal: false }] }), 'RESULT_INVALID'), 'A version with a scorer from the wrong side was accepted.');
+  await evidence.submitVersion(matchId, host.id, { outcome: 'PLAYED', homeScore: 3, awayScore: 1, goals: [] });
+  const latest = await evidence.submitVersion(matchId, host.id, { outcome: 'PLAYED', homeScore: 2, awayScore: 1, goals: [{ side: 'HOME', ownGoal: false }, { side: 'HOME', scorerUserId: p0.id, ownGoal: false }, { side: 'AWAY', ownGoal: true }] });
+  assert((await prisma.captainResultSubmission.count({ where: { matchId } })) === 2 && (await evidence.context(matchId, host.id)).mySubmission?.id === latest.id, 'The latest version was not kept alongside the earlier one.');
+  const final = await prisma.matchResult.findUniqueOrThrow({ where: { matchId } });
+  assert(final.homeScore === 2 && final.awayScore === 1 && final.finalSource === 'REFEREE', 'A captain version changed the referee result.');
+  let immutable = false;
+  try {
+    await prisma.$executeRaw`UPDATE "CaptainResultSubmission" SET "homeScore" = 9 WHERE "matchId" = ${matchId}::uuid`;
+  } catch (error) {
+    immutable = String(error).includes('captain result submissions are permanent');
+  }
+  assert(immutable, 'A captain version could be edited.');
+
+  // D6: report a problem within 24 hours of the final result; one open report per person.
+  assert(await rejectsWith(() => evidence.reportProblem(matchId, p0.id, { message: 'The second goal was offside.' }), 'RESULT_PROBLEM_FORBIDDEN'), 'A plain player reported a problem.');
+  assert(await rejectsWith(() => evidence.reportProblem(matchId, host.id, { message: 'short' }), 'RESULT_PROBLEM_FORBIDDEN') === false, 'Setup: the host may report.');
+  const report = await evidence.reportProblem(matchId, host.id, { message: 'Ann scored the first goal, not Ben.' });
+  assert(report.status === 'OPEN', 'The problem report was not opened.');
+  assert(await rejectsWith(() => evidence.reportProblem(matchId, host.id, { message: 'Another problem with the result.' }), 'RESULT_PROBLEM_ALREADY_OPEN'), 'A second open report was accepted.');
+  assert(!(await evidence.context(matchId, host.id)).canReportProblem, 'The report form stayed open with a report under review.');
+  await prisma.matchResult.update({ where: { matchId: racedId }, data: { submittedAt: new Date(Date.now() - 25 * 3_600_000) } });
+  assert(await rejectsWith(() => evidence.reportProblem(racedId, host.id, { message: 'Too late to report this one.' }), 'RESULT_PROBLEM_CLOSED'), 'A problem was reported after 24 hours.');
+
+  // D21: results can no longer be disputed.
+  const resultId = final.id;
+  assert(await rejectsWith(() => new DisputesService().create(host.id, { type: 'MATCH_RESULT', referenceId: resultId, reason: 'INCORRECT_SCORE', details: 'The score was wrong.' }), 'RESULT_DISPUTES_RETIRED'), 'A result dispute was opened.');
 }
 
 async function cleanup() {

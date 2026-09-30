@@ -1,4 +1,9 @@
 import type {
+  CaptainResultInput,
+  CaptainResultSubmissionView,
+  MatchResultContext,
+  ReportResultProblemInput,
+  ResultProblemReportView,
   CancellationQuote,
   ChangeParticipantTeamInput,
   CreateMatchInput,
@@ -53,6 +58,12 @@ export const matchesApi = (client: ApiClient) => ({
   list: (query?: Partial<DiscoveryQuery>) =>
     client.request<{ data: Match[] }>(`/matches${queryString(query)}`),
   get: (id: string) => client.request<{ data: Match }>(`/matches/${id}`),
+  // Gate 8 / TKT-806: result context, own version (evidence only) and problem report.
+  resultContext: (id: string) => client.request<{ data: MatchResultContext }>(`/matches/${id}/result-context`),
+  submitResultVersion: (id: string, input: CaptainResultInput) =>
+    client.request<{ data: CaptainResultSubmissionView }>(`/matches/${id}/result-version`, { method: 'POST', body: JSON.stringify(input) }),
+  reportResultProblem: (id: string, input: ReportResultProblemInput) =>
+    client.request<{ data: ResultProblemReportView }>(`/matches/${id}/result-problems`, { method: 'POST', body: JSON.stringify(input) }),
   getByPublicSlug: (slug: string) =>
     client.request<{ data: Match }>(`/matches/public/${encodeURIComponent(slug)}`),
   invite: (token: string) => client.request<{ data: Match }>(`/matches/invite/${token}`),

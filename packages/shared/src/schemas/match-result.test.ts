@@ -52,6 +52,15 @@ describe('referee result validation (Gate 8 / TKT-804)', () => {
     expect(validateMatchResult({ outcome: 'ABANDONED', homeScore: 0, awayScore: 0, forfeitWinner: 'AWAY', goals: [], didNotPlayUserIds: [] }, lineup)).toContain('FORFEIT_WINNER_NOT_ALLOWED');
   });
 
+  it('lets captains leave scorers unknown or send the score only (TKT-806)', () => {
+    const captain = (goals: Parameters<typeof validateMatchResult>[0]['goals'], homeScore: number, awayScore: number) =>
+      validateMatchResult({ outcome: 'PLAYED', homeScore, awayScore, goals }, lineup, { captain: true });
+    expect(captain([], 3, 1)).toEqual([]);
+    expect(captain([{ side: 'HOME' }, { side: 'HOME', scorerUserId: A1 }], 2, 0)).toEqual([]);
+    expect(captain([{ side: 'HOME' }], 2, 0)).toContain('GOAL_COUNT_MISMATCH');
+    expect(captain([{ side: 'HOME', scorerUserId: B1 }], 1, 0)).toContain('SCORER_NOT_IN_LINEUP');
+  });
+
   it('parses the request body with sensible defaults', () => {
     expect(refereeResultSchema.parse({ outcome: 'PLAYED', homeScore: 0, awayScore: 0 })).toEqual({
       outcome: 'PLAYED', homeScore: 0, awayScore: 0, goals: [], didNotPlayUserIds: [],

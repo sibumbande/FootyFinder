@@ -28,6 +28,20 @@ export const refereeResultSchema = z.object({
 });
 export type RefereeResultInput = z.infer<typeof refereeResultSchema>;
 
+/**
+ * Gate 8 / TKT-806 (D10, D11): a captain's (or Quick Match host's) optional own version, sent as
+ * evidence for admins only. Scorers are optional: a goal may leave the scorer unknown, and the
+ * goals may be left out altogether (score only). It never changes the referee's result.
+ */
+export const captainResultSchema = refereeResultSchema.omit({ didNotPlayUserIds: true });
+export type CaptainResultInput = z.infer<typeof captainResultSchema>;
+
+/** D6: captains cannot dispute a final result, but may report a problem within 24 hours. */
+export const reportResultProblemSchema = z.object({
+  message: z.string().trim().min(10).max(2000),
+});
+export type ReportResultProblemInput = z.infer<typeof reportResultProblemSchema>;
+
 export type MatchResultProblem =
   | 'GOAL_COUNT_MISMATCH'
   | 'FORFEIT_WINNER_REQUIRED'
@@ -55,17 +69,23 @@ export const MATCH_RESULT_PROBLEM_MESSAGES: Record<MatchResultProblem, string> =
   DID_NOT_PLAY_NOT_IN_LINEUP: 'Only players in the lineup can be marked as not playing.',
 };
 
-/** Checks a recorded result against the kickoff lineup. Returns every problem found (none = valid). */
+/**
+ * Checks a recorded result against the kickoff lineup. Returns every problem found (none = valid).
+ * `captain` (TKT-806): scorers may be unknown and the goals may be left out (score only).
+ */
 export function validateMatchResult(
-  input: Pick<RefereeResultInput, 'outcome' | 'homeScore' | 'awayScore' | 'forfeitWinner' | 'didNotPlayUserIds'> & {
+  input: Pick<RefereeResultInput, 'outcome' | 'homeScore' | 'awayScore' | 'forfeitWinner'> & {
+    didNotPlayUserIds?: string[];
     goals: Array<Pick<RecordedGoalInput, 'side' | 'scorerUserId' | 'assistUserId'> & { ownGoal?: boolean }>;
   },
   lineup: ReadonlyArray<{ userId: string; side: 'HOME' | 'AWAY' }>,
+  options: { captain?: boolean } = {},
 ): MatchResultProblem[] {
   const problems = new Set<MatchResultProblem>();
   const sideOf = new Map(lineup.map(({ userId, side }) => [userId, side]));
-  const didNotPlay = new Set(input.didNotPlayUserIds);
-  if (input.didNotPlayUserIds.some((userId) => !sideOf.has(userId))) problems.add('DID_NOT_PLAY_NOT_IN_LINEUP');
+  const didNotPlayUserIds = input.didNotPlayUserIds ?? [];
+  const didNotPlay = new Set(didNotPlayUserIds);
+  if (didNotPlayUserIds.some((userId) => !sideOf.has(userId))) problems.add('DID_NOT_PLAY_NOT_IN_LINEUP');
   if (input.outcome === 'FORFEIT' && !input.forfeitWinner) problems.add('FORFEIT_WINNER_REQUIRED');
   if (input.outcome !== 'FORFEIT' && input.forfeitWinner) problems.add('FORFEIT_WINNER_NOT_ALLOWED');
   if (input.outcome !== 'PLAYED') {
@@ -73,14 +93,16 @@ export function validateMatchResult(
     return [...problems];
   }
   const count = (side: 'HOME' | 'AWAY') => input.goals.filter((goal) => goal.side === side).length;
-  if (count('HOME') !== input.homeScore || count('AWAY') !== input.awayScore) problems.add('GOAL_COUNT_MISMATCH');
+  const scoreOnly = options.captain && input.goals.length === 0;
+  if (!scoreOnly && (count('HOME') !== input.homeScore || count('AWAY') !== input.awayScore)) problems.add('GOAL_COUNT_MISMATCH');
   for (const goal of input.goals) {
     if (goal.ownGoal) {
       if (goal.scorerUserId || goal.assistUserId) problems.add('OWN_GOAL_NAMES_NOBODY');
       continue;
     }
     if (!goal.scorerUserId) {
-      problems.add('SCORER_REQUIRED');
+      if (!options.captain) problems.add('SCORER_REQUIRED');
+      else if (goal.assistUserId && sideOf.get(goal.assistUserId) !== goal.side) problems.add('ASSIST_NOT_IN_LINEUP');
       continue;
     }
     if (sideOf.get(goal.scorerUserId) !== goal.side) problems.add('SCORER_NOT_IN_LINEUP');
