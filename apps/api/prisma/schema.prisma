@@ -415,6 +415,17 @@ enum NotificationType {
   ADMIN_ALERT
 }
 
+/// Gate 8 / TKT-803: the kickoff lineup record.
+enum LineupEntryRole {
+  STARTER
+  SUBSTITUTE
+}
+
+enum LineupEntrySource {
+  PARTICIPANT
+  TEAM_SELECTION
+}
+
 /// Gate 8 / TKT-802: permanent referee assignment history.
 enum RefereeAssignmentAction {
   ASSIGNED
@@ -504,6 +515,7 @@ model User {
   refereeAssignmentActions  MatchRefereeAssignment[]  @relation("RefereeAssignmentActor")
   defaultRefereeSettings    RefereeSettings[]         @relation("DefaultReferee")
   refereeSettingsUpdates    RefereeSettings[]         @relation("RefereeSettingsUpdater")
+  lineupEntries             MatchLineupEntry[]        @relation("MatchLineupPlayer")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1339,6 +1351,7 @@ model Match {
   teamMatchAuditEvents      TeamMatchAuditEvent[]
   referee                   User?                     @relation("MatchReferee", fields: [refereeUserId], references: [id], onDelete: Restrict)
   refereeAssignments        MatchRefereeAssignment[]
+  lineupEntries             MatchLineupEntry[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1361,6 +1374,29 @@ model MatchRefereeAssignment {
 
   @@index([matchId, createdAt])
   @@index([refereeUserId, createdAt])
+}
+
+/// Gate 8 / TKT-803 (DEC-020): who was on each side at kickoff. Permanent except didNotPlay (D14),
+/// which the referee or an admin correction sets with the result (DB trigger).
+model MatchLineupEntry {
+  id                  String            @id @default(uuid()) @db.Uuid
+  matchId             String            @db.Uuid
+  side                TeamSide
+  userId              String            @db.Uuid
+  teamId              String?           @db.Uuid
+  displayNameSnapshot String
+  role                LineupEntryRole
+  source              LineupEntrySource
+  slotIndex           Int?
+  didNotPlay          Boolean           @default(false)
+  recordedAt          DateTime          @default(now())
+  match               Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user                User              @relation("MatchLineupPlayer", fields: [userId], references: [id], onDelete: Restrict)
+  team                Team?             @relation("MatchLineupTeam", fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, userId])
+  @@index([matchId, side])
+  @@index([userId])
 }
 
 /// Gate 8 / TKT-802 (D28): single row (id = 1) holding the default referee.
@@ -1763,6 +1799,7 @@ model Team {
   matchAuditEvents TeamMatchAuditEvent[]
   chatMessages    TeamMessage[]
   chatReadStates  TeamChatReadState[]
+  lineupEntries   MatchLineupEntry[]   @relation("MatchLineupTeam")
 
   @@index([ownerUserId])
   @@index([name])

@@ -9,6 +9,7 @@ import { registerMatchCancelledEmailJobHandlers } from '../src/modules/matches/m
 import { transitionMatchToStarted } from '../src/modules/matches/match-lifecycle.scheduler.js';
 import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
+import { MatchLineupService } from '../src/modules/match-lineup/match-lineup.service.js';
 import { registerTeamMatchJobHandlers } from '../src/modules/team-matches/team-match.jobs.js';
 import { TeamMatchMetersService, teamGoNoGoDedupeKey } from '../src/modules/team-matches/team-match-meters.js';
 import { TeamMatchesService } from '../src/modules/team-matches/team-matches.service.js';
@@ -116,8 +117,24 @@ async function main() {
   assert(await teamBalance(homeA.team.id) === 52_000 && await teamBalance(away.team.id) === 260_000, 'Each team was not charged exactly its own fee once.');
   assert(await prisma.teamWalletHold.count({ where: { matchId: goMatch.id, status: 'CAPTURED' } }) === 3 && await activeHolds(goMatch.id) === 0, 'Not every hold was captured.');
   assert(await prisma.notification.count({ where: { type: 'MATCH_CONFIRMED', targetPath: `/matches/${goMatch.id}` } }) === 6, 'Both teams\' members were not told once that the match goes ahead.');
+  // Fixture setup: each team has one starter in position and the home team one substitute
+  // (these fixture teams have no saved formation, so nobody was copied in).
+  for (const [side, starter, sub] of [['HOME', homeA.member.id, homeA.captain.id], ['AWAY', away.member.id, null]] as const) {
+    const matchTeam = await prisma.matchTeam.findUniqueOrThrow({ where: { matchId_side: { matchId: goMatch.id, side } } });
+    const selection = await prisma.teamMatchSelection.create({ data: { matchTeamId: matchTeam.id, userId: starter, status: 'SELECTED_STARTER' } });
+    const slot = await prisma.teamMatchLineupSlot.findFirstOrThrow({ where: { matchTeamId: matchTeam.id }, orderBy: { slotIndex: 'asc' } });
+    await prisma.teamMatchLineupSlot.update({ where: { id: slot.id }, data: { selectionId: selection.id } });
+    if (sub) await prisma.teamMatchSelection.create({ data: { matchTeamId: matchTeam.id, userId: sub, status: 'SELECTED_SUBSTITUTE' } });
+  }
   await prisma.match.update({ where: { id: goMatch.id }, data: { goNoGoAt: new Date(Date.now() - 3_600_000), startsAt: new Date(Date.now() - 60_000) } });
   assert(await transitionMatchToStarted(goMatch.id), 'A confirmed team match did not kick off.');
+  // Gate 8 / TKT-803: kickoff records both teams' lineups, and team lineups lock from kickoff.
+  const kickoffLineup = await prisma.matchLineupEntry.findMany({ where: { matchId: goMatch.id } });
+  assert(kickoffLineup.length === 3 && kickoffLineup.every(({ source }) => source === 'TEAM_SELECTION'), 'The kickoff lineup record of the team sides is missing.');
+  assert(kickoffLineup.find(({ userId }) => userId === homeA.captain.id)?.role === 'SUBSTITUTE' && kickoffLineup.find(({ userId }) => userId === homeA.member.id)?.role === 'STARTER', 'Team starters and substitutes were not recorded correctly.');
+  assert(kickoffLineup.some(({ side, teamId }) => side === 'HOME' && teamId === homeA.team.id) && kickoffLineup.some(({ side, teamId }) => side === 'AWAY' && teamId === away.team.id), 'The lineup record does not cover both teams.');
+  assert(await rejectsWith(() => new MatchLineupService().invite(goMatch.id, 'HOME', homeA.member.id, homeA.owner.id), 'LINEUP_LOCKED'), 'A team lineup changed after kickoff.');
+  assert((await new MatchLineupService().get(goMatch.id, 'HOME', homeA.member.id)).matchTeamId, 'The lineup could not be read after kickoff.');
   const payable = await prisma.venuePayable.findUniqueOrThrow({ where: { matchId: goMatch.id } });
   const reservation = await prisma.fieldReservation.findUniqueOrThrow({ where: { matchId: goMatch.id } });
   assert(payable.amountCents === reservation.priceCentsSnapshot && payable.amountCents === 50_000, 'The venue payable is not the admin-only price snapshot.');

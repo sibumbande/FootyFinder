@@ -23,6 +23,7 @@ import {
   LineupSlotNotFoundError,
   LineupSlotOccupiedError,
   LineupTeamMatchClosedError,
+  LineupKickedOffError,
   LineupTeamMemberNotFoundError,
   LineupTeamSideNotFoundError,
   MatchLineupRepository,
@@ -229,6 +230,8 @@ export class MatchLineupService {
       throw new AppError(403, 'Current Team permission is required.', 'TEAM_FORBIDDEN');
     if (error instanceof LineupTeamMatchClosedError)
       throw new AppError(409, 'This Team fixture is closed.', 'TEAM_MATCH_CLOSED');
+    if (error instanceof LineupKickedOffError)
+      throw new AppError(409, 'The lineup is locked from kickoff.', 'LINEUP_LOCKED');
     if (error instanceof LineupSlotNotFoundError)
       throw new AppError(404, 'Lineup slot not found.', 'LINEUP_SLOT_NOT_FOUND');
     if (error instanceof LineupSlotOccupiedError)

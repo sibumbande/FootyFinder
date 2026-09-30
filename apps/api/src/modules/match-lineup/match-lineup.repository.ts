@@ -19,6 +19,8 @@ import { safeUserInclude } from '../users/users.repository.js';
 export class LineupTeamSideNotFoundError extends Error {}
 export class LineupForbiddenError extends Error {}
 export class LineupTeamMatchClosedError extends Error {}
+/** Gate 8 / TKT-803: team lineups lock at kickoff, when the lineup record is taken. */
+export class LineupKickedOffError extends Error {}
 export class LineupSlotNotFoundError extends Error {}
 export class LineupSlotOccupiedError extends Error {}
 export class LineupActionRequiredError extends Error {}
@@ -45,6 +47,7 @@ const lineupInclude = {
       status: true,
       format: true,
       substituteCapacityPerTeam: true,
+      startsAt: true,
     },
   },
   team: {
@@ -103,6 +106,9 @@ async function loadLocked(
     include: lineupInclude,
   });
   assertTeamSide(context);
+  // D11 lets captains arrange their lineup until kickoff; from kickoff the lineup record is final.
+  if (['IN_PROGRESS', 'AWAITING_RESULT'].includes(context.match.status) || Date.now() >= context.match.startsAt.getTime())
+    throw new LineupKickedOffError();
   return context;
 }
 
