@@ -32,6 +32,16 @@ export interface RefereeAssignmentHistoryEntry {
   createdAt: string;
 }
 
+/** Gate 8 / TKT-803: one player in a match lineup (the kickoff record, or the live lineup before). */
+export interface MatchLineupPlayer {
+  userId: string;
+  displayName: string;
+  side: 'HOME' | 'AWAY';
+  role: 'STARTER' | 'SUBSTITUTE';
+  slotIndex: number | null;
+  didNotPlay: boolean;
+}
+
 /** Gate 8 / TKT-802: one refereed match in the admin assignment views. Admin-only. */
 export interface AdminRefereeMatch {
   matchId: string;

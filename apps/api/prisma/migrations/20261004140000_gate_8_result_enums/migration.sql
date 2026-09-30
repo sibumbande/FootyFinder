@@ -1,0 +1,7 @@
+-- Gate 8 / TKT-804 (DEC-020, D13): referee results. Enum values in their own migration as usual.
+ALTER TYPE "ResultOutcomeType" ADD VALUE IF NOT EXISTS 'ABANDONED';
+ALTER TYPE "ResultRevisionReason" ADD VALUE IF NOT EXISTS 'REFEREE_SUBMISSION';
+ALTER TYPE "ResultRevisionReason" ADD VALUE IF NOT EXISTS 'ADMIN_ENTRY';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'RESULT_FINAL';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'RESULT_CORRECTED';
+CREATE TYPE "ResultFinalSource" AS ENUM ('LEGACY', 'REFEREE', 'ADMIN');

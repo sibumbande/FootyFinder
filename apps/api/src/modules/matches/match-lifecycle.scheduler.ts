@@ -10,6 +10,7 @@ import { logError } from '../../observability/logger.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { createVenuePayableForStartedMatch } from '../settlement/venue-payables.js';
 import { recordKickoffLineup } from './lineup-record.js';
+import { enqueueResultOverdueJob } from '../referees/referee-results.js';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -70,6 +71,9 @@ export async function transitionMatchToStarted(
     await createVenuePayableForStartedMatch(tx, matchId);
     // Gate 8 / TKT-803: the permanent lineup record the referee, stats and reviews use.
     await recordKickoffLineup(tx, matchId);
+    // D4: admins are alerted if a refereed match has no result two hours after its scheduled end.
+    const timing = await tx.match.findUniqueOrThrow({ where: { id: matchId }, select: { id: true, startsAt: true, durationMinutes: true, goNoGoAt: true } });
+    if (timing.goNoGoAt) await enqueueResultOverdueJob(tx, timing);
     const match = await tx.match.findUniqueOrThrow({
       where: { id: matchId },
       select: {

@@ -420,7 +420,8 @@ export function MatchLobbyPage() {
           </section>
         ))}
       </div>
-      {match.status === 'AWAITING_RESULT' && isHost && (
+      {/* Gate 8: refereed matches (with a go/no-go) are recorded by the FootyFinder referee. */}
+      {match.status === 'AWAITING_RESULT' && isHost && !match.goNoGoAt && (
         <ResultForm matchId={match.id} participants={participants} />
       )}
       {match.result && (

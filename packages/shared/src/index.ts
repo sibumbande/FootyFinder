@@ -36,6 +36,7 @@ export * from './schemas/wallet.js';
 export * from './schemas/team-wallet.js';
 export * from './schemas/team-chat.js';
 export * from './schemas/referee.js';
+export * from './schemas/match-result.js';
 export * from './constants/socket-events.js';
 export * from './utils/api.js';
 export * from './utils/match-lifecycle.js';

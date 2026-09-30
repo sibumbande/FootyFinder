@@ -35,6 +35,8 @@ export const NOTIFICATION_TYPES = [
   'REFEREE_ASSIGNED',
   'REFEREE_UNASSIGNED',
   'ADMIN_ALERT',
+  'RESULT_FINAL',
+  'RESULT_CORRECTED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

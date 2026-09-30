@@ -202,6 +202,14 @@ export interface TeamMatchLineup {
   viewerSelection: TeamMatchSelection | null;
   selectionPool?: TeamMatchSelection[];
 }
+/** Gate 8 / TKT-804: one goal of a referee-final result (D7: an own goal names nobody). */
+export interface MatchGoalView {
+  side: 'HOME' | 'AWAY';
+  ownGoal: boolean;
+  scorer: { userId: string; displayName: string } | null;
+  assist: { userId: string; displayName: string } | null;
+}
+
 export interface MatchResult {
   id: string;
   homeScore: number;
@@ -209,6 +217,13 @@ export interface MatchResult {
   submittedAt: string;
   revisionNumber: number;
   scorers: MatchScorer[];
+  /** Gate 8 (DEC-020): PLAYED, FORFEIT or ABANDONED (D13). */
+  outcomeType?: 'PLAYED' | 'FORFEIT' | 'ABANDONED';
+  forfeitWinner?: 'HOME' | 'AWAY' | null;
+  /** LEGACY = self-reported before Gate 8; REFEREE or ADMIN results are final (D5). */
+  finalSource?: 'LEGACY' | 'REFEREE' | 'ADMIN';
+  finalizedAt?: string | null;
+  goals?: MatchGoalView[];
 }
 
 export type MatchCancellationReason =

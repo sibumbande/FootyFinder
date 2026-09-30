@@ -371,11 +371,21 @@ enum DisputeResolutionOutcome {
 enum ResultRevisionReason {
   INITIAL_SUBMISSION
   ADMIN_CORRECTION
+  REFEREE_SUBMISSION
+  ADMIN_ENTRY
 }
 
 enum ResultOutcomeType {
   PLAYED
   FORFEIT
+  ABANDONED
+}
+
+/// Gate 8 / TKT-804: who made a result final. LEGACY = self-reported before Gate 8 (D20).
+enum ResultFinalSource {
+  LEGACY
+  REFEREE
+  ADMIN
 }
 
 enum NotificationType {
@@ -413,6 +423,8 @@ enum NotificationType {
   REFEREE_ASSIGNED
   REFEREE_UNASSIGNED
   ADMIN_ALERT
+  RESULT_FINAL
+  RESULT_CORRECTED
 }
 
 /// Gate 8 / TKT-803: the kickoff lineup record.
@@ -516,6 +528,8 @@ model User {
   defaultRefereeSettings    RefereeSettings[]         @relation("DefaultReferee")
   refereeSettingsUpdates    RefereeSettings[]         @relation("RefereeSettingsUpdater")
   lineupEntries             MatchLineupEntry[]        @relation("MatchLineupPlayer")
+  finalizedResults          MatchResult[]             @relation("ResultFinalizer")
+  authoredResultRevisions   MatchResultRevision[]     @relation("ResultRevisionAuthor")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1390,6 +1404,8 @@ model MatchLineupEntry {
   slotIndex           Int?
   didNotPlay          Boolean           @default(false)
   recordedAt          DateTime          @default(now())
+  goalsScored         MatchGoal[]       @relation("GoalScorer")
+  goalsAssisted       MatchGoal[]       @relation("GoalAssist")
   match               Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user                User              @relation("MatchLineupPlayer", fields: [userId], references: [id], onDelete: Restrict)
   team                Team?             @relation("MatchLineupTeam", fields: [teamId], references: [id], onDelete: SetNull)
@@ -1675,10 +1691,37 @@ model MatchResult {
   forfeitWinner TeamSide?
   submittedById String                @db.Uuid
   submittedAt   DateTime              @default(now())
+  /// Gate 8 / TKT-804 (D5): the referee's (or an admin's) result is final.
+  finalSource   ResultFinalSource     @default(LEGACY)
+  finalizedById String?               @db.Uuid
+  finalizedAt   DateTime?
   match         Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
   submittedBy   User                  @relation("ResultSubmitter", fields: [submittedById], references: [id])
+  finalizedBy   User?                 @relation("ResultFinalizer", fields: [finalizedById], references: [id], onDelete: Restrict)
   scorers       MatchScorer[]
+  goals         MatchGoal[]
   revisions     MatchResultRevision[]
+
+  @@index([finalSource, finalizedAt])
+}
+
+/// Gate 8 / TKT-804 (DEC-020, D7): one goal, credited to a side; scorer and assister come from the
+/// kickoff lineup record. An own goal names nobody and counts for the side only.
+model MatchGoal {
+  id            String            @id @default(uuid()) @db.Uuid
+  matchResultId String            @db.Uuid
+  side          TeamSide
+  scorerEntryId String?           @db.Uuid
+  assistEntryId String?           @db.Uuid
+  ownGoal       Boolean           @default(false)
+  sortOrder     Int
+  matchResult   MatchResult       @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
+  scorer        MatchLineupEntry? @relation("GoalScorer", fields: [scorerEntryId], references: [id], onDelete: Restrict)
+  assist        MatchLineupEntry? @relation("GoalAssist", fields: [assistEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([matchResultId, sortOrder])
+  @@index([scorerEntryId])
+  @@index([assistEntryId])
 }
 
 model MatchResultRevision {
@@ -1690,9 +1733,14 @@ model MatchResultRevision {
   scorersSnapshot      Json
   reason               ResultRevisionReason
   createdByAdminUserId String?              @db.Uuid
+  /// Gate 8: who created this version (the referee for REFEREE_SUBMISSION) and its outcome.
+  createdByUserId      String?              @db.Uuid
+  outcomeType          ResultOutcomeType?
+  forfeitWinner        TeamSide?
   createdAt            DateTime             @default(now())
   matchResult          MatchResult          @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
   createdByAdmin       User?                @relation("ResultRevisionCreator", fields: [createdByAdminUserId], references: [id], onDelete: Restrict)
+  createdBy            User?                @relation("ResultRevisionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@unique([matchResultId, revisionNumber])
   @@index([matchResultId, createdAt])

@@ -7,3 +7,4 @@ import * as controller from './referee.controller.js';
 export const refereeRouter: ExpressRouter = Router();
 registerUuidRouteParams(refereeRouter, ['matchId']);
 refereeRouter.post('/matches/:matchId/decline', costlyMutationRateLimit, controller.decline);
+refereeRouter.post('/matches/:matchId/result', costlyMutationRateLimit, controller.submitResult);

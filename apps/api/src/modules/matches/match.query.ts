@@ -20,6 +20,14 @@ export const matchInclude = {
     include: {
       scorers: { include: { participant: { include: participantInclude } } },
       revisions: { orderBy: { revisionNumber: 'desc' }, take: 1 },
+      // Gate 8 / TKT-804: referee-final goals, with scorer and assister from the lineup record.
+      goals: {
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          scorer: { select: { userId: true, displayNameSnapshot: true } },
+          assist: { select: { userId: true, displayNameSnapshot: true } },
+        },
+      },
     },
   },
   teamSides: { orderBy: { side: 'asc' } },

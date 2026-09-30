@@ -13,13 +13,14 @@ import {
   REFEREE_UNASSIGNED_ALERT_JOB_TYPE,
   hasActiveReferee,
 } from './referee-assignment.js';
+import { RESULT_OVERDUE_JOB_TYPE } from './referee-results.js';
 
 /**
  * Gate 8 / TKT-802 jobs (D19): the referee hears about being assigned or removed (in-app and
  * email); every active admin is alerted (in-app and email) when a match has no referee.
  */
-export type RefereeEmailKind = 'REFEREE_ASSIGNED' | 'REFEREE_REMOVED' | 'ADMIN_REFEREE_UNASSIGNED';
-const EMAIL_KINDS: readonly RefereeEmailKind[] = ['REFEREE_ASSIGNED', 'REFEREE_REMOVED', 'ADMIN_REFEREE_UNASSIGNED'];
+export type RefereeEmailKind = 'REFEREE_ASSIGNED' | 'REFEREE_REMOVED' | 'ADMIN_REFEREE_UNASSIGNED' | 'ADMIN_RESULT_OVERDUE';
+const EMAIL_KINDS: readonly RefereeEmailKind[] = ['REFEREE_ASSIGNED', 'REFEREE_REMOVED', 'ADMIN_REFEREE_UNASSIGNED', 'ADMIN_RESULT_OVERDUE'];
 
 type MessageMatch = { name: string; startsAt: Date; venueName: string };
 const when = (startsAt: Date) => `${formatMatchDate(startsAt)} at ${formatKickoffTime(startsAt)}`;
@@ -33,6 +34,8 @@ export const refereeMessage = (kind: RefereeEmailKind, match: MessageMatch) => {
       return `You're no longer the referee for ${match.name} at ${match.venueName} on ${when(match.startsAt)}.`;
     case 'ADMIN_REFEREE_UNASSIGNED':
       return `${match.name} at ${match.venueName} on ${when(match.startsAt)} has no referee. Assign one in the admin dashboard, or the match is cancelled 30 minutes before kickoff.`;
+    case 'ADMIN_RESULT_OVERDUE':
+      return `The referee has not recorded the result of ${match.name} at ${match.venueName} (${when(match.startsAt)}) within 2 hours of the end. Enter it from the admin dashboard, using the captains' submissions as evidence.`;
   }
 };
 
@@ -40,6 +43,7 @@ export const REFEREE_EMAIL_SUBJECT: Record<RefereeEmailKind, string> = {
   REFEREE_ASSIGNED: 'You have a match to referee',
   REFEREE_REMOVED: 'You are no longer refereeing a match',
   ADMIN_REFEREE_UNASSIGNED: 'Action needed: a match has no referee',
+  ADMIN_RESULT_OVERDUE: 'Action needed: a match result is overdue',
 };
 
 const enqueueRefereeEmail = (
@@ -91,6 +95,28 @@ export class RefereeJobs {
     return created;
   }
 
+  /** D4: two hours after the scheduled end, alert every active admin if there is still no result. */
+  async alertResultOverdue(payload: unknown) {
+    const { matchId } = payloadOf(payload);
+    if (typeof matchId !== 'string') throw invalid();
+    const created = await serializableTransaction(async (tx) => {
+      const match = await tx.match.findUnique({ where: { id: matchId }, select: { ...matchSelect, result: { select: { id: true } } } });
+      if (!match || match.status === 'CANCELLED' || match.result) return [] as Notification[];
+      const admins = await tx.user.findMany({ where: { platformRole: 'ADMIN', accountStatus: 'ACTIVE' }, select: { id: true } });
+      for (const { id } of admins)
+        await enqueueRefereeEmail(tx, { kind: 'ADMIN_RESULT_OVERDUE', matchId, userId: id, eventKey: 'overdue' });
+      return persistNotifications(tx, admins.map(({ id }) => ({
+        userId: id,
+        type: 'ADMIN_ALERT' as const,
+        title: 'Match result overdue',
+        message: refereeMessage('ADMIN_RESULT_OVERDUE', { name: match.name, startsAt: match.startsAt, venueName: match.venue.name }),
+        dedupeKey: notificationDedupeKey('result-overdue', matchId, id),
+      })));
+    });
+    this.notifications.publishPersistedMany(created);
+    return created;
+  }
+
   /** D19: the referee is told in-app and by email when they are assigned to or removed from a match. */
   async notice(payload: unknown) {
     const { assignmentId } = payloadOf(payload);
@@ -128,11 +154,15 @@ export class RefereeJobs {
     ]);
     if (!match || !user?.email) return;
     // An unassigned alert is pointless once the match is cancelled or has a referee again.
+    if (emailKind === 'ADMIN_RESULT_OVERDUE' && (match.status === 'CANCELLED' || (await prisma.matchResult.count({ where: { matchId } }))))
+      return;
     if (emailKind === 'ADMIN_REFEREE_UNASSIGNED'
       && (match.status === 'CANCELLED' || (await prisma.match.count({ where: { id: matchId, refereeUserId: { not: null } } }))))
       return;
     const text = refereeMessage(emailKind, { name: match.name, startsAt: match.startsAt, venueName: match.venue.name });
-    const link = emailKind === 'ADMIN_REFEREE_UNASSIGNED'
+    const link = emailKind === 'ADMIN_RESULT_OVERDUE'
+      ? `${env.ADMIN_CLIENT_URL.replace(/\/$/, '')}/results`
+      : emailKind === 'ADMIN_REFEREE_UNASSIGNED'
       ? `${env.ADMIN_CLIENT_URL.replace(/\/$/, '')}/match-referees`
       : `${env.CLIENT_URL.replace(/\/$/, '')}/referee`;
     await this.emails.send({ to: user.email, subject: REFEREE_EMAIL_SUBJECT[emailKind], text: `${text}\n\n${link}` });
@@ -145,6 +175,9 @@ export const registerRefereeJobHandlers = (jobs = new RefereeJobs()) => {
   });
   registerDurableJobHandler(REFEREE_NOTICE_JOB_TYPE, async (payload) => {
     await jobs.notice(payload);
+  });
+  registerDurableJobHandler(RESULT_OVERDUE_JOB_TYPE, async (payload) => {
+    await jobs.alertResultOverdue(payload);
   });
   registerDurableJobHandler(REFEREE_EMAIL_JOB_TYPE, (payload) => jobs.email(payload));
 };

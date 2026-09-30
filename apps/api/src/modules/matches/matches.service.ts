@@ -484,6 +484,10 @@ export class MatchesService {
   }
   async submitResult(id: string, input: ResultInput, userId: string) {
     const match = await this.assertManager(id, userId, 'SUBMIT_RESULT');
+    // Gate 8 (DEC-020): a match with a T-30 go/no-go has a FootyFinder referee, whose result is
+    // final. Hosts and captains may only send their own version as evidence (TKT-806).
+    if (match.goNoGoAt)
+      throw new AppError(409, 'The FootyFinder referee records the result of this match.', 'RESULT_BY_REFEREE');
     if (
       getEffectiveMatchStatus({
         status: match.status,

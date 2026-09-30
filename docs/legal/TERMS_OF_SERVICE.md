@@ -19,6 +19,8 @@ This summary explains what changed from version 2.3. It does not replace the ful
 •	A FootyFinder Referee on every match. Every match, including every Team Match, has a Referee appointed by FootyFinder. A Referee may also play in a match they referee. The Referee’s name is shown on the match page (clauses 2 and 17.5).
 •	No Referee, no match. A match goes ahead only if a FootyFinder Referee is assigned to it 30 minutes before kick-off, as well as the existing go/no-go conditions. If no Referee is assigned, the match is cancelled automatically and everyone is refunded in full, exactly as for any other go/no-go cancellation (clauses 11.5, 12.18 and 15.1).
 •	What Referees can see. The Referee of a match can see the display names, positions and sides of the players in that match, but not their contact details, identity document, date of birth, emergency contact or payment information (clause 8.3).
+•	The Referee’s result is final. After the match the Referee records the score, who scored and who assisted each goal, and which players did not play. That result is final. Only FootyFinder can correct a clear recording error, and every correction is recorded with its reason. Hosts and Captains no longer record or confirm results (clauses 17.6 to 17.8).
+•	Own goals. An own goal counts for the team it was scored for, not for any player (clause 17.6).
 
 SUMMARY OF CHANGES IN VERSION 2.3
 This summary explains what changed from version 2.2. It does not replace the full Terms below. This is a material change: you will be asked to accept version 2.3 before you can continue to create, join or pay for matches or manage a Team.
@@ -71,7 +73,7 @@ CONTENTS
 14.	Wallet and Payments	13
 15.	Cancellations, Refunds and No-Shows	14
 16.	Code of Conduct and Venue Rules	15
-17.	Match Hosts, Referees and Contractors	16
+17.	Match Hosts, Referees and Results	16
 18.	Photography, Filming, Likeness and Content	16
 19.	In-App Communication and Moderation	17
 20.	Prohibited Conduct on the Platform	17
@@ -99,8 +101,10 @@ In these Terms, unless the context indicates otherwise:
 •	“Account” means your registered user profile on the platform.
 •	“Captain” means a user who creates or administers a Team and who is authorised to act on that Team’s behalf.
 •	“CPA” means the Consumer Protection Act 68 of 2008.
+•	“Final Result” means the result of a match recorded by its Referee, or by FootyFinder under clause 17.8, including the score, the scorer and any assister of each goal, and which players did not play.
 •	“Fill Meter” means the running total of Team Treasury money a Team has put towards its Team Match Fee for a particular Team Match, for example “R0 / R1,120”.
 •	“Host” means the user who creates a match on the platform. A Host is not a Match Host unless we appoint them as one.
+•	“Lineup Record” means the record of the players on each side of a match, taken automatically at kick-off.
 •	“Lobby” means the digital roster for a specific scheduled match, including starting positions on the pitch and substitute places.
 •	“Match Host” means the person appointed to coordinate a match on site, who may be an employee, an independent contractor or a volunteer.
 •	“Partner Venue” means any sports ground, club, facility or field owner whose pitches are listed on or booked through the platform.
@@ -329,12 +333,15 @@ Substitute who does not get on the pitch	No refund (clause 11.4)
 16.7	Punctuality. Arrive at least fifteen (15) minutes before kick-off. Positions cannot be changed in the app after the Lobby locks (clause 11.7). If you do not attend, you are a no-show and clause 15.3 applies.
 16.8	House rules. Each Partner Venue may impose additional house rules, including rules on smoking, spectators, children, pets, alcohol and parking. These apply to you while on the premises.
 16.9	Sanctions. Breaches may result in a warning, a temporary booking restriction, removal from a Team, suspension or permanent termination, depending on severity. Clause 21 sets out the process.
-17.  Match Hosts, Referees and Contractors
+17.  Match Hosts, Referees and Results
 17.1	Status. Match Hosts, referees, coordinators and photographers engaged for a fixture may be employees, independent contractors or volunteers. Their status will be as recorded in their engagement with us.
 17.2	Referee decisions. Refereeing decisions are matters of opinion made in real time. We are not liable for the outcome of a match, a refereeing error, or any consequence of a decision made on the field of play.
 17.3	Host authority. A Match Host may check identity against the roster, refuse entry to an unverified or unbooked person, balance teams, adjust positions, stop play, and remove a player for a breach of clause 16.
 17.4	Absence of a host. Where a listing does not state that a Match Host will be present, none will be. The match remains a self-organised game between participants, refereed by the FootyFinder Referee under clause 17.5.
 17.5	A FootyFinder Referee on every match. FootyFinder assigns a Referee to every match, including every Team Match. We may change or replace the Referee before the match. If no Referee is assigned 30 minutes before kick-off, the match does not go ahead: it is cancelled automatically and every player is refunded in full (clauses 11.5, 12.18 and 15.1). A Referee may also play in a match they referee. The Referee’s name is shown on the match page.
+17.6	Recording the result. From kick-off, the Referee records the result in the app: the score, who scored each goal and who assisted it, and which players in the Lineup Record did not play. Scorers and assisters can only be players in the Lineup Record of the team credited with the goal. An own goal counts for the team it was scored for and is not credited to any player. The Referee may instead record that a match was forfeited (one team did not turn up), in which case the other team wins and no goals are recorded, or abandoned, in which case no result counts. Recording a forfeit or an abandonment does not by itself change any fee, refund or credit; clause 15 continues to apply.
+17.7	The Referee’s result is final. Once the Referee submits the result, it is the Final Result. It is shown on the match page, and everyone in the Lineup Record and the members of each Team are notified in the app. A Final Result cannot be disputed. Only FootyFinder may change it, and only to correct a clear recording error; each correction is recorded with its reason, the earlier version is kept, and everyone is notified again.
+17.8	If the Referee does not record the result. If the Referee does not attend or has not recorded the result within two (2) hours after the scheduled end of the match, FootyFinder records the Final Result using the best information available to it.
 18.  Photography, Filming, Likeness and Content
 PLEASE READ — YOUR IMAGE MAY APPEAR IN OUR MARKETING
 We photograph and film matches for match highlights, player clips, social media and promotional material. If you take part in a match, you may appear in that footage.
@@ -460,6 +467,7 @@ This summary is provided for convenience and does not replace the full Terms abo
 
 Who we are	FootyFinder (Pty) Ltd, a South African company that helps you find, book and pay for football matches.
 Who can join	Anyone 18 or older. We may ask you to verify your age or identity.
+Results	A FootyFinder referee records the score, scorers and assisters. Their result is final; only FootyFinder can correct a clear recording error.
 What you pay	A fixed R80 per match, set by FootyFinder and taken from your Wallet when you join. Subs pay R80 too, even if they don’t get on.
 Your money	Wallet credit is prepaid and is spent only on FootyFinder. It can’t be withdrawn to a bank account. Top-ups are R50 to R5,000 by card. We do not confiscate it.
 If the game is off	If every position isn’t filled, or no FootyFinder referee is assigned, 30 minutes before kick-off, or the Host, venue or weather cancels, you get your R80 back in your Wallet.

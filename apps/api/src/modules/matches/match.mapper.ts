@@ -126,6 +126,16 @@ export function toMatch(
             goals: scorer.goals,
             participant: toMatchParticipant(scorer.participant),
           })),
+          outcomeType: match.result.outcomeType,
+          forfeitWinner: match.result.forfeitWinner,
+          finalSource: match.result.finalSource,
+          finalizedAt: match.result.finalizedAt?.toISOString() ?? null,
+          goals: match.result.goals.map((goal) => ({
+            side: goal.side,
+            ownGoal: goal.ownGoal,
+            scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: goal.scorer.displayNameSnapshot } : null,
+            assist: goal.assist ? { userId: goal.assist.userId, displayName: goal.assist.displayNameSnapshot } : null,
+          })),
         }
       : null,
     teamSides: match.teamSides.map((teamSide) => ({
