@@ -15,6 +15,7 @@ This document separates behavior implemented today from approved policy for late
 - **Quick Match participant**: a user with a participation in the Match.
 - **Attached Team member**: a current member of the Team attached to the requested `MatchTeam` side.
 - **Side manager**: an OWNER or CAPTAIN of the Team attached to the requested HOME or AWAY side.
+- **FootyFinder referee** (Gate 8, DEC-020): an active account holding an active `RefereeGrant`; the match's referee is `Match.refereeUserId`. A referee may also play in a match they referee (D17 reversed).
 - **Platform Admin**: an active user with `platformRole=ADMIN` and, for `/admin`, a verified Admin MFA session. Admin status does not implicitly bypass match-route authorization.
 
 All current `/matches` and `/teams` routes require authentication. “Public” discovery currently means discoverable by signed-in users, not anonymous access.
@@ -36,7 +37,8 @@ create
                        | startsAt + 60 minutes (scheduler)
                        v
                  AWAITING_RESULT
-                       | host submits a valid result
+                       | the FootyFinder referee (or an admin) records the final result (Gate 8);
+                       | legacy matches without a go/no-go: the host submits a result
                        v
                    COMPLETED
 
@@ -80,7 +82,7 @@ The existing generic Team-fixture update/cancel permission accepts an OWNER or C
 | Change participant side | Host may move eligible participant; reserve participant may move self | Rejected | Destination capacity and formation constraints apply |
 | Edit Quick formation (move/assign/remove) | Host | Generic path exists, but lineup API is canonical | Before kickoff; position remains in the side's half. Gate 5: every player change appends a `MatchFormationEvent` (`ORGANISER_*`) and persists a `MATCH_POSITION_CHANGED` notification for each affected player other than the host |
 | Claim Quick position `POST /matches/:id/formation/slots/:slotId/claim` | Joined participant, self, own side (Gate 5) | Rejected (`TEAM_MATCH_PLANNING`) | Stored `OPEN`/`READY`, before kickoff; first commit wins; a player already in a slot is moved (`SELF_MOVE`); loser gets `POSITION_ALREADY_CLAIMED` with the authoritative formation |
-| Submit result | Host | No reachable current Team state | Effective `AWAITING_RESULT`; scorer and totals validation apply |
+| Submit result (legacy self-report) | Host, only for legacy matches without a go/no-go | Refused (`RESULT_BY_REFEREE`) | Refereed matches: the referee records the result (see Gate 8 below) |
 | Read participants/chat | Host or authorized participant | Attached Team member | Chat write window and membership checks apply |
 | Request/read side availability | Not applicable | Side OWNER/CAPTAIN requests; member sees self; side manager sees all | Not `CANCELLED`/`COMPLETED` |
 | Update own availability | Not applicable | Attached side member, self only, after request | Not `CANCELLED`/`COMPLETED` |
@@ -142,20 +144,27 @@ READY -- kickoff --> IN_PROGRESS (venue payable created) -> AWAITING_RESULT
 - Only authorized wallet actors (the side's owner/captains) fill that side's meter; money moves only through the team-wallet ledger (holds, captures, releases). Cancellation releases every hold and refunds every individual once.
 - Every side change and team-match command is recorded in the append-only `TeamMatchAuditEvent` with its actor.
 
-### Team result confirmation (Gate 8)
+### Referees and final results (Gate 8, DEC-020, implemented)
+
+The DEC-016 propose/confirm/dispute model was replaced by DEC-020 and is not built.
 
 ```text
-AWAITING_RESULT -- HOME owner/captain proposes --> RESULT_PROPOSED
-RESULT_PROPOSED -- AWAY owner/captain confirms --> COMPLETED
-RESULT_PROPOSED -- AWAY rejects / 48h timeout --> DISPUTED
-RESULT_PROPOSED -- HOME revises before confirmation --> RESULT_PROPOSED (timer resets)
-DISPUTED -- authorized admin append-only resolution --> COMPLETED
+publish -- default referee free (D28) ---------------------------------> referee assigned
+publish -- no default / default busy ----------------------------------> unassigned (admins alerted now and at T-24h)
+unassigned -- admin assigns (no overlapping match, D27) ---------------> referee assigned
+referee assigned -- referee declines before T-30 / admin removes -----> unassigned (admins alerted)
+T-30 go/no-go: players' conditions met but no active referee ----------> CANCELLED (NO_REFEREE, full refunds; D23 order)
+kickoff (scheduler) -----------------------------------------------------> IN_PROGRESS + permanent lineup record
+IN_PROGRESS / AWAITING_RESULT -- assigned referee records result -------> COMPLETED (finalSource REFEREE)
+AWAITING_RESULT -- no result 2h after end ------------------------------> admins alerted (D4)
+IN_PROGRESS / AWAITING_RESULT -- admin enters result (fresh MFA) -------> COMPLETED (finalSource ADMIN)
+COMPLETED -- admin corrects a clear recording error (reason, fresh MFA) -> COMPLETED (new revision)
 ```
 
-- Only a current HOME OWNER/CAPTAIN proposes or revises; only a current AWAY OWNER/CAPTAIN confirms or rejects.
-- Confirmation/rejection is scoped to the opposing side and uses first-commit-wins concurrency.
-- A rejection or 48-hour timeout opens a dispute; it must not silently finalize the proposal.
-- Administrative correction is append-only, reasoned, audited, and does not rewrite prior proposals or confirmations.
+- The referee's result is final (D5): outcome PLAYED / FORFEIT / ABANDONED, goals with scorer and optional assister from the lineup record, own goals credited to the side only, players who did not play. The first result written wins (unique result per match, Match row lock).
+- Captains (team side owner/captains; the host of a Quick Match) may send their own version from the scheduled end until 24h after (evidence for admins only) and report a problem within 24h of the final result. Results cannot be disputed.
+- Every version is a permanent `MatchResultRevision` (referee submission, admin entry, admin correction with its reason); admin actions are also in `AdminAuditLog`. Statistics are read from the current result, so corrections flow through.
+- Team lineups lock at kickoff. Reviews (DEC-017) open once the result is final.
 
 ## Approved target authorization matrix
 
@@ -170,9 +179,14 @@ DISPUTED -- authorized admin append-only resolution --> COMPLETED
 | Unmatched cancel (Gate 7) | Durable system job | "Teams only", side open 24h before kickoff | Idempotent; nothing owed |
 | Edit / cancel team match (Gate 7) | HOME OWNER/CAPTAIN only | Before T-30 | Cancel releases every hold and refunds individuals; audited |
 | Fill meter / change subs (Gate 7, TKT-709) | OWNER/CAPTAIN of that side | Side taken by a team, before T-30 | Team-wallet hold/release, idempotent |
-| Propose/revise Team result | HOME OWNER/CAPTAIN | `AWAITING_RESULT` / unconfirmed proposal | Revision appends and resets 48-hour timer |
-| Confirm/reject Team result | AWAY OWNER/CAPTAIN | Active proposal | First terminal response wins; persisted notifications |
-| Time out result | Durable system job | Proposal older than 48 hours | Idempotently creates/links dispute |
-| Resolve disputed result | MFA-verified Platform Admin through moderation surface | `DISPUTED` | Append-only correction, mandatory reason, audit |
+| Grant / remove referee role (Gate 8) | Platform Admin with fresh MFA | Active account (grant) | Written reason; permanent grant rows; audited; removal unassigns unfinished matches |
+| Assign / change / remove referee (Gate 8) | Platform Admin | Refereed match not cancelled/completed, before its end | Referee's User row lock; D27 overlap refused (`REFEREE_BUSY`); permanent history; referee notified |
+| Set default referee (Gate 8) | Platform Admin with fresh MFA | Any | Audited; used at publish when free |
+| Decline assignment (Gate 8) | The assigned referee | Before T-30 | Match unassigned; admins alerted |
+| Record final result (Gate 8) | The assigned active referee | `IN_PROGRESS`/`AWAITING_RESULT`, no result | Match row lock; first result wins; revision; notices to lineup and team members |
+| Send own version (Gate 8) | Side OWNER/CAPTAIN; Quick Match host | End of match to end + 24h | Permanent, latest used; never changes the result |
+| Report a problem (Gate 8) | Side OWNER/CAPTAIN; Quick Match host | Within 24h of the final result | One open report each; admin queue |
+| Enter / correct result (Gate 8) | Platform Admin with fresh MFA | Entry: started, no result. Correction: referee/admin result | Written reason; new revision; audited; notices |
+| Review opposing team (Gate 8, DEC-017) | Lineup player who played, not a member of the reviewed team | Final PLAYED/FORFEIT result | One per match; comment public after approval; author private |
 
 Implementation must define the stable error/event names from TKT-006 before exposing these target commands. Primary references reviewed: `apps/api/src/app.ts`, Match routes/services/repositories/mapper/scheduler, availability and lineup modules, chat and Team services, Prisma Match models/enums, and shared Match lifecycle/types.

@@ -317,6 +317,8 @@ async function cleanup() {
     await prisma.managedVenue.update({ where: { id: venueId }, data: { publicationStatus: 'DRAFT', submittedByUserId: null, submittedAt: null, approvedByUserId: null, approvedAt: null } });
     await prisma.managedVenue.delete({ where: { id: venueId } });
   }
+  // Gate 8: the retained paid match keeps its kickoff lineup record; drop the entries of the players removed here.
+  await prisma.matchLineupEntry.deleteMany({ where: { userId: { in: removableUserIds } } });
   await prisma.user.deleteMany({ where: { id: { in: removableUserIds } } });
   await referee.cleanup();
   assert((await prisma.match.count({ where: { id: { in: removableMatchIds } } })) === 0, 'Smoke matches remained.');

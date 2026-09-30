@@ -228,6 +228,8 @@ async function cleanup() {
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.matchPayment.deleteMany({ where: { userId: { in: players } } });
   await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: players } } } });
+  // Gate 8: the retained paid match keeps its kickoff lineup record; drop the entries of the players removed here.
+  await prisma.matchLineupEntry.deleteMany({ where: { userId: { in: players } } });
   await prisma.user.deleteMany({ where: { id: { in: players } } });
   await referee.cleanup();
   await fake.stop();

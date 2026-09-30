@@ -4,7 +4,7 @@ FOOTY FINDER PRODUCT REQUIREMENTS - IMPLEMENTATION TICKET BREAKDOWN
 Created: 2026-09-24
 Source audit: docs/PRODUCT_REQUIREMENTS_AUDIT_2026-09-24.md
 Source plan: docs/PRODUCT_REQUIREMENTS_IMPLEMENTATION_PLAN_2026-09-24.md
-Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29, Gate 6 (TKT-601 to TKT-609, in order, one commit per ticket) on 2026-09-29, and Gate 7 (TKT-701 to TKT-712, in order, one commit per ticket, under DEC-019) on 2026-09-29.
+Purpose: execution backlog. The default is one implementation ticket at a time. The user explicitly authorized Gate 1 and Gate 2 as batch implementations on 2026-09-25, Gate 3 on 2026-09-28, Gate 4 on 2026-09-28, Gate 5 on 2026-09-28 (implemented with one commit per ticket), the DEC-018 tickets TKT-311 to TKT-315 on 2026-09-29, Gate 6 (TKT-601 to TKT-609, in order, one commit per ticket) on 2026-09-29, Gate 7 (TKT-701 to TKT-712, in order, one commit per ticket, under DEC-019) on 2026-09-29, and the redesigned Gate 8 (TKT-801 to TKT-811, one commit per ticket, under DEC-020) on 2026-09-30.
 
 
 1. HOW TO USE THIS BACKLOG
@@ -277,6 +277,7 @@ Policy:
 - A final result changes only through an append-only reasoned admin revision in the dispute workflow; recompute projections idempotently.
 - Statistics count confirmed/admin-final results and adjudicated forfeits. Exclude cancelled and unresolved/disputed matches. A forfeit counts match/win/loss but does not infer goals/scorers.
 Blocks resolved by policy: TKT-801 through TKT-804 and TKT-211 semantics.
+Superseded by DEC-020 (2026-09-30): the HOME-proposes / AWAY-confirms model, the 48-hour confirmation deadline and the dispute path are not built. A FootyFinder referee records the final result; captains may only send their own version as evidence and report a problem within 24 hours; only an admin corrects a clear recording error. The statistics rule (final results only; cancelled excluded; forfeits count W/L without goals) carries over, with "final" meaning referee-final or admin-final.
 
 DEC-017 - Team review policy
 Status: APPROVED - POLICY RECORDED (2026-09-24)
@@ -289,6 +290,7 @@ Policy:
 - Record rating immediately; optional text remains non-public until automated/moderator approval. Hidden/reported/deleted reviews do not affect public output.
 - Display a simple arithmetic average and visible-review count only after three eligible visible reviews; otherwise display "Not enough reviews."
 Blocks resolved by policy: TKT-805 through TKT-807.
+Confirmed by DEC-020 (2026-09-30): reviews open when the referee's (or an admin's) result is final; eligibility per D24 (players in the kickoff lineup record who played, reviewing the opposing team; played or forfeited matches only). Implemented as TKT-809 and TKT-810 in the rewritten Gate 8.
 
 DEC-018 - Fixed R80 fee, hidden venue costs, no host guarantee, and T-30 go/no-go
 Status: APPROVED - CEO DECISION (Sibu), 2026-09-29. IMPLEMENTED AS TKT-311 TO TKT-315 (see section 9A).
@@ -481,6 +483,50 @@ Approved defaults (D1-D8, D11 as recommended; D12 and D13 as changed in F; D9 re
 - D12 (as changed in F). Publishing checks (does not hold) HOME's available team-wallet balance >= HOME's fee; at most 2 published matches per team waiting for an opponent (N6: a side counts as taken when a team loaded it, or every starting position of an individuals side is claimed).
 - D13 (as changed in F). Terms of Service v2.3, material, reacceptance required.
 
+DEC-020 - FootyFinder referee on every match; the referee's result is final
+Status: APPROVED - CEO DECISION (Sibu), 2026-09-30. IMPLEMENTED AS TKT-801 TO TKT-811 (see section 12).
+Replaces: DEC-016 (captain propose/confirm). Confirms DEC-017 (team reviews), triggered when the referee's result is final.
+CEO decision (verbatim):
+"CEO DECISION (Sibu): Gate 8 is being redesigned. Every match (quick and team) must have a FootyFinder referee. The referee records the final score, goal scorers and assisters, and the referee's result is final. Captains may optionally submit a score and scorers too, but these never override the referee. This replaces DEC-016's captain propose/confirm model. Record it as DEC-020 in the ticket breakdown, rewrite the Gate 8 tickets to match, and keep DEC-017 (team reviews) but trigger reviews when the referee's result is final."
+Decisions already made (verbatim):
+- D1 Referees on all matches, quick and team.
+- D2 No referee assigned by T-30 means auto-cancel and wallet refunds, using the existing go/no-go path. Admins are alerted at kickoff -24h if no referee is assigned.
+- D3 If the referee doesn't show up or doesn't submit, an admin enters the result from the admin dashboard, using captain submissions as evidence.
+- D4 The referee must submit within 2 hours of match end; after that, admins are alerted.
+- D5 The referee's result is final. Only an admin can correct a clear recording error, with a written reason, as an append-only audited revision. Stats are recomputed idempotently.
+- D6 Captains can't dispute the result. They can send a "report a problem" within 24h, which goes to an admin queue.
+- D7 Own goals are supported; they count for the team, not a player.
+- D8 Referee pay is NOT built into the platform. The CEO pays referees manually. Don't add referee payables, bank details or settlement. The admin dashboard only needs a report: matches refereed per referee for a chosen date range (count and list of matches, no money).
+- D9 No conflict-of-interest rule for referees, and rating referees is out of scope.
+Design (verbatim): Referee is a role an admin grants or revokes on a normal user account (audited). Referees use a mobile-friendly Referee view in the main web app (assigned matches, lineups, result form with scorers/assisters picked from the match's actual lineup). Admin dashboard: referee list, assignment per match, "unassigned matches" view, results queue (referee vs captain submissions with mismatch flags), admin result entry for no-shows, corrections with reasons, problem-report queue, matches-refereed report (D8). Stats (goals, assists, matches played, W/D/L) count only referee-final or admin-final results; exclude cancelled matches.
+Further decisions D10-D26 (approved as written on 2026-09-30, "Everything else D10-D26 is approved as written"):
+- D10 Who submits the "captain" version? Team matches: the owner/captains of each team side. Quick Matches: the host. Individuals' side of an "Open to both" match: no one (it has no captain).
+- D11 When can captains submit? From the end of the match until 24h after the match ends. They may resubmit; the latest submission is used, and earlier ones are kept. Submissions are hidden from the other side and from players, and only admins see them.
+- D12 When can the referee submit? From kickoff (in case a game ends early) until an admin enters the result. The 2h alert doesn't lock the referee out. Once final, only an admin can change it.
+- D13 What outcomes can the referee record? Played (score and goals); Forfeit (a side didn't turn up; winner recorded, no goals; counts as a W/L); Abandoned (no result; excluded from stats, no reviews). No money changes for any outcome. Fees stay as today once a match has kicked off.
+- D14 Should the referee mark players who didn't turn up? Yes, for stats only. On the result form every lineup player is ticked "played" by default, and the referee can untick a player who didn't play. Unticked players get no "match played" and can't review. No penalties or no-show charges come from this (that would be a new legal commitment).
+- D15 Do subs count as "played"? Yes, if they are in the kickoff lineup and not unticked by the referee.
+- D16 Can a referee decline an assignment? Yes, from their Referee view until T-30. The match goes back to "Unassigned" and admins are alerted immediately. Referees can't pick matches themselves.
+- D17 (REVERSED by the CEO, see below) Can the referee also be a player in the same match? As proposed: No. D9's "no conflict rule" stays, but you can't referee and play at once. Assigning someone who is in the lineup is refused, and a referee can't join a match they referee.
+- D18 What do players see about the referee? The referee's display name on the match page once assigned. Referees see players' display names, positions and sides only: no contact details, no money, no venue costs.
+- D19 Notifications. Referee assigned, changed or removed: in-app and email to the referee. Result final or corrected: in-app only, to everyone in the lineup record and the teams' members. Admin alerts: in-app and email to all admins. Problem report resolved: in-app only to the reporter.
+- D20 Old self-reported results (before Gate 8). They are kept as they are, and still count in stats as today. Matches that haven't reached T-30 when Gate 8 ships need a referee (we're pre-launch, so there's no grandfathering).
+- D21 The old "Dispute result" feature. Players can no longer open new result disputes; "Report a problem" replaces them. Existing open result disputes stay in the admin queue until closed. Booking disputes are unchanged.
+- D22 Does an open problem report hide the result from stats? No. The referee's result is final (D5). Stats change only if an admin corrects the result.
+- D23 Which reason is given when several go/no-go checks fail? The players' own reason first (positions unfilled or team fees unfunded). "No referee" is given only when that was the sole problem. The refunds are identical either way.
+- D24 Who can write team reviews (DEC-017)? Players in the kickoff lineup record who played (D14), reviewing the opposing team, once the result is final and the outcome was Played or Forfeit. The individuals' side of an "Open to both" match can review the HOME team. HOME can't review individuals, because there's no team to review. The 7-day edit window starts from the final result.
+- D25 Admin safety. Granting or removing a referee, admin result entry and corrections all need a fresh MFA check (15 min), a written reason for entries and corrections, and an audit log entry.
+- D26 ToS v2.4 materiality. Material, re-acceptance required, with at least 14 days' notice (clause 26.2). It adds a new condition for a match going ahead (a referee), a new cancellation reason, final results, stats on profiles, and referees seeing player names.
+CEO changes on approval (verbatim, 2026-09-30):
+- "D17 REVERSED: a referee CAN play in a match they are refereeing. Don't block assigning a referee who is in the lineup, and don't block a referee from joining a match they referee. The CEO will often fill in as a player and referee the same game. Their goals and assists count in stats like any other player's. Show a small "Referee also played" flag in the admin results queue (admin-only, for the record); it doesn't change anything else."
+- "D27 Referee double-booking: a referee can't be assigned to two matches whose times overlap (kickoff to scheduled end, plus a 30-minute travel buffer). If an assignment would overlap, it's refused. The admin panel should show that the referee is busy. Playing in the same match they referee is not a clash (D17)."
+- "D28 Default referee: admins can set one default referee in the admin dashboard (audited, fresh MFA). When a match is published, it's automatically assigned to the default referee if they're free (D27). If they're busy or no default is set, the match goes to "Unassigned" and admins are alerted immediately, as well as at kickoff -24h. Admins can still change or remove the referee manually. Put D27 and D28 in TKT-802 and add them to smoke:referees, including a smoke case where the referee is also in the lineup."
+- "Everything else D10-D26 is approved as written. Record D1-D28 word for word in DEC-020."
+Implementation notes:
+- "Every match" means every match with a T-30 go/no-go (DEC-018 Quick Matches, admin-loaded matches and DEC-019 team matches); legacy matches without a go/no-go never had one.
+- A match "counts as refereed" for the D8 report when the referee submitted its result (their REFEREE_SUBMISSION revision is permanent, so a later admin correction does not remove it).
+- The Terms were updated to v2.4 (material) in the same work: see section 12 and docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md.
+
 
 3A. CROSS-CUTTING APPROVED PRODUCT/UX RULES
 ============================================
@@ -493,13 +539,13 @@ Approved defaults (D1-D8, D11 as recommended; D12 and D13 as changed in F; D9 re
 - Canonical URLs: immutable opaque public-match slug; frozen human-readable venue slug with permanent redirect aliases when needed; UUIDs/private tokens are not public canonical identifiers.
 - Sharing/QR: canonical URLs only, with no user referral identifier or campaign tracking in the initial implementation.
 - Public-share E2E funding: use the environment-gated demo-deposit API with unique idempotency keys and disposable cleanup; do not write browser-test balances directly.
-- Operational email: send email only for challenge received/accepted/expiring, result confirmation/dispute, payment/refund failure, and account-security events. Chat never sends email.
+- Operational email: send email only for challenge received/accepted/expiring, result confirmation/dispute, payment/refund failure, and account-security events. Chat never sends email. (DEC-020 / D19: referee assignment and removal emails go to the referee, and no-referee and overdue-result alerts to admins; results themselves are in-app only.)
 - Alert owner: Platform Operations. Page payment/security/reconciliation failures immediately; review ordinary product-flow alerts daily.
 - Friendship: authenticated minimal-card search by username/name/city, preferences/rate limits, one pending request per pair, 30-day expiry, 20 new requests/day, 100 pending outgoing maximum, and an option to disable incoming requests.
 - Blocking: bilateral discovery/social invisibility and no requests/DMs/targeted invites/notifications. Shared teams/matches keep only the operational identity required by roster/lineup/result; blocking does not silently remove either user.
 - Team chat: one permanent team-owned conversation. Current members can read/send retained history; removed members immediately lose all access. Generate one first-unread in-app notification, suppress self/duplicates until read, and do not email chat.
 - Advanced escrow: TKT-906 is approved only after Gate 7 reconciliation is proven. Use refundable personal-wallet holds toward a team target, reject overfunding, advance only when both targets fund before expiry, capture successful obligations, and release on expiry/cancellation except approved charges.
-- Advanced player statistics: TKT-907 remains deferred; do not add attendance, assists, POTM, player ratings, or captaincy history without a new metric/capture/correction decision.
+- Advanced player statistics: TKT-907 remains deferred for attendance, POTM, player ratings and captaincy history. Assists moved into Gate 8 under DEC-020 (recorded by the referee, corrected only by an admin).
 
 
 3B. IMPLEMENTATION READINESS AFTER DECISIONS
@@ -516,6 +562,7 @@ Approved defaults (D1-D8, D11 as recommended; D12 and D13 as changed in F; D9 re
 - DEC-018 (fixed R80 fee, hidden venue costs, no host guarantee, T-30 go/no-go) was implemented on 2026-09-29 as TKT-311 to TKT-315 with additive migration `20260930100000_fixed_fee_go_no_go`, verified locally on footy_finder_test. See section 9A and `docs/DEC_018_FIXED_FEE_GO_NO_GO_RUNBOOK_2026-09-29.md`.
 - Gate 6 (TKT-601 to TKT-609) was implemented on 2026-09-29, one commit per ticket, with six additive migrations (20261002100000 to 20261002150000), verified locally (footy_finder reset and footy_finder_test deploy, all 35 migrations) plus a real Paystack TEST API check. Production release still needs live Paystack credentials/webhook, approved venue bank details (DEC-005/TKT-302) and the production encryption key. See section 10 and `docs/GATE_6_PAYMENTS_SETTLEMENT_RUNBOOK_2026-09-29.md`.
 - Gate 7 (TKT-701 to TKT-712) was implemented on 2026-09-29 under DEC-019, one commit per ticket, with eight additive migrations (20261003100000 to 20261003170000), verified locally (footy_finder reset and footy_finder_test deploy, all 43 migrations; 17 smokes; 4 Playwright journeys). Production release still needs Terms v2.3 published with legal:publish (material, reacceptance required) and the Gate 6 production items. See section 11 and `docs/GATE_7_TEAM_MATCHES_RUNBOOK_2026-09-29.md`.
+- Gate 8 was redesigned under DEC-020 and implemented on 2026-09-30 (TKT-801 to TKT-811), one commit per ticket, with nine additive migrations (20261004100000 to 20261004180000), verified locally (footy_finder reset and footy_finder_test deploy, all 52 migrations; smoke:all; Playwright journeys). Production release still needs Terms v2.4 published with legal:publish (material, reacceptance required, at least 14 days' notice), the first referees granted and a default referee set, and the Gate 6/7 production items. See section 12 and `docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md`.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
@@ -1669,80 +1716,116 @@ Acceptance: Journey passes with role/privacy/financial assertions and reconcilia
 Not in scope: result confirmation.
 
 
-12. GATE 8 - RESULTS AND REVIEWS
-=================================
+12. GATE 8 - REFEREES, RESULTS AND REVIEWS (DEC-020)
+====================================================
 
-TKT-801 - Add result proposal/confirmation persistence
-Depends on: DEC-016, TKT-708
-Risk: High
-Scope:
-- Add proposal/pending-confirmation/rejected/disputed/finalization facts without rewriting existing final results.
-- Store actors, HOME/AWAY sides, timestamps, a 48-hour confirmation deadline, revisions, scorers, and finalization source.
-- Replacing a pending proposal creates a revision and restarts the deadline.
-Acceptance: Existing results remain final; new team result can be pending without completing match.
-Tests: migration and state-transition invariants.
-Not in scope: endpoints/UI.
+Rewritten on 2026-09-30 for DEC-020 (FootyFinder referee on every match; the referee's result is final), replacing the DEC-016 propose/confirm tickets TKT-801 to TKT-807. Implemented on 2026-09-30, in order, one commit per ticket, with nine additive migrations (20261004100000 to 20261004180000). Terms of Service v2.4 (material) updated in the same work. See docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md.
 
-TKT-802 - Implement result propose/confirm/reject commands
+TKT-801 - Referee role
+Status: VERIFIED LOCALLY - COMMIT d362ee9 (2026-09-30)
+Depends on: DEC-020
+Risk: Medium
+Implemented:
+- RefereeGrant (permanent rows; one active grant per user; revoke-once trigger) plus AdminAuditLog entries REFEREE_GRANTED / REFEREE_REVOKED with a written reason; grant and revoke need a fresh MFA check (D25).
+- /users/me reports isReferee; admin Referees page with an inline MFA re-check.
+Acceptance: Only admins manage the role; history is kept; a restricted account cannot be made a referee.
+Tests: shared schema tests; smoke:referees.
+
+TKT-802 - Referee assignment, default referee and the T-30 referee rule
+Status: VERIFIED LOCALLY - COMMIT 230b1d1 (2026-09-30)
 Depends on: TKT-801
 Risk: High
-Scope:
-- Allow HOME owner/active captain to propose and AWAY owner/active captain to confirm or reject within 48 hours.
-- Deterministic concurrency and scorer/score validation.
-- Finalize scorers with the result without individual scorer confirmation; notify after commit using the approved in-app/operational-email policy.
-Acceptance: Host cannot self-confirm as opponent; wrong roles cannot act; finalization occurs once.
-Tests: role/state/concurrency/notification tests.
-Not in scope: UI or admin dispute changes.
+Implemented:
+- Match.refereeUserId, permanent MatchRefereeAssignment history, single-row RefereeSettings (default referee, D28, fresh MFA, audited).
+- Publishing (Quick Match, admin-loaded, team match) auto-assigns the default referee when free; otherwise admins are alerted at once (in-app and email) and again at kickoff -24h (D2, D28).
+- D27 overlap rule (kickoff to scheduled end plus 30 minutes' travel) under a lock on the referee's User row; the admin panel shows busy referees and the clash. D17 reversed: a referee may also play.
+- Referee decline until T-30 (D16); admin removal with a reason (audited); revoking the role unassigns unfinished matches and clears the default.
+- Quick and team go/no-go need an active referee; new cancellation reason NO_REFEREE with full refunds; reason order per D23. Players see the referee's display name (D18).
+- Admin Match referees page and dashboard count; smokes that expect a confirmed match assign a fixture referee.
+Acceptance: No match goes ahead without an active referee; no double booking; every change is recorded.
+Tests: shared overlap unit tests; smoke:referees; smoke:team-go-no-go (team NO_REFEREE case); go-no-go and settlement smokes updated.
 
-TKT-803 - Add result confirmation UI
+TKT-803 - Kickoff lineup record
+Status: VERIFIED LOCALLY - COMMIT 2ff2ba8 (2026-09-30)
 Depends on: TKT-802
-Risk: Medium
-Scope:
-- Add proposal, pending confirmation, confirm/reject/correction states for correct captains.
-- Show ordinary players read-only status.
-Acceptance: UI exposes only role-appropriate actions and refreshes through realtime/notifications.
-Tests: components, API client, socket update behavior.
-Not in scope: reviews.
+Risk: High
+Implemented:
+- MatchLineupEntry written once in the kickoff transaction: joined participants (position holders start) and team selections (starters and substitutes), display-name snapshots; permanent except didNotPlay (trigger).
+- Team lineups lock from kickoff (LINEUP_LOCKED); reading stays allowed.
+Acceptance: The referee, stats and reviews all use the same record of who was there.
+Tests: lineup-record unit tests; smoke:referee-results; smoke:team-go-no-go.
 
-TKT-804 - Integrate result timeout/disagreement with disputes and statistics
+TKT-804 - Referee final result (API)
+Status: VERIFIED LOCALLY - COMMIT 6984b28 (2026-09-30)
 Depends on: TKT-803
 Risk: High
-Scope:
-- Open/admin-escalate the dispute path on rejection or 48-hour timeout; never silently finalize.
-- Permit a final result to change only through an append-only, reasoned admin revision in the dispute workflow.
-- Recompute statistics idempotently from confirmed/admin-final results and adjudicated forfeits; exclude cancelled and unresolved/disputed matches and never infer forfeit goals/scorers.
-Acceptance: Disagreement never silently finalizes and approved admin resolution finalizes once.
-Tests: durable job, dispute/revision, stats invalidation, notification dedupe.
-Not in scope: ratings/reviews.
+Implemented:
+- POST /referee/matches/:id/result: outcome PLAYED/FORFEIT/ABANDONED (D13), goals with scorer/assister from the lineup record, own goals (D7), did-not-play (D14); shared validateMatchResult; first submission wins.
+- MatchResult.finalSource (LEGACY/REFEREE/ADMIN), MatchGoal, revision history with author and outcome; match COMPLETED; in-app notices (D19).
+- Result-overdue job at end + 2h alerts admins (D4). Host/captain self-report refused on refereed matches.
+Acceptance: Only the assigned active referee records the result, from kickoff, once; it is final.
+Tests: shared validation tests; smoke:referee-results (including a submission race).
 
-TKT-805 - Add team review/rating persistence and service
-Depends on: DEC-017, TKT-804
-Risk: High
-Scope:
-- Add private author, target team, match, rating 1-5, optional text, visibility/moderation, edit deadline, timestamps, and uniqueness.
-- Snapshot roster eligibility at finalization and enforce one review per participant/match, an opposing-team target, and a seven-day author edit window.
-- Support author deletion according to the approved retention/audit policy.
-Acceptance: No duplicate/self/unrelated/pre-finalization review.
-Tests: migration, service, authorization, rating boundaries, moderation state.
-Not in scope: UI.
+TKT-805 - Referee view (web)
+Status: VERIFIED LOCALLY - COMMIT 0738b6a (2026-09-30)
+Depends on: TKT-804
+Risk: Medium
+Implemented:
+- GET /referee/matches and /referee/matches/:id (own matches, lineups, no contact/payment/venue-cost data).
+- Referee tab, match page with lineups and decline, and a phone-friendly result form with a "this result is final" confirm step.
+Tests: result-draft and form component tests; smoke:referee-results (view privacy and access).
 
-TKT-806 - Add review UI, team review section, and moderation
+TKT-806 - Captain versions, "Report a problem", retire result disputes
+Status: VERIFIED LOCALLY - COMMIT 3a1e3f2 (2026-09-30)
 Depends on: TKT-805
 Risk: Medium
-Scope:
-- Add create/edit form, anonymous public team list/summary, report/moderation/delete controls, and approved notifications.
-- Record the rating immediately but keep optional text non-public until automated/moderator approval; exclude hidden/reported/deleted reviews from public output.
-- Show arithmetic average and visible-review count only at three eligible visible reviews; otherwise show "Not enough reviews."
-Acceptance: Public output never identifies the author and only eligible visible reviews affect display/aggregate.
-Tests: components, API client, admin moderation, aggregation.
-Not in scope: social friends.
+Implemented:
+- Captain/host own version (D10, D11): permanent CaptainResultSubmission, latest used, sender and admins only; never changes the result.
+- Report a problem within 24h of the final result (D6), one open report each; new result disputes refused (D21).
+- Match page result panel (final result, scorers, assists, own goals; own version; report); the Dispute result link removed.
+Tests: shared captain-validation tests; MatchResultPanel tests; smoke:referee-results; smoke:team-go-no-go (team captains).
 
-TKT-807 - Add team result/review E2E
+TKT-807 - Admin results operations
+Status: VERIFIED LOCALLY - COMMIT 7d2f53d (2026-09-30)
 Depends on: TKT-806
+Risk: High
+Implemented:
+- Results queue (awaiting with overdue flag; recent), captain versions with mismatch flags, admin-only "Referee also played".
+- Admin entry (D3) and correction (D5) with a written reason and fresh MFA (D25), audited, new revisions, notices.
+- Problem-report queue with resolution notices (D6); matches-refereed report by date range, no money (D8); dashboard counts.
+Tests: api-client contract tests; smoke:referee-results (HTTP, MFA, audit, history, report).
+
+TKT-808 - Player statistics v2
+Status: VERIFIED LOCALLY - COMMIT 42e9123 (2026-09-30)
+Depends on: TKT-807
 Risk: Medium
-Scope: Host proposes -> opponent confirms -> eligible review -> duplicate rejected -> public team section reflects moderation policy.
-Acceptance: Entire journey passes and stats/notifications update once.
-Not in scope: advanced player statistics.
+Implemented:
+- Matches played, W/D/L, goals and assists from referee-final or admin-final results via the lineup record (team players included); did-not-play, cancelled and abandoned excluded; own goals credit nobody; pre-Gate-8 results unchanged (D20); recalculated on every read.
+Tests: statistics unit tests; smoke:referee-results (corrections flow through).
+
+TKT-809 - Team reviews (API)
+Status: VERIFIED LOCALLY - COMMIT c05bb55 (2026-09-30)
+Depends on: TKT-804, DEC-017
+Risk: High
+Implemented:
+- TeamReview: one 1-5 rating plus optional text per player per match (D24 eligibility), private author, comments public only after approval, 7-day edits from the final result, author deletion kept as DELETED, reports by team members, admin approve/reject/hide/restore (audited); public summary only with 3 or more reviews that count.
+Tests: shared schema tests; api-client tests; smoke:team-reviews.
+
+TKT-810 - Review UI and moderation
+Status: VERIFIED LOCALLY - COMMIT 62b0e54 (2026-09-30)
+Depends on: TKT-809
+Risk: Medium
+Implemented:
+- Rate-the-opposing-team panel on quick and team match pages; team page Reviews section ("Not enough reviews." under three); admin Team reviews page.
+Tests: component tests.
+
+TKT-811 - Referee journey E2E, documentation and runbook
+Status: VERIFIED LOCALLY (2026-09-30) - see the commit recording Gate 8
+Depends on: TKT-810
+Risk: Medium
+Implemented:
+- e2e/referee-results.spec.ts: admin grants the role and assigns the referee -> an "Open to both" team match -> players join -> the real scheduler kicks off and records the lineup -> the home captain sends a version -> the referee records the final result -> stats -> a player reviews the home team -> the captain reports a problem -> the admin corrects the result; no venue cost in any browser response.
+- DEC-020 and this section; docs/MATCH_STATE_AND_AUTHORIZATION.md rewritten for the referee model; docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md.
 
 
 13. GATE 9 - SOCIAL, QR, AND LATER WORK
@@ -1814,10 +1897,10 @@ Not in scope: changing the minimum Gate 7 funded-acceptance behavior unless requ
 
 TKT-907 - Add advanced player statistics capture
 Status: DEFERRED - NOT APPROVED FOR IMPLEMENTATION (2026-09-24)
-Depends on: new approved metric/capture/correction decision, TKT-804, TKT-806
+Depends on: new approved metric/capture/correction decision, TKT-804, TKT-808
 Risk: High
 Scope:
-- Do not implement until a new decision defines authoritative capture/correction for attendance, assists, POTM, player ratings, and captaincy history.
+- Do not implement until a new decision defines authoritative capture/correction for attendance, POTM, player ratings, and captaincy history. (Assists were moved into Gate 8 by DEC-020 and are done.)
 - Integrate privacy/disputes/stat projections.
 Acceptance: Each displayed metric has a persisted authoritative fact and correction path.
 Tests: capture authorization, revisions, disputes, projections.
@@ -1857,8 +1940,8 @@ TKT-601 -> TKT-602 -> TKT-603 -> TKT-604 -> TKT-605 -> TKT-606 -> TKT-607 -> TKT
 Team competition:
 TKT-701 -> TKT-702 -> TKT-703 -> TKT-704 -> TKT-705 -> TKT-706 -> TKT-707 -> TKT-708 -> TKT-709 -> TKT-710 -> TKT-711 -> TKT-712
 
-Results/reviews:
-TKT-801 -> TKT-802 -> TKT-803 -> TKT-804 -> TKT-805 -> TKT-806 -> TKT-807
+Results/reviews (DEC-020):
+TKT-801 -> TKT-802 -> TKT-803 -> TKT-804 -> TKT-805 -> TKT-806 -> TKT-807 -> TKT-808 -> TKT-809 -> TKT-810 -> TKT-811
 
 Social/QR:
 TKT-901 -> TKT-902 -> TKT-903 -> TKT-904 -> TKT-905
@@ -1877,7 +1960,7 @@ Important cross-stream dependencies:
 - TKT-506 needs the public acquisition E2E and stabilized formation path.
 - TKT-704 needs managed venue match creation.
 - TKT-701 begins only after personal finance/reconciliation patterns are proven.
-- TKT-801 begins only after side-scoped team captain roles exist.
+- TKT-801 begins only after side-scoped team captain roles exist (done in Gate 7); Gate 8 follows DEC-020.
 - TKT-905 begins only after canonical public URLs are stable.
 - TKT-201/TKT-302/TKT-607 and production Postmark/Paystack verification require the external inputs listed in section 3B.
 - TKT-906 begins only after the full Gate 7 E2E and reconciliation are proven; TKT-907 requires a new decision and remains excluded.
