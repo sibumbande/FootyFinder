@@ -47,6 +47,8 @@ import type {
   PrepareSettlementInput,
   SettlementBatchStatus,
   VenueBankDetails,
+  AdminReferee,
+  RefereeRoleChangeInput,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -55,6 +57,12 @@ const id = encodeURIComponent;
 
 export const adminApi = (client: ApiClient) => ({
   operationsSummary: () => client.request<{ data: OperationsSummary }>('/admin/operations/summary'),
+  // Gate 8 / TKT-801 (DEC-020): the referee role. Grant and revoke need a fresh MFA check.
+  referees: () => client.request<{ data: AdminReferee[] }>('/admin/referees'),
+  grantReferee: (userId: string, input: RefereeRoleChangeInput) =>
+    client.request<{ data: AdminReferee }>(`/admin/referees/${id(userId)}`, post(input)),
+  revokeReferee: (userId: string, input: RefereeRoleChangeInput) =>
+    client.request<{ data: { userId: string; revoked: true } }>(`/admin/referees/${id(userId)}/revoke`, post(input)),
   // Gate 6 / TKT-607-608: venue bank details, payables and the weekly dual-control queue.
   venueBeneficiaries: (venueId: string) =>
     client.request<{ data: AdminVenueBeneficiary[] }>(`/admin/venues/${id(venueId)}/beneficiaries`),

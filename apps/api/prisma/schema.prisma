@@ -484,6 +484,9 @@ model User {
   teamMatchAuditActions     TeamMatchAuditEvent[]
   teamMessages              TeamMessage[]
   teamChatReadStates        TeamChatReadState[]
+  refereeGrants             RefereeGrant[]            @relation("RefereeGrantee")
+  grantedRefereeRoles       RefereeGrant[]            @relation("RefereeGrantor")
+  revokedRefereeRoles       RefereeGrant[]            @relation("RefereeRevoker")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -528,6 +531,24 @@ model AdminAuditLog {
   @@index([createdAt])
   @@index([actorUserId, createdAt])
   @@index([entityType, entityId, createdAt])
+}
+
+/// Gate 8 / TKT-801 (DEC-020): the referee role, granted and revoked by admins. Rows are permanent;
+/// revoking stamps revokedAt once (DB trigger). At most one active grant per user (partial unique index).
+model RefereeGrant {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  grantedById  String?   @db.Uuid
+  grantReason  String
+  grantedAt    DateTime  @default(now())
+  revokedById  String?   @db.Uuid
+  revokeReason String?
+  revokedAt    DateTime?
+  user         User      @relation("RefereeGrantee", fields: [userId], references: [id], onDelete: Restrict)
+  grantedBy    User?     @relation("RefereeGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
+  revokedBy    User?     @relation("RefereeRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([userId, grantedAt])
 }
 
 model ModerationReport {

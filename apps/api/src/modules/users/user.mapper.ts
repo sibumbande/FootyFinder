@@ -7,6 +7,8 @@ type SafeUserSource = {
   username: string;
   accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
   platformRole?: 'USER' | 'ADMIN';
+  /** Active referee grants only (safeUserInclude filters revokedAt null). */
+  refereeGrants?: Array<{ id: string }>;
   emailVerifiedAt?: Date | null;
   emailVerificationRequired?: boolean;
   onboardingCompletedAt?: Date | null;
@@ -96,6 +98,7 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
     currency: user.walletAccount?.currency === 'ZAR' ? 'ZAR' : 'ZAR',
     accountStatus: user.accountStatus ?? 'ACTIVE',
     platformRole: user.platformRole ?? 'USER',
+    isReferee: Boolean(user.refereeGrants?.length),
     emailVerified: Boolean(user.emailVerifiedAt),
     emailVerificationRequired: user.emailVerificationRequired ?? true,
     onboardingStatus: profile?.onboardingStatus ?? 'NOT_STARTED',

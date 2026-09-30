@@ -11,6 +11,7 @@ import { SettlementsPage } from './SettlementsPage.js';
 import { MatchLoadingPage } from './MatchLoadingPage.js';
 import { ModerationPage } from './ModerationPage.js';
 import { DisputesPage } from './DisputesPage.js';
+import { RefereesPage } from './RefereesPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -320,6 +321,7 @@ function AdminShell() {
           <NavLink to="/matches">Load Matches</NavLink>
           <NavLink to="/moderation">Moderation</NavLink>
           <NavLink to="/disputes">Disputes</NavLink>
+          <NavLink to="/referees">Referees</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -337,6 +339,7 @@ function AdminShell() {
           <Route path="matches" element={<MatchLoadingPage />} />
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="disputes" element={<DisputesPage />} />
+          <Route path="referees" element={<RefereesPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

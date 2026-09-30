@@ -7,6 +7,7 @@ import * as disputes from '../disputes/disputes.controller.js';
 import * as finance from '../payments/admin-finance.controller.js';
 import * as settlement from '../settlement/venue-settlement.controller.js';
 import * as settlementBatches from '../settlement/settlement-batches.controller.js';
+import * as referees from '../referees/referees.admin.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -123,3 +124,7 @@ adminRouter.get('/disputes', disputes.listAdmin);
 adminRouter.get('/disputes/:disputeId', disputes.getAdmin);
 adminRouter.put('/disputes/:disputeId/review', costlyMutationRateLimit, disputes.review);
 adminRouter.post('/disputes/:disputeId/resolve', costlyMutationRateLimit, disputes.resolve);
+// Gate 8 / TKT-801 (DEC-020): the referee role. Granting and removing need fresh MFA (D25).
+adminRouter.get('/referees', referees.listReferees);
+adminRouter.post('/referees/:userId', costlyMutationRateLimit, requireRecentAdminMfa, referees.grantReferee);
+adminRouter.post('/referees/:userId/revoke', costlyMutationRateLimit, requireRecentAdminMfa, referees.revokeReferee);

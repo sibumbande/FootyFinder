@@ -33,6 +33,20 @@ describe('adminApi', () => {
     expect(request.mock.calls[2]![1]).toMatchObject({ method: 'POST' });
   });
 
+  it('uses the Gate 8 referee role contracts', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.referees();
+    await api.grantReferee('user-id', { reason: 'Qualified referee' });
+    await api.revokeReferee('user-id', { reason: 'Stepped down' });
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/referees',
+      '/admin/referees/user-id',
+      '/admin/referees/user-id/revoke',
+    ]);
+    expect(request.mock.calls[1]![1]).toMatchObject({ method: 'POST', body: JSON.stringify({ reason: 'Qualified referee' }) });
+  });
+
   it('uses distinct pre-MFA and privileged Admin routes', async () => {
     const request = vi.fn().mockResolvedValue({ data: {} });
     const api = adminApi({ request } as unknown as ApiClient);

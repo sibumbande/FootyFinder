@@ -10,6 +10,8 @@ export const safeUserInclude = {
     },
   },
   walletAccount: true,
+  // Gate 8 / TKT-801: whether the account currently holds the referee role.
+  refereeGrants: { where: { revokedAt: null }, select: { id: true }, take: 1 },
   teamMemberships: {
     include: { team: true },
     orderBy: { joinedAt: 'asc' as const },
