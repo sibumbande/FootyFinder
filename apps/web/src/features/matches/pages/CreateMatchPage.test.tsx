@@ -92,7 +92,7 @@ describe('CreateMatchPage', () => {
       </MemoryRouter>,
     );
     const expected =
-      "Heads up: if every position isn't filled 30 minutes before kickoff (13:30), this match is cancelled automatically and every player gets their R80 refunded to their wallet.";
+      "Heads up: this match goes ahead only if every position is filled and a FootyFinder referee is assigned 30 minutes before kickoff (13:30). If not, it's cancelled automatically and every player gets their R80 refunded to their wallet.";
     for (let step = 0; step < 3; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.change(screen.getByLabelText('Match name'), { target: { value: 'Friday football' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));

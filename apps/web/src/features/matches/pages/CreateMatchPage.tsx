@@ -29,7 +29,10 @@ import { useCreateMatch } from '../hooks/useMatches.js';
 import { useVenue } from '@/features/venues/hooks/useVenues.js';
 import { formatClock, rands } from '../utils/go-no-go-format.js';
 
-/** DEC-018: tell the host, before they confirm, that an unfilled match is cancelled at T-30. */
+/**
+ * DEC-018 / DEC-020: tell the host, before they confirm, that a match without every position filled
+ * and a FootyFinder referee assigned is cancelled at T-30.
+ */
 function GoNoGoNotice({ startsAt }: { startsAt: string }) {
   if (!startsAt || Number.isNaN(new Date(startsAt).getTime())) return null;
   return (
@@ -37,9 +40,10 @@ function GoNoGoNotice({ startsAt }: { startsAt: string }) {
       data-testid="go-no-go-notice"
       className="rounded-2xl border border-warning-300 bg-warning-50 p-4 text-sm font-semibold text-content"
     >
-      Heads up: if every position isn&apos;t filled 30 minutes before kickoff (
-      {formatClock(getGoNoGoAt(startsAt).toISOString())}), this match is cancelled automatically and
-      every player gets their {rands(MATCH_FEE_CENTS)} refunded to their wallet.
+      Heads up: this match goes ahead only if every position is filled and a FootyFinder referee is
+      assigned 30 minutes before kickoff ({formatClock(getGoNoGoAt(startsAt).toISOString())}). If not,
+      it&apos;s cancelled automatically and every player gets their {rands(MATCH_FEE_CENTS)} refunded
+      to their wallet.
     </p>
   );
 }

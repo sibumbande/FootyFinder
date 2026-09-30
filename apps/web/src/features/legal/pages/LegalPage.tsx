@@ -28,8 +28,8 @@ export function LegalPage() {
             <p className="mt-2 text-sm text-content-muted">Effective {new Date(current.effectiveAt).toLocaleDateString()}</p>
             <div className="mt-7 whitespace-pre-wrap leading-7 text-content">{current.content}</div>
           </> : <>
-            <h1 className="text-3xl font-black text-content-strong">Approved content pending</h1>
-            <p className="mt-4 leading-7 text-content-muted">This document has not been published because counsel-approved wording and company facts have not yet been supplied. Footy Finder does not substitute placeholder legal text.</p>
+            <h1 className="text-3xl font-black text-content-strong">Not published yet</h1>
+            <p className="mt-4 leading-7 text-content-muted">This document has not been published yet. Footy Finder does not substitute placeholder legal text.</p>
           </>}
         </article>
       </main>
