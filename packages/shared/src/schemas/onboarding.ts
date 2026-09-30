@@ -3,14 +3,21 @@ import { emailSchema } from './auth.js';
 import { FOOTBALL_POSITIONS } from '../types/user.js';
 import type { AuthenticatedUser, CitySummary } from '../types/user.js';
 
-export const LEGAL_DOCUMENT_TYPES = [
-  'TERMS',
-  'PRIVACY',
-  'PARTICIPATION',
-  'CODE_OF_CONDUCT',
-  'COMPANY_DISCLOSURE',
-] as const;
+/**
+ * CEO decision (ToS review Q1, 2026-09-30): the master Terms of Service, which include the Privacy
+ * Notice and the Participation Agreement, are the only legal document the app publishes and
+ * requires. The database enum still holds the retired PRIVACY, PARTICIPATION, CODE_OF_CONDUCT and
+ * COMPANY_DISCLOSURE values and their old rows as history; the app never reads them.
+ */
+export const LEGAL_DOCUMENT_TYPES = ['TERMS'] as const;
 export type LegalDocumentType = (typeof LEGAL_DOCUMENT_TYPES)[number];
+
+/** The single acceptance checkbox (Q1). Stored word for word in each acceptance record. */
+export const TERMS_ACCEPTANCE_STATEMENT =
+  "I'm 18 or older and I agree to the FootyFinder Terms of Service, including the Privacy Notice and the injury risk waiver in clause 9.";
+
+/** Anchors on the Terms page (/legal/terms#clause-8), used by the footer and the checkbox links. */
+export const TERMS_ANCHORS = { privacy: 'clause-8', riskWaiver: 'clause-9' } as const;
 
 const isoDate = z
   .string()

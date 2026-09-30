@@ -2,7 +2,8 @@ import { prisma } from '../src/database/prisma.js';
 
 type CountRow = { count: bigint };
 const [publishedLegalTypes, legacyIncomplete, newIncomplete, invalidProfiles, unsupportedActiveProfiles, failedEmails] = await Promise.all([
-  prisma.$queryRaw<CountRow[]>`SELECT COUNT(DISTINCT "type")::bigint AS count FROM "LegalDocument" WHERE "publishedAt" <= CURRENT_TIMESTAMP AND "effectiveAt" <= CURRENT_TIMESTAMP`,
+  // CEO Q1: only the Terms of Service are required; retired document types are history only.
+  prisma.$queryRaw<CountRow[]>`SELECT COUNT(DISTINCT "type")::bigint AS count FROM "LegalDocument" WHERE "type" = 'TERMS' AND "publishedAt" <= CURRENT_TIMESTAMP AND "effectiveAt" <= CURRENT_TIMESTAMP`,
   prisma.$queryRaw<CountRow[]>`SELECT COUNT(*)::bigint AS count FROM "User" WHERE "emailVerificationRequired" = false AND "onboardingCompletedAt" IS NULL AND "isTestAccount" = false`,
   prisma.$queryRaw<CountRow[]>`SELECT COUNT(*)::bigint AS count FROM "User" WHERE "emailVerificationRequired" = true AND "onboardingCompletedAt" IS NULL AND "isTestAccount" = false`,
   prisma.$queryRaw<CountRow[]>`
@@ -21,7 +22,7 @@ const [publishedLegalTypes, legacyIncomplete, newIncomplete, invalidProfiles, un
 const count = (rows: CountRow[]) => Number(rows[0]?.count ?? 0n);
 const report = {
   publishedLegalTypes: count(publishedLegalTypes),
-  requiredLegalTypes: 5,
+  requiredLegalTypes: 1,
   legacyUsersAwaitingCompletion: count(legacyIncomplete),
   newUsersAwaitingCompletion: count(newIncomplete),
   invalidProfiles: count(invalidProfiles),

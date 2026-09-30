@@ -1,0 +1,11 @@
+[
+  {
+    "type": "TERMS",
+    "version": "2.4",
+    "title": "Master Terms of Service, Privacy Notice and Participation Agreement",
+    "contentFile": "TERMS_OF_SERVICE.md",
+    "effectiveAt": "on-publish",
+    "material": true,
+    "reacceptanceRequired": true
+  }
+]

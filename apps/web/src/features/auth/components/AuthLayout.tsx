@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { Logo } from '@/components/Logo.js';
 import { ThemeToggle } from '@/components/ThemeToggle.js';
+import { TERMS_ANCHORS } from '@footy-finder/shared';
 import { Link } from 'react-router-dom';
 export function AuthLayout({
   children,
@@ -53,7 +54,7 @@ export function AuthLayout({
           </div>
           {children}
           <nav className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-semibold text-content-muted" aria-label="Legal">
-            <Link to="/legal/about">About</Link><Link to="/legal/terms">Terms</Link><Link to="/legal/privacy">Privacy</Link><Link to="/legal/participation">Participation</Link><Link to="/legal/conduct">Conduct</Link><Link to="/waiting-list">Other cities</Link>
+            <Link to="/legal/terms">Terms</Link><Link to={`/legal/terms#${TERMS_ANCHORS.privacy}`}>Privacy</Link><Link to={`/legal/terms#${TERMS_ANCHORS.riskWaiver}`}>Risk waiver</Link><Link to="/waiting-list">Other cities</Link>
           </nav>
         </div>
       </main>

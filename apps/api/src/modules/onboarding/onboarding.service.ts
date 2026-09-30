@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { LegalAcceptanceInput, OnboardingProfileInput } from '@footy-finder/shared';
+import { TERMS_ACCEPTANCE_STATEMENT, type LegalAcceptanceInput, type OnboardingProfileInput } from '@footy-finder/shared';
 import { prisma } from '../../database/prisma.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../errors/app-error.js';
@@ -67,7 +67,7 @@ export class OnboardingService {
     const expected = new Set(current.map(({ id }) => id));
     const supplied = new Set(input.documentIds);
     if (expected.size !== supplied.size || [...expected].some((id) => !supplied.has(id)))
-      throw new AppError(409, 'Accept the complete current legal document set.', 'LEGAL_VERSION_MISMATCH');
+      throw new AppError(409, 'Accept the current Terms of Service.', 'LEGAL_VERSION_MISMATCH');
     await prisma.legalAcceptance.createMany({
       data: current.map((document) => ({
         userId,
@@ -80,6 +80,7 @@ export class OnboardingService {
           version: document.version,
           checksum: document.checksum,
           effectiveAt: document.effectiveAt.toISOString(),
+          statement: TERMS_ACCEPTANCE_STATEMENT,
         },
       })),
       skipDuplicates: true,
@@ -112,17 +113,17 @@ export class OnboardingService {
       });
   }
 
+  /**
+   * CEO Q1: only the Terms of Service (which include the Privacy Notice and the Participation
+   * Agreement) are published and required: the latest effective TERMS version, or nothing. Retired
+   * document types stay in the database as history and are never returned.
+   */
   async currentLegalDocuments() {
-    const rows = await prisma.legalDocument.findMany({
-      where: { publishedAt: { not: null, lte: new Date() }, effectiveAt: { lte: new Date() } },
-      orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }, { createdAt: 'desc' }],
+    const current = await prisma.legalDocument.findFirst({
+      where: { type: 'TERMS', publishedAt: { not: null, lte: new Date() }, effectiveAt: { lte: new Date() } },
+      orderBy: [{ effectiveAt: 'desc' }, { createdAt: 'desc' }],
     });
-    const seen = new Set<string>();
-    return rows.filter((row) => {
-      if (seen.has(row.type)) return false;
-      seen.add(row.type);
-      return true;
-    });
+    return current ? [{ ...current, type: 'TERMS' as const }] : [];
   }
 
   private profileMissing(typed: OnboardingUser) {

@@ -152,6 +152,8 @@ Policy:
 - Retention durations remain configurable and production release is blocked until counsel/accounting approve the documented retention matrix. Replacement media is deleted immediately and expired auth secrets use short-lived cleanup defaults.
 External deliverable: approved document text/company facts and retention schedule.
 Blocks until external deliverable exists: TKT-201 production content and release of TKT-202/TKT-209/TKT-210.
+CEO decision (ToS review Q1, 2026-09-30), word for word: "ONE document, ONE checkbox. The master Terms (including the Privacy Notice and Participation Agreement) is the only legal document the app publishes and requires. Change the app from five required documents to one: signup/onboarding shows a single checkbox, and the re-acceptance gate, legal:publish and the consent record all work with the single TERMS document. Checkbox wording: "I'm 18 or older and I agree to the FootyFinder Terms of Service, including the Privacy Notice and the injury risk waiver in clause 9." with links to the Terms page and directly to clause 8 and clause 9."
+Follow-up decisions (2026-09-30): the retired PRIVACY, PARTICIPATION, CODE_OF_CONDUCT and COMPANY_DISCLOSURE rows, acceptances and enum values stay in the database as history and are never read (no migration); legal:publish accepts "contentFile" (relative to the JSON) and "effectiveAt": "on-publish", and docs/legal/legal-launch.json points at TERMS_OF_SERVICE.md. The "counsel content" blocker above is replaced by the CEO-approved Terms v2.4 Launch version.
 
 DEC-008 - Required non-biometric player photo
 Status: APPROVED - POLICY RECORDED (2026-09-24)

@@ -1,4 +1,4 @@
-import { FOOTBALL_POSITIONS, type FootballPosition } from '@footy-finder/shared';
+import { FOOTBALL_POSITIONS, TERMS_ACCEPTANCE_STATEMENT, TERMS_ANCHORS, type FootballPosition } from '@footy-finder/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
@@ -36,7 +36,7 @@ export function OnboardingPage() {
   const [cityId, setCityId] = useState('');
   const [positions, setPositions] = useState<FootballPosition[]>([]);
   const [photo, setPhoto] = useState<File>();
-  const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [waitlistConsent, setWaitlistConsent] = useState(false);
   useEffect(() => {
     if (!user) return;
@@ -48,6 +48,7 @@ export function OnboardingPage() {
   if (status.isPending) return <div className="mx-auto h-96 max-w-4xl animate-pulse rounded-3xl bg-surface" />;
   if (!status.data || !user) return <FormError message={status.error?.message ?? 'Onboarding status is unavailable.'} />;
   const selectedCity = cities.data?.find(({ id }) => id === cityId);
+  const terms = legal.data?.find(({ type }) => type === 'TERMS');
   const togglePosition = (position: FootballPosition) => setPositions((current) => current.includes(position) ? current.filter((item) => item !== position) : current.length < 4 ? [...current, position] : current);
   return (
     <section className="mx-auto grid max-w-4xl gap-6">
@@ -61,7 +62,19 @@ export function OnboardingPage() {
         <Button disabled={selectedCity?.supportStatus !== 'ACTIVE' || !dateOfBirth || yearsExperience === '' || positions.length === 0} loading={saveProfile.isPending} onClick={() => saveProfile.mutate({ dateOfBirth, yearsExperience: Number(yearsExperience), cityId, preferredPositions: positions })}>Save player details</Button><FormError message={(saveProfile.error ?? waitlist.error)?.message} />
       </Card>
       <Card title="3. Profile photo"><p className="text-sm text-content-muted">JPEG, PNG or WEBP; up to 5 MB and at least 256×256. The server corrects orientation, creates a square normalized display image, and does not retain the original.</p><input aria-label="Player photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhoto(event.target.files?.[0])} /><Button disabled={!photo} loading={upload.isPending} onClick={() => photo && upload.mutate(photo)}>Upload and normalize photo</Button><FormError message={upload.error?.message} /></Card>
-      <Card title="4. Legal acceptance">{legal.data?.length ? <><div className="grid gap-3">{legal.data.map((document) => <label key={document.id} className="flex gap-3 rounded-xl border border-line p-3 text-sm"><input type="checkbox" checked={acceptedIds.includes(document.id)} onChange={(event) => setAcceptedIds((ids) => event.target.checked ? [...new Set([...ids, document.id])] : ids.filter((id) => id !== document.id))} /><span><span className="font-bold">{document.title}</span> — version {document.version}, effective {new Date(document.effectiveAt).toLocaleDateString()}</span></label>)}</div><Button disabled={acceptedIds.length !== legal.data.length} loading={accept.isPending} onClick={() => accept.mutate({ documentIds: acceptedIds, source: user.onboardingComplete ? 'REACCEPTANCE' : 'PROFILE_COMPLETION' })}>Record acceptance</Button></> : <div className="rounded-xl border border-warning-300 bg-warning-50 p-4"><p className="font-bold text-content-strong">Activation is waiting for the Terms of Service to be published.</p><p className="mt-2 text-sm text-content-muted">No acceptance will be fabricated. You can finish the other steps in the meantime.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to="/legal/about">View legal publication status</Link></div>}<FormError message={accept.error?.message} /></Card>
+      <Card title="4. Terms of Service">{terms ? <>
+        {/* CEO Q1: one document, one checkbox. */}
+        <label className="flex gap-3 rounded-xl border border-line p-3 text-sm">
+          <input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} />
+          <span>{TERMS_ACCEPTANCE_STATEMENT}</span>
+        </label>
+        <p className="text-sm text-content-muted">
+          Read the <Link className="font-bold text-brand-700 underline" to="/legal/terms" target="_blank">Terms of Service</Link> (version {terms.version}), the{' '}
+          <Link className="font-bold text-brand-700 underline" to={`/legal/terms#${TERMS_ANCHORS.privacy}`} target="_blank">Privacy Notice (clause 8)</Link> and the{' '}
+          <Link className="font-bold text-brand-700 underline" to={`/legal/terms#${TERMS_ANCHORS.riskWaiver}`} target="_blank">injury risk waiver (clause 9)</Link>.
+        </p>
+        <Button disabled={!termsAccepted} loading={accept.isPending} onClick={() => accept.mutate({ documentIds: [terms.id], source: user.onboardingComplete ? 'REACCEPTANCE' : 'PROFILE_COMPLETION' })}>Accept the Terms</Button>
+      </> :<div className="rounded-xl border border-warning-300 bg-warning-50 p-4"><p className="font-bold text-content-strong">Activation is waiting for the Terms of Service to be published.</p><p className="mt-2 text-sm text-content-muted">No acceptance will be fabricated. You can finish the other steps in the meantime.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to="/legal/terms">View the Terms page</Link></div>}<FormError message={accept.error?.message} /></Card>
       <Card title="5. Activate"><p className="text-sm text-content-muted">Outstanding: {status.data.missing.length ? status.data.missing.join(', ') : 'none'}</p><Button disabled={!status.data.canComplete} loading={complete.isPending} onClick={() => complete.mutate(undefined, { onSuccess: () => navigate(returnTo, { replace: true }) })}>Activate player profile</Button><FormError message={complete.error?.message} /></Card>
     </section>
   );

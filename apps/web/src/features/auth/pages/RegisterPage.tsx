@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { registerFormSchema, type RegisterFormInput } from '@footy-finder/shared';
+import { registerFormSchema, TERMS_ANCHORS, type RegisterFormInput } from '@footy-finder/shared';
 import { useState } from 'react';
 import { type FieldPath, useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -195,9 +195,9 @@ export function RegisterPage() {
           </Link>
         </p>
         <p className="text-center text-xs text-content-muted">
-          By continuing you will be asked to verify your email and review the current{' '}
-          <Link className="font-bold text-brand-700 underline" to="/legal/terms">Terms</Link>,{' '}
-          <Link className="font-bold text-brand-700 underline" to="/legal/privacy">Privacy notice</Link>, and participation documents before activation.
+          By continuing you will be asked to verify your email and accept the{' '}
+          <Link className="font-bold text-brand-700 underline" to="/legal/terms">Terms of Service</Link>, including the{' '}
+          <Link className="font-bold text-brand-700 underline" to={`/legal/terms#${TERMS_ANCHORS.privacy}`}>Privacy Notice</Link>, before activation.
         </p>
       </form>
     </AuthLayout>

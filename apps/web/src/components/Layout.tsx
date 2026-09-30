@@ -1,3 +1,4 @@
+import { TERMS_ANCHORS } from '@footy-finder/shared';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { NotificationsMenu } from '@/features/notifications/NotificationsMenu.js';
@@ -82,7 +83,7 @@ export function Layout() {
       </main>
       <footer className="border-t border-line bg-surface">
         <nav className="mx-auto flex max-w-7xl flex-wrap gap-x-5 gap-y-2 px-4 py-6 text-xs font-bold text-content-muted" aria-label="Legal">
-          <Link to="/legal/about">About & disclosures</Link><Link to="/legal/terms">Terms</Link><Link to="/legal/privacy">Privacy / POPIA</Link><Link to="/legal/participation">Participation</Link><Link to="/legal/conduct">Code of Conduct</Link><Link to="/waiting-list">City waiting list</Link>
+          <Link to="/legal/terms">Terms</Link><Link to={`/legal/terms#${TERMS_ANCHORS.privacy}`}>Privacy</Link><Link to={`/legal/terms#${TERMS_ANCHORS.riskWaiver}`}>Risk waiver</Link><Link to="/waiting-list">City waiting list</Link>
         </nav>
       </footer>
     </div>

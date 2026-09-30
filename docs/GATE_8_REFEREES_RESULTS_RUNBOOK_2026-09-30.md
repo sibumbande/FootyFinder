@@ -150,10 +150,10 @@ npx playwright test                           # 5 passed: referee-results (new),
    ```powershell
    npx prisma migrate reset --force
    $env:DATABASE_URL='<footy_finder url>'
-   npm run legal:publish -- --file C:/footy-local/legal-dev.json
+   npm run legal:publish -- --file ../../docs/legal/legal-launch.json
    ```
-   The legal publish needs `DATABASE_URL` set explicitly.
-2. **Publish Terms of Service v2.4** with `legal:publish`. It is a material change: reacceptance is required, and the effective date must be at least 14 days after notice (clause 26.2). v2.3 (Gate 7) must be published first or together.
+   The legal publish needs `DATABASE_URL` set explicitly. The old five-document `legal-dev.json` no longer validates: since the ToS review (Q1) the Terms are the only legal document.
+2. **Publish Terms of Service v2.4 "Launch version"** with `legal:publish` and `docs/legal/legal-launch.json`. It supersedes v2.3 (pre-launch, no separate notice) and takes effect on publication. Every existing account re-accepts it once with the single checkbox (clause 25.2).
 3. **Grant the first referees and set a default referee** in production (Admin → Referees). Until then, every new match is unassigned and would be cancelled at T-30.
 4. **Matches already published** before release have no referee (D20: no grandfathering). Assign referees from Admin → Match referees before their T-30.
 5. **Everything still open** from the Gate 6 and Gate 7 runbooks.
