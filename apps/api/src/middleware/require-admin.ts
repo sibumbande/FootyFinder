@@ -19,8 +19,9 @@ export const requirePlatformAdmin: RequestHandler = async (_req, res, next) => {
 };
 
 /**
- * TKT-608 / D9: money-moving settlement actions (approve, mark paid) need an MFA verification
- * newer than ADMIN_SETTLEMENT_MFA_MAX_AGE_MINUTES (default 15), not just a verified session.
+ * Sensitive admin actions need an MFA verification newer than ADMIN_SETTLEMENT_MFA_MAX_AGE_MINUTES
+ * (default 15), not just a verified session: settlement approve and mark paid (TKT-608 / D9), and
+ * the referee role, default referee, result entry and corrections (Gate 8 / D25).
  */
 export const requireRecentAdminMfa: RequestHandler = async (_req, res, next) => {
   try {
@@ -35,7 +36,7 @@ export const requireRecentAdminMfa: RequestHandler = async (_req, res, next) => 
         : null;
     if (!session)
       return next(
-        new AppError(403, 'Verify with your authenticator again to approve or pay a settlement.', 'ADMIN_MFA_REVERIFY_REQUIRED'),
+        new AppError(403, 'Verify with your authenticator again to continue with this action.', 'ADMIN_MFA_REVERIFY_REQUIRED'),
       );
     next();
   } catch (error) {

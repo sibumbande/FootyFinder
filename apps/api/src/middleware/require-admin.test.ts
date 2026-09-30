@@ -46,6 +46,8 @@ describe('settlement MFA freshness (TKT-608 / D9)', () => {
     const response = await request(app()).post('/approve');
     expect(response.status).toBe(403);
     expect(response.body.code).toBe('ADMIN_MFA_REVERIFY_REQUIRED');
+    // Also used for referee and result actions (Gate 8 / D25), so the message names no settlement.
+    expect(response.body.error).toBe('Verify with your authenticator again to continue with this action.');
     expect(Date.now() - db.lastCutoff!.getTime()).toBeLessThanOrEqual(15 * 60_000 + 1_000);
   });
 
