@@ -166,4 +166,4 @@ npx playwright test                           # 5 passed: referee-results (new),
   - new 19.6 (Team reviews).
 - **Wording to check with counsel:**
   - "A Final Result cannot be disputed" (17.7, 17.10) is now followed by "This does not affect your right to complain under clause 27." (Gate 8 follow-up, 2026-09-30).
-  - Clause 15.2 (50% credit for an abandonment before half time) is unchanged. The referee recording "abandoned" does not by itself move money; the 15.2 credit still needs to be handled as before.
+- **Abandoned matches (CEO change, 2026-09-30, DEC-020):** the 50% credit for a match abandoned before half time is removed from 15.2 and 10.7. Once a match has kicked off, fees are not refunded if the referee records it as abandoned, for any reason. This matches the code: recording "abandoned" moves no money (D13), and there was never a partial-credit path.
