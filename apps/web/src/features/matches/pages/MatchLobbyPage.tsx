@@ -28,6 +28,7 @@ import {
 import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
 import { MatchRefereeLine } from '../components/MatchRefereeLine.js';
 import { MatchResultPanel } from '../components/MatchResultPanel.js';
+import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
 import { rands } from '../utils/go-no-go-format.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
@@ -427,6 +428,7 @@ export function MatchLobbyPage() {
       )}
       {/* Gate 8 (DEC-020): a refereed match shows the referee's final result; results cannot be disputed (D21). */}
       <MatchResultPanel match={match} />
+      <MatchReviewPanel match={match} />
       {match.result && !match.goNoGoAt && (
         <section className="rounded-3xl border border-brand-200 bg-brand-50 p-8 text-center">
           <p className="text-sm font-black uppercase tracking-widest text-brand-700">Full time</p>

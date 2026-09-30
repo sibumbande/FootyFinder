@@ -16,6 +16,7 @@ import {
   disputesApi,
   onboardingApi,
   venuesApi,
+  teamReviewsApi,
 } from '@footy-finder/api-client';
 
 export const apiClient = new ApiClient(import.meta.env.VITE_API_URL ?? 'http://localhost:3000');
@@ -35,3 +36,4 @@ export const disputesClient = disputesApi(apiClient);
 export const onboardingClient = onboardingApi(apiClient);
 export const venuesClient = venuesApi(apiClient);
 export const refereeClient = refereeApi(apiClient);
+export const teamReviewsClient = teamReviewsApi(apiClient);

@@ -55,6 +55,7 @@ const team: TeamDetail = {
 };
 
 vi.mock('../hooks/useTeamSocket.js', () => ({ useTeamSocket: vi.fn() }));
+vi.mock('@/features/team-reviews/components/TeamReviewsSection.js', () => ({ TeamReviewsSection: () => null }));
 vi.mock('@/features/notifications/NotificationProvider.js', () => ({
   useNotifications: () => ({ notify: vi.fn() }),
 }));

@@ -12,6 +12,7 @@ import { TeamFormationEditor } from '../components/TeamFormationEditor.js';
 import { TeamInvitePanel } from '../components/TeamInvitePanel.js';
 import { TeamWalletPanel } from '../components/TeamWalletPanel.js';
 import { TeamChatPanel } from '../components/TeamChatPanel.js';
+import { TeamReviewsSection } from '@/features/team-reviews/components/TeamReviewsSection.js';
 import {
   useDeleteTeam,
   useTeam,
@@ -169,7 +170,11 @@ function Overview({ team }: { team: TeamDetail }) {
           {team.description || 'This Team has not added a description yet.'}
         </p>
       </div>
-      <aside className="rounded-2xl bg-surface-muted p-4">
+      {/* Gate 8 / TKT-810 (DEC-017): anonymous public reviews from opposing players. */}
+      <div className="md:col-span-2 md:row-start-2">
+        <TeamReviewsSection teamId={team.id} isMember={Boolean(team.viewerRole)} />
+      </div>
+      <aside className="rounded-2xl bg-surface-muted p-4 md:row-start-1">
         <p className="text-xs font-bold uppercase text-content-muted">Owner</p>
         <Link to={`/players/${team.owner.id}`} className="mt-3 flex items-center gap-3">
           <Avatar user={team.owner} />

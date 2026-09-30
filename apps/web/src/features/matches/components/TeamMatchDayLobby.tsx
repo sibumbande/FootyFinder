@@ -32,6 +32,7 @@ import { TeamMatchOtherSide } from './TeamMatchOtherSide.js';
 import { TeamMeter } from './TeamMeter.js';
 import { MatchRefereeLine } from './MatchRefereeLine.js';
 import { MatchResultPanel } from './MatchResultPanel.js';
+import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -119,6 +120,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
       </header>
       <MatchRefereeLine referee={match.referee} goNoGoAt={match.goNoGoAt} status={match.status} />
       <MatchResultPanel match={match} />
+      <MatchReviewPanel match={match} />
       <FormError message={deletion.error?.message} />
       {publicTeamMatch && <TeamMeter match={match} />}
       {publicTeamMatch && <TeamMatchOtherSide match={match} />}
