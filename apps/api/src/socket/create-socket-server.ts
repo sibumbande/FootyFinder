@@ -138,6 +138,10 @@ export function createSocketServer(server: HttpServer) {
   domainEvents.on('team:wallet-updated', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamWalletUpdated, { teamId: payload.teamId }),
   );
+  // Gate 7 / TKT-711: team chat reaches current members only (removed members leave the room).
+  domainEvents.on('team-chat:message-created', (payload) =>
+    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamChatMessage, payload.message),
+  );
   domainEvents.on('team:deleted', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamDeleted, { teamId: payload.teamId }),
   );

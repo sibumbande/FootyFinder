@@ -7,6 +7,8 @@ export * from './messaging.js';
 export * from './notifications.js';
 export * from './teams.js';
 export * from './team-wallet.js';
+export * from './team-chat.js';
+export * from './team-chat.js';
 export * from './admin.js';
 export * from './support.js';
 export * from './bookings.js';

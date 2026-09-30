@@ -3,6 +3,8 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
+import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { toPublicUser } from '../users/user.mapper.js';
 import { safeUserInclude } from '../users/users.repository.js';
 
@@ -33,8 +35,14 @@ const decodeCursor = (cursor: string) => {
  * history. Only current members may read or send; membership is checked on every request, so a
  * removed member loses access at once. A closed team's history stays readable to its members but
  * nobody can post. Chat never sends email.
+ *
+ * TKT-711: each other member gets ONE in-app "new messages" notice per read cycle (the first
+ * message after they last read the chat); further messages add nothing until they read it again.
+ * The sender never gets one. It is persisted with the message and published after commit.
  */
 export class TeamChatService {
+  constructor(private readonly notifications = new NotificationsService()) {}
+
   async history(teamId: string, userId: string, query: TeamChatQuery): Promise<TeamChatPage> {
     await this.assertMember(teamId, userId);
     const before = query.before ? decodeCursor(query.before) : null;
@@ -59,21 +67,44 @@ export class TeamChatService {
   async send(teamId: string, userId: string, content: string) {
     const team = await this.assertMember(teamId, userId);
     if (team.archivedAt) throw new AppError(409, 'This team has been closed, so its chat is read-only.', 'TEAM_ARCHIVED');
-    const message = toTeamChatMessage(
-      await prisma.teamMessage.create({ data: { teamId, senderId: userId, content }, include: messageInclude }),
-    );
+    const { record, notices } = await prisma.$transaction(async (tx) => {
+      const record = await tx.teamMessage.create({ data: { teamId, senderId: userId, content }, include: messageInclude });
+      const members = await tx.teamMembership.findMany({ where: { teamId, userId: { not: userId } }, select: { userId: true, joinedAt: true } });
+      const readStates = await tx.teamChatReadState.findMany({ where: { teamId }, select: { userId: true, lastReadAt: true } });
+      const details = await tx.team.findUniqueOrThrow({ where: { id: teamId }, select: { name: true } });
+      const lastRead = new Map(readStates.map((state) => [state.userId, state.lastReadAt]));
+      const senderName = record.sender.profile?.displayName ?? record.sender.username;
+      const notices = await persistNotifications(tx, members.map((member) => ({
+        userId: member.userId,
+        type: 'TEAM_CHAT_UNREAD' as const,
+        title: `New messages in ${details.name}`,
+        message: `${senderName} posted in your team chat.`,
+        targetPath: `/teams/${teamId}?tab=chat`,
+        // One notice per member per read cycle: the key changes only when they read the chat.
+        dedupeKey: notificationDedupeKey('team-chat', teamId, 'unread', member.userId, (lastRead.get(member.userId) ?? member.joinedAt).toISOString()),
+      })));
+      return { record, notices };
+    });
+    const message = toTeamChatMessage(record);
     emitDomainEventBestEffort('team-chat:message-created', { teamId, message });
+    this.notifications.publishPersistedMany(notices);
     return message;
   }
 
   /** Marks the chat read up to now for this member (clears their unread count). */
   async markRead(teamId: string, userId: string, now = new Date()) {
     await this.assertMember(teamId, userId);
-    await prisma.teamChatReadState.upsert({
-      where: { teamId_userId: { teamId, userId } },
-      create: { teamId, userId, lastReadAt: now },
-      update: { lastReadAt: now },
-    });
+    await prisma.$transaction([
+      prisma.teamChatReadState.upsert({
+        where: { teamId_userId: { teamId, userId } },
+        create: { teamId, userId, lastReadAt: now },
+        update: { lastReadAt: now },
+      }),
+      prisma.notification.updateMany({
+        where: { userId, type: 'TEAM_CHAT_UNREAD', targetPath: `/teams/${teamId}?tab=chat`, readAt: null },
+        data: { readAt: now },
+      }),
+    ]);
     emitDomainEventBestEffort('team-chat:read', { teamId, userId });
     return { unreadCount: 0 };
   }

@@ -11,6 +11,7 @@ import { TeamAvatar } from '../components/TeamAvatar.js';
 import { TeamFormationEditor } from '../components/TeamFormationEditor.js';
 import { TeamInvitePanel } from '../components/TeamInvitePanel.js';
 import { TeamWalletPanel } from '../components/TeamWalletPanel.js';
+import { TeamChatPanel } from '../components/TeamChatPanel.js';
 import {
   useDeleteTeam,
   useTeam,
@@ -21,7 +22,7 @@ import {
 } from '../hooks/useTeams.js';
 import { useTeamSocket } from '../hooks/useTeamSocket.js';
 
-type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'invites' | 'settings';
+type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'chat' | 'invites' | 'settings';
 export function TeamPage() {
   const { teamId = '' } = useParams();
   useTeamSocket(teamId);
@@ -33,7 +34,7 @@ export function TeamPage() {
     return <FormError message={team.error?.message ?? 'Team not found.'} />;
   const archived = Boolean(team.data.archivedAt);
   const allowedTabs: Tab[] = ['overview', 'matches', 'squad', 'formation'];
-  if (team.data.viewerRole) allowedTabs.push('wallet');
+  if (team.data.viewerRole) allowedTabs.push('wallet', 'chat');
   if (!archived && (team.data.viewerRole === 'OWNER' || team.data.viewerRole === 'CAPTAIN'))
     allowedTabs.push('invites');
   if (!archived && team.data.viewerRole === 'OWNER') allowedTabs.push('settings');
@@ -65,6 +66,7 @@ export function TeamPage() {
         {tab === 'squad' && <Squad team={team.data} />}
         {tab === 'formation' && <TeamFormationEditor team={team.data} />}
         {tab === 'wallet' && <TeamWalletPanel team={team.data} />}
+        {tab === 'chat' && <TeamChatPanel team={team.data} />}
         {tab === 'invites' && <TeamInvitePanel team={team.data} />}
         {tab === 'settings' && <TeamSettings team={team.data} />}
       </div>
