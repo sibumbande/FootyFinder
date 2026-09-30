@@ -8,6 +8,7 @@ import * as finance from '../payments/admin-finance.controller.js';
 import * as settlement from '../settlement/venue-settlement.controller.js';
 import * as settlementBatches from '../settlement/settlement-batches.controller.js';
 import * as referees from '../referees/referees.admin.controller.js';
+import * as teamReviews from '../team-reviews/team-reviews.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -31,6 +32,7 @@ registerUuidRouteParams(adminRouter, [
   'beneficiaryId',
   'payableId',
   'matchId',
+  'reviewId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -144,3 +146,6 @@ adminRouter.post('/results/:matchId/correction', costlyMutationRateLimit, requir
 adminRouter.get('/result-problems', referees.resultProblems);
 adminRouter.post('/result-problems/:reportId/resolve', costlyMutationRateLimit, referees.resolveResultProblem);
 adminRouter.get('/referee-report', referees.refereeReport);
+// Gate 8 / TKT-809 (DEC-017): team review moderation (approve/reject text, hide, restore).
+adminRouter.get('/team-reviews', teamReviews.adminList);
+adminRouter.post('/team-reviews/:reviewId/moderate', costlyMutationRateLimit, teamReviews.moderate);

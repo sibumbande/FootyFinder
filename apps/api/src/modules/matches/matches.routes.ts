@@ -4,6 +4,7 @@ import { registerRouteParam, registerUuidRouteParams } from '../../middleware/ro
 import * as controller from './matches.controller.js';
 import * as teamMatches from '../team-matches/team-matches.controller.js';
 import * as resultEvidence from '../referees/result-evidence.controller.js';
+import * as teamReviews from '../team-reviews/team-reviews.controller.js';
 import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 export const matchesRouter: ExpressRouter = Router();
 registerUuidRouteParams(matchesRouter, ['id', 'slotId', 'participantId', 'userId']);
@@ -36,6 +37,11 @@ matchesRouter.post('/:id/result', controller.submitResult);
 matchesRouter.get('/:id/result-context', resultEvidence.resultContext);
 matchesRouter.post('/:id/result-version', costlyMutationRateLimit, resultEvidence.submitVersion);
 matchesRouter.post('/:id/result-problems', costlyMutationRateLimit, resultEvidence.reportProblem);
+// Gate 8 / TKT-809 (DEC-017): rate the opposing team after the final result.
+matchesRouter.get('/:id/review', teamReviews.context);
+matchesRouter.post('/:id/review', costlyMutationRateLimit, teamReviews.create);
+matchesRouter.patch('/:id/review', teamReviews.update);
+matchesRouter.delete('/:id/review', teamReviews.remove);
 matchesRouter.get('/:id/participants', controller.participants);
 matchesRouter.post('/:id/team-sides/:side/availability/request', controller.requestAvailability);
 matchesRouter.get('/:id/team-sides/:side/availability', controller.teamAvailability);

@@ -7,6 +7,7 @@ import { registerRouteParam, registerUuidRouteParams } from '../../middleware/ro
 import * as controller from './teams.controller.js';
 import * as teamWallet from '../team-wallet/team-wallet.controller.js';
 import * as teamChat from '../team-chat/team-chat.controller.js';
+import * as teamReviews from '../team-reviews/team-reviews.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
 import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 import { requireOnboardingForMutations } from '../../middleware/require-onboarding.js';
@@ -28,7 +29,7 @@ export const teamImageUpload = multer({
 });
 
 export const teamsRouter: ExpressRouter = Router();
-registerUuidRouteParams(teamsRouter, ['teamId', 'userId', 'inviteId', 'slotId']);
+registerUuidRouteParams(teamsRouter, ['teamId', 'userId', 'inviteId', 'slotId', 'reviewId']);
 registerRouteParam(teamsRouter, 'format', matchFormatRouteParamSchema);
 teamsRouter.get('/', controller.list);
 teamsRouter.post('/', costlyMutationRateLimit, controller.create);
@@ -37,6 +38,9 @@ teamsRouter.patch('/:teamId', controller.update);
 teamsRouter.delete('/:teamId', controller.remove);
 teamsRouter.post('/:teamId/matches', costlyMutationRateLimit, controller.createMatch);
 teamsRouter.get('/:teamId/matches', controller.matches);
+// Gate 8 / TKT-809 (DEC-017): anonymous public reviews; members of the team may report one.
+teamsRouter.get('/:teamId/reviews', teamReviews.teamSummary);
+teamsRouter.post('/:teamId/reviews/:reviewId/report', costlyMutationRateLimit, teamReviews.report);
 teamsRouter.post(
   '/:teamId/image',
   costlyMutationRateLimit,

@@ -17,3 +17,4 @@ export * from './disputes.js';
 export * from './onboarding.js';
 export * from './venues.js';
 export * from './referee.js';
+export * from './team-reviews.js';

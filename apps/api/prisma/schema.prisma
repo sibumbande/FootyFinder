@@ -428,6 +428,19 @@ enum NotificationType {
   RESULT_PROBLEM_RESOLVED
 }
 
+/// Gate 8 / TKT-809 (DEC-017): team reviews.
+enum TeamReviewStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+}
+
+enum TeamReviewTextStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 /// Gate 8 / TKT-806 (D6): a "report a problem" about a final result.
 enum ResultProblemStatus {
   OPEN
@@ -540,6 +553,8 @@ model User {
   captainResultSubmissions  CaptainResultSubmission[] @relation("CaptainResultSubmitter")
   resultProblemReports      ResultProblemReport[]     @relation("ResultProblemReporter")
   resolvedResultProblems    ResultProblemReport[]     @relation("ResultProblemResolver")
+  teamReviews               TeamReview[]              @relation("TeamReviewAuthor")
+  moderatedTeamReviews      TeamReview[]              @relation("TeamReviewModerator")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1378,6 +1393,7 @@ model Match {
   lineupEntries             MatchLineupEntry[]
   captainSubmissions        CaptainResultSubmission[]
   resultProblemReports      ResultProblemReport[]
+  teamReviews               TeamReview[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1464,6 +1480,36 @@ model ResultProblemReport {
   resolvedBy     User?               @relation("ResultProblemResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
 
   @@index([status, createdAt])
+}
+
+/// Gate 8 / TKT-809 (DEC-017, D24): one rating (1-5, optional text) of the opposing team per player
+/// per match. The author is private (moderation only). Text is public only once APPROVED.
+model TeamReview {
+  id             String                @id @default(uuid()) @db.Uuid
+  matchId        String                @db.Uuid
+  authorUserId   String                @db.Uuid
+  teamId         String                @db.Uuid
+  side           TeamSide
+  rating         Int
+  text           String?
+  textStatus     TeamReviewTextStatus?
+  status         TeamReviewStatus      @default(VISIBLE)
+  reportedAt     DateTime?
+  editableUntil  DateTime
+  moderatedById  String?               @db.Uuid
+  moderatedAt    DateTime?
+  moderationNote String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @default(now()) @updatedAt
+  match          Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  author         User                  @relation("TeamReviewAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  team           Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  moderatedBy    User?                 @relation("TeamReviewModerator", fields: [moderatedById], references: [id], onDelete: Restrict)
+
+  @@unique([matchId, authorUserId])
+  @@index([teamId, status])
+  @@index([textStatus])
+  @@index([reportedAt])
 }
 
 /// Gate 8 / TKT-802 (D28): single row (id = 1) holding the default referee.
@@ -1899,6 +1945,7 @@ model Team {
   chatMessages    TeamMessage[]
   chatReadStates  TeamChatReadState[]
   lineupEntries   MatchLineupEntry[]   @relation("MatchLineupTeam")
+  reviews         TeamReview[]
 
   @@index([ownerUserId])
   @@index([name])
