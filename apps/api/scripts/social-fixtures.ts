@@ -79,6 +79,7 @@ export function socialWorld(marker: string) {
     async cleanup() {
       await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
       await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
+      await prisma.conversation.deleteMany({ where: { participants: { some: { userId: { in: userIds } } } } });
       await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       assert((await prisma.user.count({ where: { email: { startsWith: marker } } })) === 0, 'Gate 9 smoke users remained.');

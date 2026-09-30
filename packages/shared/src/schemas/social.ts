@@ -19,3 +19,6 @@ export type SendFriendRequestInput = z.infer<typeof sendFriendRequestSchema>;
 
 export const socialSettingsSchema = z.object({ friendRequestsEnabled: z.boolean() });
 export type SocialSettingsInput = z.infer<typeof socialSettingsSchema>;
+
+/** Gate 9 / TKT-903. */
+export const blockUserSchema = z.object({ userId: z.string().uuid() });

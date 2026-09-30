@@ -1,8 +1,10 @@
-import { relationshipsQuerySchema, sendFriendRequestSchema, socialSearchQuerySchema, socialSettingsSchema } from '@footy-finder/shared';
+import { blockUserSchema, relationshipsQuerySchema, sendFriendRequestSchema, socialSearchQuerySchema, socialSettingsSchema } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
+import { BlocksService } from './blocks.service.js';
 import { FriendsService } from './friends.service.js';
 
 const friends = new FriendsService();
+const blocks = new BlocksService();
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 const handle = (work: (req: Parameters<RequestHandler>[0], viewerId: string) => Promise<unknown>, status = 200): RequestHandler =>
   async (req, res, next) => {
@@ -28,3 +30,8 @@ export const settings = handle((_req, viewerId) => friends.settings(viewerId));
 export const updateSettings = handle((req, viewerId) => friends.updateSettings(viewerId, socialSettingsSchema.parse(req.body)));
 export const playedWith = handle((req, viewerId) => friends.playedWith(viewerId, String(req.params.matchId)));
 export const addAll = handle((req, viewerId) => friends.addAll(viewerId, String(req.params.matchId)));
+
+/** Gate 9 / TKT-903: blocking. */
+export const blockList = handle((_req, viewerId) => blocks.list(viewerId));
+export const block = handle((req, viewerId) => blocks.block(viewerId, blockUserSchema.parse(req.body).userId), 201);
+export const unblock = handle((req, viewerId) => blocks.unblock(viewerId, String(req.params.userId)));

@@ -35,4 +35,7 @@ export const socialApi = (client: ApiClient) => ({
   updateSettings: (input: SocialSettings) => client.request<{ data: SocialSettings }>('/social/settings', json('PUT', input)),
   playedWith: (matchId: string) => client.request<{ data: PlayedWithView }>(`/social/matches/${id(matchId)}/played-with`),
   addAll: (matchId: string) => client.request<{ data: AddAllResult }>(`/social/matches/${id(matchId)}/add-all`, json('POST')),
+  blocks: () => client.request<{ data: SocialPlayerCard[] }>('/social/blocks'),
+  block: (userId: string) => client.request<{ data: { userId: string; blocked: boolean } }>('/social/blocks', json('POST', { userId })),
+  unblock: (userId: string) => client.request<{ data: { userId: string; blocked: boolean } }>(`/social/blocks/${id(userId)}`, json('DELETE')),
 });

@@ -190,7 +190,7 @@ The following information is provided in compliance with section 43 of ECTA:
 - **Identity and contact data:** your name, username, email address, date of birth and city.
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
-- **Social data:** your friends, the friend requests you send and receive, and whether you accept friend requests (clause 18.7).
+- **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), and the players you block (clause 18.8).
 - **Transaction data:** Wallet top-ups, Slot Fees, Team Wallet contributions and refunds, refunds and cancellation credits, and payment references. We do not store card numbers; Paystack holds them.
 - **Identity documents,** only if we ask you to verify your age or identity (clause 7).
 - **Technical data:** IP address, browser and device information, and security logs.
@@ -231,7 +231,7 @@ We do not collect your phone number, emergency contact details or health informa
 | Match results and Lineup Records | While the match history is kept, because other players' statistics depend on them |
 | Conduct and safety records | 3 years, or longer where an incident is unresolved or subject to legal proceedings |
 | Chat, messages and support requests | 12 months, or longer where reported and under investigation |
-| Friends and friend requests | While your Account is active, and for 12 months after it is closed |
+| Friends, friend requests and blocks | While your Account is active, and for 12 months after it is closed |
 | Record of your acceptance of these Terms | While your Account is active, and for as long as we may need it as evidence afterwards |
 | City waiting-list entries | Until you unsubscribe or ask us to delete them |
 
@@ -490,7 +490,7 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 ## 18. Messages, Friends, Team Reviews and Moderation
 
-**18.1 Purpose.** Lobby chat, Team chat and direct messages are for lawful, courteous, match-related communication. Any signed-in user can send you a direct message. Only current members of a Team can read its Team chat.
+**18.1 Purpose.** Lobby chat, Team chat and direct messages are for lawful, courteous, match-related communication. Any signed-in user can send you a direct message, unless one of you has blocked the other (clause 18.8). Only current members of a Team can read its Team chat.
 
 **18.2 Prohibited.** You may not send spam, unsolicited commercial promotion, harassment, hate speech, threats, sexual content, obscene media, personal information about others, or defamatory statements.
 
@@ -510,6 +510,14 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 - you can turn off incoming friend requests on your profile, and then nobody can send you one.
 
 After a finished match, the players in its Lineup Record can see who they played with and against and send each of them a request, or all of them at once. Friends can find each other in the Friends list, and a Team's Owner or a Captain can invite a friend to the Team (clause 12.1). Being friends gives no access to anyone's email address, date of birth or payment information, and no money is involved.
+
+**18.8 Blocking.** You can block another player from their profile, a direct message or any player card, and unblock them later. While either of you has blocked the other:
+- any friendship between you ends and any friend request waiting between you is cancelled;
+- neither of you can send the other a friend request, a direct message, a Team invite or a request to join a Team, and neither of you receives notices about the other's actions of that kind;
+- neither of you sees the other in player search, friends lists, "Players you played with", Team recruitment posts or "Looking for a team" cards;
+- your earlier direct messages stay in your history, but no new ones can be sent.
+
+We do not tell a player that they have been blocked. Blocking does not remove either of you from a Team, match, lineup or result you already share, and it does not stop either of you joining a public match; in Lobby and Team chat, messages from a player you blocked are hidden until you choose to show them. Unblocking does not restore a friendship. If a player is harassing you, report them as well (clause 18.4).
 
 ## 19. Prohibited Conduct on the Platform
 
@@ -665,6 +673,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. |
 | Reviews | Players who played can rate the opposing team within 14 days. Reviews are anonymous; comments are checked first. |
 | Friends | Send friend requests (up to 20 new ones a day, not counting people you played with) and turn them off if you prefer. Only you see your friends list. |
+| Blocking | Block anyone: they can't message you, add you or ask to join your team, and you stop seeing each other. They aren't told. Shared matches and teams stay as they are. |
 | The risk | Football can injure you. You accept that risk and cover your own medical costs. We are still responsible if we are grossly negligent. |
 | Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can see, correct or delete your data and complain to the Information Regulator. |
 | Behaviour | Violence, racism and abuse mean a permanent ban and possibly a police report. |

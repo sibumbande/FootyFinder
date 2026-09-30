@@ -21,6 +21,9 @@ describe('socialApi (Gate 9 / TKT-901)', () => {
     await api.updateSettings({ friendRequestsEnabled: false });
     await api.playedWith('m1');
     await api.addAll('m1');
+    await api.blocks();
+    await api.block('u3');
+    await api.unblock('u3');
     expect(request.mock.calls.map(([path, init]) => `${(init as { method?: string } | undefined)?.method ?? 'GET'} ${path}`)).toEqual([
       'GET /social/summary',
       'GET /social/search?q=thabo',
@@ -37,6 +40,9 @@ describe('socialApi (Gate 9 / TKT-901)', () => {
       'PUT /social/settings',
       'GET /social/matches/m1/played-with',
       'POST /social/matches/m1/add-all',
+      'GET /social/blocks',
+      'POST /social/blocks',
+      'DELETE /social/blocks/u3',
     ]);
   });
 });

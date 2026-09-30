@@ -20,3 +20,6 @@ socialRouter.get('/settings', controller.settings);
 socialRouter.put('/settings', controller.updateSettings);
 socialRouter.get('/matches/:matchId/played-with', controller.playedWith);
 socialRouter.post('/matches/:matchId/add-all', costlyMutationRateLimit, controller.addAll);
+socialRouter.get('/blocks', controller.blockList);
+socialRouter.post('/blocks', costlyMutationRateLimit, controller.block);
+socialRouter.delete('/blocks/:userId', controller.unblock);

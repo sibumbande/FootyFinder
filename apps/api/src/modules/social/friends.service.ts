@@ -23,7 +23,7 @@ import {
   relationshipState,
   sendLimitRefusal,
 } from './friend-rules.js';
-import { blockedEitherWay } from './visibility.js';
+import { blockedByViewer, blockedEitherWay } from './visibility.js';
 
 type Db = Prisma.TransactionClient;
 
@@ -88,8 +88,9 @@ export class FriendsService {
   async relationships(viewerId: string, userIds: string[], db: Db = prisma, now = new Date()): Promise<Map<string, Relationship>> {
     const ids = [...new Set(userIds)];
     const others = ids.filter((id) => id !== viewerId);
-    const [blocked, friendships, pending, users] = await Promise.all([
+    const [blocked, mine, friendships, pending, users] = await Promise.all([
       blockedEitherWay(db, viewerId, others),
+      blockedByViewer(db, viewerId, others),
       db.friendship.findMany({
         where: { OR: [{ userLowId: viewerId, userHighId: { in: others } }, { userHighId: viewerId, userLowId: { in: others } }] },
         select: { userLowId: true, userHighId: true },
@@ -121,6 +122,7 @@ export class FriendsService {
           incomingRequestId: incoming?.id,
           requestable: Boolean(user && requestable(user)),
         }),
+        ...(mine.has(id) ? { blockedByYou: true } : {}),
       });
     }
     return result;

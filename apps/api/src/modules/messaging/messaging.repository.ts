@@ -4,6 +4,7 @@ import {
   persistNotifications,
 } from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
+import { isBlockedEitherWay } from '../social/visibility.js';
 
 const conversationInclude = {
   participants: { include: { user: { include: safeUserInclude } } },
@@ -55,6 +56,8 @@ export class MessagingRepository {
         where: { conversationId, userId: { not: senderId } },
         select: { userId: true },
       });
+      // Gate 9 / TKT-903: no new direct messages either way once either player blocked the other.
+      if (recipient && (await isBlockedEitherWay(tx, senderId, recipient.userId))) return { blocked: true as const };
       const message = await tx.directMessage.create({
         data: { conversationId, senderId, content },
         include: { sender: { include: safeUserInclude } },

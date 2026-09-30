@@ -20,6 +20,8 @@ export interface Relationship {
   state: RelationshipState;
   /** The pending request, for REQUESTED (cancel) and INCOMING (accept/decline). */
   requestId?: string;
+  /** Gate 9 / TKT-903: true only when the viewer blocked this player (shows "Unblock"). Never says who blocked the viewer. */
+  blockedByYou?: boolean;
 }
 
 /** Minimal card for search, friends and played-with lists: no contact, age or billing data. */
