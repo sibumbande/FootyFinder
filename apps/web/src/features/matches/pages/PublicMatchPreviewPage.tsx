@@ -6,6 +6,7 @@ import { ThemeToggle } from '@/components/ThemeToggle.js';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { PublicResult } from '@/features/public/components/PublicResult.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
@@ -86,6 +87,8 @@ export function PublicMatchPreviewPage() {
           startsAt={preview.startsAt}
         />
 
+        {preview.result && <PublicResult result={preview.result} />}
+
         <section className="rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-8">
           <h2 className="text-2xl font-black text-content-strong">Join this match</h2>
           <p className="mt-2 text-content-muted">{joinMessage(preview.joinability.reason)}</p>
@@ -97,11 +100,11 @@ export function PublicMatchPreviewPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             {!authPending && !user && (
               <>
-                <Link className="button inline-flex" to={`/login?returnTo=${encodeURIComponent(returnTo)}`}>
-                  Sign in to join
+                <Link className="button inline-flex" to={`/register?returnTo=${encodeURIComponent(returnTo)}`}>
+                  Sign up to play
                 </Link>
-                <Link className="button-secondary inline-flex" to={`/register?returnTo=${encodeURIComponent(returnTo)}`}>
-                  Create account
+                <Link className="button-secondary inline-flex" to={`/login?returnTo=${encodeURIComponent(returnTo)}`}>
+                  Log in
                 </Link>
               </>
             )}

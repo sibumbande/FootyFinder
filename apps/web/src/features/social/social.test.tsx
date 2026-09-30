@@ -28,6 +28,7 @@ vi.mock('./hooks/useSocial.js', () => ({
 }));
 vi.mock('@/features/messaging/hooks/useMessaging.js', () => ({ useConversations: () => ({ data: [], isPending: false, error: null }) }));
 vi.mock('@/features/teams/hooks/useTeams.js', () => ({ useMyTeams: () => ({ data: [] }) }));
+vi.mock('@/features/auth/hooks/useAuth.js', () => ({ useAuth: () => ({ user: { id: 'me', onboardingComplete: true, teams: [] }, isPending: false }) }));
 
 afterEach(cleanup);
 beforeEach(() => {

@@ -5,6 +5,8 @@ import { DmsTab } from '../components/DmsTab.js';
 import { FriendsTab } from '../components/FriendsTab.js';
 import { TeamsTab } from '../components/TeamsTab.js';
 import { useSocialSummary } from '../hooks/useSocial.js';
+import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { SignUpPrompt } from '@/features/public/components/SignUpPrompt.js';
 
 export const SOCIAL_TABS = ['discover', 'friends', 'teams', 'dms'] as const;
 export type SocialTab = (typeof SOCIAL_TABS)[number];
@@ -22,6 +24,7 @@ export function SocialPage() {
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
   const summary = useSocialSummary();
+  const { user } = useAuth();
   useEffect(() => {
     const timer = setTimeout(() => setQuery(input.trim()), 250);
     return () => clearTimeout(timer);
@@ -80,10 +83,13 @@ export function SocialPage() {
         </label>
       </div>
       <div className="rounded-[2rem] border border-line bg-surface p-5 shadow-sm sm:p-8">
-        {tab === 'discover' && <DiscoverTab query={query} />}
-        {tab === 'friends' && <FriendsTab query={query} />}
-        {tab === 'teams' && <TeamsTab query={query} />}
-        {tab === 'dms' && <DmsTab query={query} />}
+        {!user && tab !== 'teams' && (
+          <SignUpPrompt action={tab === 'discover' ? 'search players and add friends' : tab === 'friends' ? 'add friends' : 'send messages'} />
+        )}
+        {user && tab === 'discover' && <DiscoverTab query={query} />}
+        {user && tab === 'friends' && <FriendsTab query={query} />}
+        {tab === 'teams' && <TeamsTab query={query} signUpAction={<SignUpPrompt action="ask to join" compact />} />}
+        {user && tab === 'dms' && <DmsTab query={query} />}
       </div>
     </section>
   );

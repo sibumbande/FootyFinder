@@ -107,6 +107,36 @@ const assertLobbyOpen = (
   if (!isLobbyOpen(match, now)) throw new MatchClosedError();
 };
 
+/** Guest-safe public match fields (no people before the result; no money beyond the fixed fee). */
+export const publicPreviewSelect = {
+  publicSlug: true,
+  name: true,
+  description: true,
+  format: true,
+  substituteCapacityPerTeam: true,
+  rules: true,
+  status: true,
+  startsAt: true,
+  durationMinutes: true,
+  feeCents: true,
+  venue: { select: { name: true, city: true, region: true } },
+  participants: { where: { status: 'JOINED' }, select: { id: true } },
+  goNoGoAt: true,
+  confirmedAt: true,
+  cancellationReason: true,
+  formationSlots: { select: { participantId: true, team: true } },
+  otherSideMode: true,
+  otherSideTakenBy: true,
+  teamSides: { select: { side: true, teamNameSnapshot: true } },
+  // Gate 9 / TKT-910: the final result with scorer and assister names, once a referee or admin has recorded it.
+  result: {
+    select: {
+      homeScore: true, awayScore: true, outcomeType: true, forfeitWinner: true, finalSource: true,
+      goals: { orderBy: { sortOrder: 'asc' }, select: { side: true, ownGoal: true, scorer: { select: { displayNameSnapshot: true } }, assist: { select: { displayNameSnapshot: true } } } },
+    },
+  },
+} satisfies Prisma.MatchSelect;
+
 export class MatchesRepository {
   constructor(
     private readonly financial = new FinancialRepository(),
@@ -140,30 +170,11 @@ export class MatchesRepository {
     });
   }
   findPublicPreviewBySlug(publicSlug: string) {
-    return prisma.match.findFirst({
-      where: { publicSlug, visibility: 'PUBLIC' },
-      select: {
-        publicSlug: true,
-        name: true,
-        description: true,
-        format: true,
-        substituteCapacityPerTeam: true,
-        rules: true,
-        status: true,
-        startsAt: true,
-        durationMinutes: true,
-        feeCents: true,
-        venue: { select: { name: true, city: true, region: true } },
-        participants: { where: { status: 'JOINED' }, select: { id: true } },
-        goNoGoAt: true,
-        confirmedAt: true,
-        cancellationReason: true,
-        formationSlots: { select: { participantId: true, team: true } },
-        otherSideMode: true,
-        otherSideTakenBy: true,
-        teamSides: { select: { side: true, teamNameSnapshot: true } },
-      },
-    });
+    return prisma.match.findFirst({ where: { publicSlug, visibility: 'PUBLIC' }, select: publicPreviewSelect });
+  }
+  /** Gate 9 / TKT-910: upcoming public matches for the guest match list. */
+  findPublicPreviews(where: Prisma.MatchWhereInput, take = 50) {
+    return prisma.match.findMany({ where: { ...where, visibility: 'PUBLIC', publicSlug: { not: null } }, select: publicPreviewSelect, orderBy: { startsAt: 'asc' }, take });
   }
   hasFieldReservation(matchId: string) {
     return prisma.fieldReservation.findUnique({ where: { matchId }, select: { id: true } });

@@ -211,7 +211,13 @@ We do not collect your phone number, emergency contact details or health informa
 
 **8.2 Partner Venues.** We may give a Partner Venue the names of the players booked for a match, for access control. We do not share your date of birth, contact details or payment information with venues unless an emergency requires it.
 
-**8.3 Other users.** Signed-in users can see your player profile: your display name, username, profile photo, preferred positions, preferred foot, home area, years of experience, bio, city, Teams and match statistics. Players in a match see each other in the Lobby. Other users cannot see your email address, date of birth, identity documents or payment information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Public match pages (the share link for a public match) show the venue, time, format, fee and how many places are filled, but never who is playing. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
+**8.3 Other users and the public.** Anyone can browse the FootyFinder website without an account. The following are visible to anyone on the internet, including people without an account:
+- your player profile: your display name, username, profile photo, preferred positions, city, bio, Teams and match statistics;
+- Team pages: a Team's name, crest, members (with the same profile details), results record and average review rating;
+- Team recruitment posts and, while it is on, your "Looking for a team" card (clause 18.9);
+- public matches: the venue, time, format, fee and how many places are left; and, once a match has been played, its Final Result with the names of the scorers and assisters.
+
+Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, identity documents, chats and messages, friends list or payment and Wallet information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
 
 **8.4 Operators.** We use third-party operators for hosting, card payments (Paystack) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
 
@@ -302,7 +308,7 @@ We do not collect your phone number, emergency contact details or health informa
 **11.1 Hosting a Quick Match.** Any user may host a Quick Match by choosing an available slot at a Partner Venue and a format (5-a-side, 7-a-side or 11-a-side). The Host:
 
 - does not set a fee and does not pay for the pitch. A Host who wants to play joins and pays the R80 Slot Fee like any other player;
-- chooses whether the match is public (listed in the app, with a share link) or private (joinable only through an invite link, which the Host can replace at any time);
+- chooses whether the match is public (listed in the app and on the website, where anyone can see it, with a share link) or private (joinable only through an invite link, which the Host can replace at any time);
 - may change the match's name and description, but not its venue slot or kick-off time;
 - may, before the Lobby locks (clause 11.8), move players between positions and between the two sides, or take a player off a position so that they become a substitute (in the reserves). Players are told in the app when the Host changes their position. The Host cannot remove a player from the match, and a player moved this way keeps their place and their fee; and
 - may cancel the match until the Lobby locks (clause 14.1).
@@ -689,5 +695,6 @@ This summary is for convenience and does not replace the full Terms above. If th
 | Blocking | Block anyone: they can't message you, add you or ask to join your team, and you stop seeing each other. They aren't told. Shared matches and teams stay as they are. |
 | The risk | Football can injure you. You accept that risk and cover your own medical costs. We are still responsible if we are grossly negligent. |
 | Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can see, correct or delete your data and complain to the Information Regulator. |
+| What the public sees | Anyone can browse FootyFinder without an account: player profiles, team pages, recruitment posts, looking cards, upcoming public matches (counts only) and past results with scorers. Never your email, date of birth, messages, friends or payments. |
 | Behaviour | Violence, racism and abuse mean a permanent ban and possibly a police report. |
 | If something goes wrong | Contact support. You can also go to the National Consumer Commission or the Information Regulator. |

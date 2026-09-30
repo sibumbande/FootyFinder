@@ -30,7 +30,7 @@ export function Layout() {
             <NavLink to="/social" className={() => navClass({ isActive: inSocial })}>
               Social
             </NavLink>
-            <NavLink to="/teams" className={navClass}>
+            <NavLink to={user ? '/teams' : '/social?tab=teams'} className={navClass}>
               Teams
             </NavLink>
             {user?.isReferee && (
@@ -42,6 +42,16 @@ export function Layout() {
           <div className="ml-auto sm:ml-1">
             <ThemeToggle />
           </div>
+          {!user && (
+            <>
+              <Link className="hidden text-xs font-black uppercase tracking-[0.08em] text-content-muted hover:text-content-strong sm:inline" to={`/login?returnTo=${encodeURIComponent(pathname)}`}>
+                Log in
+              </Link>
+              <Link className="button" to={`/register?returnTo=${encodeURIComponent(pathname)}`} data-testid="guest-sign-up">
+                Sign up to play
+              </Link>
+            </>
+          )}
           {user && (
             <>
               <Link
@@ -79,6 +89,13 @@ export function Layout() {
             </>
           )}
         </div>
+        {!user && (
+          <nav className="flex justify-center gap-1 border-t border-line px-2 py-2 sm:hidden" aria-label="Guest navigation">
+            <NavLink end to="/" className={navClass}>Home</NavLink>
+            <NavLink to="/matches" className={navClass}>Matches</NavLink>
+            <NavLink to="/social" className={() => navClass({ isActive: inSocial })}>Social</NavLink>
+          </nav>
+        )}
       </header>
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <Outlet />

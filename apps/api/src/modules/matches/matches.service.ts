@@ -8,7 +8,7 @@ import type {
   JoinMatchInput,
   ResultInput,
   UpdateMatchInput,
-  PublicMatchPreview,
+  MatchFormat, PublicMatchPreview,
 } from '@footy-finder/shared';
 import {
   canChangeLobby,
@@ -132,6 +132,20 @@ export class MatchesService {
     const match = await this.matches.findPublicPreviewBySlug(slug);
     if (!match)
       throw new AppError(404, 'Public match not found.', 'PUBLIC_MATCH_NOT_FOUND');
+    return this.toPublicPreview(match);
+  }
+  /** Gate 9 / TKT-910: upcoming public matches anyone can browse (counts only, no names). */
+  async publicList(query: { format?: MatchFormat } = {}, now = new Date()) {
+    const matches = await this.matches.findPublicPreviews({
+      status: { in: ['OPEN', 'READY'] },
+      startsAt: { gt: now },
+      OR: [{ mode: 'QUICK_GAME' }, { otherSideMode: { not: null } }],
+      ...(query.format ? { format: query.format } : {}),
+    });
+    return matches.map((match) => this.toPublicPreview(match));
+  }
+  private toPublicPreview(match: NonNullable<Awaited<ReturnType<MatchesRepository['findPublicPreviewBySlug']>>>): PublicMatchPreview {
+    const slug = match.publicSlug!;
     const filled = match.participants.length;
     // Gate 7: on a team match individuals can only ever fill the other side.
     const teamMatch = Boolean(match.otherSideMode);
@@ -186,6 +200,22 @@ export class MatchesService {
         },
       }),
       ...goNoGoFacts(match),
+      ...(match.result && match.result.finalSource !== 'LEGACY' && ['AWAITING_RESULT', 'COMPLETED'].includes(match.status) && {
+        result: {
+          homeName: match.teamSides.find(({ side }) => side === 'HOME')?.teamNameSnapshot ?? 'Home',
+          awayName: match.teamSides.find(({ side }) => side === 'AWAY')?.teamNameSnapshot ?? 'Away',
+          homeScore: match.result.homeScore,
+          awayScore: match.result.awayScore,
+          outcome: match.result.outcomeType,
+          forfeitWinner: match.result.forfeitWinner,
+          goals: match.result.goals.map((goal) => ({
+            side: goal.side,
+            ownGoal: goal.ownGoal,
+            scorer: goal.scorer?.displayNameSnapshot ?? null,
+            assister: goal.assist?.displayNameSnapshot ?? null,
+          })),
+        },
+      }),
     };
   }
   /** Quick Match, or (Gate 7 / DEC-019) a team match when the host plays as their team. */

@@ -58,11 +58,11 @@ describe('PublicMatchPreviewPage', () => {
 
     expect(screen.getByRole('heading', { name: preview.name })).toBeInTheDocument();
     expect(screen.getByText('7/10')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sign in to join' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
       'href',
       `/login?returnTo=%2Fm%2F${preview.slug}`,
     );
-    expect(screen.getByRole('link', { name: 'Create account' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Sign up to play' })).toHaveAttribute(
       'href',
       `/register?returnTo=%2Fm%2F${preview.slug}`,
     );

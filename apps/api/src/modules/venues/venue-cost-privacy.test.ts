@@ -125,6 +125,23 @@ vi.mock('../../database/prisma.js', () => {
         { id: '00000000-0000-4000-8000-000000000012', type: 'TEAM_MATCH_FEE_DEBIT', amountCents: -88_000, createdAt: now, contributorUserId: null, referenceType: 'MATCH', referenceId: '11111111-1111-4111-8111-111111111111', contributor: null, spentBy: [] },
       ]),
     },
+    // Gate 9 / TKT-910 guest views.
+    matchTeam: { findMany: vi.fn(async () => []) },
+    teamReview: { findMany: vi.fn(async () => []) },
+    teamRecruitmentPost: {
+      findMany: vi.fn(async () => [{
+        id: 'post-1', teamId: 'team-1', createdById: 'u1', positions: ['GOALKEEPER'], playersWanted: 1, format: 'FIVE_A_SIDE', level: 'CASUAL',
+        days: [], times: [], area: 'Woodstock', note: null, status: 'OPEN', expiresAt: new Date('2099-01-01T00:00:00.000Z'), createdAt: now,
+        team: { id: 'team-1', name: 'Privacy FC', profileImageUrl: null, archivedAt: null, memberships: [{ userId: 'u1', role: 'OWNER' }], walletAccount: { balanceCents: 100_000 } },
+        _count: { joinRequests: 0 },
+      }]),
+    },
+    playerLookingCard: {
+      findMany: vi.fn(async () => [{
+        id: 'card-1', userId: 'u2', positions: ['FORWARD'], area: 'Salt River', days: [6], times: ['MORNING'], note: 'Keen', updatedAt: now,
+        user: { id: 'u2', username: 'lwazi', accountStatus: 'ACTIVE', onboardingCompletedAt: now, friendRequestsEnabled: true, email: 'lwazi@example.invalid', profile: { displayName: 'Lwazi', avatarUrl: null, homeArea: null, city: { name: 'Cape Town' }, photo: null, preferredPositions: [{ position: 'FORWARD' }] } },
+      }]),
+    },
     // The match row carries a reservation priced at R1000; the wallet DTO must only read its name.
     match: {
       findMany: vi.fn(async () => [
@@ -434,5 +451,66 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     });
     expectNoVenueCostInMoneyDto(topUp);
     expect(JSON.stringify(topUp)).not.toMatch(/amount_mismatch|providerTransactionId|walletTransactionId/);
+  });
+
+  describe('guest browsing: what anyone can see without an account (Gate 9 / TKT-910)', () => {
+    const PRIVATE = /email|dateOfBirth|balance|wallet|payment|conversation|friend|password/i;
+    const guestSafe = (payload: unknown) => {
+      expectNoVenueCost(payload);
+      expect(JSON.stringify(payload)).not.toMatch(PRIVATE);
+    };
+    // Rows carry a R1000 reservation and contact details the guest views must never pass on.
+    const previewRow = {
+      publicSlug: 'm-0123456789abcdef01234567', name: 'Privacy match', description: null, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 2,
+      rules: [], status: 'OPEN', startsAt: new Date('2099-01-01T18:00:00.000Z'), durationMinutes: 60, feeCents: 8_000,
+      venue: { name: 'Italian Club', city: 'Cape Town', region: 'Western Cape' }, participants: [{ id: 'p1' }], goNoGoAt: new Date('2099-01-01T17:30:00.000Z'),
+      confirmedAt: null, cancellationReason: null, formationSlots: [{ participantId: 'p1', team: 'HOME' }], otherSideMode: null, otherSideTakenBy: null,
+      teamSides: [], result: null, fieldReservation: { priceCentsSnapshot: 100_000 }, createdBy: { email: 'host@example.invalid' },
+    };
+
+    it('the public match list and a played match show the fixed fee, counts and scorers only', async () => {
+      const { MatchesService } = await import('../matches/matches.service.js');
+      const { prisma } = await import('../../database/prisma.js');
+      const findMany = (prisma as unknown as { match: { findMany: ReturnType<typeof vi.fn> } }).match.findMany;
+      findMany.mockResolvedValueOnce([previewRow]);
+      const list = await new MatchesService().publicList();
+      guestSafe(list);
+      expect(list[0]).toMatchObject({ feeCents: 8_000, capacity: { filled: 1 } });
+      expect(JSON.stringify(list)).not.toMatch(/"p1"|host@example/);
+      findMany.mockResolvedValueOnce([{
+        ...previewRow, status: 'COMPLETED',
+        teamSides: [{ side: 'HOME', teamNameSnapshot: 'Privacy FC' }, { side: 'AWAY', teamNameSnapshot: 'Guest FC' }],
+        result: { homeScore: 1, awayScore: 0, outcomeType: 'PLAYED', forfeitWinner: null, finalSource: 'REFEREE', goals: [{ side: 'HOME', ownGoal: false, scorer: { displayNameSnapshot: 'Thabo' }, assist: null }] },
+      }]);
+      const [played] = await new MatchesService().publicList();
+      guestSafe(played);
+      expect(played!.result).toEqual({ homeName: 'Privacy FC', awayName: 'Guest FC', homeScore: 1, awayScore: 0, outcome: 'PLAYED', forfeitWinner: null, goals: [{ side: 'HOME', ownGoal: false, scorer: 'Thabo', assister: null }] });
+    });
+
+    it('a public team page shows members, record and review average but no money or contact details', async () => {
+      const { PublicBrowseService } = await import('../public/public-browse.service.js');
+      const { prisma } = await import('../../database/prisma.js');
+      const db = prisma as unknown as Record<string, Record<string, ReturnType<typeof vi.fn>>>;
+      db.team!.findUnique!.mockResolvedValueOnce({
+        id: 'team-1', name: 'Privacy FC', shortName: 'PFC', profileImageUrl: null, primaryFormat: 'FIVE_A_SIDE', locationText: 'Woodstock', description: null,
+        primaryColor: null, secondaryColor: null, archivedAt: null,
+        memberships: [{ role: 'OWNER', user: { id: 'u1', username: 'thabo', accountStatus: 'ACTIVE', email: 'thabo@example.invalid', profile: { displayName: 'Thabo', avatarUrl: null, photo: null, preferredPositions: [{ position: 'GOALKEEPER' }] } } }],
+        walletAccount: { balanceCents: 100_000 },
+      });
+      const team = await new PublicBrowseService().team('team-1');
+      guestSafe(team);
+      expect(team.members).toEqual([{ userId: 'u1', username: 'thabo', displayName: 'Thabo', avatarUrl: null, role: 'OWNER', positions: ['GOALKEEPER'] }]);
+      expect(team.record).toEqual({ played: 0, wins: 0, draws: 0, losses: 0 });
+    });
+
+    it('the guest recruitment board and looking cards carry no private data', async () => {
+      const { RecruitmentService } = await import('../social/recruitment.service.js');
+      const posts = await new RecruitmentService().listPosts(null, {});
+      const cards = await new RecruitmentService().listLooking(null, {});
+      guestSafe(posts);
+      guestSafe(cards);
+      expect(posts[0]).toMatchObject({ team: { name: 'Privacy FC' }, viewerCanManage: false, viewerRequest: null });
+      expect(cards[0]!.player).toMatchObject({ displayName: 'Lwazi', relationship: { state: 'UNAVAILABLE' } });
+    });
   });
 });

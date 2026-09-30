@@ -1,4 +1,5 @@
 import type { MatchFormat } from '../config/match-formats.js';
+import type { PublicMatchResult } from './public.js';
 import type { PublicUser } from './user.js';
 import type { MatchReferee } from './referee.js';
 import type { TeamMatchOtherSideMode, TeamMatchOtherSideTakenBy } from '../config/team-match-fees.js';
@@ -341,6 +342,8 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
     otherSideMode: TeamMatchOtherSideMode;
     otherSideTakenBy: TeamMatchOtherSideTakenBy | null;
   };
+  /** Gate 9 / TKT-910: the final result with scorers, once a referee (or FootyFinder) has recorded it. */
+  result?: PublicMatchResult;
 }
 
 export interface LobbyMessage {

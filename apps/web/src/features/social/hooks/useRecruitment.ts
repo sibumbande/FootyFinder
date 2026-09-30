@@ -1,17 +1,28 @@
 import type { LookingCardInput, RecruitmentPostInput } from '@footy-finder/shared';
 import type { RecruitmentFilters } from '@footy-finder/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { recruitmentClient } from '@/api/client.js';
+import { publicClient, recruitmentClient } from '@/api/client.js';
 import { currentUserKey, useAuth } from '@/features/auth/hooks/useAuth.js';
 import { myTeamsKey } from '@/features/teams/hooks/useTeams.js';
 
 /** Gate 9 / TKT-909: the team recruitment board. */
 export const recruitmentKey = ['recruitment'] as const;
 
-export const useRecruitmentPosts = (filters: RecruitmentFilters) =>
-  useQuery({ queryKey: [...recruitmentKey, 'posts', filters], queryFn: async () => (await recruitmentClient.posts(filters)).data });
-export const useLookingPlayers = (filters: RecruitmentFilters) =>
-  useQuery({ queryKey: [...recruitmentKey, 'looking', filters], queryFn: async () => (await recruitmentClient.looking(filters)).data });
+/** Gate 9 / TKT-910: guests read the same board from the guest-safe /public routes. */
+export const useRecruitmentPosts = (filters: RecruitmentFilters) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: [...recruitmentKey, 'posts', Boolean(user), filters],
+    queryFn: async () => (user ? await recruitmentClient.posts(filters) : await publicClient.recruitmentPosts(filters)).data,
+  });
+};
+export const useLookingPlayers = (filters: RecruitmentFilters) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: [...recruitmentKey, 'looking', Boolean(user), filters],
+    queryFn: async () => (user ? await recruitmentClient.looking(filters) : await publicClient.lookingPlayers(filters)).data,
+  });
+};
 export const useMyLookingCard = () => {
   const { user } = useAuth();
   return useQuery({ queryKey: [...recruitmentKey, 'my-card'], queryFn: async () => (await recruitmentClient.myCard()).data, enabled: Boolean(user?.onboardingComplete) });

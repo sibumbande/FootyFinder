@@ -3,6 +3,11 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/Layout.js';
 import { GuestRoute } from '@/features/auth/components/GuestRoute.js';
 import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute.js';
+import { GuestAwareRoute } from '@/features/auth/components/GuestAwareRoute.js';
+import { MemberOrGuest } from '@/features/public/components/MemberOrGuest.js';
+import { GuestMatchesPage } from '@/features/public/pages/GuestMatchesPage.js';
+import { GuestPlayerPage } from '@/features/public/pages/GuestPlayerPage.js';
+import { GuestTeamPage } from '@/features/public/pages/GuestTeamPage.js';
 import { LoginPage } from '@/features/auth/pages/LoginPage.js';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage.js';
 import { MatchListPage } from '@/features/matches/pages/MatchListPage.js';
@@ -54,26 +59,31 @@ export function AppRouter() {
         <Route path="/waiting-list" element={animated(<WaitingListPage />)} />
         <Route path="/legal/:document" element={animated(<LegalPage />)} />
         <Route path="/m/:slug" element={animated(<PublicMatchPreviewPage />)} />
+        {/* Gate 9 / TKT-910: pages anyone may browse; guests get the read-only view. */}
+        <Route element={<GuestAwareRoute />}>
+          <Route element={<Layout />}>
+            <Route index element={animated(<MemberOrGuest member={<HomePage />} guest={<GuestMatchesPage home />} />)} />
+            <Route path="/matches" element={animated(<MemberOrGuest member={<MatchListPage />} guest={<GuestMatchesPage />} />)} />
+            <Route path="/venues/:slug" element={animated(<VenueDetailPage />)} />
+            <Route path="/players/:userId" element={animated(<MemberOrGuest member={<PlayerProfilePage />} guest={<GuestPlayerPage />} />)} />
+            <Route path="/social" element={animated(<SocialPage />)} />
+            <Route path="/teams/:teamId" element={animated(<MemberOrGuest member={<TeamPage />} guest={<GuestTeamPage />} />)} />
+          </Route>
+        </Route>
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/onboarding" element={animated(<OnboardingPage />)} />
-            <Route path="/venues/:slug" element={animated(<VenueDetailPage />)} />
-            <Route index element={animated(<HomePage />)} />
-            <Route path="/matches" element={animated(<MatchListPage />)} />
             <Route path="/matches/new" element={animated(<CreateMatchPage />)} />
             <Route path="/matches/:matchId" element={animated(<MatchLobbyPage />)} />
             <Route path="/referee" element={animated(<RefereePage />)} />
             <Route path="/referee/matches/:matchId" element={animated(<RefereeMatchPage />)} />
             <Route path="/matches/invite/:token" element={animated(<InviteMatchPage />)} />
-            <Route path="/players/:userId" element={animated(<PlayerProfilePage />)} />
-            <Route path="/social" element={animated(<SocialPage />)} />
             <Route path="/messages" element={<Navigate to="/social?tab=dms" replace />} />
             <Route path="/messages/:conversationId" element={animated(<MessagesPage />)} />
             <Route path="/messages/new/:userId" element={animated(<MessagesPage />)} />
             <Route path="/teams" element={animated(<MyTeamsPage />)} />
             <Route path="/teams/create" element={animated(<CreateTeamPage />)} />
             <Route path="/teams/:teamId/matches/new" element={<RetiredTeamFixtureRedirect />} />
-            <Route path="/teams/:teamId" element={animated(<TeamPage />)} />
             <Route path="/wallet" element={animated(<WalletPage />)} />
             <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />

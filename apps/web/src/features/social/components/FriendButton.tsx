@@ -1,3 +1,5 @@
+import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { SignUpPrompt } from '@/features/public/components/SignUpPrompt.js';
 import { useFriendAction, useRelationship } from '../hooks/useSocial.js';
 
 const base =
@@ -14,9 +16,12 @@ const styles = {
  * turned off incoming requests.
  */
 export function FriendButton({ userId, className = '' }: { userId: string; className?: string }) {
+  const { user, isPending } = useAuth();
   const relationship = useRelationship(userId);
   const action = useFriendAction();
   const state = relationship.data?.state;
+  // Gate 9 / TKT-910: guests see a sign-up prompt instead.
+  if (!user && !isPending) return <SignUpPrompt action="add friend" compact />;
   if (!state || state === 'SELF' || state === 'UNAVAILABLE') return null;
   const busy = action.isPending;
   if (state === 'FRIENDS')

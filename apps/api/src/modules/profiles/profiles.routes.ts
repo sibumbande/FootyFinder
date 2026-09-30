@@ -1,7 +1,7 @@
 import { Router, type Router as ExpressRouter } from 'express';
 import { requireAuth, requireSession } from '../../middleware/require-auth.js';
 import { requireAdminMfa, requirePlatformAdmin } from '../../middleware/require-admin.js';
-import { costlyMutationRateLimit } from '../../middleware/rate-limit.js';
+import { costlyMutationRateLimit, publicPreviewRateLimit } from '../../middleware/rate-limit.js';
 import multer from 'multer';
 import { AppError } from '../../errors/app-error.js';
 import { registerUuidRouteParams } from '../../middleware/route-params.js';
@@ -19,7 +19,8 @@ export const playerPhotoUpload = multer({
 });
 registerUuidRouteParams(profilesRouter, ['userId']);
 profilesRouter.get('/:userId', requireAuth, getProfile);
-profilesRouter.get('/:userId/photo', requireAuth, getPhoto);
+// Gate 9 / TKT-910: player photos appear on guest-visible profiles; hidden photos still return 404.
+profilesRouter.get('/:userId/photo', publicPreviewRateLimit, getPhoto);
 profilesRouter.patch('/me/profile', requireSession, updateMyProfile);
 profilesRouter.post('/me/photo', requireSession, costlyMutationRateLimit, playerPhotoUpload.single('image'), uploadMyPhoto);
 profilesRouter.post('/:userId/photo/hide', requireAuth, requirePlatformAdmin, requireAdminMfa, hidePhoto);
