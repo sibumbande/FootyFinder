@@ -6,5 +6,7 @@ import * as controller from './referee.controller.js';
 /** Gate 8 (DEC-020): what a FootyFinder referee does in the main app. */
 export const refereeRouter: ExpressRouter = Router();
 registerUuidRouteParams(refereeRouter, ['matchId']);
+refereeRouter.get('/matches', controller.myMatches);
+refereeRouter.get('/matches/:matchId', controller.matchDetail);
 refereeRouter.post('/matches/:matchId/decline', costlyMutationRateLimit, controller.decline);
 refereeRouter.post('/matches/:matchId/result', costlyMutationRateLimit, controller.submitResult);

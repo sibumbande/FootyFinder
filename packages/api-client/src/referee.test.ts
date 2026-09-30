@@ -9,6 +9,14 @@ describe('refereeApi', () => {
     expect(request).toHaveBeenCalledWith('/referee/matches/match-id/decline', { method: 'POST', body: JSON.stringify({ reason: 'Injured' }) });
   });
 
+  it('reads my matches and one match (Gate 8 / TKT-805)', async () => {
+    const request = vi.fn().mockResolvedValue({ data: [] });
+    const api = refereeApi({ request } as unknown as ApiClient);
+    await api.matches();
+    await api.match('match-id');
+    expect(request.mock.calls.map(([path]) => path)).toEqual(['/referee/matches', '/referee/matches/match-id']);
+  });
+
   it('records the final result (Gate 8 / TKT-804)', async () => {
     const request = vi.fn().mockResolvedValue({ data: {} });
     const input = { outcome: 'PLAYED' as const, homeScore: 1, awayScore: 0, goals: [{ side: 'HOME' as const, ownGoal: true }], didNotPlayUserIds: [] };

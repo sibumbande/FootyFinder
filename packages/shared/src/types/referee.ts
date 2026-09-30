@@ -73,3 +73,43 @@ export interface AdminRefereeSettings {
   updatedAt: string;
   updatedBy?: { id: string; displayName: string } | null;
 }
+
+/** Gate 8 / TKT-805: a match in the referee's own view. No contact, payment or venue-cost data. */
+export interface RefereeMatchSummary {
+  matchId: string;
+  name: string;
+  mode: MatchMode;
+  format: MatchFormat;
+  status: MatchStatus;
+  startsAt: string;
+  matchEndsAt: string;
+  goNoGoAt: string | null;
+  confirmed: boolean;
+  venue: { name: string; addressLine1: string; city: string };
+  sides: { HOME: string; AWAY: string };
+  hasResult: boolean;
+  canDecline: boolean;
+  canRecordResult: boolean;
+}
+
+export interface RefereeMatchResultView {
+  outcomeType: 'PLAYED' | 'FORFEIT' | 'ABANDONED';
+  homeScore: number;
+  awayScore: number;
+  forfeitWinner: 'HOME' | 'AWAY' | null;
+  finalSource: 'LEGACY' | 'REFEREE' | 'ADMIN';
+  finalizedAt: string | null;
+  goals: Array<{
+    side: 'HOME' | 'AWAY';
+    ownGoal: boolean;
+    scorer: { userId: string; displayName: string } | null;
+    assist: { userId: string; displayName: string } | null;
+  }>;
+}
+
+export interface RefereeMatchDetail extends RefereeMatchSummary {
+  /** The kickoff lineup record once the match has kicked off; the current lineup before. */
+  lineupRecorded: boolean;
+  lineup: MatchLineupPlayer[];
+  result: RefereeMatchResultView | null;
+}

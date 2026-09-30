@@ -12,6 +12,7 @@ import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
 import { RefereeJobs } from '../src/modules/referees/referee.jobs.js';
 import { RefereeResultsService } from '../src/modules/referees/referee-results.service.js';
 import { resultOverdueDedupeKey } from '../src/modules/referees/referee-results.js';
+import { RefereeViewService } from '../src/modules/referees/referee-view.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { refereeFixture } from './referee-fixture.js';
 
@@ -30,6 +31,7 @@ const financial = new FinancialRepository();
 const venue = managedVenueFixture(marker);
 const referee = refereeFixture(marker);
 const results = new RefereeResultsService();
+const refereeView = new RefereeViewService();
 const jobs = new RefereeJobs(undefined, new TestEmailProvider());
 const rejectsWith = async (work: () => Promise<unknown>, code: string) => {
   try {
@@ -139,6 +141,20 @@ async function refereeResultSection(host: { id: string }, players: Array<{ id: s
     ],
     didNotPlayUserIds: [p11.id],
   };
+  // TKT-805: the referee sees their own match with both lineups: names and sides, no contact,
+  // payment or venue-cost data. Players and other people cannot open it.
+  const mine = await refereeView.listMine(referee.userId);
+  const card = mine.find(({ matchId: id }) => id === matchId);
+  assert(card?.canRecordResult && !card.canDecline && card.sides.HOME === 'Team A', 'The referee list does not offer the result form.');
+  const detail = await refereeView.detail(matchId, referee.userId);
+  assert(detail.lineupRecorded && detail.lineup.length === 12 && detail.lineup.every(({ displayName }) => displayName.startsWith('Player ')), 'The referee does not see the recorded lineups.');
+  const json = JSON.stringify(detail);
+  assert(!/@|price|amountCents|feeCents|wallet|phone|dateOfBirth/i.test(json), 'The referee view exposed contact, payment or venue-cost data.');
+  assert(await rejectsWith(() => refereeView.listMine(p0.id), 'NOT_A_REFEREE'), 'A player opened the referee view.');
+  const otherReferee = refereeFixture(`${marker}-other`);
+  await otherReferee.create();
+  assert(await rejectsWith(() => refereeView.detail(matchId, otherReferee.userId), 'NOT_MATCH_REFEREE'), 'Another referee opened a match they do not referee.');
+  await otherReferee.cleanup();
   // Only the assigned, active referee may record it.
   assert(await rejectsWith(() => results.submit(matchId, host.id, valid), 'NOT_MATCH_REFEREE'), 'Someone other than the referee recorded the result.');
   // It is checked against the kickoff lineup.

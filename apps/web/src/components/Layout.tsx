@@ -30,6 +30,11 @@ export function Layout() {
             <NavLink to="/teams" className={navClass}>
               Teams
             </NavLink>
+            {user?.isReferee && (
+              <NavLink to="/referee" className={navClass}>
+                Referee
+              </NavLink>
+            )}
           </nav>
           <div className="ml-auto sm:ml-1">
             <ThemeToggle />

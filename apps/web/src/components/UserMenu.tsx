@@ -105,6 +105,16 @@ export function UserMenu() {
               Complete Profile
             </Link>
           )}
+          {user.isReferee && (
+            <Link
+              role="menuitem"
+              to="/referee"
+              onClick={() => setOpen(false)}
+              className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"
+            >
+              Referee
+            </Link>
+          )}
           <Link
             role="menuitem"
             to="/support"

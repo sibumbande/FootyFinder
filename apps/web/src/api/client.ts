@@ -1,4 +1,5 @@
 import {
+  refereeApi,
   ApiClient,
   authApi,
   matchesApi,
@@ -33,3 +34,4 @@ export const moderationClient = moderationApi(apiClient);
 export const disputesClient = disputesApi(apiClient);
 export const onboardingClient = onboardingApi(apiClient);
 export const venuesClient = venuesApi(apiClient);
+export const refereeClient = refereeApi(apiClient);
