@@ -14,9 +14,14 @@ import {
 import type { NotificationsService } from '../src/modules/notifications/notifications.service.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
 import { WalletRepository } from '../src/modules/wallet/wallet.repository.js';
+import { BookingsService } from '../src/modules/bookings/bookings.service.js';
+import { managedVenueFixture } from './managed-venue-fixture.js';
 
 const marker = `atomic-notifications-${randomUUID()}`;
 const markerPrefix = marker;
+// Since Gate 3 a Quick Match is created on a managed slot with the fixed R80 fee (DEC-018).
+const venueFixture = managedVenueFixture(marker);
+const bookings = new BookingsService();
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -107,28 +112,23 @@ async function main() {
   );
 
   const matches = new MatchesRepository();
-  const policyNow = new Date();
-  const cancellationMatch = await matches.create(
+  await venueFixture.create();
+  // Kickoffs sit on the venue's 30-minute grid, so the leave policy is evaluated exactly 12 hours
+  // before kickoff (no initial credit; the credit follows only when a paid replacement joins).
+  const cancellationKickoff = venueFixture.nextKickoff();
+  const policyNow = new Date(cancellationKickoff.getTime() - 12 * 60 * 60 * 1_000);
+  const cancellationMatch = await bookings.createQuickMatch(
     {
+      managedFieldId: venueFixture.fieldId,
       name: `${marker}-cancellation`,
       format: 'FIVE_A_SIDE',
       substituteCapacityPerTeam: 5,
       rollingSubstitutes: false,
       rules: [],
       visibility: 'PRIVATE',
-      startsAt: new Date(policyNow.getTime() + 12 * 60 * 60 * 1_000).toISOString(),
-      feeCents: 8_000,
-      venue: {
-        name: `${marker}-cancellation-venue`,
-        addressLine1: '2 Atomic Road',
-        city: 'Johannesburg',
-        region: 'Gauteng',
-        countryCode: 'ZA',
-      },
+      startsAt: cancellationKickoff.toISOString(),
     },
     owner.id,
-    50,
-    randomUUID(),
   );
   const joinKey = `${marker}-join`;
   const firstJoin = await matches.join(cancellationMatch.id, member.id, { team: 'AWAY' }, joinKey);
@@ -169,33 +169,31 @@ async function main() {
   );
   const cancelled = await matches.cancelMatch(cancellationMatch.id);
   const cancelledReplay = await matches.cancelMatch(cancellationMatch.id);
-  assert(cancelled.notifications.length === 1, 'Match cancellation notification was not atomic.');
+  // DEC-018 / TKT-316: a host cancellation notifies every joined player, every refunded payer and
+  // the host, once each (here the replacement player and the host).
+  assert(
+    cancelled.notifications.length === 2 &&
+      new Set(cancelled.notifications.map(({ userId }) => userId)).size === 2 &&
+      cancelled.notifications.every(({ userId }) => [third.id, owner.id].includes(userId)),
+    'Match cancellation notifications were not atomic, one per recipient.',
+  );
   assert(
     cancelledReplay.notifications.length === 0,
     'Match cancellation replay created a duplicate notification.',
   );
 
-  const resultMatch = await matches.create(
+  const resultMatch = await bookings.createQuickMatch(
     {
+      managedFieldId: venueFixture.fieldId,
       name: `${marker}-result`,
       format: 'FIVE_A_SIDE',
       substituteCapacityPerTeam: 5,
       rollingSubstitutes: false,
       rules: [],
       visibility: 'PRIVATE',
-      startsAt: new Date(Date.now() + 86_400_000).toISOString(),
-      feeCents: 0,
-      venue: {
-        name: `${marker}-result-venue`,
-        addressLine1: '3 Atomic Road',
-        city: 'Johannesburg',
-        region: 'Gauteng',
-        countryCode: 'ZA',
-      },
+      startsAt: venueFixture.nextKickoff().toISOString(),
     },
     owner.id,
-    50,
-    randomUUID(),
   );
   const resultParticipant = await matches.join(
     resultMatch.id,
@@ -205,7 +203,11 @@ async function main() {
   );
   await prisma.match.update({
     where: { id: resultMatch.id },
-    data: { status: 'AWAITING_RESULT', startsAt: new Date(Date.now() - 60 * 60 * 1_000) },
+    data: {
+      status: 'AWAITING_RESULT',
+      startsAt: new Date(Date.now() - 60 * 60 * 1_000),
+      goNoGoAt: new Date(Date.now() - 90 * 60 * 1_000),
+    },
   });
   const submitted = await matches.submitResult(resultMatch.id, owner.id, {
     homeScore: 1,
@@ -330,6 +332,7 @@ async function cleanup() {
     : [];
   const markedConversationIds = markedConversations.map(({ id }) => id);
 
+  await venueFixture.cleanupMatches(markedMatchIds);
   if (markedMatchIds.length) {
     await prisma.matchScorer.deleteMany({
       where: { matchResult: { matchId: { in: markedMatchIds } } },
@@ -343,6 +346,7 @@ async function cleanup() {
   if (markedConversationIds.length)
     await prisma.conversation.deleteMany({ where: { id: { in: markedConversationIds } } });
   await prisma.notification.deleteMany({ where: { dedupeKey: { startsWith: markerPrefix } } });
+  await venueFixture.cleanupVenue();
   if (markedUserIds.length) await prisma.user.deleteMany({ where: { id: { in: markedUserIds } } });
 
   const [users, teams, matches, venues, conversations, notifications] = await Promise.all([

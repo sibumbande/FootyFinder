@@ -1,10 +1,14 @@
 import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
+import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { MatchesRepository, TeamFullError } from '../src/modules/matches/matches.repository.js';
+import { managedVenueFixture } from './managed-venue-fixture.js';
 
 const marker = `phase-1a-${randomUUID()}`;
 const repository = new MatchesRepository();
+const bookings = new BookingsService();
+const venueFixture = managedVenueFixture(marker);
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -21,23 +25,14 @@ async function createUser(index: number) {
   });
 }
 
-const venue = (suffix: string) => ({
-  name: `${marker}-${suffix}`,
-  addressLine1: '1 Smoke Test Road',
-  city: 'Johannesburg',
-  region: 'Gauteng',
-  countryCode: 'ZA',
-});
-
-async function createMatch(
-  hostId: string,
-  suffix: string,
-  startsAt: Date,
-  feeCents: number,
-  substituteCapacityPerTeam = 5,
-) {
-  return repository.create(
+/**
+ * A private Quick Match on a managed slot (the only way to create one since Gate 3). DEC-018: the
+ * fee is always the platform-fixed R80; hosts cannot set it.
+ */
+async function createMatch(hostId: string, suffix: string, startsAt: Date, substituteCapacityPerTeam = 5) {
+  return bookings.createQuickMatch(
     {
+      managedFieldId: venueFixture.fieldId,
       name: `${marker}-${suffix}`,
       format: 'FIVE_A_SIDE',
       substituteCapacityPerTeam,
@@ -45,12 +40,8 @@ async function createMatch(
       rules: ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'],
       visibility: 'PRIVATE',
       startsAt: startsAt.toISOString(),
-      feeCents,
-      venue: venue(suffix),
     },
     hostId,
-    50,
-    randomUUID(),
   );
 }
 
@@ -61,14 +52,10 @@ async function walletBalance(userId: string) {
 async function main() {
   const users = await Promise.all(Array.from({ length: 9 }, (_, index) => createUser(index)));
   const host = users[0];
+  await venueFixture.create();
 
-  const persisted = await createMatch(
-    host.id,
-    'persisted-rules',
-    new Date(Date.now() + 24 * 60 * 60 * 1_000),
-    0,
-    10,
-  );
+  const persisted = await createMatch(host.id, 'persisted-rules', venueFixture.nextKickoff(), 10);
+  assert(persisted.feeCents === 8_000, 'A Quick Match did not use the fixed R80 fee (DEC-018).');
   assert(persisted.substituteCapacityPerTeam === 10, 'Substitute capacity was not persisted.');
   assert(persisted.rollingSubstitutes, 'Rolling-substitute setting was not persisted.');
   assert(
@@ -82,7 +69,7 @@ async function main() {
       data: {
         name: `${marker}-invalid-capacity`,
         createdById: host.id,
-        venueId: persisted.venueId,
+        venueId: (await prisma.match.findUniqueOrThrow({ where: { id: persisted.id } })).venueId,
         format: 'FIVE_A_SIDE',
         substituteCapacityPerTeam: 11,
         visibility: 'PRIVATE',
@@ -96,13 +83,7 @@ async function main() {
   }
   assert(constraintRejected, 'The database accepted more than ten substitutes per team.');
 
-  const fullMatch = await createMatch(
-    host.id,
-    'zero-substitutes',
-    new Date(Date.now() + 24 * 60 * 60 * 1_000),
-    0,
-    0,
-  );
+  const fullMatch = await createMatch(host.id, 'zero-substitutes', venueFixture.nextKickoff(), 0);
   await prisma.matchParticipant.createMany({
     data: users.slice(0, 5).map((user) => ({
       matchId: fullMatch.id,
@@ -118,13 +99,11 @@ async function main() {
   }
   assert(fullTeamRejected, 'A player joined a full zero-substitute team.');
 
-  const policyNow = new Date();
-  const earlyMatch = await createMatch(
-    host.id,
-    'early-cancellation',
-    new Date(policyNow.getTime() + 13 * 60 * 60 * 1_000),
-    8_000,
-  );
+  // Kickoffs must sit on the venue's 30-minute grid, so the leave policy is evaluated at an
+  // explicit instant: 13 hours before kickoff (full credit) and exactly 12 hours (none).
+  const earlyKickoff = venueFixture.nextKickoff();
+  const policyNow = new Date(earlyKickoff.getTime() - 13 * 60 * 60 * 1_000);
+  const earlyMatch = await createMatch(host.id, 'early-cancellation', earlyKickoff);
   await repository.join(earlyMatch.id, users[6].id, { team: 'HOME' }, randomUUID());
   const earlyDebitBalance = await walletBalance(users[6].id);
   const earlyCancellation = await repository.cancelParticipation(
@@ -143,18 +122,15 @@ async function main() {
     'Cancellation replay credited the wallet twice.',
   );
 
-  const boundaryMatch = await createMatch(
-    host.id,
-    'boundary-cancellation',
-    new Date(policyNow.getTime() + 12 * 60 * 60 * 1_000),
-    8_000,
-  );
+  const boundaryKickoff = venueFixture.nextKickoff();
+  const boundaryNow = new Date(boundaryKickoff.getTime() - 12 * 60 * 60 * 1_000);
+  const boundaryMatch = await createMatch(host.id, 'boundary-cancellation', boundaryKickoff);
   await repository.join(boundaryMatch.id, users[7].id, { team: 'AWAY' }, randomUUID());
   const boundaryDebitBalance = await walletBalance(users[7].id);
   const boundaryCancellation = await repository.cancelParticipation(
     boundaryMatch.id,
     users[7].id,
-    policyNow,
+    boundaryNow,
   );
   assert(
     boundaryCancellation.cancellation?.initialCreditCents === 0,
@@ -186,8 +162,12 @@ async function cleanup() {
   });
   const matchIds = matches.map(({ id }) => id);
   const venueIds = matches.map(({ venueId }) => venueId);
+  await venueFixture.cleanupMatches(matchIds);
   if (matchIds.length) await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
   if (venueIds.length) await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
+  await venueFixture.cleanupVenue();
+  await prisma.notification.deleteMany({ where: { user: { email: { startsWith: marker } } } });
+  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { user: { email: { startsWith: marker } } } } });
   await prisma.user.deleteMany({ where: { email: { startsWith: marker } } });
   const [remainingMatches, remainingVenues, remainingUsers] = await Promise.all([
     prisma.match.count({ where: { name: { startsWith: marker } } }),

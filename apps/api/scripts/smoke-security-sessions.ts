@@ -52,6 +52,10 @@ try {
       email: `${marker}@smoke.invalid`,
       username: marker.slice(0, 28),
       passwordHash: 'smoke-test-only',
+      // Since Gate 2 the socket accepts only verified, onboarded accounts; this smoke tests
+      // session revocation, so its player is an ordinary onboarded one.
+      emailVerifiedAt: new Date(),
+      onboardingCompletedAt: new Date(),
     },
   });
   userId = user.id;
@@ -197,8 +201,10 @@ try {
     (await sessions.verify(bannedSession.token)).accountStatus === 'BANNED',
     'Session verification did not surface the current account restriction.',
   );
+  // /users/me stays readable for a restricted account (its own status); protected routes such
+  // as /wallet must refuse it.
   const restricted = await request(app)
-    .get('/users/me')
+    .get('/wallet')
     .set('Cookie', `footy_finder_session=${bannedSession.token}`);
   assert(
     restricted.status === 403 && restricted.body.code === 'ACCOUNT_RESTRICTED',

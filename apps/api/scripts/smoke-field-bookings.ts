@@ -13,8 +13,10 @@ const service = new BookingsService(); const financial = new FinancialRepository
 const userIds: string[] = []; const reservationIds: string[] = []; const matchIds: string[] = []; const holdIds: string[] = [];
 let managedVenueId = '';
 try {
+  // 08:00 UTC (10:00 Johannesburg) a week ahead: the bookings at kickoff, +3h and +6h stay
+  // inside one local day whatever time the smoke starts (a slot may not cross local midnight).
   const kickoff = new Date(Date.now() + 7 * 86_400_000);
-  kickoff.setUTCMinutes(0, 0, 0);
+  kickoff.setUTCHours(8, 0, 0, 0);
   const venue = await prisma.managedVenue.create({ data: { slug: `${marker}-venue`, name: marker, addressLine1: '1 Booking Street', city: 'Johannesburg', region: 'Gauteng', countryCode: 'ZA', fields: { create: { name: 'Pitch One', supportedFormats: { create: { format: 'FIVE_A_SIDE' } }, availabilityPeriods: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startMinute: 0, endMinute: 1440 })) }, prices: { create: { amountCents: 80_000, effectiveFrom: new Date(Date.now() - 86_400_000) } } } } } });
   managedVenueId = venue.id;
   const field = await prisma.managedField.findFirstOrThrow({ where: { venueId: venue.id }, include: { prices: true } });

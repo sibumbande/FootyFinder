@@ -7,12 +7,15 @@ import { MatchAvailabilityService } from '../src/modules/match-availability/matc
 import { MatchLineupService } from '../src/modules/match-lineup/match-lineup.service.js';
 import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
+import { BookingsService } from '../src/modules/bookings/bookings.service.js';
+import { managedVenueFixture } from './managed-venue-fixture.js';
 
 const marker = `phase-1d-${randomUUID()}`;
 const matches = new MatchesRepository();
 const teams = new TeamsRepository();
 const lineups = new MatchLineupService();
 const availability = new MatchAvailabilityService();
+const venueFixture = managedVenueFixture(marker);
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -353,10 +356,20 @@ async function main() {
     'Existing-fixture backfill invented selections.',
   );
 
-  const quick = await matches.create(
-    { ...fixtureInput('quick', 'FIVE_A_SIDE', 5), visibility: 'PUBLIC', feeCents: 0 },
+  // A Quick Match is created on a managed slot with the fixed R80 fee (Gate 3 / DEC-018).
+  await venueFixture.create();
+  const quick = await new BookingsService().createQuickMatch(
+    {
+      managedFieldId: venueFixture.fieldId,
+      name: `${marker}-quick`,
+      format: 'FIVE_A_SIDE',
+      substituteCapacityPerTeam: 5,
+      rollingSubstitutes: true,
+      rules: [],
+      visibility: 'PUBLIC',
+      startsAt: venueFixture.nextKickoff().toISOString(),
+    },
     outsider.id,
-    60,
   );
   await expectCode(() => lineups.get(quick.id, 'HOME', outsider.id), 'TEAM_MATCH_SIDE_NOT_FOUND');
   assert((await balances(userIds)) === balancesBefore, 'Lineup operations mutated a wallet.');
@@ -380,6 +393,7 @@ async function cleanup() {
     select: { id: true, venueId: true },
   });
   const matchIds = markedMatches.map(({ id }) => id);
+  await venueFixture.cleanupMatches(matchIds);
   if (matchIds.length) await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
   const teamIds = (
     await prisma.team.findMany({ where: { name: { startsWith: marker } }, select: { id: true } })
@@ -389,6 +403,7 @@ async function cleanup() {
     await prisma.venue.deleteMany({
       where: { id: { in: markedMatches.map(({ venueId }) => venueId) } },
     });
+  await venueFixture.cleanupVenue();
   await prisma.user.deleteMany({ where: { email: { startsWith: marker } } });
   const remaining = await Promise.all([
     prisma.team.count({ where: { name: { startsWith: marker } } }),
