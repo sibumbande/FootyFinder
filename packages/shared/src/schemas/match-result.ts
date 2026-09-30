@@ -115,3 +115,10 @@ export function validateMatchResult(
   }
   return [...problems];
 }
+
+/** Gate 8 / TKT-807 (D3, D5, D25): an admin enters or corrects a final result, with a written reason. */
+export const adminResultEntrySchema = z.object({
+  result: refereeResultSchema,
+  reason: z.string().trim().min(3).max(500),
+});
+export type AdminResultEntryInput = z.infer<typeof adminResultEntrySchema>;

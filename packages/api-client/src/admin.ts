@@ -56,6 +56,11 @@ import type {
   AssignRefereeInput,
   RemoveRefereeInput,
   RefereeSettingsInput,
+  AdminResultQueueItem,
+  AdminResultDetail,
+  AdminResultEntryInput,
+  AdminResultProblem,
+  AdminRefereeReportRow,
 } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
@@ -80,6 +85,20 @@ export const adminApi = (client: ApiClient) => ({
   removeReferee: (matchId: string, input: RemoveRefereeInput) =>
     client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee/remove`, post(input)),
   refereeSettings: () => client.request<{ data: AdminRefereeSettings }>('/admin/referee-settings'),
+  // Gate 8 / TKT-807: results queue, admin entry and correction (fresh MFA), problems, report.
+  resultQueue: (view: 'awaiting' | 'recent' = 'awaiting') =>
+    client.request<{ data: AdminResultQueueItem[] }>(`/admin/results?view=${view}`),
+  resultDetail: (matchId: string) => client.request<{ data: AdminResultDetail }>(`/admin/results/${id(matchId)}`),
+  enterResult: (matchId: string, input: AdminResultEntryInput) =>
+    client.request<{ data: AdminResultDetail }>(`/admin/results/${id(matchId)}/entry`, post(input)),
+  correctResult: (matchId: string, input: AdminResultEntryInput) =>
+    client.request<{ data: AdminResultDetail }>(`/admin/results/${id(matchId)}/correction`, post(input)),
+  resultProblems: (status: 'OPEN' | 'RESOLVED' = 'OPEN') =>
+    client.request<{ data: AdminResultProblem[] }>(`/admin/result-problems?status=${status}`),
+  resolveResultProblem: (reportId: string, note: string) =>
+    client.request<{ data: AdminResultProblem }>(`/admin/result-problems/${id(reportId)}/resolve`, post({ note })),
+  refereeReport: (from: string, to: string) =>
+    client.request<{ data: AdminRefereeReportRow[] }>(`/admin/referee-report?from=${from}&to=${to}`),
   updateRefereeSettings: (input: RefereeSettingsInput) =>
     client.request<{ data: AdminRefereeSettings }>('/admin/referee-settings', { method: 'PUT', body: JSON.stringify(input) }),
   // Gate 6 / TKT-607-608: venue bank details, payables and the weekly dual-control queue.

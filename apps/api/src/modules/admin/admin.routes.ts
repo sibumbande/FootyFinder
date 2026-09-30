@@ -136,3 +136,11 @@ adminRouter.put('/referee-settings', costlyMutationRateLimit, requireRecentAdmin
 adminRouter.get('/matches/:matchId/referee-options', referees.refereeOptions);
 adminRouter.put('/matches/:matchId/referee', costlyMutationRateLimit, referees.assignReferee);
 adminRouter.post('/matches/:matchId/referee/remove', costlyMutationRateLimit, referees.removeReferee);
+// Gate 8 / TKT-807: results. Entering and correcting a result need fresh MFA and a reason (D25).
+adminRouter.get('/results', referees.resultQueue);
+adminRouter.get('/results/:matchId', referees.resultDetail);
+adminRouter.post('/results/:matchId/entry', costlyMutationRateLimit, requireRecentAdminMfa, referees.enterResult);
+adminRouter.post('/results/:matchId/correction', costlyMutationRateLimit, requireRecentAdminMfa, referees.correctResult);
+adminRouter.get('/result-problems', referees.resultProblems);
+adminRouter.post('/result-problems/:reportId/resolve', costlyMutationRateLimit, referees.resolveResultProblem);
+adminRouter.get('/referee-report', referees.refereeReport);

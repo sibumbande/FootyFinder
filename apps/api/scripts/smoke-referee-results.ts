@@ -15,6 +15,10 @@ import { resultOverdueDedupeKey } from '../src/modules/referees/referee-results.
 import { RefereeViewService } from '../src/modules/referees/referee-view.service.js';
 import { ResultEvidenceService } from '../src/modules/referees/result-evidence.service.js';
 import { DisputesService } from '../src/modules/disputes/disputes.service.js';
+import request from 'supertest';
+import { app } from '../src/app.js';
+import { allowedOrigins } from '../src/config/cors.js';
+import { SessionsService } from '../src/modules/auth/sessions.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { refereeFixture } from './referee-fixture.js';
 
@@ -121,11 +125,13 @@ async function main() {
 
   const racedId = await refereeResultSection(host, players, matchId);
   await captainEvidenceSection(host, players, matchId, racedId);
+  await adminResultsSection(host, players, matchId);
   console.log(
     'Gate 8 referee results smoke passed: kickoff lineup record (starters, substitutes, snapshots, once, permanent except didNotPlay); '
       + 'referee final result (only the assigned referee, from kickoff, validated against the lineup, goals/assists/own goals, didNotPlay, '
       + 'one revision, COMPLETED, notices once, first submission wins under a race, legacy self-report blocked, overdue alert); '
-      + 'captain/host own version (window, authority, score-only, latest kept, permanent), report a problem (24h, one open), result disputes retired.',
+      + 'captain/host own version (window, authority, score-only, latest kept, permanent), report a problem (24h, one open), result disputes retired; '
+      + 'admin results queue (overdue, mismatch, referee also played), admin entry and correction (fresh MFA, reason, revisions, audit, notices), problem resolution, matches-refereed report.',
   );
 }
 
@@ -250,6 +256,86 @@ async function captainEvidenceSection(host: { id: string }, players: Array<{ id:
   // D21: results can no longer be disputed.
   const resultId = final.id;
   assert(await rejectsWith(() => new DisputesService().create(host.id, { type: 'MATCH_RESULT', referenceId: resultId, reason: 'INCORRECT_SCORE', details: 'The score was wrong.' }), 'RESULT_DISPUTES_RETIRED'), 'A result dispute was opened.');
+}
+
+/** TKT-807 (D3, D4, D5, D6, D8, D17, D25) through the admin HTTP API. */
+async function adminResultsSection(host: { id: string }, players: Array<{ id: string }>, matchId: string) {
+  const sessions = new SessionsService();
+  const admin = await prisma.user.create({ data: { email: `${marker}-results-admin@smoke.invalid`, username: `${marker.slice(-8)}_radm`, passwordHash: 'smoke-test-only', platformRole: 'ADMIN', emailVerifiedAt: new Date(), onboardingCompletedAt: new Date() } });
+  const cookie = async (mfaAgeMinutes: number) => {
+    const session = await sessions.issue(admin.id, { userAgent: marker });
+    await prisma.authSession.update({ where: { id: session.sessionId }, data: { adminVerifiedAt: new Date(Date.now() - mfaAgeMinutes * 60_000) } });
+    return `footy_finder_session=${session.token}`;
+  };
+  const fresh = await cookie(1);
+  const stale = await cookie(20);
+  const post = (path: string, body: object, auth = fresh) => request(app).post(path).set('Origin', allowedOrigins[0]!).set('Cookie', auth).send(body);
+  const get = (path: string) => request(app).get(path).set('Cookie', fresh);
+  const [p0, p1, , , , p5] = players as [{ id: string }, { id: string }, unknown, unknown, unknown, { id: string }];
+
+  // D3/D4: a started match whose referee recorded nothing is in the queue, overdue after 2 hours.
+  const noShow = await playedQuickMatch('no-show', host, players);
+  const awaiting = await get('/admin/results?view=awaiting');
+  assert(awaiting.status === 200, `Admin results queue failed: ${JSON.stringify(awaiting.body)}`);
+  const queued = awaiting.body.data.find((item: { matchId: string }) => item.matchId === noShow);
+  assert(queued && !queued.overdue && !queued.result, 'The match without a result is not in the awaiting queue.');
+  const startsAt = new Date(Date.now() - 4 * 3_600_000);
+  await prisma.match.update({ where: { id: noShow }, data: { startsAt, goNoGoAt: new Date(startsAt.getTime() - 30 * 60_000) } });
+  await evidence.submitVersion(noShow, host.id, { outcome: 'PLAYED', homeScore: 1, awayScore: 0, goals: [{ side: 'HOME', scorerUserId: p0.id, ownGoal: false }] });
+  const overdue = (await get(`/admin/results/${noShow}`)).body.data;
+  assert(overdue.overdue && overdue.captainVersions.length === 1 && !overdue.mismatch && overdue.lineup.length === 12, 'The overdue match detail is wrong.');
+  // D17 (reversed): "Referee also played" is shown for the record when the referee is in the lineup.
+  assert(!overdue.refereeAlsoPlayed, 'Referee also played was flagged wrongly.');
+  const refereeId = (await prisma.match.findUniqueOrThrow({ where: { id: noShow } })).refereeUserId;
+  await prisma.match.update({ where: { id: noShow }, data: { refereeUserId: p1.id } });
+  assert((await get(`/admin/results/${noShow}`)).body.data.refereeAlsoPlayed, 'Referee also played was not flagged.');
+  await prisma.match.update({ where: { id: noShow }, data: { refereeUserId: refereeId } });
+
+  // D3 + D25: the admin enters the result with a reason and a fresh MFA check.
+  const entry = { result: { outcome: 'PLAYED', homeScore: 1, awayScore: 0, goals: [{ side: 'HOME', scorerUserId: p0.id, ownGoal: false }], didNotPlayUserIds: [] }, reason: 'Referee did not attend; captain version and photos' };
+  const staleEntry = await post(`/admin/results/${noShow}/entry`, entry, stale);
+  assert(staleEntry.status === 403 && staleEntry.body.code === 'ADMIN_MFA_REVERIFY_REQUIRED', 'Admin entry did not need a fresh MFA check.');
+  assert((await post(`/admin/results/${noShow}/entry`, { ...entry, reason: '' })).status === 400, 'Admin entry without a reason was accepted.');
+  const entered = await post(`/admin/results/${noShow}/entry`, entry);
+  assert(entered.status === 201 && entered.body.data.result.finalSource === 'ADMIN', `Admin entry failed: ${JSON.stringify(entered.body)}`);
+  const entryRevision = await prisma.matchResultRevision.findFirstOrThrow({ where: { matchResult: { matchId: noShow } } });
+  assert(entryRevision.reason === 'ADMIN_ENTRY' && entryRevision.createdByAdminUserId === admin.id, 'The admin entry revision is wrong.');
+  assert(await prisma.adminAuditLog.count({ where: { actorUserId: admin.id, action: 'RESULT_ENTERED', entityId: noShow } }), 'The admin entry was not audited.');
+  assert((await post(`/admin/results/${noShow}/entry`, entry)).body.code === 'RESULT_ALREADY_FINAL', 'A second admin entry was accepted.');
+  assert((await prisma.match.findUniqueOrThrow({ where: { id: noShow } })).status === 'COMPLETED', 'Admin entry did not complete the match.');
+
+  // D5: a correction of the referee's result keeps the history, notifies again and flags the
+  // captain version that now differs.
+  const correction = { result: { outcome: 'PLAYED', homeScore: 1, awayScore: 1, goals: [{ side: 'HOME', scorerUserId: p0.id, assistUserId: p1.id, ownGoal: false }, { side: 'AWAY', scorerUserId: p5.id, ownGoal: false }], didNotPlayUserIds: [] }, reason: 'The own goal was recorded twice by mistake' };
+  assert((await post(`/admin/results/${matchId}/correction`, correction, stale)).status === 403, 'A correction did not need a fresh MFA check.');
+  const corrected = await post(`/admin/results/${matchId}/correction`, correction);
+  assert(corrected.status === 200 && corrected.body.data.result.homeScore === 1 && corrected.body.data.result.finalSource === 'ADMIN', `Correction failed: ${JSON.stringify(corrected.body)}`);
+  const revisions = corrected.body.data.revisions as Array<{ reason: string; correctionReason: string | null }>;
+  assert(revisions.length === 2 && revisions[0]!.reason === 'REFEREE_SUBMISSION' && revisions[1]!.reason === 'ADMIN_CORRECTION' && revisions[1]!.correctionReason === correction.reason, 'The correction history is wrong.');
+  assert(corrected.body.data.mismatch, 'The captain version that differs from the corrected result was not flagged.');
+  assert((await prisma.notification.count({ where: { type: 'RESULT_CORRECTED', targetPath: `/matches/${matchId}` } })) === 12, 'Players were not told once about the correction.');
+  assert((await prisma.matchLineupEntry.count({ where: { matchId, didNotPlay: true } })) === 0, 'The correction did not update who played.');
+  assert(await prisma.adminAuditLog.count({ where: { actorUserId: admin.id, action: 'RESULT_CORRECTED', entityId: matchId } }), 'The correction was not audited.');
+  const recent = await get('/admin/results?view=recent');
+  assert(recent.body.data.some((item: { matchId: string }) => item.matchId === matchId), 'The corrected match is not in recent results.');
+
+  // D6: resolving a problem report tells the reporter once.
+  const open = await get('/admin/result-problems?status=OPEN');
+  const report = open.body.data.find((item: { matchId: string }) => item.matchId === matchId);
+  assert(report, 'The open report is not in the admin queue.');
+  const resolved = await post(`/admin/result-problems/${report.id}/resolve`, { note: 'Corrected the scorer; thank you.' });
+  assert(resolved.status === 200 && resolved.body.data.status === 'RESOLVED', 'The report could not be resolved.');
+  assert((await post(`/admin/result-problems/${report.id}/resolve`, { note: 'Again' })).body.code === 'RESULT_PROBLEM_RESOLVED', 'A report was resolved twice.');
+  assert((await prisma.notification.count({ where: { userId: host.id, type: 'RESULT_PROBLEM_RESOLVED' } })) === 1, 'The reporter was not told once.');
+
+  // D8: the matches-refereed report counts results the referee recorded (kept after a correction),
+  // not the one an admin entered; no money anywhere.
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  const report8 = await get(`/admin/referee-report?from=${day(-2)}&to=${day(2)}`);
+  const row = report8.body.data.find((item: { referee: { id: string } }) => item.referee.id === referee.userId);
+  assert(row && row.matches.some((match: { matchId: string }) => match.matchId === matchId) && !row.matches.some((match: { matchId: string }) => match.matchId === noShow), `The referee report is wrong: ${JSON.stringify(report8.body)}`);
+  assert(!/amount|cents|price|pay/i.test(JSON.stringify(report8.body.data)), 'The referee report shows money.');
+  assert((await get('/admin/referee-report?from=2026-10-10&to=2026-10-01')).status === 400, 'A reversed date range was accepted.');
 }
 
 async function cleanup() {

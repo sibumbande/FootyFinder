@@ -150,3 +150,63 @@ export interface RefereeMatchDetail extends RefereeMatchSummary {
   lineup: MatchLineupPlayer[];
   result: RefereeMatchResultView | null;
 }
+
+/** Gate 8 / TKT-807: a captain's latest version as admins see it, flagged if it differs (D3). */
+export interface AdminCaptainVersion extends CaptainResultSubmissionView {
+  submittedBy: { id: string; displayName: string };
+  /** True when the outcome or score differs from the final result (or, before one, from the other captain). */
+  mismatch: boolean;
+}
+
+/** Gate 8 / TKT-807: one match in the admin results queue. Admin-only. */
+export interface AdminResultQueueItem {
+  matchId: string;
+  name: string;
+  mode: MatchMode;
+  status: MatchStatus;
+  startsAt: string;
+  matchEndsAt: string;
+  /** D4: no result two hours after the scheduled end. */
+  overdue: boolean;
+  venueName: string;
+  sides: { HOME: string; AWAY: string };
+  referee: { id: string; displayName: string } | null;
+  /** D17 (reversed), for the record only: the referee is also in the lineup record. */
+  refereeAlsoPlayed: boolean;
+  result: RefereeMatchResultView | null;
+  captainVersions: AdminCaptainVersion[];
+  mismatch: boolean;
+  openProblemCount: number;
+}
+
+export interface AdminResultRevision {
+  revisionNumber: number;
+  reason: 'INITIAL_SUBMISSION' | 'ADMIN_CORRECTION' | 'REFEREE_SUBMISSION' | 'ADMIN_ENTRY';
+  outcomeType: 'PLAYED' | 'FORFEIT' | 'ABANDONED' | null;
+  homeScore: number;
+  awayScore: number;
+  createdBy: { id: string; displayName: string } | null;
+  correctionReason: string | null;
+  createdAt: string;
+}
+
+export interface AdminResultProblem extends ResultProblemReportView {
+  matchId: string;
+  matchName: string;
+  side: 'HOME' | 'AWAY' | null;
+  reporter: { id: string; displayName: string };
+  resolvedBy: { id: string; displayName: string } | null;
+}
+
+export interface AdminResultDetail extends AdminResultQueueItem {
+  lineup: MatchLineupPlayer[];
+  revisions: AdminResultRevision[];
+  problems: AdminResultProblem[];
+}
+
+/** D8: matches refereed per referee in a date range. No money. */
+export interface AdminRefereeReportRow {
+  referee: { id: string; displayName: string };
+  matchCount: number;
+  matches: Array<{ matchId: string; name: string; startsAt: string; venueName: string; submittedAt: string }>;
+}

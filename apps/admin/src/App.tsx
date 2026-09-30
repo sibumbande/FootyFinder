@@ -13,6 +13,7 @@ import { ModerationPage } from './ModerationPage.js';
 import { DisputesPage } from './DisputesPage.js';
 import { RefereesPage } from './RefereesPage.js';
 import { MatchRefereesPage } from './MatchRefereesPage.js';
+import { ResultsPage } from './ResultsPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -200,6 +201,7 @@ function Dashboard() {
           </div>
           <GoNoGoPanel health={data.goNoGo} />
           <UnassignedRefereesPanel />
+          <ResultsAttentionPanel />
           <p className="muted">
             Updated {new Date(data.generatedAt).toLocaleTimeString()} · API uptime{' '}
             {Math.floor(data.runtime.uptimeSeconds / 60)} minutes · {data.accounts.admins}{' '}
@@ -249,6 +251,28 @@ function UnassignedRefereesPanel() {
         ? `${unassigned.data.length} upcoming match(es) have no referee. `
         : 'Every upcoming match has a referee. '}
       <NavLink to="/match-referees">Match referees</NavLink>
+    </p>
+  );
+}
+
+/** Gate 8 / D4, D6: overdue results and open problem reports. */
+function ResultsAttentionPanel() {
+  const awaiting = useQuery({
+    queryKey: ['admin', 'results', 'awaiting'],
+    queryFn: async () => (await adminClient.resultQueue('awaiting')).data,
+    refetchInterval: 30_000,
+  });
+  const problems = useQuery({
+    queryKey: ['admin', 'results', 'problems', 'OPEN'],
+    queryFn: async () => (await adminClient.resultProblems('OPEN')).data,
+    refetchInterval: 30_000,
+  });
+  if (!awaiting.data || !problems.data) return null;
+  const overdue = awaiting.data.filter(({ overdue: late }) => late).length;
+  const attention = overdue + problems.data.length;
+  return (
+    <p className={attention ? 'error' : 'muted'}>
+      {overdue} overdue result(s), {problems.data.length} open result report(s). <NavLink to="/results">Results</NavLink>
     </p>
   );
 }
@@ -343,6 +367,7 @@ function AdminShell() {
           <NavLink to="/disputes">Disputes</NavLink>
           <NavLink to="/referees">Referees</NavLink>
           <NavLink to="/match-referees">Match referees</NavLink>
+          <NavLink to="/results">Results</NavLink>
           <NavLink to="/audit">Audit log</NavLink>
         </nav>
         <button className="ghost" onClick={() => logout.mutate()}>
@@ -362,6 +387,7 @@ function AdminShell() {
           <Route path="disputes" element={<DisputesPage />} />
           <Route path="referees" element={<RefereesPage />} />
           <Route path="match-referees" element={<MatchRefereesPage />} />
+          <Route path="results" element={<ResultsPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

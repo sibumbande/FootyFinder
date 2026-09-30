@@ -59,6 +59,25 @@ describe('adminApi', () => {
     expect(request.mock.calls[5]![1]).toMatchObject({ method: 'PUT' });
     expect(request.mock.calls[8]![1]).toMatchObject({ method: 'PUT' });
     expect(request.mock.calls[1]![1]).toMatchObject({ method: 'POST', body: JSON.stringify({ reason: 'Qualified referee' }) });
+    request.mockClear();
+    const entry = { result: { outcome: 'ABANDONED' as const, homeScore: 0, awayScore: 0, goals: [], didNotPlayUserIds: [] }, reason: 'Referee did not attend' };
+    await api.resultQueue('recent');
+    await api.resultDetail('match-id');
+    await api.enterResult('match-id', entry);
+    await api.correctResult('match-id', entry);
+    await api.resultProblems('RESOLVED');
+    await api.resolveResultProblem('report-id', 'Checked the footage');
+    await api.refereeReport('2026-10-01', '2026-10-31');
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/results?view=recent',
+      '/admin/results/match-id',
+      '/admin/results/match-id/entry',
+      '/admin/results/match-id/correction',
+      '/admin/result-problems?status=RESOLVED',
+      '/admin/result-problems/report-id/resolve',
+      '/admin/referee-report?from=2026-10-01&to=2026-10-31',
+    ]);
+    expect(request.mock.calls[2]![1]).toMatchObject({ method: 'POST', body: JSON.stringify(entry) });
   });
 
   it('uses distinct pre-MFA and privileged Admin routes', async () => {
