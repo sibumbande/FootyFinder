@@ -119,7 +119,7 @@ The following information is provided in compliance with section 43 of ECTA:
 | Nature of business | On-demand football matchmaking, digital slot booking, team administration and venue facilitation |
 | Currency | All prices, fees and credits are quoted and settled in South African Rand (ZAR) and include VAT where applicable |
 | Payment processing | Card payments are processed by Paystack Payments South Africa, a PCI-DSS compliant third-party provider. We accept card payments only |
-| PAIA Manual | Our manual under the Promotion of Access to Information Act 2 of 2000 is published on our website and is available on request |
+| PAIA Manual | Available on request through support |
 
 **3.1 Registration status.** FootyFinder is not a registered financial services provider, bank or authorised payment service provider. We do not provide financial advice, credit or insurance.
 
