@@ -24,6 +24,13 @@ describe('socialApi (Gate 9 / TKT-901)', () => {
     await api.blocks();
     await api.block('u3');
     await api.unblock('u3');
+    await api.myTeamInvites();
+    await api.acceptTeamInvite('i1');
+    await api.declineTeamInvite('i1');
+    await api.teamMemberInvites('t1');
+    await api.invitableFriends('t1');
+    await api.inviteToTeam('t1', 'u4');
+    await api.cancelTeamInvite('t1', 'i1');
     expect(request.mock.calls.map(([path, init]) => `${(init as { method?: string } | undefined)?.method ?? 'GET'} ${path}`)).toEqual([
       'GET /social/summary',
       'GET /social/search?q=thabo',
@@ -43,6 +50,13 @@ describe('socialApi (Gate 9 / TKT-901)', () => {
       'GET /social/blocks',
       'POST /social/blocks',
       'DELETE /social/blocks/u3',
+      'GET /social/team-invites',
+      'POST /social/team-invites/i1/accept',
+      'POST /social/team-invites/i1/decline',
+      'GET /teams/t1/member-invites',
+      'GET /teams/t1/invitable-friends',
+      'POST /teams/t1/member-invites',
+      'POST /teams/t1/member-invites/i1/cancel',
     ]);
   });
 });

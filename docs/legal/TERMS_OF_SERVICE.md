@@ -330,7 +330,7 @@ We do not collect your phone number, emergency contact details or health informa
 
 ### Teams
 
-**12.1 Creating a Team.** Any user with an active player profile may create a Team and becomes its Owner. The Owner may make members Captains and change them back, remove members, change the Team's details and close the Team. The Owner and Captains may invite people to join through an invite link.
+**12.1 Creating a Team.** Any user with an active player profile may create a Team and becomes its Owner. The Owner may make members Captains and change them back, remove members, change the Team's details and close the Team. The Owner and Captains may invite people to join through an invite link, or invite one player personally in the app: a friend of theirs (clause 18.7), or a player whose "Looking for a team" card is on (clause 18.9). A personal invite expires after fourteen (14) days if the player does not answer, and only one can be waiting for the same player and Team at a time. The player accepts or declines it; a player who accepts joins the Team as a member in the same way as through an invite link. No invite can be sent between players where one has blocked the other (clause 18.8).
 
 **12.2 Authority of the Owner and Captains.** A Team's Owner and its Captains act for their own Team only. They may create Team Matches for the Team, load the Team into the Other Side of another Team's match, choose the Team's substitutes and lineup, fill the Team's Fill Meter from the Team Wallet, and withdraw or cancel as set out in clauses 12.14 and 12.15. A Captain who is demoted or removed loses this authority immediately. By joining a Team you authorise its Owner and Captains to do these things on your behalf. FootyFinder's administrators do not act for a Team.
 
@@ -670,7 +670,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | After kick-off | No refunds if the match is abandoned, for any reason. |
 | If you leave | More than 12 hours before kick-off: full R80 back. 12 hours or less: only if a new paid player joins your side. In the last 30 minutes the lineup is locked and you can't leave. |
 | Referees and results | A FootyFinder referee runs every match and records the score, scorers and assisters. Their result is final; only we can fix a clear recording error. You can still complain. |
-| Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. |
+| Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. The Owner and Captains can invite friends to the team in one tap; invites expire after 14 days. |
 | Reviews | Players who played can rate the opposing team within 14 days. Reviews are anonymous; comments are checked first. |
 | Friends | Send friend requests (up to 20 new ones a day, not counting people you played with) and turn them off if you prefer. Only you see your friends list. |
 | Blocking | Block anyone: they can't message you, add you or ask to join your team, and you stop seeing each other. They aren't told. Shared matches and teams stay as they are. |

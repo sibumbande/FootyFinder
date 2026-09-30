@@ -1,10 +1,12 @@
-import { blockUserSchema, relationshipsQuerySchema, sendFriendRequestSchema, socialSearchQuerySchema, socialSettingsSchema } from '@footy-finder/shared';
+import { blockUserSchema, createTeamMemberInviteSchema, relationshipsQuerySchema, sendFriendRequestSchema, socialSearchQuerySchema, socialSettingsSchema } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { BlocksService } from './blocks.service.js';
 import { FriendsService } from './friends.service.js';
+import { TeamMemberInvitesService } from './team-member-invites.service.js';
 
 const friends = new FriendsService();
 const blocks = new BlocksService();
+const teamInvites = new TeamMemberInvitesService();
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 const handle = (work: (req: Parameters<RequestHandler>[0], viewerId: string) => Promise<unknown>, status = 200): RequestHandler =>
   async (req, res, next) => {
@@ -35,3 +37,15 @@ export const addAll = handle((req, viewerId) => friends.addAll(viewerId, String(
 export const blockList = handle((_req, viewerId) => blocks.list(viewerId));
 export const block = handle((req, viewerId) => blocks.block(viewerId, blockUserSchema.parse(req.body).userId), 201);
 export const unblock = handle((req, viewerId) => blocks.unblock(viewerId, String(req.params.userId)));
+
+/** Gate 9 / TKT-904: personal team invites. */
+export const myTeamInvites = handle((_req, viewerId) => teamInvites.mine(viewerId));
+export const acceptTeamInvite = handle((req, viewerId) => teamInvites.respond(viewerId, String(req.params.inviteId), true));
+export const declineTeamInvite = handle((req, viewerId) => teamInvites.respond(viewerId, String(req.params.inviteId), false));
+export const teamMemberInvites = handle((req, viewerId) => teamInvites.forTeam(viewerId, String(req.params.teamId)));
+export const invitableFriends = handle((req, viewerId) => teamInvites.invitableFriends(viewerId, String(req.params.teamId)));
+export const createTeamMemberInvite = handle((req, viewerId) => {
+  const input = createTeamMemberInviteSchema.parse(req.body);
+  return teamInvites.invite(viewerId, String(req.params.teamId), input.userId, input.source);
+}, 201);
+export const cancelTeamMemberInvite = handle((req, viewerId) => teamInvites.cancel(viewerId, String(req.params.teamId), String(req.params.inviteId)));

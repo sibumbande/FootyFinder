@@ -6,6 +6,8 @@ import { useBlocks, useFriendAction, useFriendRequests, useFriends } from '../ho
 import { SocialEmpty } from './SocialEmpty.js';
 import { FriendRequestsSwitch } from './FriendRequestsSwitch.js';
 import { SocialPlayerCardView } from './SocialPlayerCardView.js';
+import { InviteToTeamMenu } from './InviteToTeamMenu.js';
+import { TeamInvitesSection } from './TeamInvitesSection.js';
 
 const matches = (player: SocialPlayerCard, needle: string) =>
   !needle || player.displayName.toLowerCase().includes(needle) || player.username.toLowerCase().includes(needle);
@@ -33,6 +35,7 @@ export function FriendsTab({ query, extraActions }: { query: string; extraAction
   return (
     <div className="grid gap-8">
       <FormError message={friends.error?.message ?? requests.error?.message ?? action.error?.message} />
+      <TeamInvitesSection />
       {incoming.length > 0 && (
         <Section title={`Friend requests (${incoming.length})`}>
           <div className="grid gap-3 md:grid-cols-2">
@@ -55,6 +58,7 @@ export function FriendsTab({ query, extraActions }: { query: string; extraAction
               actions={
                 <span className="flex flex-wrap justify-end gap-2">
                   {extraActions?.(friend)}
+                  <InviteToTeamMenu userId={friend.id} />
                   <Link className={small} to={`/messages/new/${friend.id}`}>Message</Link>
                   <button
                     type="button"

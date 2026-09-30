@@ -37,6 +37,32 @@ const formationInclude = {
   },
 } as const;
 
+/**
+ * The normal team membership path: adds the player as a MEMBER and tells the Owner and Captains.
+ * Used by link invites and (Gate 9) personal invites and accepted join requests.
+ */
+export async function joinTeamAsMember(tx: Prisma.TransactionClient, teamId: string, userId: string, dedupeParts: string[]) {
+  const membership = await tx.teamMembership.create({
+    data: { teamId, userId, role: 'MEMBER' },
+    include: memberInclude,
+  });
+  const team = await tx.team.findUniqueOrThrow({ where: { id: teamId }, include: teamInclude });
+  const notifications = await persistNotifications(
+    tx,
+    team.memberships
+      .filter(({ userId: adminId, role }) => adminId !== userId && (role === 'OWNER' || role === 'CAPTAIN'))
+      .map(({ userId: adminId }) => ({
+        userId: adminId,
+        type: 'TEAM_MEMBER_JOINED' as const,
+        title: 'New team member',
+        message: `${membership.user.profile?.displayName ?? membership.user.username} joined ${team.name}.`,
+        targetPath: `/teams/${team.id}`,
+        dedupeKey: notificationDedupeKey(...dedupeParts, 'accepted', userId, adminId),
+      })),
+  );
+  return { membership, team, notifications };
+}
+
 export class TeamsRepository {
   constructor(
     private readonly teamWallets = new TeamWalletRepository(),
@@ -233,30 +259,7 @@ export class TeamsRepository {
         data: { useCount: { increment: 1 } },
       });
       if (consumed.count !== 1) return { outcome: 'USED' as const };
-      const membership = await tx.teamMembership.create({
-        data: { teamId: invite.teamId, userId, role: 'MEMBER' },
-        include: memberInclude,
-      });
-      const team = await tx.team.findUniqueOrThrow({
-        where: { id: invite.teamId },
-        include: teamInclude,
-      });
-      const notifications = await persistNotifications(
-        tx,
-        team.memberships
-          .filter(
-            ({ userId: adminId, role }) =>
-              adminId !== userId && (role === 'OWNER' || role === 'CAPTAIN'),
-          )
-          .map(({ userId: adminId }) => ({
-            userId: adminId,
-            type: 'TEAM_MEMBER_JOINED' as const,
-            title: 'New team member',
-            message: `${membership.user.profile?.displayName ?? membership.user.username} joined ${team.name}.`,
-            targetPath: `/teams/${team.id}`,
-            dedupeKey: notificationDedupeKey('team-invite', invite.id, 'accepted', userId, adminId),
-          })),
-      );
+      const { membership, team, notifications } = await joinTeamAsMember(tx, invite.teamId, userId, ['team-invite', invite.id]);
       return { outcome: 'JOINED' as const, invite, membership, team, notifications };
     });
   }

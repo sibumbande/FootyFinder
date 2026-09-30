@@ -22,3 +22,10 @@ export type SocialSettingsInput = z.infer<typeof socialSettingsSchema>;
 
 /** Gate 9 / TKT-903. */
 export const blockUserSchema = z.object({ userId: z.string().uuid() });
+
+/** Gate 9 / TKT-904 (D11): invite one player to a Team. */
+export const createTeamMemberInviteSchema = z.object({
+  userId: z.string().uuid(),
+  source: z.enum(['FRIEND', 'LOOKING']).default('FRIEND'),
+});
+export type CreateTeamMemberInviteInput = z.infer<typeof createTeamMemberInviteSchema>;

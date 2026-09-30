@@ -1,5 +1,8 @@
 import type {
   AddAllResult,
+  InvitableFriend,
+  TeamMemberInviteSource,
+  TeamMemberInviteView,
   FriendRequestsView,
   PlayedWithView,
   Relationship,
@@ -37,5 +40,14 @@ export const socialApi = (client: ApiClient) => ({
   addAll: (matchId: string) => client.request<{ data: AddAllResult }>(`/social/matches/${id(matchId)}/add-all`, json('POST')),
   blocks: () => client.request<{ data: SocialPlayerCard[] }>('/social/blocks'),
   block: (userId: string) => client.request<{ data: { userId: string; blocked: boolean } }>('/social/blocks', json('POST', { userId })),
+  myTeamInvites: () => client.request<{ data: TeamMemberInviteView[] }>('/social/team-invites'),
+  acceptTeamInvite: (inviteId: string) => client.request<{ data: { inviteId: string; status: string; teamId: string } }>(`/social/team-invites/${id(inviteId)}/accept`, json('POST')),
+  declineTeamInvite: (inviteId: string) => client.request<{ data: { inviteId: string; status: string; teamId: string } }>(`/social/team-invites/${id(inviteId)}/decline`, json('POST')),
+  teamMemberInvites: (teamId: string) => client.request<{ data: TeamMemberInviteView[] }>(`/teams/${id(teamId)}/member-invites`),
+  invitableFriends: (teamId: string) => client.request<{ data: InvitableFriend[] }>(`/teams/${id(teamId)}/invitable-friends`),
+  inviteToTeam: (teamId: string, userId: string, source: TeamMemberInviteSource = 'FRIEND') =>
+    client.request<{ data: TeamMemberInviteView }>(`/teams/${id(teamId)}/member-invites`, json('POST', { userId, source })),
+  cancelTeamInvite: (teamId: string, inviteId: string) =>
+    client.request<{ data: { inviteId: string; status: string } }>(`/teams/${id(teamId)}/member-invites/${id(inviteId)}/cancel`, json('POST')),
   unblock: (userId: string) => client.request<{ data: { userId: string; blocked: boolean } }>(`/social/blocks/${id(userId)}`, json('DELETE')),
 });

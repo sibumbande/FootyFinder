@@ -5,7 +5,7 @@ import * as controller from './social.controller.js';
 
 /** Gate 9: mounted at /social behind requireAuth and requireOnboardingForMutations. */
 export const socialRouter: ExpressRouter = Router();
-registerUuidRouteParams(socialRouter, ['requestId', 'userId', 'matchId']);
+registerUuidRouteParams(socialRouter, ['requestId', 'userId', 'matchId', 'inviteId']);
 socialRouter.get('/summary', controller.summary);
 socialRouter.get('/search', controller.search);
 socialRouter.get('/relationships', controller.relationships);
@@ -23,3 +23,6 @@ socialRouter.post('/matches/:matchId/add-all', costlyMutationRateLimit, controll
 socialRouter.get('/blocks', controller.blockList);
 socialRouter.post('/blocks', costlyMutationRateLimit, controller.block);
 socialRouter.delete('/blocks/:userId', controller.unblock);
+socialRouter.get('/team-invites', controller.myTeamInvites);
+socialRouter.post('/team-invites/:inviteId/accept', controller.acceptTeamInvite);
+socialRouter.post('/team-invites/:inviteId/decline', controller.declineTeamInvite);

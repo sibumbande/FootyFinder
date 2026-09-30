@@ -8,6 +8,7 @@ import * as controller from './teams.controller.js';
 import * as teamWallet from '../team-wallet/team-wallet.controller.js';
 import * as teamChat from '../team-chat/team-chat.controller.js';
 import * as teamReviews from '../team-reviews/team-reviews.controller.js';
+import * as social from '../social/social.controller.js';
 import { TEAM_IMAGE_MAX_BYTES } from './team-image.storage.js';
 import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 import { requireOnboardingForMutations } from '../../middleware/require-onboarding.js';
@@ -48,6 +49,11 @@ teamsRouter.post(
   controller.uploadImage,
 );
 teamsRouter.get('/:teamId/members', controller.members);
+// Gate 9 / TKT-904 (D11): personal invites for friends (and, TKT-909, players looking for a team).
+teamsRouter.get('/:teamId/member-invites', social.teamMemberInvites);
+teamsRouter.get('/:teamId/invitable-friends', social.invitableFriends);
+teamsRouter.post('/:teamId/member-invites', costlyMutationRateLimit, social.createTeamMemberInvite);
+teamsRouter.post('/:teamId/member-invites/:inviteId/cancel', social.cancelTeamMemberInvite);
 teamsRouter.patch('/:teamId/members/:userId', controller.updateMemberRole);
 teamsRouter.delete('/:teamId/members/:userId', controller.removeMember);
 teamsRouter.post('/:teamId/invites', costlyMutationRateLimit, controller.createInvite);

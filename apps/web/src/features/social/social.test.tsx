@@ -23,6 +23,8 @@ vi.mock('./hooks/useSocial.js', () => ({
   useFriendRequests: () => ({ data: { incoming: [], outgoing: [] }, error: null }),
   useSocialSettings: () => ({ data: { friendRequestsEnabled: true }, isPending: false }),
   useUpdateSocialSettings: () => ({ mutate: vi.fn(), isPending: false }),
+  useMyTeamInvites: () => ({ data: [] }),
+  useTeamInviteAction: () => ({ mutate: vi.fn(), isPending: false, error: null }),
 }));
 vi.mock('@/features/messaging/hooks/useMessaging.js', () => ({ useConversations: () => ({ data: [], isPending: false, error: null }) }));
 vi.mock('@/features/teams/hooks/useTeams.js', () => ({ useMyTeams: () => ({ data: [] }) }));

@@ -4,6 +4,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { formatDate } from '@/utils/format-date.js';
 import { useTeamInviteMutations, useTeamInvites } from '../hooks/useTeams.js';
+import { InviteFriendsPanel } from '@/features/social/components/InviteFriendsPanel.js';
 
 export function TeamInvitePanel({ team }: { team: TeamDetail }) {
   const allowed = team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN';
@@ -24,6 +25,7 @@ export function TeamInvitePanel({ team }: { team: TeamDetail }) {
     });
   return (
     <section className="grid gap-5">
+      <InviteFriendsPanel teamId={team.id} />
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-content-strong">Team invitations</h2>

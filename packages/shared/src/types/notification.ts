@@ -41,6 +41,9 @@ export const NOTIFICATION_TYPES = [
   // Gate 9 (TKT-901): friends.
   'FRIEND_REQUEST_RECEIVED',
   'FRIEND_REQUEST_ACCEPTED',
+  // Gate 9 (TKT-904): personal team invites.
+  'TEAM_INVITE_RECEIVED',
+  'TEAM_INVITE_ANSWERED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

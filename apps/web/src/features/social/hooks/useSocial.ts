@@ -1,7 +1,8 @@
 import type { Relationship } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { socialClient } from '@/api/client.js';
-import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { currentUserKey, useAuth } from '@/features/auth/hooks/useAuth.js';
+import { myTeamsKey } from '@/features/teams/hooks/useTeams.js';
 
 export const socialKey = ['social'] as const;
 export const relationshipKey = (userId: string) => [...socialKey, 'relationship', userId] as const;
@@ -132,5 +133,42 @@ export function useAddAll(matchId: string) {
   return useMutation({
     mutationFn: async () => (await socialClient.addAll(matchId)).data,
     onSuccess: () => void invalidateSocial(cache),
+  });
+}
+
+/** Gate 9 / TKT-904: personal team invites. */
+export const useMyTeamInvites = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: [...socialKey, 'team-invites'],
+    queryFn: async () => (await socialClient.myTeamInvites()).data,
+    enabled: Boolean(user?.onboardingComplete),
+  });
+};
+export const useTeamMemberInvites = (teamId: string, enabled = true) =>
+  useQuery({ queryKey: [...socialKey, 'team-member-invites', teamId], queryFn: async () => (await socialClient.teamMemberInvites(teamId)).data, enabled });
+export const useInvitableFriends = (teamId: string, enabled = true) =>
+  useQuery({ queryKey: [...socialKey, 'invitable-friends', teamId], queryFn: async () => (await socialClient.invitableFriends(teamId)).data, enabled });
+export function useTeamInviteAction() {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      action:
+        | { kind: 'invite'; teamId: string; userId: string; source?: 'FRIEND' | 'LOOKING' }
+        | { kind: 'cancel'; teamId: string; inviteId: string }
+        | { kind: 'accept' | 'decline'; inviteId: string },
+    ) => {
+      if (action.kind === 'invite') return (await socialClient.inviteToTeam(action.teamId, action.userId, action.source)).data;
+      if (action.kind === 'cancel') return (await socialClient.cancelTeamInvite(action.teamId, action.inviteId)).data;
+      if (action.kind === 'accept') return (await socialClient.acceptTeamInvite(action.inviteId)).data;
+      return (await socialClient.declineTeamInvite(action.inviteId)).data;
+    },
+    onSuccess: (_data, action) => {
+      void invalidateSocial(cache);
+      if (action.kind === 'accept') {
+        void cache.invalidateQueries({ queryKey: myTeamsKey });
+        void cache.invalidateQueries({ queryKey: currentUserKey });
+      }
+    },
   });
 }

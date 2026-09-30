@@ -16,5 +16,9 @@ export const socialHooksMock: Record<string, unknown> = {
   usePlayedWith: () => idle,
   useFriendAction: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   useUpdateSocialSettings: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useMyTeamInvites: () => ({ ...idle, data: [] }),
+  useTeamMemberInvites: () => ({ ...idle, data: [] }),
+  useInvitableFriends: () => ({ ...idle, data: [] }),
+  useTeamInviteAction: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   useAddAll: () => ({ mutate: vi.fn(), isPending: false, error: null, data: undefined }),
 };

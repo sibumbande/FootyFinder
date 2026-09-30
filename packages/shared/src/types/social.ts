@@ -76,3 +76,26 @@ export interface AddAllResult {
   limitReached: boolean;
 }
 
+
+/** Gate 9 / TKT-904 (D11): a personal invite to join a Team, from its Owner or a Captain. */
+export const TEAM_MEMBER_INVITE_EXPIRY_DAYS = 14;
+export const TEAM_MEMBER_INVITE_STATUSES = ['PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'EXPIRED'] as const;
+export type TeamMemberInviteStatus = (typeof TEAM_MEMBER_INVITE_STATUSES)[number];
+export const TEAM_MEMBER_INVITE_SOURCES = ['FRIEND', 'LOOKING'] as const;
+export type TeamMemberInviteSource = (typeof TEAM_MEMBER_INVITE_SOURCES)[number];
+export interface TeamMemberInviteView {
+  id: string;
+  status: TeamMemberInviteStatus;
+  source: TeamMemberInviteSource;
+  createdAt: string;
+  expiresAt: string;
+  team: { id: string; name: string; profileImageUrl?: string | null };
+  invitedBy: { id: string; displayName: string; username: string };
+  invitee: SocialPlayerCard;
+}
+/** A friend in the team-invite picker: already a member, already invited, or invitable. */
+export interface InvitableFriend {
+  player: SocialPlayerCard;
+  status: 'MEMBER' | 'INVITED' | 'INVITABLE';
+  inviteId?: string;
+}

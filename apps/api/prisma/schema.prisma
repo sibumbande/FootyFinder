@@ -428,6 +428,22 @@ enum NotificationType {
   RESULT_PROBLEM_RESOLVED
   FRIEND_REQUEST_RECEIVED
   FRIEND_REQUEST_ACCEPTED
+  TEAM_INVITE_RECEIVED
+  TEAM_INVITE_ANSWERED
+}
+
+/// Gate 9 / TKT-904: personal team invites.
+enum TeamMemberInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+enum TeamMemberInviteSource {
+  FRIEND
+  LOOKING
 }
 
 /// Gate 9 / TKT-901: friend request lifecycle.
@@ -574,6 +590,8 @@ model User {
   friendshipsHigh           Friendship[]              @relation("FriendshipHigh")
   blocksMade                UserBlock[]               @relation("BlockBlocker")
   blocksReceived            UserBlock[]               @relation("BlockBlocked")
+  teamInvitesReceived       TeamMemberInvite[]        @relation("TeamMemberInvitee")
+  teamInvitesSent           TeamMemberInvite[]        @relation("TeamMemberInviter")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1952,6 +1970,7 @@ model Team {
   ownerUserId     String           @db.Uuid
   /// Gate 7 / D7: a closed team is archived, never deleted, so its money history is kept.
   archivedAt      DateTime?
+  memberInvites   TeamMemberInvite[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   owner           User             @relation("TeamOwner", fields: [ownerUserId], references: [id])
@@ -2196,4 +2215,23 @@ model UserBlock {
 
   @@unique([blockerId, blockedId])
   @@index([blockedId])
+}
+
+/// Gate 9 / TKT-904: one pending personal invite per player per team (partial unique index), 14-day expiry.
+model TeamMemberInvite {
+  id          String                 @id @default(uuid()) @db.Uuid
+  teamId      String                 @db.Uuid
+  inviteeId   String                 @db.Uuid
+  invitedById String                 @db.Uuid
+  source      TeamMemberInviteSource
+  status      TeamMemberInviteStatus @default(PENDING)
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime               @default(now())
+  team        Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitee     User                   @relation("TeamMemberInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  invitedBy   User                   @relation("TeamMemberInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([inviteeId, status])
+  @@index([teamId, status])
 }
