@@ -15,6 +15,7 @@ import {
   type NotificationDraft,
 } from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
+import { assertNoPlayerOverlap } from '../matches/player-overlap.js';
 
 export class LineupTeamSideNotFoundError extends Error {}
 export class LineupForbiddenError extends Error {}
@@ -38,6 +39,23 @@ export class PositionOutsideTeamHalfError extends Error {}
 const selectionInclude = {
   user: { include: safeUserInclude },
 } satisfies Prisma.TeamMatchSelectionInclude;
+/**
+ * Gate 9 / TKT-908: a player newly entering this lineup (as a starter, substitute or claimed open
+ * slot) must not already be in an overlapping match. Players already active in this lineup are
+ * only moving within it, so they are not checked again.
+ */
+const ACTIVE_SELECTION = ['SELECTED_STARTER', 'SELECTED_SUBSTITUTE', 'OPEN_SLOT_CLAIMED'];
+async function assertEntersWithoutOverlap(
+  tx: Prisma.TransactionClient,
+  context: { match: { id: string; startsAt: Date; durationMinutes: number } },
+  playerId: string,
+  actorId: string,
+  existing?: { status: string } | null,
+) {
+  if (existing && ACTIVE_SELECTION.includes(existing.status)) return;
+  await assertNoPlayerOverlap(tx, playerId, context.match, playerId === actorId);
+}
+
 const lineupInclude = {
   match: {
     select: {
@@ -48,6 +66,7 @@ const lineupInclude = {
       format: true,
       substituteCapacityPerTeam: true,
       startsAt: true,
+      durationMinutes: true,
     },
   },
   team: {
@@ -336,6 +355,7 @@ export class MatchLineupRepository {
       if (!membership(context, input.userId)) throw new LineupTeamMemberNotFoundError();
       const target = findSlot(context, slotId);
       const incomingExisting = findSelection(context, input.userId);
+      await assertEntersWithoutOverlap(tx, context, input.userId, userId, incomingExisting);
       const source = starterSlotFor(context, incomingExisting?.id);
       if (target.selection?.userId === input.userId) {
         if (target.selection.status !== 'SELECTED_STARTER') {
@@ -545,6 +565,7 @@ export class MatchLineupRepository {
       const existing = findSelection(context, userId);
       if (starterSlotFor(context, existing?.id) || existing?.status === 'SELECTED_STARTER')
         throw new PlayerAlreadyStarterError();
+      await assertEntersWithoutOverlap(tx, context, userId, userId, existing);
       const selection = await saveSelection(tx, context, userId, 'OPEN_SLOT_CLAIMED', null);
       await tx.teamMatchLineupSlot.update({
         where: { id: slot.id },
@@ -569,6 +590,7 @@ export class MatchLineupRepository {
       if (!membership(context, selectedUserId)) throw new LineupTeamMemberNotFoundError();
       const existing = findSelection(context, selectedUserId);
       if (existing?.status === 'SELECTED_SUBSTITUTE') return unchanged(context);
+      await assertEntersWithoutOverlap(tx, context, selectedUserId, userId, existing);
       if (substituteCount(context) >= substituteCapacity(context))
         throw new SubstituteCapacityReachedError();
       const source = starterSlotFor(context, existing?.id);

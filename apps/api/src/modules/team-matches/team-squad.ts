@@ -7,6 +7,8 @@ import {
   type TeamSide,
 } from '@footy-finder/shared';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { lockPlayers, overlappingMatches, type TimedMatch } from '../matches/player-overlap.js';
+import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 
 /** The team's saved formation for a format (its key falls back to the default preset). */
 export async function savedFormation(tx: Prisma.TransactionClient, teamId: string, format: MatchFormat) {
@@ -78,4 +80,34 @@ export async function copySavedSquad(
       };
     }),
   });
+}
+
+/**
+ * Gate 9 / TKT-908 (D17a): when a team is loaded into a match (or publishes one), members of its
+ * saved squad who are already in an overlapping match are left out of the copied lineup, and the
+ * captain who acted is told who and why. The team itself still loads.
+ */
+export async function overlappingSquadMembers(
+  tx: Prisma.TransactionClient,
+  input: { teamId: string; match: TimedMatch; matchName: string; actorUserId: string },
+) {
+  const members = await tx.teamMembership.findMany({
+    where: { teamId: input.teamId },
+    select: { userId: true, user: { select: { username: true, profile: { select: { displayName: true } } } } },
+  });
+  await lockPlayers(tx, members.map(({ userId }) => userId));
+  const clashes = await overlappingMatches(tx, members.map(({ userId }) => userId), input.match);
+  const skipped = new Set(clashes.map(({ userId }) => userId));
+  if (skipped.size) {
+    const names = members.filter(({ userId }) => skipped.has(userId)).map(({ user }) => user.profile?.displayName ?? user.username);
+    await persistNotifications(tx, [{
+      userId: input.actorUserId,
+      type: 'TEAM_MATCH_SELECTION_UPDATED',
+      title: 'Some players were left out',
+      message: `${names.join(', ')} ${names.length === 1 ? 'was' : 'were'} not added to the lineup for ${input.matchName} because they are already in another match at the same time.`,
+      targetPath: `/matches/${input.match.id}`,
+      dedupeKey: notificationDedupeKey('team-squad-overlap', input.match.id, input.teamId),
+    }]);
+  }
+  return skipped;
 }

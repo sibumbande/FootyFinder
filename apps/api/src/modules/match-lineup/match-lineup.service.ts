@@ -9,6 +9,7 @@ import type {
 } from '@footy-finder/shared';
 import { getPlayersPerTeam } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
+import { PlayerOverlapError, playerOverlapAppError } from '../matches/player-overlap.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toTeamFormation } from '../teams/team.mapper.js';
@@ -224,6 +225,7 @@ export class MatchLineupService {
   }
 
   private rethrow(error: unknown): never {
+    if (error instanceof PlayerOverlapError) throw playerOverlapAppError(error);
     if (error instanceof LineupTeamSideNotFoundError)
       throw new AppError(404, 'Team Match side not found.', 'TEAM_MATCH_SIDE_NOT_FOUND');
     if (error instanceof LineupForbiddenError)

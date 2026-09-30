@@ -326,6 +326,8 @@ We do not collect your phone number, emergency contact details or health informa
 
 **11.11 Individual players in Team Matches.** This clause 11 also applies to individual players who join the Other Side of a Team Match under clause 12.13(b).
 
+**11.12 One match at a time.** You cannot be in two matches at the same time. You cannot join a match, be picked as a starter or substitute in a Team's lineup, or be included when your Team takes a side, if that match's time overlaps another match you are already in, whether as a player on either side (including as a substitute) or as its Referee. A match's time runs from kick-off to its scheduled end plus 30 minutes: for a 60-minute match kicking off at 14:00, that is 14:00 to 15:30. If a Team takes a side and some members of its saved squad are already in an overlapping match, those members are left out of its lineup and the Owner or Captain who acted is told. A Referee may still play in the match they referee (clause 16.2).
+
 ## 12. Teams, Team Wallets and Team Matches
 
 ### Teams
@@ -460,7 +462,7 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 **16.1 Status.** Referees may be employees, independent contractors or volunteers. Their status is as recorded in their engagement with us.
 
-**16.2 A FootyFinder Referee on every match.** We assign a Referee to every match, including every Team Match, and we may change or replace the Referee before the match. If no Referee is assigned 30 minutes before kick-off, the match does not go ahead and every player is refunded in full (clauses 11.7, 12.17 and 14.1). A Referee may also play in a match they referee. The Referee's name is shown on the match page.
+**16.2 A FootyFinder Referee on every match.** We assign a Referee to every match, including every Team Match, and we may change or replace the Referee before the match. If no Referee is assigned 30 minutes before kick-off, the match does not go ahead and every player is refunded in full (clauses 11.7, 12.17 and 14.1). A Referee may also play in a match they referee, but cannot referee a match whose time overlaps another match they are playing in or refereeing (clause 11.12). The Referee's name is shown on the match page.
 
 **16.3 The Referee on the day.** The Referee may check the players against the Lineup Record, refuse to let someone who is not booked take part, stop play, remove a player for a breach of clause 15, refuse unsafe footwear, exclude a player who appears impaired, and abandon the match where there is a risk to safety.
 
@@ -668,6 +670,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | When a game goes ahead | Only if every starting position is filled (or, for Team Matches, the team fees are in) and a FootyFinder referee is assigned 30 minutes before kick-off. Otherwise it is cancelled and everyone gets their money back. |
 | If the game is off before kick-off | Cancelled at the 30-minute check, by the Host or the home Team, or by us for weather or venue problems: your R80 comes back to your Wallet and held team money goes back to the Team Wallet. |
 | After kick-off | No refunds if the match is abandoned, for any reason. |
+| One match at a time | You can't join or be picked for a match that overlaps another match you're in (kick-off to 30 minutes after the scheduled end). |
 | If you leave | More than 12 hours before kick-off: full R80 back. 12 hours or less: only if a new paid player joins your side. In the last 30 minutes the lineup is locked and you can't leave. |
 | Referees and results | A FootyFinder referee runs every match and records the score, scorers and assisters. Their result is final; only we can fix a clear recording error. You can still complain. |
 | Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. The Owner and Captains can invite friends to the team in one tap; invites expire after 14 days. |

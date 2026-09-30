@@ -4,6 +4,7 @@ import { serializableTransaction } from '../../src/database/transaction.js';
 import { appendAdminAudit } from '../../src/modules/admin/admin-audit.js';
 import { FILL_REMINDER_JOB_TYPE, getFillReminderAt } from '../../src/modules/matches/fill-reminder.js';
 import { GO_NO_GO_JOB_TYPE } from '../../src/modules/matches/go-no-go.js';
+import { overlappingMatches } from '../../src/modules/matches/player-overlap.js';
 import { REFEREE_UNASSIGNED_ALERT_JOB_TYPE, findRefereeClash, refereeAlertAt } from '../../src/modules/referees/referee-assignment.js';
 import {
   TEAM_MATCH_NO_OPPONENT_WARNING_JOB_TYPE,
@@ -70,6 +71,17 @@ export async function shiftDevSeedMatch(matchId: string, minutes: number, now = 
       if (clash)
         throw new ShiftRefusedError(`That would double-book the referee with "${clash.name}" at ${clash.startsAt.toISOString()} (D27). Shift that match first, or pick another time.`);
     }
+    // Gate 9 / TKT-908: nor put one of its players in two overlapping matches.
+    const [participants, selections] = await Promise.all([
+      tx.matchParticipant.findMany({ where: { matchId: match.id, status: 'JOINED' }, select: { userId: true } }),
+      tx.teamMatchSelection.findMany({
+        where: { matchTeam: { matchId: match.id }, status: { in: ['SELECTED_STARTER', 'OPEN_SLOT_CLAIMED', 'SELECTED_SUBSTITUTE'] } },
+        select: { userId: true },
+      }),
+    ]);
+    const clashes = await overlappingMatches(tx, [...participants, ...selections].map(({ userId }) => userId), { id: match.id, startsAt, durationMinutes: match.durationMinutes });
+    if (clashes.length)
+      throw new ShiftRefusedError(`${clashes.length} of its players would then be in two overlapping matches (for example "${clashes[0]!.name}"). Shift that match first, or pick another time.`);
     await tx.match.update({
       where: { id: match.id },
       data: { startsAt, ...(match.goNoGoAt ? { goNoGoAt: getGoNoGoAt(startsAt) } : {}) },

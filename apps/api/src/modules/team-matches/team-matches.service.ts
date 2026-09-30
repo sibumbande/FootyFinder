@@ -42,7 +42,7 @@ import {
   unmatchedCancelAt,
   type TeamMatchEmailKind,
 } from './team-match-jobs.js';
-import { copySavedSquad, savedFormation } from './team-squad.js';
+import { copySavedSquad, overlappingSquadMembers, savedFormation } from './team-squad.js';
 
 /**
  * D12 / N6: published team matches of this home team whose other side is not taken yet. A side
@@ -162,6 +162,7 @@ export class TeamMatchesService {
           format: input.format,
           formationKey,
           actorUserId: userId,
+          excludeUserIds: await overlappingSquadMembers(tx, { teamId, match: created, matchName: created.name, actorUserId: userId }),
         });
         await tx.fieldReservation.create({ data: slot.reservation(created.id, 'PUBLIC', now) });
         await appendTeamMatchAudit(tx, {
@@ -194,7 +195,7 @@ export class TeamMatchesService {
       const match = await tx.match.findUnique({
         where: { id: matchId },
         select: {
-          id: true, name: true, status: true, format: true, startsAt: true, goNoGoAt: true, otherSideMode: true, otherSideTakenBy: true,
+          id: true, name: true, status: true, format: true, startsAt: true, durationMinutes: true, goNoGoAt: true, otherSideMode: true, otherSideTakenBy: true,
           venue: { select: { name: true } },
           participants: { where: { status: 'JOINED' }, select: { userId: true } },
           teamSides: { select: { side: true, teamId: true, teamNameSnapshot: true } },
@@ -237,7 +238,8 @@ export class TeamMatchesService {
           placeFeeCents: fee.placeFeeCents, teamFeeCents: fee.totalCents,
         },
       });
-      await copySavedSquad(tx, { matchTeamId: away.id, teamId: team.id, side: 'AWAY', format: match.format, formationKey, actorUserId: userId });
+      const excludeUserIds = await overlappingSquadMembers(tx, { teamId: team.id, match, matchName: match.name, actorUserId: userId });
+      await copySavedSquad(tx, { matchTeamId: away.id, teamId: team.id, side: 'AWAY', format: match.format, formationKey, actorUserId: userId, excludeUserIds });
       await appendTeamMatchAudit(tx, {
         matchId, command: 'OTHER_SIDE_TEAM_LOADED', teamId: team.id, side: 'AWAY', actorUserId: userId,
         payload: { substituteCount: fee.substituteCount, teamFeeCents: fee.totalCents, reopenedFromIndividuals: match.otherSideTakenBy === 'INDIVIDUALS' },

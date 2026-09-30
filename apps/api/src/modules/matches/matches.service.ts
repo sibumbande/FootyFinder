@@ -50,6 +50,7 @@ import { BookingsService } from '../bookings/bookings.service.js';
 import { TeamMatchesService } from '../team-matches/team-matches.service.js';
 import { assertCanRunTeamMatchCommand, type TeamMatchCommand } from '../team-matches/team-side-authority.js';
 import { publicMatchUrl } from './public-match.js';
+import { PlayerOverlapError, playerOverlapAppError } from './player-overlap.js';
 
 /** Gate 7: stable API errors for taking the other side of a team match. */
 export const rethrowOtherSideError = (error: unknown) => {
@@ -570,6 +571,7 @@ export class MatchesService {
     );
   }
   private rethrowJoinError(error: unknown): never {
+    if (error instanceof PlayerOverlapError) throw playerOverlapAppError(error);
     if (error instanceof InsufficientBalanceError)
       throw new AppError(
         402,

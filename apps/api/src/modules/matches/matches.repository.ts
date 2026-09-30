@@ -38,6 +38,7 @@ import {
   FinancialInsufficientFundsError,
   FinancialRepository,
 } from '../wallet/financial.repository.js';
+import { assertNoPlayerOverlap } from './player-overlap.js';
 
 export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
@@ -316,6 +317,8 @@ export class MatchesRepository {
       });
       if (match.mode === 'TEAM_MATCH' && !match.otherSideMode) throw new TeamMatchPlanningError();
       assertLobbyOpen(match, new Date());
+      // Gate 9 / TKT-908: not while already in another match whose window overlaps this one.
+      await assertNoPlayerOverlap(tx, userId, match);
       if (match.otherSideMode) await this.takeOtherSideForIndividual(tx, match, userId, input.team);
       const previousParticipation = await tx.matchParticipant.findUnique({
         where: { matchId_userId: { matchId, userId } },

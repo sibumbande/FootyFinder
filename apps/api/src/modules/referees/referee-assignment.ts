@@ -44,7 +44,13 @@ export async function findRefereeClash(tx: Prisma.TransactionClient, refereeUser
   const end = new Date(getMatchEndsAt(match).getTime() + REFEREE_TRAVEL_BUFFER_MINUTES * 60_000);
   const rows = await tx.$queryRaw<Array<{ id: string; name: string; startsAt: Date; durationMinutes: number }>>`
     SELECT "id", "name", "startsAt", "durationMinutes" FROM "Match"
-    WHERE "refereeUserId" = ${refereeUserId}::uuid
+    WHERE ("refereeUserId" = ${refereeUserId}::uuid
+        -- Gate 9 / TKT-908 (D17b): nor while playing in a different overlapping match.
+        OR EXISTS (SELECT 1 FROM "MatchParticipant" p WHERE p."matchId" = "Match"."id" AND p."userId" = ${refereeUserId}::uuid AND p."status" = 'JOINED')
+        OR EXISTS (
+          SELECT 1 FROM "TeamMatchSelection" s JOIN "MatchTeam" t ON t."id" = s."matchTeamId"
+          WHERE t."matchId" = "Match"."id" AND s."userId" = ${refereeUserId}::uuid
+            AND s."status" IN ('SELECTED_STARTER', 'OPEN_SLOT_CLAIMED', 'SELECTED_SUBSTITUTE')))
       AND "id" <> ${match.id}::uuid
       AND "status" NOT IN ('CANCELLED', 'COMPLETED')
       AND "startsAt" < ${end}
