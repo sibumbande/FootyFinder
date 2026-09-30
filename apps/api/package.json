@@ -16,6 +16,8 @@
     "gate3:preflight": "tsx scripts/check-gate3-data.ts",
     "gate4:preflight": "tsx scripts/check-gate4-data.ts",
     "legal:publish": "tsx scripts/publish-legal-documents.ts",
+    "dev:seed-mock": "tsx scripts/dev-seed-mock.ts",
+    "dev:shift-match": "tsx scripts/dev-shift-match.ts",
     "pretest": "prisma generate",
     "test": "vitest run --configLoader runner",
     "smoke:api-contract": "tsc scripts/smoke-api-contract.ts --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck && esbuild scripts/smoke-api-contract.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/smoke-api-contract.mjs && cross-env NODE_ENV=test node dist/smoke-api-contract.mjs",

@@ -21,6 +21,7 @@ export class WalletRepository {
     amountCents: number,
     provider: string,
     idempotencyKey: string,
+    description = 'Wallet deposit',
   ) {
     return serializableTransaction(async (tx) => {
       const account = await tx.walletAccount.findUniqueOrThrow({ where: { userId } });
@@ -33,7 +34,7 @@ export class WalletRepository {
           type: 'DEPOSIT_CREDIT',
           status: 'PENDING',
           referenceType: 'DEPOSIT',
-          description: 'Wallet deposit',
+          description,
         }],
         skipDuplicates: true,
       });

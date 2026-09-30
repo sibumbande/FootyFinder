@@ -29,8 +29,17 @@ class ConsoleEmailProvider implements EmailProvider {
   }
 }
 
+/** RFC 2606 / 6761 reserved names (mock and smoke accounts) can never receive real email. */
+export const isReservedEmailAddress = (address: string) =>
+  /\.(test|invalid|example|localhost)$/i.test(address.trim().split('@').pop() ?? '')
+  || /@(example\.(com|net|org))$/i.test(address.trim());
+
 class PostmarkEmailProvider implements EmailProvider {
   async send(message: TransactionalEmail) {
+    if (isReservedEmailAddress(message.to)) {
+      console.info(JSON.stringify({ event: 'reserved_address_email_skipped', subject: message.subject }));
+      return;
+    }
     const response = await fetch('https://api.postmarkapp.com/email', {
       method: 'POST',
       headers: {

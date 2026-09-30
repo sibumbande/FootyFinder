@@ -16,6 +16,7 @@ export class DepositsService {
     userId: string,
     amountCents: number,
     idempotencyKey: string,
+    options: { description?: string } = {},
   ): Promise<DepositResponse> {
     if (!idempotencyKey || idempotencyKey.length > 200) {
       throw new AppError(
@@ -78,6 +79,7 @@ export class DepositsService {
       amountCents,
       this.operator.name,
       idempotencyKey,
+      options.description,
     );
     const transaction = pending.transaction;
     if (!pending.created) {
