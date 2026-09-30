@@ -165,5 +165,5 @@ npx playwright test                           # 5 passed: referee-results (new),
   - new 17.5 to 17.10;
   - new 19.6 (Team reviews).
 - **Wording to check with counsel:**
-  - "A Final Result cannot be disputed" (17.7, 17.10) sits beside the general complaints route in clause 27, which is unchanged.
+  - "A Final Result cannot be disputed" (17.7, 17.10) is now followed by "This does not affect your right to complain under clause 27." (Gate 8 follow-up, 2026-09-30).
   - Clause 15.2 (50% credit for an abandonment before half time) is unchanged. The referee recording "abandoned" does not by itself move money; the 15.2 credit still needs to be handled as before.
