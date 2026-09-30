@@ -158,14 +158,14 @@ npx playwright test                           # 5 passed: referee-results (new),
 4. **Matches already published** before release have no referee (D20: no grandfathering). Assign referees from Admin → Match referees before their T-30.
 5. **Everything still open** from the Gate 6 and Gate 7 runbooks.
 
-## Terms of Service v2.4 (material)
+## Terms of Service v2.4 (Launch version)
 
-- **Changed:** header (version 2.4, supersedes 2.3, last updated 30 September 2026), 8.1, 8.3, 11.5, 12.18, 15.1, 17.4, the Annexure A summary table and the contents (clause 17 renamed "Match Hosts, Referees and Results").
-- **Added:**
-  - a new "Summary of changes in version 2.4";
-  - clause 2 definitions: Final Result, Lineup Record and Referee;
-  - new 17.5 to 17.10;
-  - new 19.6 (Team reviews).
-- **Wording to check with counsel:**
-  - "A Final Result cannot be disputed" (17.7, 17.10) is now followed by "This does not affect your right to complain under clause 27." (Gate 8 follow-up, 2026-09-30).
-- **Abandoned matches (CEO change, 2026-09-30, DEC-020):** the 50% credit for a match abandoned before half time is removed from 15.2 and 10.7. Once a match has kicked off, fees are not refunded if the referee records it as abandoned, for any reason. This matches the code: recording "abandoned" moves no money (D13), and there was never a partial-credit path.
+The Gate 8 draft of v2.4 was replaced on 2026-09-30 by the **v2.4 Launch version** (commit `2ddfaa4`), rebuilt on the CEO's Master Terms v2.0 after the full ToS consistency review. Clause numbers changed; the Gate 8 rules now live in:
+
+- **Referees, results and statistics:** clause 16 (16.2 a referee on every match, 16.3 the referee's on-the-day powers, 16.5 Lineup Record, 16.6 to 16.10 results, own version and reporting a problem, 16.11 statistics). "A Final Result cannot be disputed" is followed by "This does not affect your right to complain under clause 26." (16.7, 16.10).
+- **Go/no-go needs a referee:** 11.7 (Quick Matches) and 12.17 (Team Matches); cancellation and refunds in 14.1.
+- **Abandoned matches (CEO change, DEC-020):** 14.2. The 50% credit for an abandonment before half time is gone: once a match has kicked off, fees are not refunded if the referee records it as abandoned, for any reason. Recording "abandoned" moves no money (D13), and there was never a partial-credit path. Clause 24 (events beyond our control) says the same.
+- **FootyFinder cancellations (Q4):** 14.1.
+- **Team reviews (DEC-017, 14-day window):** 18.6.
+- **What referees and other users see:** 8.3.
+- **Acceptance:** one checkbox and one document (clause 28), published from `docs/legal/legal-launch.json`.
