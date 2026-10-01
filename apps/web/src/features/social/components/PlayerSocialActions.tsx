@@ -17,7 +17,8 @@ export function PlayerSocialActions({ userId, displayName }: { userId: string; d
           </Link>
         )}
       </div>
-      <div className="flex gap-3 text-[11px] font-black uppercase tracking-[0.06em] text-content-muted">
+      {/* CEO touch-up batch 3, item 11: 44 px tap targets. */}
+      <div className="flex flex-wrap gap-x-4 text-xs font-black uppercase tracking-[0.06em] text-content-muted [&>*]:inline-flex [&>*]:min-h-11 [&>*]:items-center [&>*]:uppercase">
         {relationship.data?.state === 'FRIENDS' && (
           <button type="button" className="hover:text-content-strong" onClick={() => window.confirm(`Remove ${displayName} from your friends?`) && action.mutate({ kind: 'remove', userId })}>
             Remove friend

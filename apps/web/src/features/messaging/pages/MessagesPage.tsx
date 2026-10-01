@@ -97,7 +97,7 @@ function MessagesWorkspace({ conversationId }: { conversationId?: string }) {
         ) : conversation.data ? (
           <>
             <header className="flex items-center gap-3 border-b border-line p-4">
-              <Link className="md:hidden" to="/social?tab=dms">
+              <Link className="-ml-2 grid size-11 shrink-0 place-items-center rounded-lg text-xl font-black md:hidden" to="/social?tab=dms" aria-label="Back to messages">
                 ←
               </Link>
               <Avatar user={conversation.data.otherParticipant} size="sm" />

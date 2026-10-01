@@ -19,7 +19,7 @@ export function ResetPasswordPage() {
         <Button type="submit" loading={reset.isPending} disabled={!token}>Reset password</Button>
         {!token && <FormError message="This reset link is missing its token." />}
         <FormError message={reset.error?.message} />
-        <Link className="text-center text-sm font-bold text-brand-700 hover:underline" to="/forgot-password">Request another link</Link>
+        <Link className="inline-flex min-h-11 items-center justify-center text-sm font-bold text-brand-700 hover:underline" to="/forgot-password">Request another link</Link>
       </form>
     </AuthLayout>
   );

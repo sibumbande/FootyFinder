@@ -104,7 +104,7 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       test.setTimeout(120_000);
       const context = await browser.newContext({ viewport: { width, height: 800 }, hasTouch: true, isMobile: true });
       const page = await context.newPage();
-      for (const path of ['/', '/matches', `/m/${publicSlug}`, `/venues/${venueSlug}`, '/social?tab=teams', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register'])
+      for (const path of ['/', '/matches', `/m/${publicSlug}`, `/matches/${matchId}`, `/venues/${venueSlug}`, '/social?tab=teams', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register', '/forgot-password', '/waiting-list'])
         await expectFits(page, path);
       await context.close();
     });
@@ -116,7 +116,9 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       await page.goto('/');
       const login = await f.api(page, '/auth/login', { method: 'POST', body: { identifier: `${f.marker}-player@test.invalid`, password: f.PASSWORD } });
       expect(login.status, JSON.stringify(login.body)).toBe(200);
-      for (const path of ['/', '/matches', '/social', '/social?tab=friends', '/social?tab=teams', '/social?tab=dms', '/wallet', '/teams', `/teams/${teamId}`, `/matches/${matchId}`, '/matches/new', `/players/${userId}`, '/support'])
+      // CEO touch-up batch 3, item 11: plus the pages the 390 px audit found broken (team create/invites/settings,
+      // onboarding, bookings, disputes).
+      for (const path of ['/', '/matches', '/social', '/social?tab=friends', '/social?tab=teams', '/social?tab=dms', '/wallet', '/teams', '/teams/create', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/teams/${teamId}?tab=settings`, `/matches/${matchId}`, '/matches/new', `/players/${userId}`, '/support', '/bookings', '/disputes', '/onboarding'])
         await expectFits(page, path);
 
       // The notifications panel opens fully on screen, under the header.
@@ -137,6 +139,25 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       const menuBox = (await menu.boundingBox())!;
       expect(menuBox.x).toBeGreaterThanOrEqual(0);
       expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(width);
+
+      // CEO touch-up batch 3, items 8-10: the Social section drop-down replaces the pills on phones; the team tabs
+      // are 44 px tall with an arrow to the hidden ones; the home venue carousel scrolls sideways inside the page.
+      await page.goto('/social?tab=friends');
+      await expect(page.getByTestId('social-section-select')).toBeVisible();
+      await expect(page.getByRole('tablist', { name: 'Social' })).toBeHidden();
+      await page.getByTestId('social-section-select').selectOption('teams');
+      await expect(page).toHaveURL(/tab=teams/);
+      await page.goto(`/teams/${teamId}`);
+      const firstTab = (await page.getByRole('tab', { name: 'overview' }).boundingBox())!;
+      expect(firstTab.height).toBeGreaterThanOrEqual(44);
+      await expect(page.getByRole('button', { name: 'Show more team sections' })).toBeVisible();
+      await page.goto(`/teams/${teamId}?tab=settings`);
+      const settingsTab = (await page.getByRole('tab', { name: 'settings' }).boundingBox())!;
+      expect(settingsTab.x + settingsTab.width).toBeLessThanOrEqual(width);
+      expect(await offscreen(page)).toEqual([]);
+      await page.goto('/');
+      await expect(page.getByTestId('venue-carousel')).toBeVisible();
+      expect(await offscreen(page)).toEqual([]);
 
       // The formation shows one pitch at a time, with Home/Away tabs, and fits.
       await page.goto(`/matches/${matchId}#formation`);

@@ -239,8 +239,8 @@ function TeamSettings({ team }: { team: TeamDetail }) {
   const { notify } = useNotifications();
   const shortNameValid = !shortName || /^[A-Z0-9]{1,4}$/.test(shortName);
   return (
-    <div className="grid gap-7">
-      <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-7">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
         <h2 className="text-xl font-bold text-content-strong">Team settings</h2>
         <Input label="Team name" value={name} onChange={(event) => setName(event.target.value)} />
         <Input
@@ -260,7 +260,7 @@ function TeamSettings({ team }: { team: TeamDetail }) {
         <label className="grid gap-2 text-sm font-semibold text-content">
           Description
           <textarea
-            className="min-h-28 rounded-xl border border-line-strong bg-surface p-3"
+            className="min-h-28 w-full min-w-0 rounded-xl border border-line-strong bg-surface p-3"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />

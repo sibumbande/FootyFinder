@@ -47,7 +47,7 @@ export function SupportPage() {
         <form className="space-y-5 rounded-2xl border border-line bg-surface p-6" onSubmit={(event: FormEvent) => { event.preventDefault(); create.mutate(); }}>
           <div><h2 className="text-xl font-bold text-content-strong">How can we help?</h2><p className="text-sm text-content-muted">This creates a private conversation with Footy Finder support—not a player DM.</p></div>
           <Input label="Subject" value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={5} />
-          <label className="grid gap-2 text-sm font-semibold text-content"><span>Category</span><select className="rounded-xl border border-line bg-canvas px-3 py-3" value={category} onChange={(event) => setCategory(event.target.value as SupportTicketCategory)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label className="grid gap-2 text-sm font-semibold text-content"><span>Category</span><select className="rounded-xl border border-line bg-canvas px-3 py-3" value={category} onChange={(event) => setCategory(event.target.value as SupportTicketCategory)}>{categories.map((item) => <option key={item} value={item}>{item.charAt(0) + item.slice(1).toLowerCase().replaceAll('_', ' ')}</option>)}</select></label>
           <label className="grid gap-2 text-sm font-semibold text-content"><span>Message</span><textarea className="min-h-40 rounded-xl border border-line bg-canvas p-3" value={message} onChange={(event) => setMessage(event.target.value)} required minLength={5} maxLength={5000} /></label>
           {create.error && <p className="text-sm text-danger-700">{create.error.message}</p>}
           <Button type="submit" loading={create.isPending}>Send to support</Button>

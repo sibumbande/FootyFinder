@@ -27,7 +27,7 @@ export function VerifyEmailPage() {
         )}
         {(verify.isSuccess || resend.isSuccess) && <p className="text-sm font-semibold text-success-700">{verify.isSuccess ? 'Email verified. Continuing to profile setup…' : 'If delivery is available, a new email has been sent.'}</p>}
         <FormError message={(verify.error ?? resend.error)?.message} />
-        <Link className="text-center text-sm font-bold text-brand-700 hover:underline" to="/login">Return to sign in</Link>
+        <Link className="inline-flex min-h-11 items-center justify-center text-sm font-bold text-brand-700 hover:underline" to="/login">Return to sign in</Link>
       </div>
     </AuthLayout>
   );

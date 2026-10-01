@@ -56,7 +56,7 @@ export function LoginPage() {
         <Button type="submit" loading={login.isPending} className="w-full">
           Sign in
         </Button>
-        <Link className="text-center text-sm font-bold text-brand-700 hover:underline" to="/forgot-password">
+        <Link className="inline-flex min-h-11 items-center justify-center text-sm font-bold text-brand-700 hover:underline" to="/forgot-password">
           Forgot your password?
         </Link>
         <p className="text-center text-sm text-content-muted">

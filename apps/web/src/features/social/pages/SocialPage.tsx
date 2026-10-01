@@ -41,7 +41,7 @@ export function SocialPage() {
   const labels: Record<SocialTab, string> = { discover: 'Discover', friends: 'Friends', teams: 'Teams', dms: 'DMs' };
 
   return (
-    <section className="grid gap-6">
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <div className="rounded-[2rem] border border-line bg-surface p-5 shadow-sm sm:p-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>

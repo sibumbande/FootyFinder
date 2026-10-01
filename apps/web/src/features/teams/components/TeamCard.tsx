@@ -11,7 +11,7 @@ export function TeamCard({ team }: { team: TeamSummary }) {
       <div className="flex items-start gap-4">
         <TeamAvatar team={team} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xl font-bold uppercase text-content-strong">{team.name}</p>
+          <p className="break-words text-xl font-bold uppercase leading-snug text-content-strong">{team.name}</p>
           <p className="mt-1 text-sm text-content-muted">
             {MATCH_FORMAT_CONFIG[team.primaryFormat].shortLabel} · {team.memberCount}{' '}
             {team.memberCount === 1 ? 'member' : 'members'}
@@ -23,7 +23,7 @@ export function TeamCard({ team }: { team: TeamSummary }) {
               </span>
             )}
             {team.locationText && (
-              <span className="truncate text-xs text-content-muted">{team.locationText}</span>
+              <span className="break-words text-xs text-content-muted">{team.locationText}</span>
             )}
           </div>
         </div>

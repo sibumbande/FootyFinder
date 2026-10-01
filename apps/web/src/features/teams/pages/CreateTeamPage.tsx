@@ -58,7 +58,7 @@ export function CreateTeamPage() {
     );
   };
   return (
-    <section className="mx-auto grid max-w-5xl gap-7">
+    <section className="mx-auto grid w-full max-w-5xl grid-cols-[minmax(0,1fr)] gap-7">
       <header>
         <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-700">Create Team</p>
         <h1 className="mt-2 text-3xl font-black text-content-strong">Build your club identity.</h1>

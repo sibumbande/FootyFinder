@@ -32,7 +32,7 @@ function LedgerRow({ entry }: { entry: WalletLedgerEntry }) {
   const status = STATUS_LABEL[entry.status];
   const credit = entry.amountCents >= 0;
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-4 last:border-b-0">
+    <li className="flex items-center justify-between gap-3 border-b border-line py-4 last:border-b-0">
       <div className="min-w-0">
         <p className="font-bold text-content-strong">{entry.title}</p>
         <p className="text-sm text-content-muted">

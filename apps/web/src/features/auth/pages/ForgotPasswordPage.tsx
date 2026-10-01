@@ -16,7 +16,7 @@ export function ForgotPasswordPage() {
         <Button type="submit" loading={request.isPending}>Send reset link</Button>
         {request.isSuccess && <p className="text-sm text-content-muted">If an eligible account exists, password-reset instructions have been sent.</p>}
         <FormError message={request.error?.message} />
-        <Link className="text-center text-sm font-bold text-brand-700 hover:underline" to="/login">Return to sign in</Link>
+        <Link className="inline-flex min-h-11 items-center justify-center text-sm font-bold text-brand-700 hover:underline" to="/login">Return to sign in</Link>
       </form>
     </AuthLayout>
   );

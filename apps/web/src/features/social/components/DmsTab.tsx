@@ -11,7 +11,7 @@ export function DmsTab({ query }: { query: string }) {
   const visible = (conversations.data ?? []).filter(({ otherParticipant }) =>
     !needle || otherParticipant.displayName.toLowerCase().includes(needle) || otherParticipant.username.toLowerCase().includes(needle));
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       <FormError message={conversations.error?.message} />
       {conversations.isPending && <div className="h-20 animate-pulse rounded-2xl bg-surface-muted" />}
       {conversations.data && visible.length === 0 && (
@@ -27,7 +27,7 @@ export function DmsTab({ query }: { query: string }) {
         >
           <Avatar user={conversation.otherParticipant} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-black text-content-strong">{conversation.otherParticipant.displayName}</span>
+            <span className="block break-words font-black text-content-strong">{conversation.otherParticipant.displayName}</span>
             <span className="block truncate text-sm text-content-muted">
               {conversation.canMessage === false ? "You can't message this player." : conversation.latestMessage?.content ?? 'No messages yet'}
             </span>

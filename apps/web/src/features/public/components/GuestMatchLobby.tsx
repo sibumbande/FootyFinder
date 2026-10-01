@@ -114,7 +114,7 @@ export function GuestMatchLobby({ preview }: { preview: PublicMatchPreview }) {
                   </span>
                   <span className="min-w-0 [overflow-wrap:anywhere]">{sideName(side)} · {side === 'HOME' ? 'Home' : 'Away'}</span>
                 </h2>
-                <div className="relative grid aspect-[4/5] place-items-center overflow-hidden rounded-2xl border-4 border-pitch-border bg-pitch">
+                <div className="relative grid aspect-[16/9] place-items-center md:aspect-[4/5] overflow-hidden rounded-2xl border-4 border-pitch-border bg-pitch">
                   <div aria-hidden="true" className="absolute inset-x-0 top-1/2 h-0.5 bg-pitch-line/80" />
                   <div aria-hidden="true" className="absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-pitch-line/80" />
                   <div className="relative rounded-2xl bg-surface px-4 py-3 text-center shadow-soft">
