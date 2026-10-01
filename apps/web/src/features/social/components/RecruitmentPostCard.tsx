@@ -2,6 +2,7 @@ import type { RecruitmentPostView } from '@footy-finder/shared';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { ActionMenu, menuItemClass } from '@/components/ui/ActionMenu.js';
 import { TeamAvatar } from '@/features/teams/components/TeamAvatar.js';
 import { useRecruitmentAction } from '../hooks/useRecruitment.js';
 import { FORMAT_LABELS, LEVEL_LABELS, availabilityLabel, positionLabel } from '../recruitment-labels.js';
@@ -16,12 +17,12 @@ export function RecruitmentPostCard({ post, footer, signUpAction }: { post: Recr
   const open = post.status === 'OPEN' && !post.expired;
   return (
     <article className="grid gap-3 rounded-2xl border border-line bg-surface p-4" data-testid="recruitment-post">
-      <div className="flex items-start gap-3">
-        <Link to={`/teams/${post.team.id}`}>
+      <div className="flex flex-wrap items-start gap-3">
+        <Link to={`/teams/${post.team.id}`} className="shrink-0">
           <TeamAvatar team={{ ...post.team, shortName: null }} size="sm" />
         </Link>
         <div className="min-w-0 flex-1">
-          <Link to={`/teams/${post.team.id}`} className="block truncate font-black text-content-strong hover:underline">{post.team.name}</Link>
+          <Link to={`/teams/${post.team.id}`} className="block font-black leading-snug text-content-strong [overflow-wrap:anywhere] hover:underline">{post.team.name}</Link>
           <p className="text-xs font-bold uppercase text-brand-700">
             {post.playersWanted} {post.playersWanted === 1 ? 'player' : 'players'} wanted · {FORMAT_LABELS[post.format]} · {LEVEL_LABELS[post.level]}
           </p>
@@ -51,7 +52,12 @@ export function RecruitmentPostCard({ post, footer, signUpAction }: { post: Recr
         ))}
         {post.viewerIsMember && <span className="text-xs font-black uppercase text-content-muted">Your team</span>}
         {user && !post.viewerIsMember && (
-          <Link className="text-[11px] font-black uppercase text-content-muted hover:text-content-strong" to={`/report/RECRUITMENT_POST/${post.id}`}>Report</Link>
+          // CEO touch-up batch 3, item 9: secondary actions in the card's "⋯" menu, like player cards.
+          <span className="ml-auto">
+            <ActionMenu label={`More actions for ${post.team.name}`}>
+              {(close) => <Link role="menuitem" className={menuItemClass} to={`/report/RECRUITMENT_POST/${post.id}`} onClick={close}>Report post</Link>}
+            </ActionMenu>
+          </span>
         )}
         {footer}
       </div>

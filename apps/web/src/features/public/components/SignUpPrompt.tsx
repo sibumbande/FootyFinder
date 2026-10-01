@@ -27,7 +27,7 @@ export function SignUpPrompt({ action = 'play', compact = false }: { action?: st
     return (
       <GuestAction
         action={action}
-        className="inline-flex min-h-8 items-center rounded-md border-2 border-brand-900 bg-brand-600 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.06em] text-content-inverse"
+        className="inline-flex min-h-11 items-center rounded-md border-2 border-brand-900 bg-brand-600 px-3 py-1 text-xs font-black uppercase tracking-[0.06em] text-content-inverse"
       />
     );
   return (

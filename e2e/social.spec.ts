@@ -96,7 +96,10 @@ test.describe('Social: friends, team invites, recruitment, blocking and guest br
     await expect(card.getByRole('button', { name: 'Requested' })).toBeVisible();
     await friendPage.goto('/social?tab=friends');
     await friendPage.getByTestId('social-player-card').filter({ hasText: captain.name }).getByRole('button', { name: 'Accept' }).click();
-    await expect(friendPage.getByTestId('friend-state').first()).toBeVisible();
+    // CEO touch-up batch 3, item 9: a friend's card offers Message and a "⋯" menu (no redundant "Friends" badge).
+    const friendCard = friendPage.getByTestId('social-player-card').filter({ hasText: captain.name });
+    await expect(friendCard.getByRole('link', { name: 'Message' })).toBeVisible();
+    await expect(friendCard.getByRole('button', { name: `More actions for ${captain.name}` })).toBeVisible();
 
     // The captain's team: invite the friend in one tap; the friend joins from the Friends tab.
     const team = await api<{ id: string }>(captainPage, '/teams', { method: 'POST', body: { name: `${marker} Rovers`, primaryFormat: 'FIVE_A_SIDE', formationKey: 'BALANCED_1_1_2_1' } });

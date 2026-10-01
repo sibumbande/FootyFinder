@@ -42,13 +42,29 @@ export function SocialPage() {
 
   return (
     <section className="grid gap-6">
-      <div className="rounded-[2rem] border border-line bg-surface p-6 shadow-sm sm:p-10">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <div className="rounded-[2rem] border border-line bg-surface p-5 shadow-sm sm:p-10">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-4xl font-black uppercase leading-none tracking-tight text-content-strong">Social network</h1>
             <p className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-content-muted">Players, friends, and squads in your city</p>
           </div>
-          <nav className="flex w-full flex-wrap gap-1 rounded-full bg-surface-muted p-1.5 sm:w-auto" role="tablist" aria-label="Social">
+          {/* CEO touch-up batch 3, item 9: on phones one full-width drop-down instead of pills that wrap unevenly. */}
+          <label className="grid gap-1 sm:hidden">
+            <span className="text-xs font-black uppercase tracking-[0.08em] text-content-muted">Section</span>
+            <select
+              value={tab}
+              onChange={(event) => select(event.target.value as SocialTab)}
+              className="h-12 w-full rounded-2xl border-2 border-line-strong bg-surface px-4 text-base font-black text-content-strong"
+              data-testid="social-section-select"
+            >
+              {SOCIAL_TABS.map((item) => (
+                <option key={item} value={item}>
+                  {labels[item]}{counts[item] !== undefined ? ` (${counts[item]})` : ''}{item === 'friends' && summary.data?.incomingRequests ? ` · ${summary.data.incomingRequests} new ${summary.data.incomingRequests === 1 ? 'request' : 'requests'}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <nav className="hidden w-full flex-wrap gap-1 rounded-full bg-surface-muted p-1.5 sm:flex sm:w-auto" role="tablist" aria-label="Social">
             {SOCIAL_TABS.map((item) => (
               <button
                 key={item}
@@ -64,13 +80,13 @@ export function SocialPage() {
                 {labels[item]}
                 {counts[item] !== undefined && <span>({counts[item]})</span>}
                 {item === 'friends' && Boolean(summary.data?.incomingRequests) && (
-                  <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-danger-600" aria-label={`${summary.data!.incomingRequests} friend requests`} />
+                  <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-danger-600" aria-label={`${summary.data!.incomingRequests} new friend ${summary.data!.incomingRequests === 1 ? 'request' : 'requests'}`} />
                 )}
               </button>
             ))}
           </nav>
         </div>
-        <label className="mx-auto mt-8 flex max-w-2xl items-center gap-3 rounded-full border border-line bg-surface-muted px-5 py-4 focus-within:ring-4 focus-within:ring-brand-100">
+        <label className="mx-auto mt-4 flex w-full max-w-2xl items-center gap-3 rounded-full border border-line bg-surface-muted px-5 py-3 focus-within:ring-4 focus-within:ring-brand-100 sm:mt-8 sm:py-4">
           <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-content-muted" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
           <span className="sr-only">Search</span>
           <input

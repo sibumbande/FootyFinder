@@ -3,7 +3,8 @@ import { SignUpPrompt } from '@/features/public/components/SignUpPrompt.js';
 import { useFriendAction, useRelationship } from '../hooks/useSocial.js';
 
 const base =
-  'inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.06em] transition disabled:cursor-not-allowed disabled:opacity-60';
+  // CEO touch-up batch 3, item 9/11: 44 px tall so they are easy to tap.
+  'inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-3 py-1 text-xs font-black uppercase tracking-[0.06em] transition disabled:cursor-not-allowed disabled:opacity-60';
 const styles = {
   primary: `${base} border-2 border-brand-900 bg-brand-600 text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] hover:bg-brand-500`,
   secondary: `${base} border-2 border-line-strong bg-surface text-content hover:bg-surface-hover`,
@@ -50,7 +51,7 @@ export function FriendButton({ userId, className = '' }: { userId: string; class
           Accept
         </button>
         <button type="button" className={styles.secondary} disabled={busy} aria-label="Decline friend request" onClick={() => action.mutate({ kind: 'decline', requestId: relationship.data!.requestId! })}>
-          ✕
+          Decline
         </button>
       </span>
     );

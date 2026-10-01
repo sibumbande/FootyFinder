@@ -2,13 +2,15 @@ import type { LookingCardView } from '@footy-finder/shared';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { availabilityLabel, positionLabel } from '../recruitment-labels.js';
-import { InviteToTeamMenu } from './InviteToTeamMenu.js';
+import { ActionMenu, menuItemClass } from '@/components/ui/ActionMenu.js';
+import { InviteToTeamItems, useInvitableTeams } from './InviteToTeamItems.js';
 import { SocialPlayerCardView } from './SocialPlayerCardView.js';
 
 /** A "Players looking" card: Add friend, Invite to your team, Report. */
 export function LookingCardItem({ card }: { card: LookingCardView }) {
   const { user } = useAuth();
   const mine = user?.id === card.player.id;
+  const canInvite = useInvitableTeams().length > 0;
   return (
     <SocialPlayerCardView
       player={card.player}
@@ -23,10 +25,15 @@ export function LookingCardItem({ card }: { card: LookingCardView }) {
         mine ? (
           <span className="text-[11px] font-black uppercase text-content-muted">You</span>
         ) : user ? (
-          <span className="flex flex-col items-end gap-1">
-            <InviteToTeamMenu userId={card.player.id} source="LOOKING" />
-            <Link className="text-[11px] font-black uppercase text-content-muted hover:text-content-strong" to={`/report/LOOKING_CARD/${card.id}`}>Report</Link>
-          </span>
+          // CEO touch-up batch 3, item 9: Invite to team and Report live in the card's "⋯" menu.
+          <ActionMenu label={`More actions for ${card.player.displayName}`}>
+            {(close) => (
+              <>
+                {canInvite && <InviteToTeamItems userId={card.player.id} playerName={card.player.displayName} source="LOOKING" close={close} />}
+                <Link role="menuitem" className={menuItemClass} to={`/report/LOOKING_CARD/${card.id}`} onClick={close}>Report</Link>
+              </>
+            )}
+          </ActionMenu>
         ) : undefined
       }
     />

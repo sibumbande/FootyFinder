@@ -10,7 +10,8 @@ import { RecruitmentPostCard } from './RecruitmentPostCard.js';
 import { RecruitmentPostForm } from './RecruitmentPostForm.js';
 import { SocialEmpty } from './SocialEmpty.js';
 
-const select = 'min-h-10 rounded-full border border-line bg-surface px-3 text-xs font-bold';
+// CEO touch-up batch 3, item 9: an even two-column grid of 44 px controls on phones.
+const select = 'min-h-11 w-full rounded-full border border-line bg-surface px-3 text-xs font-bold sm:w-auto';
 
 /**
  * Gate 9 / TKT-909: the Teams tab is the recruitment board: "Teams recruiting" (with Ask to join)
@@ -41,7 +42,7 @@ export function TeamsTab({ query, signUpAction }: { query: string; signUpAction?
           <button type="button" className="button" onClick={() => setPosting(true)}>Post: we're recruiting</button>
         )}
       </div>
-      <div className="flex flex-wrap gap-2" aria-label="Filters">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Filters">
         {view === 'posts' && (
           <>
             <select aria-label="Format" className={select} value={filters.format ?? ''} onChange={(event) => set('format', event.target.value)}>
@@ -58,7 +59,7 @@ export function TeamsTab({ query, signUpAction }: { query: string; signUpAction?
           <option value="">Any position</option>
           {FOOTBALL_POSITIONS.map((position) => <option key={position} value={position}>{positionLabel(position)}</option>)}
         </select>
-        <input aria-label="Area" className={`${select} w-40`} placeholder="Area" value={filters.area ?? ''} onChange={(event) => set('area', event.target.value)} />
+        <input aria-label="Area" className={`${select} sm:w-40`} placeholder="Area" value={filters.area ?? ''} onChange={(event) => set('area', event.target.value)} />
       </div>
       {posting && <RecruitmentPostForm teams={managed} onDone={() => setPosting(false)} />}
       {view === 'posts' ? (

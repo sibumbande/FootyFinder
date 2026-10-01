@@ -6,12 +6,14 @@ import { useBlocks, useFriendAction, useFriendRequests, useFriends } from '../ho
 import { SocialEmpty } from './SocialEmpty.js';
 import { FriendRequestsSwitch } from './FriendRequestsSwitch.js';
 import { SocialPlayerCardView } from './SocialPlayerCardView.js';
-import { InviteToTeamMenu } from './InviteToTeamMenu.js';
+import { InviteToTeamItems } from './InviteToTeamItems.js';
+import { ActionMenu, menuItemClass } from '@/components/ui/ActionMenu.js';
 import { TeamInvitesSection } from './TeamInvitesSection.js';
 
 const matches = (player: SocialPlayerCard, needle: string) =>
   !needle || player.displayName.toLowerCase().includes(needle) || player.username.toLowerCase().includes(needle);
-const small = 'text-[11px] font-black uppercase tracking-[0.06em] text-content-muted hover:text-content-strong';
+const small = 'inline-flex min-h-11 items-center text-xs font-black uppercase tracking-[0.06em] text-content-muted hover:text-content-strong';
+const messageButton = 'inline-flex min-h-11 items-center rounded-md border-2 border-brand-900 bg-brand-600 px-3 text-xs font-black uppercase tracking-[0.06em] text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] hover:bg-brand-500';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -39,7 +41,7 @@ export function FriendsTab({ query, extraActions }: { query: string; extraAction
       {incoming.length > 0 && (
         <Section title={`Friend requests (${incoming.length})`}>
           <div className="grid gap-3 md:grid-cols-2">
-            {incoming.map((request) => <SocialPlayerCardView key={request.id} player={request.player} />)}
+            {incoming.map((request) => <SocialPlayerCardView key={request.id} player={request.player} actionsBelowOnPhone />)}
           </div>
         </Section>
       )}
@@ -52,22 +54,35 @@ export function FriendsTab({ query, extraActions }: { query: string; extraAction
         )}
         <div className="grid gap-3 md:grid-cols-2">
           {visible.map((friend) => (
+            // CEO touch-up batch 3, item 9: Message, plus a "⋯" menu with Invite to team and Remove.
             <SocialPlayerCardView
               key={friend.id}
               player={friend}
+              showUsername={false}
+              showFriendButton={false}
               actions={
-                <span className="flex flex-wrap justify-end gap-2">
+                <>
                   {extraActions?.(friend)}
-                  <InviteToTeamMenu userId={friend.id} />
-                  <Link className={small} to={`/messages/new/${friend.id}`}>Message</Link>
-                  <button
-                    type="button"
-                    className={small}
-                    onClick={() => window.confirm(`Remove ${friend.displayName} from your friends?`) && action.mutate({ kind: 'remove', userId: friend.id })}
-                  >
-                    Remove
-                  </button>
-                </span>
+                  <Link className={messageButton} to={`/messages/new/${friend.id}`}>Message</Link>
+                  <ActionMenu label={`More actions for ${friend.displayName}`}>
+                    {(close) => (
+                      <>
+                        <InviteToTeamItems userId={friend.id} playerName={friend.displayName} close={close} />
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`${menuItemClass} text-danger-700`}
+                          onClick={() => {
+                            close();
+                            if (window.confirm(`Remove ${friend.displayName} from your friends?`)) action.mutate({ kind: 'remove', userId: friend.id });
+                          }}
+                        >
+                          Remove friend
+                        </button>
+                      </>
+                    )}
+                  </ActionMenu>
+                </>
               }
             />
           ))}
