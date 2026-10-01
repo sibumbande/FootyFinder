@@ -1,5 +1,5 @@
 import { FOOTBALL_POSITIONS, TERMS_ACCEPTANCE_STATEMENT, TERMS_ANCHORS, type FootballPosition } from '@footy-finder/shared';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
@@ -62,7 +62,8 @@ export function OnboardingPage() {
         <fieldset><legend className="text-xs font-black uppercase tracking-[0.08em] text-content">Preferred positions — select in preference order</legend><div className="mt-2 flex flex-wrap gap-2">{FOOTBALL_POSITIONS.map((position) => <button type="button" key={position} onClick={() => togglePosition(position)} className={`rounded-full border px-3 py-2 text-sm font-bold ${positions.includes(position) ? 'border-brand-700 bg-brand-100 text-brand-700' : 'border-line bg-surface'}`}>{positions.indexOf(position) >= 0 ? `${positions.indexOf(position) + 1}. ` : ''}{position.toLowerCase()}</button>)}</div></fieldset>
         <Button disabled={selectedCity?.supportStatus !== 'ACTIVE' || !dateOfBirth || yearsExperience === '' || positions.length === 0} loading={saveProfile.isPending} onClick={() => saveProfile.mutate({ dateOfBirth, yearsExperience: Number(yearsExperience), cityId, preferredPositions: positions })}>Save player details</Button><FormError message={(saveProfile.error ?? waitlist.error)?.message} />
       </Card>
-      <Card title="3. Profile photo"><p className="text-sm text-content-muted">JPEG, PNG or WEBP; up to 5 MB and at least 256×256. The server corrects orientation, creates a square normalized display image, and does not retain the original.</p><input aria-label="Player photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhoto(event.target.files?.[0])} /><Button disabled={!photo} loading={upload.isPending} onClick={() => photo && upload.mutate(photo)}>Upload and normalize photo</Button><FormError message={upload.error?.message} /></Card>
+      {/* CEO touch-up batch 2, item 4: plain wording, front camera on phones (ToS 5.3: a selfie showing your full face). */}
+      <Card title="3. Upload a selfie"><p className="text-sm text-content-muted">Take or upload a clear selfie showing your full face. Teammates and referees use it to recognise you.</p><SelfiePicker photo={photo} onPick={setPhoto} /><Button disabled={!photo} loading={upload.isPending} onClick={() => photo && upload.mutate(photo)}>Upload selfie</Button><FormError message={upload.error?.message} /></Card>
       <Card title="4. Terms of Service">{terms ? <>
         {/* CEO Q1: one document, one checkbox. */}
         <label className="flex gap-3 rounded-xl border border-line p-3 text-sm">
@@ -78,6 +79,30 @@ export function OnboardingPage() {
       </> :<div className="rounded-xl border border-warning-300 bg-warning-50 p-4"><p className="font-bold text-content-strong">Activation is waiting for the Terms of Service to be published.</p><p className="mt-2 text-sm text-content-muted">No acceptance will be fabricated. You can finish the other steps in the meantime.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to="/legal/terms">View the Terms page</Link></div>}<FormError message={accept.error?.message} /></Card>
       <Card title="5. Activate"><p className="text-sm text-content-muted">Outstanding: {status.data.missing.length ? status.data.missing.join(', ') : 'none'}</p><Button disabled={!status.data.canComplete} loading={complete.isPending} onClick={() => complete.mutate(undefined, { onSuccess: () => navigate(returnTo, { replace: true }) })}>Activate player profile</Button><FormError message={complete.error?.message} /></Card>
     </section>
+  );
+}
+
+const isTouchDevice = () => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+const pickerClass = 'relative inline-flex min-h-12 cursor-pointer items-center justify-center rounded-md border-2 border-line-strong bg-surface px-4 text-sm font-black uppercase tracking-wide text-content-strong shadow-[2px_3px_0_rgb(var(--theme-ink)/0.16)] transition hover:bg-surface-hover focus-within:ring-4 focus-within:ring-brand-100';
+
+/** Two ways in: the front camera (phones and tablets only; desktops ignore `capture`) or the gallery / files. */
+function SelfiePicker({ photo, onPick }: { photo?: File; onPick: (file?: File) => void }) {
+  const [touch] = useState(isTouchDevice);
+  const [preview, setPreview] = useState<string>();
+  useEffect(() => {
+    if (!photo || typeof URL.createObjectURL !== 'function') return setPreview(undefined);
+    const url = URL.createObjectURL(photo);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+  const pick = (event: ChangeEvent<HTMLInputElement>) => onPick(event.target.files?.[0]);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {preview && <img src={preview} alt="Your selfie" className="size-20 rounded-full border-2 border-line-strong object-cover" />}
+      {touch && <label className={pickerClass}>Take a selfie<input className="sr-only" type="file" accept="image/*" capture="user" aria-label="Take a selfie with your camera" onChange={pick} /></label>}
+      <label className={pickerClass}>{touch ? 'Choose from gallery' : 'Choose a photo'}<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose a selfie from your photos" onChange={pick} /></label>
+      {photo && <span className="min-w-0 truncate text-sm text-content-muted">{photo.name}</span>}
+    </div>
   );
 }
 

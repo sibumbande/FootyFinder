@@ -145,7 +145,7 @@ The following information is provided in compliance with section 43 of ECTA:
 
 **5.2 Accurate information.** You must give true, current and complete information and keep it up to date. To activate your player profile you verify your email address and give your date of birth, your city, your years of playing experience, your preferred positions and a profile photo.
 
-**5.3 Your profile photo.** Your profile photo must be a clear photo of you. It is shown to other signed-in users so that teammates, opponents and Referees can recognise you. It is not used for facial recognition. We may hide a photo that breaks these Terms, and you will then need to upload a new one.
+**5.3 Your profile photo.** Your profile photo must be a clear selfie that shows your full face. It is shown to other signed-in users so that teammates, opponents and Referees can recognise you. It is not used for facial recognition. We may hide a photo that breaks these Terms, and you will then need to upload a new one.
 
 **5.4 Credentials.** You are responsible for keeping your password confidential. We use one-time email links to verify your email address and to reset your password. Tell support immediately if you suspect someone else has used your Account.
 
