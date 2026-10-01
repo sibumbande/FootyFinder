@@ -119,13 +119,12 @@ npm run smoke:all                             # 37 smokes, including the six new
                                               # friends, blocking, team-member-invites,
                                               # match-overlap, recruitment, guest-browsing
 cd ../..; $env:ADMIN_TEST_DATA_ENABLED='true'; $env:PAYMENT_PROVIDER='demo'
-npx playwright test                           # 6 journeys (see notes), including e2e/social.spec.ts
+npx playwright test                           # 6 passed in one clean run (3.7 min), including e2e/social.spec.ts
 ```
 
-- **Playwright:**
-  - **First full run:** 4 of 6 passed, including the new `social` journey.
-  - **`position-claim`:** clicked "Sign in to join", which TKT-910 renamed to "Log in". It was updated and then passed.
-  - **`critical-path`:** expected `/matches` to send a guest to login, but guests can browse it now. The redirect check now uses `/wallet`. It then passed; one failure before that was the known cold-start flake.
+- **Playwright:** the final clean run (2026-10-01) passed all 6 journeys. Before it, two older journeys were updated for guest browsing:
+  - **`position-claim`:** clicked "Sign in to join", which TKT-910 renamed to "Log in".
+  - **`critical-path`:** expected `/matches` to send a guest to login, but guests can browse it now. The redirect check now uses `/wallet`.
 - **Unit tests:** shared 123, api-client 39, api 407, web 162. Type-checks and the api, web and admin builds pass.
 - **Venue-cost privacy test:** now also scans the guest match list, a played match's result, the public team page, and the guest recruitment board and looking cards.
 - **Retained test records:** `smoke:recruitment` removes a post and a card as an admin. Those audit rows are append-only, so its admin account (`…-recruit-admin@retained.invalid`) stays in the disposable database, like the settlement smokes' admins.
