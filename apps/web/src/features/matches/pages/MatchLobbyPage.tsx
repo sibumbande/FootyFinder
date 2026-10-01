@@ -15,16 +15,9 @@ import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
-import {
-  FormationBoard,
-  type FormationBoardPlayer,
-  type FormationBoardSlot,
-} from '../components/formation/FormationBoard.js';
-import {
-  QUICK_MATCH_RESERVE_LABELS,
-  QUICK_MATCH_SIDE_BADGES,
-  QUICK_MATCH_SIDE_LABELS,
-} from '../constants/quick-match-sides.js';
+import type { FormationBoardPlayer, FormationBoardSlot } from '../components/formation/FormationBoard.js';
+import { QuickMatchPitches } from '../components/formation/QuickMatchPitches.js';
+import { QUICK_MATCH_SIDE_BADGES, QUICK_MATCH_SIDE_LABELS } from '../constants/quick-match-sides.js';
 import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
 import { MatchRefereeLine } from '../components/MatchRefereeLine.js';
 import { MatchResultPanel } from '../components/MatchResultPanel.js';
@@ -344,17 +337,14 @@ export function MatchLobbyPage() {
           id="formation"
           className={`scroll-mt-20 ${tab === 'formation' ? 'block' : 'hidden'} rounded-3xl border border-line bg-surface p-4 shadow-sm md:block sm:p-6`}
         >
-          <FormationBoard
+          <QuickMatchPitches
             slots={boardSlots}
             players={boardPlayers}
             canEdit={isHost && mutable}
             claimableSlotIds={claimableSlotIds}
             onClaim={claim}
             currentPlayerId={currentParticipant?.id ?? null}
-            sideLabels={QUICK_MATCH_SIDE_LABELS}
-            sideBadges={QUICK_MATCH_SIDE_BADGES}
-            reserveLabels={QUICK_MATCH_RESERVE_LABELS}
-            emptySlotsAreOpen
+            currentSide={currentParticipant?.team ?? null}
             readonlyHint={
               canClaim
                 ? 'Tap an open position on your team to claim it.'

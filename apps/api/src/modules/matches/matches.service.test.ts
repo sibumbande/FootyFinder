@@ -96,7 +96,29 @@ describe('host permissions', () => {
     expect(home.cancelMatch).toHaveBeenCalledWith('match-1', 'TEAM_CANCELLED', 'home-captain');
   });
 
-  it('rejects Quick Game movement across the halfway line before persistence', async () => {
+  it('lets the Host place a Quick Game marker anywhere on its side\'s own pitch', async () => {
+    const repository = {
+      findById: vi.fn().mockResolvedValue({
+        id: 'match-1',
+        mode: 'QUICK_GAME',
+        createdById: 'host-1',
+        status: 'OPEN',
+        startsAt: new Date(Date.now() + 86_400_000),
+        durationMinutes: 60,
+        formationSlots: [{ id: 'slot-1', team: 'HOME' }],
+      }),
+      updateFormation: vi.fn().mockResolvedValue({ changed: true, match: { formationVersion: 2, formationSlots: [] }, notifications: [] }),
+    } as unknown as MatchesRepository;
+    await new MatchesService(repository, { publishPersistedMany: vi.fn() } as never).updateFormation(
+      'match-1',
+      'slot-1',
+      { positionX: 50, positionY: 25 },
+      'host-1',
+    );
+    expect(repository.updateFormation).toHaveBeenCalledWith('match-1', 'slot-1', { positionX: 50, positionY: 25 }, 'host-1');
+  });
+
+  it('still lets only the Host move Quick Game markers', async () => {
     const repository = {
       findById: vi.fn().mockResolvedValue({
         id: 'match-1',
@@ -110,13 +132,8 @@ describe('host permissions', () => {
       updateFormation: vi.fn(),
     } as unknown as MatchesRepository;
     await expect(
-      new MatchesService(repository).updateFormation(
-        'match-1',
-        'slot-1',
-        { positionX: 50, positionY: 25 },
-        'host-1',
-      ),
-    ).rejects.toMatchObject({ statusCode: 400, code: 'POSITION_OUTSIDE_TEAM_HALF' });
+      new MatchesService(repository).updateFormation('match-1', 'slot-1', { positionX: 50, positionY: 25 }, 'player-2'),
+    ).rejects.toMatchObject({ statusCode: 403 });
     expect(repository.updateFormation).not.toHaveBeenCalled();
   });
 });

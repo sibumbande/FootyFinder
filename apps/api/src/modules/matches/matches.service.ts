@@ -371,18 +371,8 @@ export class MatchesService {
   ) {
     const match = await this.assertManager(id, userId);
     this.assertMutable(match);
-    const target = match.formationSlots.find((slot) => slot.id === slotId);
-    if (
-      target &&
-      input.positionY !== undefined &&
-      ((target.team === 'HOME' && input.positionY < 50) ||
-        (target.team === 'AWAY' && input.positionY > 50))
-    )
-      throw new AppError(
-        400,
-        "That position is outside the Team's half.",
-        'POSITION_OUTSIDE_TEAM_HALF',
-      );
+    // CEO batch 1: each Quick Match side has its own pitch, so the Host may place a marker anywhere
+    // on it (0-100, validated by the schema). Only the Host reaches this point (assertManager).
     const result = await this.matches.updateFormation(id, slotId, input, userId);
     const slots = result.match.formationSlots.map(toFormationSlot);
     if (result.changed) this.publishFormation(id, result.match.formationVersion, slots);
