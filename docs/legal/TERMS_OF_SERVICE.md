@@ -217,7 +217,7 @@ We do not collect your phone number, emergency contact details or health informa
 - Team recruitment posts and, while it is on, your "Looking for a team" card (clause 18.9);
 - public matches: the venue, time, format, fee and how many places are left; and, once a match has been played, its Final Result with the names of the scorers and assisters.
 
-Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, identity documents, chats and messages, friends list or payment and Wallet information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
+Search engines may list these public pages. Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, identity documents, chats and messages, friends list or payment and Wallet information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
 
 **8.4 Operators.** We use third-party operators for hosting, card payments (Paystack) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
 
@@ -237,8 +237,8 @@ Before a match is played, people without an account see only how many places are
 | Match results and Lineup Records | While the match history is kept, because other players' statistics depend on them |
 | Conduct and safety records | 3 years, or longer where an incident is unresolved or subject to legal proceedings |
 | Chat, messages and support requests | 12 months, or longer where reported and under investigation |
-| Friends, friend requests and blocks | While your Account is active, and for 12 months after it is closed |
-| Recruitment posts, "Looking for a team" cards and requests to join | While the post, card or request is shown or waiting, and for 12 months after it closes, expires or is removed |
+| Friends and blocks | While both Accounts are active (a block, while it is in place); deleted 12 months after either Account is closed |
+| Friend requests, Team recruitment posts, "Looking for a team" cards, Team invites and requests to join | While active; deleted 12 months after they end (declined, cancelled, expired, closed or removed), or 12 months after the Account is closed |
 | Record of your acceptance of these Terms | While your Account is active, and for as long as we may need it as evidence afterwards |
 | City waiting-list entries | Until you unsubscribe or ask us to delete them |
 
