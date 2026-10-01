@@ -8,6 +8,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { TeamAvatar } from '../components/TeamAvatar.js';
 import { useAcceptTeamInvite, useInspectTeamInvite } from '../hooks/useTeams.js';
+import { plural } from '@/utils/plural.js';
 
 export function TeamInvitePage() {
   const { token = '' } = useParams();
@@ -60,7 +61,7 @@ export function TeamInvitePage() {
                   `${invite.data.invitedBy.displayName} invited you to join the squad.`}
               </p>
               <p className="mt-3 text-sm text-content-muted">
-                {invite.data.team.memberCount} members · invited by{' '}
+                {plural(invite.data.team.memberCount, 'member')} · invited by{' '}
                 {invite.data.invitedBy.displayName}
               </p>
               {invite.data.status !== 'ACTIVE' ? (

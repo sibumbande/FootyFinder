@@ -8,6 +8,7 @@ import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { TeamHeroView, TeamTabs } from '@/features/teams/components/TeamHeroView.js';
 import { GuestAction } from '../components/SignUpPrompt.js';
 import { usePublicTeam } from '../hooks/usePublic.js';
+import { plural } from '@/utils/plural.js';
 
 const GUEST_TABS = ['overview', 'squad'] as const;
 type GuestTab = (typeof GUEST_TABS)[number];
@@ -67,7 +68,7 @@ function Overview({ team }: { team: PublicTeamView }) {
         <div>
           <h2 className="text-xl font-bold text-content-strong">Reviews</h2>
           <p className="mt-2 text-content-muted">
-            {team.reviews.enoughReviews ? `${team.reviews.averageRating} / 5 from ${team.reviews.reviewCount} reviews` : 'Not enough reviews.'}
+            {team.reviews.enoughReviews ? `${team.reviews.averageRating} / 5 from ${plural(team.reviews.reviewCount ?? 0, 'review')}` : 'Not enough reviews.'}
           </p>
         </div>
       </div>

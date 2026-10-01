@@ -92,8 +92,8 @@ describe('TeamPage role controls', () => {
 
   it('shows owner-only settings and member management controls to the owner', () => {
     renderPage();
-    expect(screen.getByRole('button', { name: 'settings' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'squad' }));
+    expect(screen.getByRole('tab', { name: 'settings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'squad' }));
     expect(screen.getByRole('button', { name: 'Promote' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
   });
@@ -101,9 +101,9 @@ describe('TeamPage role controls', () => {
   it('does not expose invite, settings, or roster administration to a member', () => {
     state.role = 'MEMBER';
     renderPage();
-    expect(screen.queryByRole('button', { name: 'invites' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'settings' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'squad' }));
+    expect(screen.queryByRole('tab', { name: 'invites' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'settings' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'squad' }));
     expect(screen.queryByRole('button', { name: 'Promote' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
   });

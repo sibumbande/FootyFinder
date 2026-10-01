@@ -41,7 +41,7 @@ export function TeamPage() {
     allowedTabs.push('invites');
   if (!archived && team.data.viewerRole === 'OWNER') allowedTabs.push('settings');
   return (
-    <section className="grid gap-6">
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <TeamHero team={team.data} />
       {archived && (
         <p role="status" className="rounded-2xl border border-line bg-surface-muted p-4 text-sm font-semibold text-content">

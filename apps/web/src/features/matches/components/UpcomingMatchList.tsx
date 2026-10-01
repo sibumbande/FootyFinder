@@ -2,6 +2,7 @@ import { getMaxMatchParticipants, MATCH_FORMAT_CONFIG, type Match, type MatchFor
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { FreeMatchBadge } from './FreeMatchBadge.js';
+import { plural } from '@/utils/plural.js';
 
 type Row = {
   key: string;
@@ -58,10 +59,10 @@ export function UpcomingMatchList({ rows }: { rows: Row[] }) {
               <span className="text-lg font-black leading-tight">{time(row.startsAt)}</span>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-black leading-snug text-content-strong [overflow-wrap:anywhere]">{row.name}</p>
-              <p className="text-sm text-content-muted [overflow-wrap:anywhere]">{row.venueName} · {MATCH_FORMAT_CONFIG[row.format].shortLabel}</p>
+              <p className="font-black leading-snug text-content-strong break-words">{row.name}</p>
+              <p className="text-sm text-content-muted break-words">{row.venueName} · {MATCH_FORMAT_CONFIG[row.format].shortLabel}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-bold text-content-strong">{row.placesLeft === 1 ? '1 place left' : `${row.placesLeft} places left`}</span>
+                <span className="font-bold text-content-strong">{plural(row.placesLeft, 'place left', 'places left')}</span>
                 {row.free ? <FreeMatchBadge firstTimersOnly={row.firstTimersOnly} /> : <span className="text-content-muted">{formatCurrency(row.feeCents)}</span>}
               </div>
             </div>

@@ -66,7 +66,7 @@ describe('Guest browsing (Gate 9 / TKT-910)', () => {
     expect(screen.getByRole('heading', { name: 'Woodstock Wanderers' })).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Team sections' }).textContent).toBe('overviewsquad');
     expect(screen.getByText('Sunday league')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'squad' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'squad' }));
     expect(screen.getAllByRole('link', { name: 'Sign up to play' })).toHaveLength(2);
     expect(screen.queryByText(/wallet|invites|settings/i)).toBeNull();
   });

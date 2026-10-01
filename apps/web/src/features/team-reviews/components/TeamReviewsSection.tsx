@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teamReviewsClient } from '@/api/client.js';
 import { FormError } from '@/components/ui/FormError.js';
+import { plural } from '@/utils/plural.js';
 
 /**
  * Gate 8 / TKT-810 (DEC-017): a team's public reviews. The average and count appear only with at
@@ -23,7 +24,7 @@ export function TeamReviewsSection({ teamId, isMember }: { teamId: string; isMem
       {summary.data?.enoughReviews && (
         <>
           <p className="text-lg font-black text-content-strong">
-            {summary.data.averageRating} out of 5 <span className="text-sm font-semibold text-content-muted">({summary.data.reviewCount} reviews)</span>
+            {summary.data.averageRating} out of 5 <span className="text-sm font-semibold text-content-muted">({plural(summary.data.reviewCount ?? 0, 'review')})</span>
           </p>
           <ul className="grid gap-2">
             {summary.data.reviews.map((review) => (
