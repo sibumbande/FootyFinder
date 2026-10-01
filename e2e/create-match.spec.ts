@@ -213,7 +213,7 @@ test.describe('create a match: every step through to the formation (CEO batch 1)
     const approver = await register(approverPage, 'approver', 'Approver');
     await approverContext.close();
     const host = await register(page, 'host', 'Host');
-    await createPublishedVenue(host.id, approver.id);
+    const venue = await createPublishedVenue(host.id, approver.id);
     const venueName = `${marker} Park`;
 
     await page.goto('/matches/new');
@@ -248,10 +248,17 @@ test.describe('create a match: every step through to the formation (CEO batch 1)
     await page.goto('/matches/new');
     await expect(page.getByText('Step 1 of', { exact: false })).toBeVisible();
 
+    // The venue page too (CEO batch 2, item 7: no venue cancellation policy, only the FootyFinder rules).
+    await page.goto(`/venues/${venue.slug}`);
+    await expect(page.getByRole('link', { name: 'Terms clause 14' })).toBeVisible();
+    await expect(page.getByText('Full credit more than 24 hours')).toHaveCount(0);
+
     // Venue costs never reach a player's browser.
     for (const body of responses) {
       expect(body).not.toContain(String(VENUE_PRICE_CENTS));
       expect(body).not.toMatch(/"priceCents|priceCentsSnapshot|"fromPriceCents/);
+      // CEO touch-up batch 2, item 7: nor does the venue's own cancellation policy.
+      expect(body).not.toMatch(/Full credit more than 24 hours|"cancellationPolic|"policyText/);
     }
     await context.close();
   });

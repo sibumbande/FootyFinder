@@ -4,7 +4,6 @@ import { AppError } from '../../errors/app-error.js';
 
 const venueInclude = {
   media: { orderBy: { sortOrder: 'asc' as const } },
-  cancellationPolicies: { orderBy: { effectiveFrom: 'desc' as const } },
   fields: {
     where: { status: 'ACTIVE' as const },
     include: {
@@ -79,9 +78,9 @@ export const toPublicVenueCard = (venue: NonNullable<VenueRow>): PublicVenueCard
   };
 };
 
+// CEO touch-up batch 2, item 7: the venue's own cancellation policy is an agreement between FootyFinder and the
+// venue. It is admin-only and never sent to players or guests (they follow the FootyFinder rules, ToS clause 14).
 export const toPublicVenueDetail = (venue: NonNullable<VenueRow>): PublicVenueDetail => {
-  const now = new Date();
-  const policy = venue.cancellationPolicies.find((item) => item.effectiveFrom <= now && (!item.effectiveTo || item.effectiveTo > now))!;
   return {
     ...toPublicVenueCard(venue), description: venue.publicDescription!, addressLine1: venue.addressLine1,
     ...(venue.addressLine2 ? { addressLine2: venue.addressLine2 } : {}), ...(venue.postalCode ? { postalCode: venue.postalCode } : {}),
@@ -91,10 +90,6 @@ export const toPublicVenueDetail = (venue: NonNullable<VenueRow>): PublicVenueDe
       id: field.id, name: field.name, ...(field.description ? { description: field.description } : {}),
       supportedFormats: field.supportedFormats.map(({ format }) => format), turnaroundBufferMinutes: field.turnaroundBufferMinutes,
     })),
-    cancellationPolicy: {
-      fullCreditBeforeHours: policy.fullCreditBeforeHours, lateCreditPercent: policy.lateCreditPercent,
-      venueCancellationPercent: policy.venueCancellationPercent, policyText: policy.policyText,
-    },
   };
 };
 

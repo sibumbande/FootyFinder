@@ -17,7 +17,7 @@ export const TERMS_ACCEPTANCE_STATEMENT =
   "I'm 18 or older and I agree to the FootyFinder Terms of Service, including the Privacy Notice and the injury risk waiver in clause 9.";
 
 /** Anchors on the Terms page (/legal/terms#clause-8), used by the footer and the checkbox links. */
-export const TERMS_ANCHORS = { privacy: 'clause-8', riskWaiver: 'clause-9' } as const;
+export const TERMS_ANCHORS = { privacy: 'clause-8', riskWaiver: 'clause-9', cancellations: 'clause-14' } as const;
 
 const isoDate = z
   .string()

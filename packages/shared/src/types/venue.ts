@@ -37,12 +37,6 @@ export interface PublicVenueDetail extends PublicVenueCard {
   amenities: string[];
   gallery: PublicVenueMedia[];
   fields: PublicVenueField[];
-  cancellationPolicy: {
-    fullCreditBeforeHours: number;
-    lateCreditPercent: number;
-    venueCancellationPercent: number;
-    policyText: string;
-  };
 }
 
 export interface VenueAvailabilitySlot {

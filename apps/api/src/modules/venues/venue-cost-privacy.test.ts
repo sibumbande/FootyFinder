@@ -7,20 +7,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // deliberately carries prices, and every serialised response is scanned for money keys.
 const VENUE_COST_KEY =
   /price|amountCents|fromPrice|funded|remaining|guarantee|obligation|requiredCents/i;
-const leakedKeys = (value: unknown, path = '$'): string[] => {
-  if (Array.isArray(value)) return value.flatMap((item, index) => leakedKeys(item, `${path}[${index}]`));
+// CEO touch-up batch 2, item 7: the venue's own cancellation policy (an agreement between FootyFinder and the
+// venue) is admin-only too. Players and guests only ever see the FootyFinder rules (ToS clause 14).
+const VENUE_POLICY_KEY = /cancellationPolic|policyText|fullCreditBeforeHours|lateCreditPercent|venueCancellationPercent/i;
+const VENUE_POLICY_TEXT = 'VENUE-POLICY-SECRET full credit more than 24 hours before kickoff';
+const leakedKeys = (value: unknown, pattern: RegExp, path = '$'): string[] => {
+  if (Array.isArray(value)) return value.flatMap((item, index) => leakedKeys(item, pattern, `${path}[${index}]`));
   if (value && typeof value === 'object')
     return Object.entries(value).flatMap(([key, child]) => [
-      ...(VENUE_COST_KEY.test(key) ? [`${path}.${key}`] : []),
-      ...leakedKeys(child, `${path}.${key}`),
+      ...(pattern.test(key) ? [`${path}.${key}`] : []),
+      ...leakedKeys(child, pattern, `${path}.${key}`),
     ]);
   return [];
 };
+const expectNoVenuePolicy = (json: unknown) => {
+  expect(leakedKeys(json, VENUE_POLICY_KEY)).toEqual([]);
+  expect(JSON.stringify(json)).not.toContain('VENUE-POLICY-SECRET');
+};
 const expectNoVenueCost = (payload: unknown) => {
   const json = JSON.parse(JSON.stringify(payload));
-  expect(leakedKeys(json)).toEqual([]);
+  expect(leakedKeys(json, VENUE_COST_KEY)).toEqual([]);
   // Belt and braces: the distinctive fixture amounts must not appear anywhere in the payload.
   expect(JSON.stringify(json)).not.toMatch(/50000|60000|80000|100000/);
+  expectNoVenuePolicy(json);
 };
 
 const now = new Date();
@@ -64,7 +73,7 @@ const venueRow = {
       fullCreditBeforeHours: 24,
       lateCreditPercent: 0,
       venueCancellationPercent: 100,
-      policyText: 'Policy',
+      policyText: VENUE_POLICY_TEXT,
     },
   ],
   fields: [
@@ -278,6 +287,15 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     ]);
   });
 
+  it("the venue's own cancellation policy is admin-only: never in the public venue detail (CEO batch 2, item 7)", async () => {
+    const detail = await new VenuesService().get('italian-club');
+    expect(detail.venue).not.toHaveProperty('cancellationPolicy');
+    expectNoVenuePolicy(JSON.parse(JSON.stringify(detail)));
+    // Negative control: the detector catches the policy wherever it would appear.
+    expect(() => expectNoVenueCost({ ...detail, venue: { ...detail.venue, cancellationPolicy: { policyText: VENUE_POLICY_TEXT } } })).toThrow();
+    expect(() => expectNoVenueCost({ note: VENUE_POLICY_TEXT })).toThrow();
+  });
+
   it('calculated slots are offered (a price exists) but never expose it', async () => {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(
       new Date(Date.now() + 86_400_000),
@@ -301,7 +319,7 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     expect(admin).toMatchObject({ priceCents: 100_000, fundedCents: 60_000 });
     expect(admin.contributions[0]).toMatchObject({ amountCents: 60_000 });
     // Negative control: the detector used above really does catch venue-cost keys.
-    expect(leakedKeys(JSON.parse(JSON.stringify(admin)))).toEqual(
+    expect(leakedKeys(JSON.parse(JSON.stringify(admin)), VENUE_COST_KEY)).toEqual(
       expect.arrayContaining(['$.priceCents', '$.fundedCents', '$.remainingCents']),
     );
   });
