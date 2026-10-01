@@ -225,7 +225,8 @@ test.describe('browser critical path', () => {
     const playerContext = await browser.newContext();
     const captainPage = await captainContext.newPage();
     const playerPage = await playerContext.newPage();
-    const protectedDestination = '/matches?format=FIVE_A_SIDE#available';
+    // Gate 9 / TKT-910: /matches is browsable by guests now, so the redirect is checked on the wallet.
+    const protectedDestination = '/wallet?amount=16000#top-up';
     await Promise.all([captainPage.goto(protectedDestination), playerPage.goto('/')]);
     await expect(captainPage).toHaveURL(
       `/login?returnTo=${encodeURIComponent(protectedDestination)}`,
@@ -284,7 +285,7 @@ test.describe('browser critical path', () => {
     });
     await playerPage.goto(`/m/${quickMatch.publicSlug}`);
     await expect(playerPage.getByRole('heading', { name: `${marker} paid match` })).toBeVisible();
-    await playerPage.getByRole('link', { name: 'Sign in to join' }).click();
+    await playerPage.getByRole('link', { name: 'Log in', exact: true }).click();
     await playerPage.getByLabel('Email or username').fill(`${marker}-player@test.invalid`);
     await playerPage.getByLabel('Password').fill('FootyFinder123!');
     await playerPage.getByRole('button', { name: 'Sign in' }).click();

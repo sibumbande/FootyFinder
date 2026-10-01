@@ -541,21 +541,23 @@ Implementation notes:
 3A. CROSS-CUTTING APPROVED PRODUCT/UX RULES
 ============================================
 
-- Navigation: put My Profile, Wallet, and Sign out in the authenticated header/avatar account menu. Keep Matches and Teams primary; add Social as a primary area when Gate 9 ships.
+- Navigation: put My Profile, Wallet, and Sign out in the authenticated header/avatar account menu. Keep Matches and Teams primary; add Social as a primary area when Gate 9 ships. (Gate 9, 2026-09-30: Social replaced Messages in the main nav; DMs are its DMS tab and old /messages links still work.)
 - Preferred positions: allow up to four unique ordered values; the first is primary.
 - Onboarding order: credentials -> verify email -> DOB/city/experience/positions/photo -> current legal acceptance -> activate profile.
 - Experience: required whole years from 0 through 60, user-editable and visible only on authenticated profiles.
 - DOB: store the full date for age enforcement; expose only to self and tightly authorized admins, never other players/anonymous DTOs.
 - Canonical URLs: immutable opaque public-match slug; frozen human-readable venue slug with permanent redirect aliases when needed; UUIDs/private tokens are not public canonical identifiers.
-- Sharing/QR: canonical URLs only, with no user referral identifier or campaign tracking in the initial implementation.
+- Sharing/QR: canonical URLs only, with no user referral identifier or campaign tracking in the initial implementation. (Gate 9: QR codes were dropped by the CEO, TKT-905.)
 - Public-share E2E funding: use the environment-gated demo-deposit API with unique idempotency keys and disposable cleanup; do not write browser-test balances directly.
 - Operational email: send email only for challenge received/accepted/expiring, result confirmation/dispute, payment/refund failure, and account-security events. Chat never sends email. (DEC-020 / D19: referee assignment and removal emails go to the referee, and no-referee and overdue-result alerts to admins; results themselves are in-app only.)
 - Alert owner: Platform Operations. Page payment/security/reconciliation failures immediately; review ordinary product-flow alerts daily.
-- Friendship: authenticated minimal-card search by username/name/city, preferences/rate limits, one pending request per pair, 30-day expiry, 20 new requests/day, 100 pending outgoing maximum, and an option to disable incoming requests.
-- Blocking: bilateral discovery/social invisibility and no requests/DMs/targeted invites/notifications. Shared teams/matches keep only the operational identity required by roster/lineup/result; blocking does not silently remove either user.
+- Friendship: authenticated minimal-card search by username/name/city, preferences/rate limits, one pending request per pair, 30-day expiry, 20 new requests/day, 100 pending outgoing maximum, and an option to disable incoming requests. CEO Gate 9 (2026-09-30): the 20/day limit does not count requests to players who shared a match Lineup Record (either side); a declined requester may ask again at any time (D6); "Add friend" shows everywhere another player appears; finished matches show "Players you played with" with Add all.
+- Blocking: bilateral discovery/social invisibility and no requests/DMs/targeted invites/notifications. Shared teams/matches keep only the operational identity required by roster/lineup/result; blocking does not silently remove either user. (Gate 9, D9/D10: the blocked player is never told; DM history stays but no new messages; Lobby/Team chat messages from a blocked player are hidden until shown; blocking also hides recruitment posts and looking cards both ways.)
 - Team chat: one permanent team-owned conversation. Current members can read/send retained history; removed members immediately lose all access. Generate one first-unread in-app notification, suppress self/duplicates until read, and do not email chat.
-- Advanced escrow: TKT-906 is approved only after Gate 7 reconciliation is proven. Use refundable personal-wallet holds toward a team target, reject overfunding, advance only when both targets fund before expiry, capture successful obligations, and release on expiry/cancellation except approved charges.
-- Advanced player statistics: TKT-907 remains deferred for attendance, POTM, player ratings and captaincy history. Assists moved into Gate 8 under DEC-020 (recorded by the referee, corrected only by an admin).
+- Advanced escrow: TKT-906 is SUPERSEDED BY DEC-019 AND NOT TO BE BUILT (CEO, 2026-09-30). Team fees are held in each team wallet through the fill meter and captured once at the T-30 go/no-go (Gate 7).
+- Advanced player statistics: TKT-907 remains deferred for attendance, POTM, player ratings and captaincy history. Assists were delivered in Gate 8 under DEC-020 (recorded by the referee, corrected only by an admin).
+- One match at a time (TKT-908, CEO 2026-09-30, found in live testing): a player cannot join a match, be selected in a team lineup, or be loaded with a team into a match whose window (kickoff to scheduled end + 30 min) overlaps another match they are in as a player (any side, including subs) or as its referee. A referee may still play in the match they referee (DEC-020 D17). Existing overlaps are left alone; retired team planning fixtures never count.
+- Guest browsing (TKT-910, CEO 2026-09-30): anyone can browse read-only without an account: public matches (counts only before kickoff), played results with scorers, venue pages, team pages, player profiles and the recruitment board. Every action that needs a profile shows "Sign up to play" and returns to the same page after sign-up and onboarding. Enforced by the server through guest-safe /public routes.
 
 
 3B. IMPLEMENTATION READINESS AFTER DECISIONS
@@ -573,11 +575,12 @@ Implementation notes:
 - Gate 6 (TKT-601 to TKT-609) was implemented on 2026-09-29, one commit per ticket, with six additive migrations (20261002100000 to 20261002150000), verified locally (footy_finder reset and footy_finder_test deploy, all 35 migrations) plus a real Paystack TEST API check. Production release still needs live Paystack credentials/webhook, approved venue bank details (DEC-005/TKT-302) and the production encryption key. See section 10 and `docs/GATE_6_PAYMENTS_SETTLEMENT_RUNBOOK_2026-09-29.md`.
 - Gate 7 (TKT-701 to TKT-712) was implemented on 2026-09-29 under DEC-019, one commit per ticket, with eight additive migrations (20261003100000 to 20261003170000), verified locally (footy_finder reset and footy_finder_test deploy, all 43 migrations; 17 smokes; 4 Playwright journeys). Production release still needs Terms v2.3 published with legal:publish (material, reacceptance required) and the Gate 6 production items. See section 11 and `docs/GATE_7_TEAM_MATCHES_RUNBOOK_2026-09-29.md`.
 - Gate 8 was redesigned under DEC-020 and implemented on 2026-09-30 (TKT-801 to TKT-811), one commit per ticket, with nine additive migrations (20261004100000 to 20261004180000), verified locally (footy_finder reset and footy_finder_test deploy, all 52 migrations; smoke:all; Playwright journeys). Production release still needs Terms v2.4 published with legal:publish (material, reacceptance required, at least 14 days' notice), the first referees granted and a default referee set, and the Gate 6/7 production items. See section 12 and `docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md`.
+- Gate 9 (Social) was implemented on 2026-09-30: TKT-901, TKT-903, TKT-902, TKT-904, TKT-908, TKT-909 and TKT-910, one commit per ticket (plus one TKT-908 fix), with seven additive migrations (20261006100000 to 20261006160000). Verified locally: footy_finder_test deploy of all 60 migrations, smoke:all with six new Gate 9 smokes, and the Playwright journeys including e2e/social.spec.ts. TKT-905 (QR codes) was dropped by the CEO, TKT-906 is superseded by DEC-019 and TKT-907 stays deferred. The Terms of Service v2.4 Launch version was updated in the same work (not yet published). See section 13 and docs/GATE_9_SOCIAL_RUNBOOK_2026-09-30.md.
 - A ticket without an explicit Status line remains BACKLOG. Mark it READY only when every listed dependency is VERIFIED and every required external input for that ticket is available.
 - TKT-201 is blocked for production content until counsel supplies approved documents/company facts and the retention matrix. TKT-202/TKT-209/TKT-210 may not be released against invented or placeholder consent content.
 - TKT-302 is blocked for production data until approved venue packs, media rights/attribution, schedules, prices, cancellation terms, and beneficiary facts exist. This transitively blocks production release of TKT-304 through TKT-308 and TKT-607.
 - Postmark and Paystack abstractions/test adapters may be built with test configuration, but production verification/release requires Platform Operations to provide the verified domain, scoped credentials, webhook setup, secret rotation, and operational ownership.
-- TKT-607 additionally needs approved encrypted beneficiary facts. TKT-906 starts only after TKT-712 and proven Gate 7 reconciliation (both done 2026-09-29; TKT-906 still needs its own approval against DEC-019, which replaced the challenge model it was written for). TKT-907 is not selectable.
+- TKT-607 additionally needs approved encrypted beneficiary facts. TKT-906 is superseded by DEC-019 and not to be built (CEO, 2026-09-30). TKT-907 is not selectable.
 - Never substitute synthetic production content, browser-written balances, or inferred consent to bypass a blocker. Move to an independent READY stream when the execution order permits it.
 
 
@@ -1542,7 +1545,7 @@ Follow-ups (not implemented, recorded for decision):
 - Publish Terms of Service v2.3 with legal:publish before release (material; users must re-accept). Its effective date is set on publication, at least 14 days after notice (clause 26.2).
 - A "Teams only" match published less than 24 hours before kickoff has no T-24h unmatched cancel; the T-30 check decides it (interpretation of D10/E, recorded in ToS 12.13).
 - Closing a team releases its short name for reuse (DEC-003 names stay in the audit history).
-- TKT-906 (advanced escrow) was written for the challenge model and needs re-scoping against DEC-019 before it is selectable.
+- TKT-906 (advanced escrow) was written for the challenge model; it is superseded by DEC-019 and not to be built (CEO, 2026-09-30).
 - Fix the three pre-existing smoke compile errors above.
 
 TKT-701 - Add team-wallet ledger and reconciliation foundation
@@ -1838,83 +1841,101 @@ Implemented:
 - DEC-020 and this section; docs/MATCH_STATE_AND_AUTHORIZATION.md rewritten for the referee model; docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md.
 
 
-13. GATE 9 - SOCIAL, QR, AND LATER WORK
-=======================================
+13. GATE 9 - SOCIAL, FRIENDS, RECRUITMENT AND GUEST BROWSING
+=============================================================
+
+Implemented on 2026-09-30 on `ceo/finish-gate-5`, one commit per ticket (TKT-901 9d1763f, TKT-903 92d211f, TKT-902 f70f0eb, TKT-904 64a7bc2, TKT-908 480cc21 with fix 2bcda10, TKT-909 23cf2b5, TKT-910 3cf705b), with seven additive migrations (20261006100000 to 20261006160000). The Terms of Service v2.4 Launch version was updated in the same work and is not yet published. See docs/GATE_9_SOCIAL_RUNBOOK_2026-09-30.md.
+
+Gate 9 CEO decisions (2026-09-30), approved as recommended except where noted:
+- D1 Nav: Social replaces Messages (DMs become its DMS tab; old /messages links still work). No Matchmaking or Training.
+- D2 Tabs: DISCOVER, FRIENDS (count), TEAMS, DMS (unread count); one search box that searches within the current tab; a Requests block at the top of Friends.
+- D3 Discover: signed-in, finished-profile players by display name or username (optional city); minimal cards; with no search, "People you played with"; "No new profiles found" when empty; never you or blocked players.
+- D4 Friends lists are private; others see only the button state.
+- D5 Incoming requests switch on your own profile (on by default); when off nobody can send you one and the button is hidden; existing friends stay.
+- D6 CHANGED BY THE CEO: after a decline the requester may ask again at any time (all other limits apply). Blocking is the way to stop repeat requests. Declines and removals are silent.
+- D7 20/day counted over a rolling 24 hours, not counting requests to players in the same match Lineup Record (either side, including subs); "Add all" skips friends, pending, blocked and requests-off players and stops at the 100 pending cap.
+- D8 "Players you played with" on every finished match page (quick and team): both sides of the Lineup Record, excluding "did not play", visible only to players in that record and the referee.
+- D9 Blocking: ends friendship and pending requests and cancels pending team invites/join requests between the two; hides both from each other in Discover, Friends, posts and looking lists; no requests, DMs, invites or notices either way; DM history stays with no new messages; the blocked player is never told; unblocking restores nothing.
+- D10 Shared teams and matches keep both names; Lobby and Team chat messages from a blocked player are collapsed until tapped; blocking does not stop joining a public match.
+- D11 Personal team invites from the Owner or a Captain to friends or looking players; 14-day expiry; one pending per player per team; accept joins through the normal membership path; link invites unchanged.
+- D12 Recruitment posts: players wanted 1-99; positions multi-select; days Mon-Sun; times morning/afternoon/evening; free-text area; note up to 300 characters; signed-in viewing only at first (see TKT-910); "x of n joined through this post"; closing a team closes its posts.
+- D13 Looking card on your own profile, off by default; positions, area, availability (same choices) and a 300-character note; switches off when you join a team through an invite or join request.
+- D14 Reports and admin removal (reason, audited); removed posts show "Removed by FootyFinder" and cannot be renewed; removed cards are switched off.
+- D15 Notices are in-app only; join requests notify every Owner and Captain.
+- D16 CHANGED BY THE CEO: QR codes are not built (TKT-905 dropped); no qrcode library and no special public venue page.
+- D17 Overlap rule: (a) loading a team leaves overlapping squad members out and tells the captain; (b) refereeing one match and playing in a different overlapping match is blocked both ways, playing in your own match is allowed (DEC-020 D17); (c) existing overlaps are left alone.
+- D18 Dev mock world seeds friendships, posts, looking players and a join request; --reset-mock ends them through the normal paths; your own friendships stay.
+- NEW (CEO): TKT-910 guest browsing (below).
 
 TKT-901 - Add friendship/request persistence and service
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commit 9d1763f
 Depends on: cross-cutting Friendship rule in section 3A
-Risk: Medium
-Scope:
-- Add request/accepted/declined/cancelled/expired/remove behavior with one pending request per pair and 30-day expiry.
-- Add authenticated minimal-card search by username/name/city, list/request/respond/remove APIs, in-app notifications, and a user preference to disable incoming requests.
-- Enforce 20 new requests per user per rolling day and at most 100 pending outgoing requests.
-Acceptance: State transitions are symmetric where required and duplicates/races are safe.
-Tests: transition/concurrency/auth/privacy/rate-limit tests.
-Not in scope: blocking or UI.
+Scope as written, with the CEO limits: one pending request per pair (partial unique index on a pair key), 30-day expiry (treated as expired on read and marked EXPIRED when the pair is touched), 100 pending outgoing, 20 new requests per rolling day except to players who shared a Lineup Record, requests-off switch (User.friendRequestsEnabled), crossed requests become one friendship, silent decline with an immediate re-ask, Discover search and suggestions, a batched relationship-state endpoint for the button everywhere, "Players you played with" and "Add all", and in-app notices (FRIEND_REQUEST_RECEIVED/ACCEPTED).
+Implemented: migrations 20261006100000/110000; apps/api/src/modules/social (friend-rules, friends.service, controller, routes); shared social types/schemas; api-client socialApi; smoke:friends.
 
 TKT-902 - Add Social shell while preserving DMs
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commit f70f0eb
 Depends on: TKT-901
-Risk: Medium
-Scope:
-- Add Social as a primary navigation area with Friends, Requests, and existing Messages.
-- Reuse current conversation/message persistence and routes.
-Acceptance: Existing DM history/realtime remains intact and friends lifecycle is usable.
-Tests: routing/components/DM regressions.
-Not in scope: blocking/team invites.
+Scope as written, with the CEO screenshot layout (SOCIAL NETWORK header, subtitle, pill tabs DISCOVER / FRIENDS (n) / TEAMS / DMS (n), one search box) and "friends everywhere": the Add friend button (Requested / Accept / Friends) on profiles, Discover, quick-match lobby lists and rosters, team-match lineups/availability/other side, team squads, DMs and (TKT-909) Players looking; "Players you played with" on finished quick and team matches; Block/Unblock/Report on profiles; the requests switch; chat messages from blocked players collapsed. Social replaces Messages in the nav; DMs reuse the existing conversation pages.
+Implemented: apps/web/src/features/social; nav changes in Layout and UserMenu; component tests.
 
 TKT-903 - Add blocking and enforce it across domains
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commit 92d211f
 Depends on: TKT-901
-Risk: High
-Scope:
-- Add block/unblock persistence/API.
-- Enforce bilateral discovery/social invisibility and server-side rejection in friend requests, DMs, targeted team invites, and notifications.
-- Preserve only operational identity required where both users already share a team/match roster, lineup, or result; never silently remove either user from that context.
-Acceptance: Blocked users cannot bypass restrictions through direct API/socket calls, while shared-context records remain operationally valid.
-Tests: cross-domain authorization and socket tests.
-Not in scope: content moderation policy.
+Scope as written: UserBlock table; one blockedEitherWay check used by friends, search, requests, played-with, DMs (start and send; history kept with canMessage false), team invites, join requests and the recruitment board; a block cancels friendships, pending requests, invites and join requests in the same transaction through registered hooks; the blocked player is never told; shared-context records are untouched.
+Implemented: migration 20261006120000; social/visibility.ts, blocks.service.ts; messaging changes; smoke:blocking.
 
 TKT-904 - Add friend-assisted team invitations
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commit 64a7bc2
 Depends on: TKT-902, TKT-903
-Risk: Medium
-Scope:
-- Add friend picker and targeted team invite while retaining revocable link invites.
-- Permit only the team owner/active captains and respect blocking/privacy; retain revocable link invites.
-Acceptance: Authorized captain invites eligible friend; blocked/ineligible user is not exposed/invitable.
-Tests: API/UI/notification/privacy.
-Not in scope: replacing link invites.
+Scope as written: personal TeamMemberInvite (FRIEND, and LOOKING from TKT-909) from the Owner or a Captain; friend picker on the team page and "Invite to team" in the Friends tab; one-tap accept/decline; accepting uses the normal membership path (joinTeamAsMember, now shared with link invites); 14-day expiry; blocking refuses and cancels; in-app notices both ways; link invites kept.
+Implemented: migrations 20261006130000/140000; team-member-invites.service; web InviteFriendsPanel, TeamInvitesSection, InviteToTeamMenu; smoke:team-member-invites.
 
 TKT-905 - Add QR codes for canonical public URLs
-Depends on: TKT-401, TKT-404, stable venue URLs
-Risk: Low
-Scope:
-- Generate site, opaque public-match-slug, and frozen venue-slug QR codes with accessible link fallback and permanent venue redirect aliases.
-- Do not encode private invite secrets as public QR content.
-Acceptance: Codes scan to canonical HTTPS routes on supported devices.
-Tests: encoded URL, scan/decode test, access behavior.
-Not in scope: referrals/analytics unless separately approved.
+Status: DROPPED BY CEO (2026-09-30). Not built; no qrcode library and no special public venue page.
 
 TKT-906 - Add advanced challenge escrow
-Status: APPROVED FOR POST-GATE-7 IMPLEMENTATION ONLY (2026-09-24)
-Depends on: TKT-709, TKT-712, proven Gate 7 reconciliation
-Risk: Critical
-Scope:
+Status: SUPERSEDED BY DEC-019, NOT TO BE BUILT (CEO, 2026-09-30)
+Team fees are held in each team wallet through the fill meter and captured once at the T-30 go/no-go (Gate 7). The original scope below is kept for history only.
+Scope (historical):
 - Model refundable personal-wallet holds toward each team's required target, rejecting contributions that would overfund it.
 - Advance only when both team targets fund before expiry; capture successful obligations and release on expiry/cancellation except approved charges.
-- Reuse durable jobs, holds, ledger, and reconciliation.
-Acceptance: Every state has balanced financial invariants and idempotent retry behavior.
-Tests: property/state-machine/concurrency/reconciliation tests.
-Not in scope: changing the minimum Gate 7 funded-acceptance behavior unless required.
 
 TKT-907 - Add advanced player statistics capture
-Status: DEFERRED - NOT APPROVED FOR IMPLEMENTATION (2026-09-24)
+Status: DEFERRED - NOT APPROVED FOR IMPLEMENTATION (2026-09-24, confirmed 2026-09-30)
 Depends on: new approved metric/capture/correction decision, TKT-804, TKT-808
 Risk: High
 Scope:
-- Do not implement until a new decision defines authoritative capture/correction for attendance, POTM, player ratings, and captaincy history. (Assists were moved into Gate 8 by DEC-020 and are done.)
+- Do not implement until a new decision defines authoritative capture/correction for attendance, POTM, player ratings, and captaincy history. Assists were delivered in Gate 8 under DEC-020 (recorded by the referee, corrected only by an admin).
 - Integrate privacy/disputes/stat projections.
 Acceptance: Each displayed metric has a persisted authoritative fact and correction path.
 Tests: capture authorization, revisions, disputes, projections.
 Not in scope: inferring unsupported historical facts.
+
+TKT-908 - One match at a time (overlap rule)
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commits 480cc21 and 2bcda10
+Origin: CEO, found in live testing on 30 Sep 2026 (a player was in two overlapping team lineups).
+Scope: a player cannot join a match, be selected in a team lineup (starter, substitute or claimed open slot), or be loaded with a team into a match whose window (kickoff to scheduled end plus 30 minutes, the D27 referee window) overlaps another match they are in, as a player on any side (including subs) or as its referee. Overlapping members of a saved squad are left out when a team loads and the captain is told; a referee cannot be assigned a match overlapping one they play in; playing in the match you referee stays allowed (DEC-020 D17). Per-player row locks stop concurrent joins racing. Existing overlaps and retired team planning fixtures are left alone. The dev time helper refuses shifts that would create overlaps.
+Acceptance: every entry path refuses with PLAYER_MATCH_OVERLAP and charges nothing; touching windows are allowed.
+Tests: smoke:match-overlap; unit test for the message; existing lineup/team smokes.
+
+TKT-909 - Team recruitment board (Teams tab in Social)
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commit 23cf2b5
+Origin: CEO, 2026-09-30.
+Scope: Teams recruiting posts by the Owner or a Captain (any number of positions, players and posts; positions, players wanted, format, level casual/competitive, usual days/times, area, note up to 300 characters; 30-day expiry, renewable, editable, closable); Players looking cards (off by default, on the player's own profile; positions, area, availability, note; listed only while on); "Ask to join" (Owner and Captains notified in the app; accept through the normal membership path or decline; one pending per player per team, 10 pending per player, 14-day expiry); "Invite" from Players looking (TKT-904 LOOKING invites); filters by format, level, position and area; blocking both ways; reports (RECRUITMENT_POST, LOOKING_CARD) and admin removal on the admin Recruitment page (audited). No money anywhere. The dev mock world seeds posts, looking players, friendships and a join request.
+Implemented: migrations 20261006150000/160000; social/recruitment.service; moderation evidence; admin RecruitmentPage; web board, post form, looking card editor and team recruitment panel; smoke:recruitment.
+
+TKT-910 - Guest browsing (read-only, no account)
+Status: IMPLEMENTED AND VERIFIED LOCALLY (2026-09-30), commit 3cf705b
+Origin: CEO, 2026-09-30.
+Scope: anyone can browse without an account: the match list and match pages (venue, time, format, the R80 fee, places left), venue pages, team pages (name, crest, members, results record, review average), the recruitment board (posts and looking cards), player profiles (display name, username, photo, positions, city, bio, teams, stats) and past match results with scorers. Upcoming lineups show counts only. Never shown to guests: email addresses, dates of birth, chats, DMs, friends lists, wallet or payment data, or any venue cost, payable or settlement data. Every action that needs a profile shows "Sign up to play" and returns to the same page after sign-up and onboarding. Enforced by the server: guest-safe /public routes built from explicit field lists, rate-limited per IP; signed-in routes still answer 401.
+Tests: guest cases in venue-cost-privacy.test.ts; smoke:guest-browsing over HTTP; web guest tests; e2e/social.spec.ts guest steps.
+
+Verification (2026-09-30):
+- footy_finder_test: all 60 migrations deploy; no schema drift (only the pre-existing database-side id defaults).
+- Unit tests: shared 123, api-client 39, api 407, web 162; api, web and admin builds pass.
+- smoke:all: 37 smokes pass, including smoke:friends, smoke:blocking, smoke:team-member-invites, smoke:match-overlap, smoke:recruitment and smoke:guest-browsing.
+- Playwright: all journeys, including the new e2e/social.spec.ts (guest browsing, Discover and friend request, team invite to a friend, recruitment post and join request, blocking).
 
 
 14. DEPENDENCY-AWARE EXECUTION ORDER
@@ -1953,11 +1974,11 @@ TKT-701 -> TKT-702 -> TKT-703 -> TKT-704 -> TKT-705 -> TKT-706 -> TKT-707 -> TKT
 Results/reviews (DEC-020):
 TKT-801 -> TKT-802 -> TKT-803 -> TKT-804 -> TKT-805 -> TKT-806 -> TKT-807 -> TKT-808 -> TKT-809 -> TKT-810 -> TKT-811
 
-Social/QR:
-TKT-901 -> TKT-902 -> TKT-903 -> TKT-904 -> TKT-905
+Social (Gate 9, implemented 2026-09-30):
+TKT-901 -> TKT-903 -> TKT-902 -> TKT-904 -> TKT-908 -> TKT-909 -> TKT-910 (TKT-905 dropped by the CEO)
 
 Post-Gate-7 optional finance:
-TKT-712 -> TKT-906
+TKT-906 superseded by DEC-019 (not to be built)
 
 Deferred and not selectable:
 TKT-907
@@ -1971,9 +1992,9 @@ Important cross-stream dependencies:
 - TKT-704 needs managed venue match creation.
 - TKT-701 begins only after personal finance/reconciliation patterns are proven.
 - TKT-801 begins only after side-scoped team captain roles exist (done in Gate 7); Gate 8 follows DEC-020.
-- TKT-905 begins only after canonical public URLs are stable.
+- TKT-905 was dropped by the CEO (2026-09-30).
 - TKT-201/TKT-302/TKT-607 and production Postmark/Paystack verification require the external inputs listed in section 3B.
-- TKT-906 begins only after the full Gate 7 E2E and reconciliation are proven; TKT-907 requires a new decision and remains excluded.
+- TKT-906 is superseded by DEC-019 and not to be built; TKT-907 requires a new decision and remains excluded.
 
 If working alone, follow this order:
 

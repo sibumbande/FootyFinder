@@ -278,7 +278,7 @@ test.describe('public join and position claim', () => {
     );
     await alphaPage.goto(`/m/${publicSlug}`);
     await expect(alphaPage.getByRole('heading', { name: `${marker} claim match` })).toBeVisible();
-    await alphaPage.getByRole('link', { name: 'Sign in to join' }).click();
+    await alphaPage.getByRole('link', { name: 'Log in', exact: true }).click();
     await alphaPage.getByLabel('Email or username').fill(`${marker}-alpha@test.invalid`);
     await alphaPage.getByLabel('Password').fill(PASSWORD);
     await alphaPage.getByRole('button', { name: 'Sign in' }).click();

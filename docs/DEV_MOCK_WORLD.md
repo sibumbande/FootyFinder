@@ -53,6 +53,15 @@ The seed ends by printing a table with each scenario, its link (`http://localhos
 
   **Why they are published further out first.** Players can only publish at least 2 hours ahead. So A, B and C are published at the first free slot more than 2 hours away, then moved to their targets with the time helper.
 
+**Social (Gate 9).** Seeded through the normal services, with or without `--me`:
+- **Friendships:** nine between mock players (01–02, 01–03, 02–03, 15–16, 16–17, 21–22, 22–23, 29–30 and 01–15).
+- **With `--me`:** you're friends with player01 and player16, and player03 has sent you a friend request. Skipped if you've turned friend requests off.
+- **Recruitment posts:**
+  - Woodstock Wanderers: 7-a-side, competitive, needs a goalkeeper and a defender.
+  - Observatory United: 11-a-side, casual, 5 players, any position.
+- **Looking for a team:** player29 (winger, Salt River) and player30 (goalkeeper, Rondebosch).
+- **A join request:** player29 has asked to join Observatory United.
+
 **Running it again** creates only what is missing for the current round, and never duplicates anything. Players are found by email, teams by name and owner, scenarios by their round tag, and payments by idempotency key. A played or cancelled scenario is replaced only in the next round, after `--reset-mock`.
 
 ## The time helper (`dev:shift-match`)
@@ -68,6 +77,7 @@ It refuses if:
 - the match isn't a DEV SEED scenario, or has already kicked off;
 - the new kick-off is in the past;
 - the move would double-book the referee (D27; shift the other match first);
+- the move would put one of its players in two overlapping matches (Gate 9 / TKT-908);
 - it would overlap another booking on the field.
 
 It ignores the field's opening hours (it's a time machine). Each shift is audited as `DEV_SEED_MATCH_SHIFTED`.
@@ -78,6 +88,7 @@ It ignores the field's opening hours (it's a time machine). Each shift is audite
 - **Scenario matches that have not kicked off** are cancelled through the normal cancel path: the host's (or home team's) cancel, or, with `--me`, the admin "Cancel match (weather/venue)" if the host can no longer cancel. Every R80 is refunded and team money is released through the ledger.
 - **Started, finished and already-cancelled scenario matches are kept as history**, with their venue payables, lineups, results and reviews. Their ledger entries depend on them. They are marked "Kept as history by --reset-mock" in the description; their names already start with `[DEV SEED]`. A Team Match past its T-30 check that has not kicked off can't be cancelled by anyone; it is reported and left to play out.
 - **Mock teams** are closed through the normal team-closure path. Unspent team money goes back to each contributor's wallet, and the team is archived (never deleted). Their team chats and the mock players' notifications are cleared.
+- **Social:** recruitment posts are closed, join requests and friend requests from mock players are cancelled, looking cards are switched off, and friendships between mock players are removed. Your own friendships stay.
 - **Never touched:** your accounts, venues, fields, slots, prices, your own teams and matches, and the audit log.
 - The reset is audited (`DEV_SEED_MOCK_RESET`). The next seed run starts a new round with fresh teams and scenarios.
 
