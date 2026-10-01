@@ -49,6 +49,7 @@ import {
   useRotateMatchInvite,
 } from '../hooks/useMatches.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
+import { useScrollToFormation } from '../hooks/useScrollToFormation.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -66,6 +67,7 @@ export function MatchLobbyPage() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [tab, setTab] = useState<'formation' | 'players' | 'chat'>('formation');
   const match = matchQuery.data;
+  useScrollToFormation(Boolean(match));
   const participants = match?.participants ?? [];
   // Stable board inputs: only a changed formation or roster produces new arrays (TKT-505).
   const boardSlots = useMemo<FormationBoardSlot[]>(
@@ -339,7 +341,8 @@ export function MatchLobbyPage() {
       </nav>
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
         <div
-          className={`${tab === 'formation' ? 'block' : 'hidden'} rounded-3xl border border-line bg-surface p-4 shadow-sm md:block sm:p-6`}
+          id="formation"
+          className={`scroll-mt-20 ${tab === 'formation' ? 'block' : 'hidden'} rounded-3xl border border-line bg-surface p-4 shadow-sm md:block sm:p-6`}
         >
           <FormationBoard
             slots={boardSlots}

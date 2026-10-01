@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CreateMatchPage } from './CreateMatchPage.js';
+import { CREATE_MATCH_DRAFT_KEY, CreateMatchPage } from './CreateMatchPage.js';
 
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), teams: [] as unknown[], wallet: undefined as unknown }));
 
@@ -17,25 +17,77 @@ vi.mock('../hooks/useMatches.js', () => ({
 }));
 
 vi.mock('@/features/venues/hooks/useVenues.js', () => ({
-  useVenue: () => ({
-    data: {
+  useVenues: () => ({
+    data: [{ slug: 'approved-arena', name: 'Approved Arena', city: 'Cape Town', supportedFormats: ['FIVE_A_SIDE', 'ELEVEN_A_SIDE'], coverImage: { url: '/a.jpg', altText: '' } }],
+  }),
+  useVenueSlots: (_slug: string, fieldId: string, format: string) => ({
+    isPending: false,
+    data: fieldId ? [{ fieldId, format, startsAt: '2099-08-23T18:00:00.000Z', localTime: '20:00', timezone: 'Africa/Johannesburg' }] : [],
+  }),
+  useVenue: (slug: string) => ({
+    data: slug ? {
       venue: {
         name: 'Approved Arena',
         addressLine1: '1 Main Road',
-        fields: [{ id: 'f03d12a0-9855-4a03-8948-739bad35e733', name: 'Field One' }],
+        timezone: 'Africa/Johannesburg',
+        fields: [{ id: 'f03d12a0-9855-4a03-8948-739bad35e733', name: 'Field One', supportedFormats: ['FIVE_A_SIDE', 'ELEVEN_A_SIDE'] }],
       },
-    },
+    } : undefined,
   }),
 }));
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   mocks.mutate.mockReset();
   mocks.teams = [];
   mocks.wallet = undefined;
 });
 
 describe('CreateMatchPage', () => {
+  it('picks the venue and slot inside the wizard, keeps everything entered, and finishes on Finalise match', () => {
+    render(<MemoryRouter initialEntries={['/matches/new']}><CreateMatchPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Substitutes per team/ }), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.change(screen.getByLabelText('Match name'), { target: { value: 'Friday football' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Select a venue and time' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Browse venues|Choose a venue and slot/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Approved Arena/ }));
+    fireEvent.click(screen.getByRole('button', { name: '20:00' }));
+    // The slot moves the wizard on to the schedule without leaving the page.
+    expect(screen.getByRole('heading', { name: 'Schedule' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Finalise match' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create match' }));
+    expect(mocks.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Friday football', substituteCapacityPerTeam: 4, managedFieldId: 'f03d12a0-9855-4a03-8948-739bad35e733', startsAt: '2099-08-23T18:00:00.000Z' }),
+      expect.anything(),
+    );
+  });
+
+  it('restores the saved draft for this tab, including the step', () => {
+    sessionStorage.setItem(CREATE_MATCH_DRAFT_KEY, JSON.stringify({ playAs: '', step: 4, format: 'FIVE_A_SIDE', name: 'Kept name', substituteCapacityPerTeam: 6 }));
+    render(
+      <MemoryRouter initialEntries={['/matches/new?venue=approved-arena&field=f03d12a0-9855-4a03-8948-739bad35e733&format=FIVE_A_SIDE&startsAt=2099-08-23T18%3A00%3A00.000Z']}>
+        <CreateMatchPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'Select a venue and time' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create match' }));
+    expect(mocks.mutate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Kept name', substituteCapacityPerTeam: 6 }), expect.anything());
+  });
+
+  it('never restores a draft past a step that still needs filling in', () => {
+    sessionStorage.setItem(CREATE_MATCH_DRAFT_KEY, JSON.stringify({ playAs: '', step: 6, name: 'Kept name' }));
+    render(<MemoryRouter initialEntries={['/matches/new']}><CreateMatchPage /></MemoryRouter>);
+    expect(screen.getByRole('heading', { name: 'Select a venue and time' })).toBeInTheDocument();
+  });
+
   it('persists match-specific capacity, rolling substitutions, and rules', () => {
     render(
       <MemoryRouter

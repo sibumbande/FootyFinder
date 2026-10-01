@@ -267,8 +267,8 @@ test.describe('browser critical path', () => {
     await expect(captainPage.getByTestId('fixed-fee-notice')).toBeVisible();
     await captainPage.getByRole('button', { name: 'Continue' }).click();
     await captainPage.getByRole('button', { name: 'Create match' }).click();
-    await expect(captainPage).toHaveURL(/\/matches\/[0-9a-f-]+$/);
-    const quickId = captainPage.url().split('/').at(-1)!;
+    await expect(captainPage).toHaveURL(/\/matches\/[0-9a-f-]+#formation$/);
+    const quickId = new URL(captainPage.url()).pathname.split('/').at(-1)!;
     const quickMatch = await prisma.match.findUniqueOrThrow({
       where: { id: quickId },
       select: { publicSlug: true, format: true, substituteCapacityPerTeam: true },

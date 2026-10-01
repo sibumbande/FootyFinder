@@ -28,6 +28,31 @@ import { useTeamWalletSummary } from '@/features/teams/hooks/useTeamWallet.js';
 import { useCreateMatch } from '../hooks/useMatches.js';
 import { useVenue } from '@/features/venues/hooks/useVenues.js';
 import { formatClock, rands } from '../utils/go-no-go-format.js';
+import { VenueSlotPicker } from '../components/VenueSlotPicker.js';
+
+/**
+ * Everything entered in the wizard is kept for this browser tab (sessionStorage), so a refresh or
+ * arriving from a venue page's slot never loses it. It is cleared once the match is published.
+ */
+export const CREATE_MATCH_DRAFT_KEY = 'ff:create-match-draft';
+type Draft = {
+  playAs: string; step: number; format: MatchFormat; substituteCapacityPerTeam: number; rollingSubstitutes: boolean; rules: MatchRule[];
+  visibility: MatchVisibility; name: string; description: string; otherSideMode: TeamMatchOtherSideMode | null; teamSubs: number;
+};
+const readDraft = (): Partial<Draft> => {
+  try {
+    return JSON.parse(sessionStorage.getItem(CREATE_MATCH_DRAFT_KEY) ?? '{}') as Partial<Draft>;
+  } catch {
+    return {};
+  }
+};
+const clearDraft = () => {
+  try {
+    sessionStorage.removeItem(CREATE_MATCH_DRAFT_KEY);
+  } catch {
+    // Storage can be unavailable (private mode); the wizard still works without a draft.
+  }
+};
 
 /**
  * DEC-018 / DEC-020: tell the host, before they confirm, that a match without every position filled
@@ -72,7 +97,7 @@ const STEP_LABEL: Record<StepKey, string> = {
   schedule: 'Schedule',
   otherSide: 'Other side',
   subs: 'Subs and fee',
-  review: 'Review',
+  review: 'Finalise',
 };
 const QUICK_STEPS: StepKey[] = ['format', 'squad', 'visibility', 'details', 'venue', 'schedule', 'review'];
 const TEAM_STEPS: StepKey[] = ['details', 'venue', 'schedule', 'otherSide', 'subs', 'review'];
@@ -83,18 +108,27 @@ const TEAM_STEPS: StepKey[] = ['details', 'venue', 'schedule', 'otherSide', 'sub
  */
 export function CreateMatchPage() {
   const [search, setSearch] = useSearchParams();
-  const [step, setStep] = useState(0);
-  const [format, setFormat] = useState<MatchFormat>('FIVE_A_SIDE');
+  const [draft] = useState(readDraft);
+  // The saved step only applies to the same "Play as" choice (quick and team matches have different steps).
+  const [step, setStep] = useState(draft.playAs === (search.get('playAs') ?? '') ? (draft.step ?? 0) : 0);
+  const [format, setFormat] = useState<MatchFormat>(draft.format ?? 'FIVE_A_SIDE');
   const [substituteCapacityPerTeam, setSubstituteCapacityPerTeam] = useState(
-    DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
+    draft.substituteCapacityPerTeam ?? DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM,
   );
-  const [rollingSubstitutes, setRollingSubstitutes] = useState(false);
-  const [rules, setRules] = useState<MatchRule[]>([]);
-  const [visibility, setVisibility] = useState<MatchVisibility>('PUBLIC');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [otherSideMode, setOtherSideMode] = useState<TeamMatchOtherSideMode | null>(null);
-  const [teamSubs, setTeamSubs] = useState(3);
+  const [rollingSubstitutes, setRollingSubstitutes] = useState(draft.rollingSubstitutes ?? false);
+  const [rules, setRules] = useState<MatchRule[]>(draft.rules ?? []);
+  const [visibility, setVisibility] = useState<MatchVisibility>(draft.visibility ?? 'PUBLIC');
+  const [name, setName] = useState(draft.name ?? '');
+  const [description, setDescription] = useState(draft.description ?? '');
+  const [otherSideMode, setOtherSideMode] = useState<TeamMatchOtherSideMode | null>(draft.otherSideMode ?? null);
+  const [teamSubs, setTeamSubs] = useState(draft.teamSubs ?? 3);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CREATE_MATCH_DRAFT_KEY, JSON.stringify({ playAs: search.get('playAs') ?? '', step, format, substituteCapacityPerTeam, rollingSubstitutes, rules, visibility, name, description, otherSideMode, teamSubs } satisfies Draft));
+    } catch {
+      // Storage can be unavailable (private mode); the wizard still works without a draft.
+    }
+  }, [search, step, format, substituteCapacityPerTeam, rollingSubstitutes, rules, visibility, name, description, otherSideMode, teamSubs]);
   const venueSlug = search.get('venue') ?? '';
   const fieldId = search.get('field') ?? '';
   const startsAt = search.get('startsAt') ?? '';
@@ -125,7 +159,15 @@ export function CreateMatchPage() {
   useEffect(() => {
     if (teamMode && current === 'review') void refetchTeamWallet();
   }, [current, teamMode, refetchTeamWallet]);
-  const browseVenues = teamMode ? `/?playAs=${encodeURIComponent(playAsParam)}${playAsLocked ? '&lock=1' : ''}#venues` : '/#venues';
+  const pickSlot = (slot: { venue: string; fieldId: string; format: MatchFormat; startsAt: string }) => {
+    const next = new URLSearchParams(search);
+    next.set('venue', slot.venue);
+    next.set('field', slot.fieldId);
+    next.set('format', slot.format);
+    next.set('startsAt', slot.startsAt);
+    setSearch(next, { replace: true });
+    setStep(steps.indexOf('venue') + 1);
+  };
   const choosePlayAs = (teamId: string | null) => {
     const next = new URLSearchParams(search);
     if (teamId) next.set('playAs', `team:${teamId}`);
@@ -144,13 +186,24 @@ export function CreateMatchPage() {
     subs: teamSubs >= 0 && teamSubs <= MAX_SUBSTITUTES_PER_TEAM,
     review: true,
   };
+  // A restored draft never lands past a step that still needs filling in (no name or no slot yet).
+  const missingStep = steps.findIndex((key) => (key === 'details' && !valid.details) || (key === 'venue' && !startsAt));
+  useEffect(() => {
+    if (missingStep >= 0) setStep((value) => Math.min(value, missingStep));
+  }, [missingStep]);
   const submit = () => {
     if (!selectedField || !startsAt) return;
     const base = { name, description, rollingSubstitutes, rules, startsAt, managedFieldId: selectedField.id };
     const input = teamMode && playAsTeamId && otherSideMode
       ? { ...base, format: matchFormat, substituteCapacityPerTeam: teamSubs, visibility: 'PUBLIC' as const, playAsTeamId, otherSideMode, teamSubstituteCount: teamSubs }
       : { ...base, format, substituteCapacityPerTeam, visibility };
-    creation.mutate(input, { onSuccess: ({ data }) => navigate(`/matches/${data.id}`, { replace: true }) });
+    // After publishing, open the new match at its formation (quick match) or lineup (team match).
+    creation.mutate(input, {
+      onSuccess: ({ data }) => {
+        clearDraft();
+        navigate(`/matches/${data.id}#formation`, { replace: true });
+      },
+    });
   };
   return (
     <section className="mx-auto grid max-w-5xl gap-7">
@@ -165,7 +218,6 @@ export function CreateMatchPage() {
             : 'Choose the format, squad rules, privacy, venue and schedule. Every player pays a fixed R80 to join.'}
         </p>
       </div>
-      {(!selectedField || !startsAt) && <div className="rounded-2xl border border-warning-300 bg-warning-50 p-5"><strong className="text-content-strong">Select a live venue slot first.</strong><p className="mt-2 text-sm text-content-muted">Matches can only be created from the managed venue calendar.</p><Link className="mt-3 inline-block font-bold text-brand-700 underline" to={browseVenues}>Browse venues</Link></div>}
       <div>
         <div className="mb-3 flex justify-between text-xs font-bold uppercase tracking-wide text-content-muted">
           <span>
@@ -328,10 +380,11 @@ export function CreateMatchPage() {
         )}
         {current === 'venue' && (
           <Step
-            title="Select a venue"
-            detail="The approved venue and server-calculated slot are carried from the venue calendar."
+            title="Select a venue and time"
+            detail={teamMode ? 'Choose a FootyFinder venue, then a free 60-minute slot. The slot sets the format.' : `Choose a FootyFinder venue, then a free 60-minute slot for ${MATCH_FORMAT_CONFIG[format].shortLabel}.`}
           >
-            {selectedField ? <div className="rounded-2xl border border-brand-300 bg-brand-50 p-5"><strong className="text-content-strong">{venueQuery.data?.venue.name} — {selectedField.name}</strong><span className="mt-2 block text-sm text-content-muted">{venueQuery.data?.venue.addressLine1}</span>{teamMode && selectedFormat && <span className="mt-2 block text-sm font-bold text-content">{MATCH_FORMAT_CONFIG[selectedFormat].label}</span>}</div> : <Link className="font-bold text-brand-700 underline" to={browseVenues}>Choose a venue and slot</Link>}
+            <VenueSlotPicker format={teamMode ? undefined : format} selected={{ venue: venueSlug, fieldId, startsAt }} onPick={pickSlot} />
+            {selectedField && startsAt ? <div className="rounded-2xl border border-brand-300 bg-brand-50 p-5"><strong className="text-content-strong">{venueQuery.data?.venue.name} — {selectedField.name}</strong><span className="mt-2 block text-sm text-content-muted">{venueQuery.data?.venue.addressLine1}</span>{teamMode && selectedFormat && <span className="mt-2 block text-sm font-bold text-content">{MATCH_FORMAT_CONFIG[selectedFormat].label}</span>}<span className="mt-2 block text-sm font-bold text-content">{new Date(startsAt).toLocaleString()}</span></div> : null}
           </Step>
         )}
         {current === 'schedule' && (
@@ -385,7 +438,7 @@ export function CreateMatchPage() {
         )}
         {current === 'review' && (
           <Step
-            title={teamMode ? 'Review and publish' : 'Review your match'}
+            title="Finalise match"
             detail={teamMode ? 'Your team match is published straight to the lobby.' : 'Format and visibility become immutable when you create the match.'}
           >
             <dl className="grid gap-4 rounded-2xl bg-surface-muted p-5 sm:grid-cols-2">

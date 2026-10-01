@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { ChatPanel } from '@/features/chat/components/ChatPanel.js';
+import { useOpensAtFormation, useScrollToFormation } from '../hooks/useScrollToFormation.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { useTeam } from '@/features/teams/hooks/useTeams.js';
@@ -39,7 +40,9 @@ import { FriendButton } from '@/features/social/components/FriendButton.js';
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
 export function TeamMatchDayLobby({ match }: { match: Match }) {
-  const [tab, setTab] = useState<TeamMatchTab>('availability');
+  // Opened at #formation (straight after publishing): start on the lineup.
+  const [tab, setTab] = useState<TeamMatchTab>(useOpensAtFormation() ? 'lineup' : 'availability');
+  useScrollToFormation(true);
   // Gate 7: a team match can have two team sides; show the viewer's own side first.
   const [selectedSide, setSelectedSide] = useState<TeamSide>(match.viewerTeamSide ?? 'HOME');
   const home = match.teamSides.find(({ side }) => side === 'HOME') ?? match.teamSides[0];
@@ -142,7 +145,8 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
         </nav>
       )}
       <nav
-        className="grid grid-cols-3 gap-1 rounded-xl bg-surface-muted p-1"
+        id="formation"
+        className="scroll-mt-20 grid grid-cols-3 gap-1 rounded-xl bg-surface-muted p-1"
         aria-label="Match-Day sections"
       >
         {(['availability', 'lineup', 'chat'] as const).map((item) => (

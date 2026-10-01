@@ -238,8 +238,8 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await homePage.getByRole('button', { name: 'Check again' }).click();
     await expect(homePage.getByTestId('team-wallet-check')).toContainText('Team wallet available: R600');
     await homePage.getByRole('button', { name: 'Publish team match' }).click();
-    await expect(homePage).toHaveURL(/\/matches\/[0-9a-f-]{36}$/);
-    const matchId = homePage.url().split('/').pop()!;
+    await expect(homePage).toHaveURL(/\/matches\/[0-9a-f-]{36}#formation$/);
+    const matchId = new URL(homePage.url()).pathname.split('/').pop()!;
     await expect(homePage.getByTestId('team-meter-inactive')).toBeVisible();
     expect(await prisma.teamWalletHold.count({ where: { matchId } })).toBe(0);
 
@@ -289,8 +289,8 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await homePage.getByRole('button', { name: 'Continue' }).click();
     await expect(homePage.getByTestId('team-wallet-check')).toContainText('Team wallet available');
     await homePage.getByRole('button', { name: 'Publish team match' }).click();
-    await expect(homePage).toHaveURL(/\/matches\/[0-9a-f-]{36}$/);
-    const openMatchId = homePage.url().split('/').pop()!;
+    await expect(homePage).toHaveURL(/\/matches\/[0-9a-f-]{36}#formation$/);
+    const openMatchId = new URL(homePage.url()).pathname.split('/').pop()!;
 
     // A player takes the other side first and pays R80 from their own wallet.
     playerPage.on('dialog', (dialog) => void dialog.accept());
