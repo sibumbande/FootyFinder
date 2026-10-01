@@ -221,3 +221,30 @@ describe('FormationBoard drag stability (TKT-505)', () => {
     );
   });
 });
+
+describe('FormationBoard touch drag (CEO batch 1, item 4)', () => {
+  it('drags with a finger, gives haptic feedback on pick-up and drop, and saves the position', async () => {
+    const vibrate = vi.fn(() => true);
+    Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true });
+    const onMove = vi.fn().mockResolvedValue(undefined);
+    render(board({ onMove }));
+    const striker = marker(/position 1, occupied by Player striker/);
+    const touch = { pointerId: 9, pointerType: 'touch' };
+    fireEvent.pointerDown(striker, { ...touch, clientX: 100, clientY: 320 });
+    fireEvent.pointerMove(striker, { ...touch, clientX: 102, clientY: 318 }); // under 5px: still a tap
+    expect(vibrate).not.toHaveBeenCalled();
+    fireEvent.pointerMove(striker, { ...touch, clientX: 140, clientY: 200 });
+    expect(striker).toHaveClass('formation-marker--dragging');
+    expect(document.querySelector('.formation-pitch')).toHaveClass('formation-pitch--dragging');
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(striker, { ...touch, clientX: 140, clientY: 200 });
+    expect(vibrate).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(onMove).toHaveBeenCalledWith('s1', { positionX: 70, positionY: 50 }));
+  });
+
+  it('leaves page scrolling alone over markers a viewer cannot move', () => {
+    render(board({ canEdit: false }));
+    expect(marker(/position 1, occupied/)).toHaveClass('formation-marker--static');
+    expect(document.querySelector('.formation-pitch')).not.toHaveClass('formation-pitch--dragging');
+  });
+});

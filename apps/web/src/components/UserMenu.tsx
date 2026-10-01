@@ -56,7 +56,7 @@ export function UserMenu() {
         </svg>
       </button>
       {open && (
-        <div role="menu" className="anime-panel absolute right-0 mt-2 w-64 origin-top-right p-2">
+        <div role="menu" className="anime-panel absolute right-0 mt-2 max-h-[calc(100dvh-5.5rem)] w-64 max-w-[calc(100vw-1rem)] origin-top-right overflow-y-auto p-2">
           <div className="border-b border-line px-3 py-3">
             <p className="truncate text-sm font-bold text-content-strong">{user.username}</p>
             <p className="mt-0.5 truncate text-xs text-content-muted">{user.email}</p>

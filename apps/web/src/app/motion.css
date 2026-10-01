@@ -178,8 +178,10 @@
   }
 }
 
+/* The page still scrolls over the pitch; only a marker the viewer can drag, or a drag in progress,
+   takes the touch (CEO batch 1, item 4). */
 .formation-pitch {
-  touch-action: none;
+  touch-action: pan-y pinch-zoom;
   background-image:
     radial-gradient(circle at 50% 50%, rgb(var(--theme-accent-gold) / 0.09), transparent 36%),
     repeating-linear-gradient(
@@ -205,6 +207,7 @@
 
 .formation-pitch--dragging {
   cursor: grabbing;
+  touch-action: none;
 }
 
 .formation-marker {
@@ -224,6 +227,21 @@
   box-shadow:
     2px 3px 0 rgb(var(--theme-ink) / 0.35),
     0 0 0 2px rgb(var(--theme-pitch-line) / 0.28);
+}
+
+.formation-marker--static {
+  cursor: default;
+  touch-action: manipulation;
+}
+
+/* A bigger, invisible hit area for fingers. */
+@media (pointer: coarse) {
+  .formation-marker::before {
+    position: absolute;
+    inset: -0.5rem;
+    border-radius: 9999px;
+    content: '';
+  }
 }
 
 .formation-marker--selectable,

@@ -95,7 +95,10 @@ export function NotificationsMenu() {
         )}
       </button>
       {open && (
-        <div className="anime-panel absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] p-2">
+        <div
+          data-testid="notifications-panel"
+          className="anime-panel fixed inset-x-2 top-[4.5rem] z-30 max-h-[calc(100dvh-5.5rem)] overflow-y-auto p-2 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem]"
+        >
           <div className="flex items-center justify-between px-3 py-2">
             <strong className="font-black uppercase tracking-wide text-content-strong">
               Notifications

@@ -42,6 +42,14 @@ type PlayerDrag = {
 
 type PendingAssignment = { target: FormationBoardSlot; playerId: string };
 const clamp = (value: number) => Math.max(4, Math.min(96, value));
+/** A short tap of haptic feedback where the phone supports it (pick-up and drop). */
+const buzz = () => {
+  try {
+    navigator.vibrate?.(12);
+  } catch {
+    // Some browsers refuse vibration without a user gesture; feedback is optional.
+  }
+};
 /** Content identity of a formation, so equal data in a new array never resets the board. */
 export const formationSignature = (items: readonly FormationBoardSlot[]) =>
   items
@@ -364,7 +372,10 @@ export function FormationBoard({
       playerDrag.active ||
       Math.hypot(event.clientX - playerDrag.startClientX, event.clientY - playerDrag.startClientY) >
         5;
-    if (active && !playerDrag.active) setSelected(null);
+    if (active && !playerDrag.active) {
+      setSelected(null);
+      buzz();
+    }
     if (active) markFeedbackStart(event.timeStamp);
     setPlayerDrag((current) =>
       current
@@ -389,6 +400,7 @@ export function FormationBoard({
       const valid =
         position && isFormationPositionValid(pitchMode, playerDrag.team, position.positionY);
       setLandingSlotId(valid ? (target?.id ?? playerDrag.sourceSlotId) : playerDrag.sourceSlotId);
+      if (valid) buzz();
       // Leave drag mode first so the optimistic drop below is not buffered behind the drag.
       dragActive.current = false;
       markFeedbackStart(event.timeStamp);
@@ -509,7 +521,7 @@ export function FormationBoard({
                 if (selected) chooseAssignment(slot, selected);
                 else if (slot.playerId) setSelected(slot.playerId);
               }}
-              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${claimable.has(slot.id) && !slot.playerId ? 'formation-marker--claimable ring-4 ring-brand-200' : ''} ${isCurrentPlayer ? 'formation-marker--current ring-4 ring-brand-500' : ''} ${claimingSlotId === slot.id ? 'animate-pulse' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
+              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${canEdit ? '' : 'formation-marker--static'} ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${claimable.has(slot.id) && !slot.playerId ? 'formation-marker--claimable ring-4 ring-brand-200' : ''} ${isCurrentPlayer ? 'formation-marker--current ring-4 ring-brand-500' : ''} ${claimingSlotId === slot.id ? 'animate-pulse' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
               style={{
                 left: `${dragging ? playerDrag.positionX : slot.positionX}%`,
                 top: `${dragging ? playerDrag.positionY : slot.positionY}%`,
