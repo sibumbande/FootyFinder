@@ -255,3 +255,13 @@ export const adminFreeMatchSchema = z
   })
   .refine((value) => value.free || !value.firstTimersOnly, { path: ['firstTimersOnly'], message: '"First-time players only" needs a free match.' });
 export type AdminFreeMatchInput = z.input<typeof adminFreeMatchSchema>;
+
+/** CEO touch-up batch 3.5, item 4: the admin waiting list (filters and paging; the CSV takes only the city). */
+export const adminWaitingListQuerySchema = z.object({
+  cityId: z.string().uuid().optional(),
+  subscribed: z.enum(['all', 'yes', 'no']).default('all'),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
+export type AdminWaitingListQuery = z.input<typeof adminWaitingListQuerySchema>;
+export const adminWaitingListCsvQuerySchema = z.object({ cityId: z.string().uuid().optional() });
+

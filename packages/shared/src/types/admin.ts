@@ -228,3 +228,28 @@ export interface FreeMatchCostReport {
     expectedVenueCostCents: number;
   };
 }
+
+/** CEO touch-up batch 3.5, item 4: waiting-list counts per city and a page of entries (admin only). */
+export interface AdminWaitingListCity {
+  cityId: string;
+  name: string;
+  supportStatus: 'ACTIVE' | 'WAITLIST';
+  subscribed: number;
+  unsubscribed: number;
+}
+export interface AdminWaitingListEntry {
+  id: string;
+  email: string;
+  cityName: string;
+  signedUpAt: string;
+  subscribed: boolean;
+  source: string;
+}
+export interface AdminWaitingList {
+  totalSubscribed: number;
+  cities: AdminWaitingListCity[];
+  entries: AdminWaitingListEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+}

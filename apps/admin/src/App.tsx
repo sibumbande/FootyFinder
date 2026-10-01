@@ -17,6 +17,7 @@ import { ResultsPage } from './ResultsPage.js';
 import { TeamReviewsPage } from './TeamReviewsPage.js';
 import { RecruitmentPage } from './RecruitmentPage.js';
 import { ThemeToggle } from './theme.js';
+import { WaitingListPage } from './WaitingListPage.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -341,7 +342,7 @@ function AuditLog() {
 }
 
 const NAV_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, string]>]> = [
-  ['Overview', [['/', 'Dashboard']]],
+  ['Overview', [['/', 'Dashboard'], ['/waiting-list', 'Waiting list']]],
   ['Matches', [['/matches', 'Load matches'], ['/match-referees', 'Match referees'], ['/results', 'Results']]],
   ['Venues', [['/venues', 'Venues & fields']]],
   ['Money', [['/finance', 'Finance'], ['/settlement', 'Venue settlement']]],
@@ -414,6 +415,7 @@ function AdminShell() {
           <Route path="team-reviews" element={<TeamReviewsPage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="audit" element={<AuditLog />} />
+          <Route path="waiting-list" element={<WaitingListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

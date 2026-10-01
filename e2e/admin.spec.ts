@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { createFixtures } from './support/fixtures.js';
@@ -10,7 +11,7 @@ const THEMES = ['light', 'dark'] as const;
 type Theme = (typeof THEMES)[number];
 
 /** Every admin page checked for overflow and contrast. Collapsed panels are opened before measuring. */
-const PAGES = ['/', '/matches', '/match-referees', '/results', '/venues', '/finance', '/settlement', '/support', '/moderation', '/disputes', '/referees', '/team-reviews', '/recruitment', '/test-data', '/audit'];
+const PAGES = ['/', '/waiting-list', '/matches', '/match-referees', '/results', '/venues', '/finance', '/settlement', '/support', '/moderation', '/disputes', '/referees', '/team-reviews', '/recruitment', '/test-data', '/audit'];
 
 let adminEmail = '';
 let adminId = '';
@@ -120,6 +121,45 @@ test.describe('admin app layout and contrast (CEO batch 3.5, item 3)', () => {
     await expect(page).toHaveURL(/\/finance$/);
     await expect(page.getByRole('button', { name: 'Log out' })).toBeHidden();
     await context.close();
+  });
+
+  // CEO touch-up batch 3.5, item 4.
+  test('waiting list: per-city counts, the list, and a CSV of subscribed people behind a fresh MFA check', async ({ browser }) => {
+    const city = await f.prisma.city.findUniqueOrThrow({ where: { code: 'EAST_LONDON' } });
+    const on = `${f.marker}-wl-on@test.invalid`;
+    const off = `${f.marker}-wl-off@test.invalid`;
+    await f.prisma.cityInterest.createMany({
+      data: [on, off].map((email) => ({
+        cityId: city.id, email, dedupeKey: `${email}-key`, manageTokenHash: `${email}-hash`, consentedAt: new Date(), source: 'WAITING_LIST_PAGE',
+        ...(email === off && { unsubscribedAt: new Date() }),
+      })),
+    });
+    try {
+      const { context, page } = await adminPage(browser);
+      await open(page, '/waiting-list');
+      await expect(page.getByTestId('waiting-list-total')).toBeVisible();
+      await page.getByRole('combobox', { name: 'City' }).selectOption({ label: 'East London (KuGompo)' });
+      await expect(page.getByRole('row', { name: new RegExp(`${on}.*Yes`) })).toBeVisible();
+      await expect(page.getByRole('row', { name: new RegExp(`${off}.*No`) })).toBeVisible();
+
+      // An admin session verified 30 minutes ago must check the authenticator again before downloading.
+      await f.verifyAdminSession(adminId, new Date(Date.now() - 30 * 60_000));
+      await page.getByRole('button', { name: /Download CSV/ }).click();
+      await expect(page.getByText('This action needs a fresh authenticator check.')).toBeVisible();
+      await f.verifyAdminSession(adminId);
+      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download CSV/ }).click()]);
+      expect(download.suggestedFilename()).toMatch(/^waiting-list-east-london-\d{4}-\d{2}-\d{2}\.csv$/);
+      const csv = readFileSync((await download.path())!, 'utf8');
+      expect(csv).toContain('"Email","City","Signed up","Source"');
+      expect(csv).toContain(on);
+      expect(csv).not.toContain(off);
+      const audit = await f.prisma.adminAuditLog.findFirstOrThrow({ where: { actorUserId: adminId, action: 'WAITING_LIST_EXPORTED' }, orderBy: { createdAt: 'desc' } });
+      expect(audit.metadata).toMatchObject({ city: 'East London (KuGompo)' });
+      expect(JSON.stringify(audit)).not.toContain(on);
+      await context.close();
+    } finally {
+      await f.prisma.cityInterest.deleteMany({ where: { email: { startsWith: f.marker } } });
+    }
   });
 
   for (const theme of THEMES) {

@@ -20,6 +20,8 @@ import type {
   AdminFreeMatchInput,
   AdminFreeMatchResult,
   FreeMatchCostReport,
+  AdminWaitingList,
+  AdminWaitingListQuery,
   AdminSupportListQuery,
   AdminSupportReplyInput,
   UpdateSupportTicketInput,
@@ -75,6 +77,13 @@ import type { ApiClient } from './client.js';
 
 const post = (body?: unknown) => ({ method: 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const id = encodeURIComponent;
+/** "?a=1&b=2" from the set values (empty when none are set). */
+const queryString = (query: Record<string, string | number | undefined>) => {
+  const search = new URLSearchParams(
+    Object.entries(query).flatMap(([key, value]) => (value === undefined || value === '' ? [] : [[key, String(value)]])),
+  ).toString();
+  return search ? `?${search}` : '';
+};
 
 export const adminApi = (client: ApiClient) => ({
   operationsSummary: () => client.request<{ data: OperationsSummary }>('/admin/operations/summary'),
@@ -98,6 +107,11 @@ export const adminApi = (client: ApiClient) => ({
   markFreeMatch: (matchId: string, input: AdminFreeMatchInput) =>
     client.request<{ data: AdminFreeMatchResult }>(`/admin/matches/${id(matchId)}/free`, post(input)),
   freeMatchCosts: () => client.request<{ data: FreeMatchCostReport }>('/admin/finance/free-matches'),
+  // CEO touch-up batch 3.5, item 4.
+  waitingList: (query: AdminWaitingListQuery = {}) =>
+    client.request<{ data: AdminWaitingList }>(`/admin/waiting-list${queryString(query)}`),
+  downloadWaitingList: (cityId?: string) =>
+    client.download(`/admin/waiting-list.csv${queryString({ cityId })}`, 'waiting-list.csv'),
   cancelMatch: (matchId: string, input: AdminCancelMatchInput) =>
     client.request<{ data: { matchId: string; status: 'CANCELLED'; refundedUserCount: number } }>(
       `/admin/matches/${id(matchId)}/cancel`,

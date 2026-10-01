@@ -11,24 +11,6 @@ export class CitiesService {
     return (await prisma.city.findMany({ orderBy: [{ supportStatus: 'asc' }, { name: 'asc' }] })).map(cityDto);
   }
 
-  async listInterestsForAdmin() {
-    const rows = await prisma.cityInterest.findMany({
-      include: { city: true },
-      orderBy: { consentedAt: 'desc' },
-      take: 500,
-    });
-    return rows.map((row) => ({
-      id: row.id,
-      city: cityDto(row.city),
-      email: row.email,
-      userId: row.userId,
-      source: row.source,
-      consentedAt: row.consentedAt.toISOString(),
-      unsubscribedAt: row.unsubscribedAt?.toISOString() ?? null,
-      deletedAt: row.deletedAt?.toISOString() ?? null,
-    }));
-  }
-
   async joinInterest(input: CityInterestInput, authenticatedUserId?: string) {
     const city = await prisma.city.findUnique({ where: { id: input.cityId } });
     if (!city) throw new AppError(400, 'Choose a listed city.', 'CITY_INVALID');

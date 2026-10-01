@@ -14,6 +14,7 @@ import * as matchCancel from '../matches/admin-match-cancel.controller.js';
 import * as venueContent from './venue-content.controller.js';
 import * as fieldClosures from './field-closures.controller.js';
 import * as freeMatches from '../matches/free-match.admin.controller.js';
+import * as waitingList from '../cities/waiting-list.admin.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -111,6 +112,9 @@ adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, co
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
 // CEO touch-up batch 3, item 5: free "On FootyFinder" matches.
 adminRouter.get('/finance/free-matches', freeMatches.freeMatchCosts);
+// CEO touch-up batch 3.5, item 4: the city waiting list; the CSV of subscribed entries needs fresh MFA (audited).
+adminRouter.get('/waiting-list', waitingList.listWaitingList);
+adminRouter.get('/waiting-list.csv', requireRecentAdminMfa, waitingList.downloadWaitingListCsv);
 adminRouter.post('/matches/:matchId/free', requireRecentAdminMfa, costlyMutationRateLimit, freeMatches.markFreeMatch);
 adminRouter.post('/finance/wallets/:userId/lift-restriction', costlyMutationRateLimit, finance.liftRestriction);
 // Gate 6 / TKT-607: venue beneficiaries (encrypted bank details) and payables. Admin-only.

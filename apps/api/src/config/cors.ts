@@ -20,6 +20,8 @@ export const corsOptions: CorsOptions = {
     callback(null, false);
   },
   credentials: true,
+  // CEO touch-up batch 3.5, item 4: lets the admin app read a download's file name.
+  exposedHeaders: ['Content-Disposition'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   maxAge: 86_400,

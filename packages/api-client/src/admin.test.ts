@@ -257,3 +257,23 @@ describe('adminApi', () => {
     expect(request.mock.calls[1]![1]).toMatchObject({ headers: { 'Idempotency-Key': 'key-1' } });
   });
 });
+
+describe('adminApi waiting list (CEO batch 3.5, item 4)', () => {
+  it('lists with filters and downloads the CSV through the file download', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const download = vi.fn().mockResolvedValue({ blob: new Blob(['x']), filename: 'waiting-list.csv' });
+    const api = adminApi({ request, download } as unknown as ApiClient);
+    await api.waitingList();
+    await api.waitingList({ cityId: '11111111-1111-4111-8111-111111111111', subscribed: 'yes', page: 2 });
+    await api.downloadWaitingList();
+    await api.downloadWaitingList('11111111-1111-4111-8111-111111111111');
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/waiting-list',
+      '/admin/waiting-list?cityId=11111111-1111-4111-8111-111111111111&subscribed=yes&page=2',
+    ]);
+    expect(download.mock.calls).toEqual([
+      ['/admin/waiting-list.csv', 'waiting-list.csv'],
+      ['/admin/waiting-list.csv?cityId=11111111-1111-4111-8111-111111111111', 'waiting-list.csv'],
+    ]);
+  });
+});
