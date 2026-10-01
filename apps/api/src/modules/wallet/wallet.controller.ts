@@ -1,4 +1,4 @@
-import { topUpAmountSchema, walletHistoryQuerySchema } from '@footy-finder/shared';
+import { topUpAmountSchema, topUpUndoSchema, walletHistoryQuerySchema } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { DemoPaymentOperator } from './demo-payment.operator.js';
 import { DepositsService } from './deposits.service.js';
@@ -6,6 +6,7 @@ import { topUpOptions } from './payment-config.js';
 import { WalletHistoryService } from './wallet-history.service.js';
 import { AppError } from '../../errors/app-error.js';
 import { TopUpService } from '../payments/top-up.service.js';
+import { TopUpUndoService } from '../payments/top-up-undo.service.js';
 
 const deposits = new DepositsService(new DemoPaymentOperator());
 const history = new WalletHistoryService();
@@ -64,6 +65,30 @@ export const topUpStatus: RequestHandler = async (req, res, next) => {
     if (!topUpReference.test(reference))
       throw new AppError(404, 'Top-up not found.', 'TOP_UP_NOT_FOUND');
     res.json({ data: await topUps.status(userId(res.locals), reference) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// CEO touch-up batch 3, item 6b.
+const undo = new TopUpUndoService();
+const paymentIdPattern = /^[0-9a-f-]{36}$/i;
+
+export const undoableTopUps: RequestHandler = async (_req, res, next) => {
+  try {
+    res.json({ data: await undo.undoable(userId(res.locals)) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const undoTopUp: RequestHandler = async (req, res, next) => {
+  try {
+    const paymentId = String(req.params.paymentId ?? '');
+    if (!paymentIdPattern.test(paymentId)) throw new AppError(404, 'Top-up not found.', 'TOP_UP_NOT_FOUND');
+    const { amountCents } = topUpUndoSchema.parse(req.body ?? {});
+    const refund = await undo.undo(userId(res.locals), paymentId, amountCents, String(req.header('Idempotency-Key') ?? ''));
+    res.status(201).json({ data: { refundId: refund.id, amountCents: refund.amountCents, status: refund.status } });
   } catch (error) {
     next(error);
   }

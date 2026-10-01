@@ -77,7 +77,8 @@ It never prints the key and refuses anything but a test key.
 
 ## Refunds and chargebacks (admin Finance page)
 
-- **Refund to card.** Admin only, MFA, with a reason, only on a credited top-up without a dispute, and only up to unspent credit.
+- **Refund to card.** Admin only, **fresh MFA** (CEO batch 3, D9), with a reason, only on a credited top-up without a dispute, and only up to unspent credit. Partial amounts are allowed.
+- **Player "Undo top-up" (CEO batch 3, item 6b; ToS 13.5).** Within 24 hours of the credit (`verifiedAt`), once per top-up (`ProviderRefund.source = PLAYER_UNDO`, partial unique index), the player refunds up to: top-up − earlier refunds − net spending since the top-up, capped at the available balance (D7). Not while the wallet is restricted or the payment is disputed. It runs through the same path below (debit first, then Paystack), so a failed refund stays FAILED for finance. The top-up form also asks "You're adding R800 to your wallet. Correct?" with an extra warning from R500. Smoke: `npm run smoke:top-up-undo` (includes a double-submit race).
   1. The wallet is debited at initiation (`TOP_UP_REFUND_DEBIT`).
   2. Paystack `/refund` is called.
   3. `refund.*` webhooks move it to PROCESSING, PROCESSED or FAILED.

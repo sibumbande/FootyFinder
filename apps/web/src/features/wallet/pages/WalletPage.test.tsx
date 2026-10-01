@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({ summary: vi.fn(), history: vi.fn() }));
 vi.mock('../components/TopUpForm.js', () => ({
   TopUpForm: ({ initialCents }: { initialCents?: number }) => <p>Top-up form {initialCents ?? 'default'}</p>,
 }));
+vi.mock('../components/UndoTopUps.js', () => ({ UndoTopUps: () => null }));
 vi.mock('@/features/teams/components/ReclaimableTeamMoney.js', () => ({
   ReclaimableTeamMoney: () => <p>Team money</p>,
 }));

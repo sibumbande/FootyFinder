@@ -6,6 +6,7 @@ import { formatDate } from '@/utils/format-date.js';
 import { formatRands } from '@/utils/format-currency.js';
 import { ReclaimableTeamMoney } from '@/features/teams/components/ReclaimableTeamMoney.js';
 import { TopUpForm } from '../components/TopUpForm.js';
+import { UndoTopUps } from '../components/UndoTopUps.js';
 import { useWalletHistory, useWalletSummary } from '../hooks/useWallet.js';
 
 /** Only same-app match pages are offered as a way back after topping up. */
@@ -114,6 +115,8 @@ export function WalletPage() {
       )}
 
       <TopUpForm initialCents={Number.isInteger(suggested) && suggested > 0 ? suggested : undefined} />
+
+      <UndoTopUps />
 
       <ReclaimableTeamMoney />
 

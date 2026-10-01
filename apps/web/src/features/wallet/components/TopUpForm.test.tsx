@@ -35,9 +35,11 @@ describe('TopUpForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'R240' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(mocks.mutate).not.toHaveBeenCalled();
-    expect(screen.getByRole('status')).toHaveTextContent(/Add R\s?240,00 to your wallet\?/);
-    fireEvent.click(screen.getByRole('button', { name: /Confirm R\s?240,00/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Confirm R\s?240,00/ }));
+    // CEO touch-up batch 3, item 6a.
+    expect(screen.getByRole('status')).toHaveTextContent(/You.re adding R\s?240,00 to your wallet. Correct\?/);
+    expect(screen.queryByTestId('top-up-large-warning')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Yes, add R\s?240,00/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Yes, add R\s?240,00/ }));
     expect(mocks.mutate).toHaveBeenCalledTimes(2);
     const [first] = mocks.mutate.mock.calls[0]!;
     const [second] = mocks.mutate.mock.calls[1]!;
@@ -64,7 +66,9 @@ describe('TopUpForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Other' }));
     fireEvent.change(screen.getByLabelText(/Amount in rands/), { target: { value: '5000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    fireEvent.click(screen.getByRole('button', { name: /Confirm/ }));
+    // CEO touch-up batch 3, item 6a: R500 or more gets an extra warning.
+    expect(screen.getByTestId('top-up-large-warning')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Yes, add/ }));
     expect(mocks.mutate.mock.calls[0]![0]).toMatchObject({ amountCents: 500_000 });
   });
 

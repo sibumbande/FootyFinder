@@ -91,8 +91,8 @@ test.describe('wallet', () => {
 
     await page.getByRole('button', { name: 'R240' }).click();
     await page.getByRole('button', { name: 'Continue' }).click();
-    await expect(page.getByRole('status')).toContainText(/Add R\s?240,00 to your wallet\?/);
-    await page.getByRole('button', { name: /Confirm R\s?240,00/ }).click();
+    await expect(page.getByTestId('top-up-confirm')).toContainText(/You.re adding R\s?240,00 to your wallet. Correct\?/);
+    await page.getByRole('button', { name: /Yes, add R\s?240,00/ }).click();
     await expect(page.getByRole('listitem').filter({ hasText: 'Wallet top-up' })).toContainText(/\+R\s?240,00/);
     await expect(page.getByLabel(/Wallet balance R\s?240,00/)).toBeVisible();
 

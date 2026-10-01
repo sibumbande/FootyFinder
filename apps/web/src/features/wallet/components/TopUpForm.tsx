@@ -1,5 +1,6 @@
 import {
   TOP_UP_DEFAULT_CENTS,
+  TOP_UP_LARGE_WARNING_CENTS,
   TOP_UP_MAX_CENTS,
   TOP_UP_MIN_CENTS,
   TOP_UP_QUICK_PICK_CENTS,
@@ -141,15 +142,21 @@ export function TopUpForm({ initialCents }: { initialCents?: number }) {
       )}
       <FormError message={error ?? topUp.error?.message ?? options.error?.message} />
       {confirming && amountCents !== null && (
-        <p className="mt-4 rounded-xl bg-canvas p-3 text-sm font-semibold text-content-strong" role="status">
-          Add {formatRands(amountCents)} to your wallet?
-          {card && ' You will pay securely by card on Paystack, then come back here.'}
-        </p>
+        <div className="mt-4 grid gap-2 rounded-xl bg-canvas p-3 text-sm text-content-strong" role="status" data-testid="top-up-confirm">
+          {/* CEO touch-up batch 3, item 6a: one clear check before checkout. */}
+          <p className="font-semibold">You&apos;re adding {formatRands(amountCents)} to your wallet. Correct?</p>
+          {amountCents >= TOP_UP_LARGE_WARNING_CENTS && (
+            <p className="rounded-lg border border-warning-200 bg-warning-50 p-2 font-semibold text-warning-700" data-testid="top-up-large-warning">
+              That&apos;s a large top-up. Check the amount: wallet credit cannot be withdrawn, though you can undo a top-up within 24 hours.
+            </p>
+          )}
+          {card && <p className="text-content-muted">You will pay securely by card on Paystack, then come back here.</p>}
+        </div>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="submit" loading={topUp.isPending}>
           {confirming && amountCents !== null
-            ? `${card ? 'Pay' : 'Confirm'} ${formatRands(amountCents)}`
+            ? `Yes, ${card ? 'pay' : 'add'} ${formatRands(amountCents)}`
             : 'Continue'}
         </Button>
         {confirming && (

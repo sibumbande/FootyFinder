@@ -27,3 +27,7 @@ export const topUpAmountSchema = z.object({
     .refine((value) => value % 100 === 0, 'Enter a whole rand amount.'),
 });
 export type TopUpAmountInput = z.infer<typeof topUpAmountSchema>;
+
+/** CEO touch-up batch 3, item 6: the large-top-up warning threshold and the undo request. */
+export const TOP_UP_LARGE_WARNING_CENTS = 50_000;
+export const topUpUndoSchema = z.object({ amountCents: z.number().int().positive().max(500_000) });

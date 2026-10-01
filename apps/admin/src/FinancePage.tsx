@@ -2,6 +2,7 @@ import type { AdminTopUp, AdminTopUpStatus } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { adminClient } from './api.js';
+import { AdminActionError } from './FreshMfa.js';
 
 const rands = (cents: number) => `R${(cents / 100).toFixed(2)}`;
 const financeKey = ['admin', 'finance'] as const;
@@ -43,7 +44,7 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
       <label>Reason<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={500} required /></label>
       <button disabled={refund.isPending}>Refund to card</button>
     </form>}
-    {error && <p className="error">{error.message}</p>}
+    {error && <AdminActionError error={error} onVerified={() => { refund.reset(); retry.reset(); restore.reset(); }} />}
   </article>;
 }
 

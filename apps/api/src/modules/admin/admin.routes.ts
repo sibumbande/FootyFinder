@@ -104,9 +104,10 @@ adminRouter.get('/finance/reconciliation', controller.walletReconciliation);
 // Gate 6 / TKT-606: card top-ups, refunds to card, chargebacks and wallet restrictions.
 adminRouter.get('/finance/top-ups', finance.listTopUps);
 adminRouter.get('/finance/top-ups/:paymentId', finance.getTopUp);
-adminRouter.post('/finance/top-ups/:paymentId/refunds', costlyMutationRateLimit, finance.refundTopUp);
-adminRouter.post('/finance/refunds/:refundId/retry', costlyMutationRateLimit, finance.retryRefund);
-adminRouter.post('/finance/refunds/:refundId/restore', costlyMutationRateLimit, finance.restoreRefund);
+// CEO touch-up batch 3, item 6c (D9): card refunds (full or partial), retries and restores need fresh MFA.
+adminRouter.post('/finance/top-ups/:paymentId/refunds', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundTopUp);
+adminRouter.post('/finance/refunds/:refundId/retry', requireRecentAdminMfa, costlyMutationRateLimit, finance.retryRefund);
+adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, costlyMutationRateLimit, finance.restoreRefund);
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
 // CEO touch-up batch 3, item 5: free "On FootyFinder" matches.
 adminRouter.get('/finance/free-matches', freeMatches.freeMatchCosts);

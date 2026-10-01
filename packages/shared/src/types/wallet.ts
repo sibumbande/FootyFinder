@@ -183,3 +183,14 @@ export interface WalletReconciliationReport {
   issueCount: number;
   issues: WalletReconciliationIssue[];
 }
+
+/** CEO touch-up batch 3, item 6b: a recent top-up the player may undo (refund to the same card) once. */
+export interface UndoableTopUp {
+  paymentId: string;
+  amountCents: number;
+  creditedAt: string;
+  undoUntil: string;
+  /** The most that can still be refunded: the top-up minus spending since, capped at the available balance. */
+  refundableCents: number;
+  blockedReason: 'ALREADY_UNDONE' | 'WALLET_RESTRICTED' | 'DISPUTED' | null;
+}

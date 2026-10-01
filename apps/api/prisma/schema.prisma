@@ -275,6 +275,11 @@ enum VenuePublicationStatus {
   DEACTIVATED
 }
 
+enum RefundSource {
+  ADMIN
+  PLAYER_UNDO
+}
+
 enum FieldClosureKind {
   ONE_OFF
   WEEKLY
@@ -1322,6 +1327,8 @@ model ProviderRefund {
   debitTransactionId   String               @unique @db.Uuid
   restoreTransactionId String?              @unique @db.Uuid
   reason               String
+  /// CEO touch-up batch 3, item 6b: ADMIN, or PLAYER_UNDO (at most one per top-up).
+  source               RefundSource         @default(ADMIN)
   initiatedByUserId    String               @db.Uuid
   restoredByUserId     String?              @db.Uuid
   restoreReason        String?

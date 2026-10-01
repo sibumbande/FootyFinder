@@ -3,6 +3,7 @@ import type {
   TopUpInitiation,
   TopUpOptions,
   TopUpStatus,
+  UndoableTopUp,
   WalletLedgerPage,
   WalletSummary,
 } from '@footy-finder/shared';
@@ -27,6 +28,14 @@ export const walletApi = (client: ApiClient) => ({
     }),
   topUpStatus: (reference: string) =>
     client.request<{ data: TopUpStatus }>(`/wallet/top-ups/${encodeURIComponent(reference)}`),
+  /** CEO touch-up batch 3, item 6b: recent top-ups that can be undone (refunded to the same card), once each. */
+  undoableTopUps: () => client.request<{ data: UndoableTopUp[] }>('/wallet/top-ups/undoable'),
+  undoTopUp: (paymentId: string, amountCents: number, idempotencyKey: string) =>
+    client.request<{ data: { refundId: string; amountCents: number; status: string } }>(`/wallet/top-ups/${encodeURIComponent(paymentId)}/undo`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ amountCents }),
+    }),
   /** Development/test only: the server answers 404 in production. */
   demoDeposit: (amountCents: number, idempotencyKey: string) =>
     client.request<{ data: DepositResponse }>('/wallet/deposits/demo', {

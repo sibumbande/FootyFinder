@@ -14,6 +14,7 @@ import { PaystackClient, PaystackError, type PaystackGateway } from './paystack.
 const rands = (cents: number) => `R${(cents / 100).toFixed(2)}`;
 const lockRefund = (tx: Prisma.TransactionClient, id: string) =>
   tx.$queryRaw`SELECT "id" FROM "ProviderRefund" WHERE "id" = ${id}::uuid FOR UPDATE`;
+type PaymentWithRefunds = Prisma.ProviderPaymentGetPayload<{ include: { refunds: true; disputes: true } }>;
 const lockPayment = (tx: Prisma.TransactionClient, id: string) =>
   tx.$queryRaw`SELECT "id" FROM "ProviderPayment" WHERE "id" = ${id}::uuid FOR UPDATE`;
 
@@ -38,7 +39,11 @@ export class CardRefundsService {
     reason: string;
     idempotencyKey: string;
     requestId?: string;
+    /** CEO touch-up batch 3, item 6b: a player's own undo (no admin audit; its own checks run under the lock). */
+    source?: 'ADMIN' | 'PLAYER_UNDO';
+    assertAllowed?: (tx: Prisma.TransactionClient, payment: PaymentWithRefunds) => Promise<void>;
   }) {
+    const source = input.source ?? 'ADMIN';
     if (!input.idempotencyKey || input.idempotencyKey.length > 200)
       throw new AppError(400, 'A valid Idempotency-Key header is required.', 'IDEMPOTENCY_KEY_REQUIRED');
     const ledgerKey = `top-up-refund:${input.providerPaymentId}:${input.idempotencyKey}`;
@@ -59,6 +64,7 @@ export class CardRefundsService {
         throw new AppError(409, 'Only a credited top-up can be refunded to the card.', 'TOP_UP_NOT_REFUNDABLE');
       if (payment.disputes.length)
         throw new AppError(409, 'This top-up has a card dispute; refunds are handled through the dispute.', 'REFUND_BLOCKED_BY_DISPUTE');
+      if (input.assertAllowed) await input.assertAllowed(tx, payment);
       const committed = payment.refunds
         .filter((item) => item.status !== 'RESTORED_TO_WALLET')
         .reduce((sum, item) => sum + item.amountCents, 0);
@@ -78,7 +84,7 @@ export class CardRefundsService {
         });
       } catch (error) {
         if (error instanceof FinancialInsufficientFundsError)
-          throw new AppError(409, 'The player no longer has that much unspent wallet credit.', 'REFUND_EXCEEDS_AVAILABLE');
+          throw new AppError(409, source === 'PLAYER_UNDO' ? 'You no longer have that much unspent credit from this top-up.' : 'The player no longer has that much unspent wallet credit.', 'REFUND_EXCEEDS_AVAILABLE');
         throw error;
       }
       const row = await tx.providerRefund.create({
@@ -88,10 +94,11 @@ export class CardRefundsService {
           amountCents: input.amountCents,
           debitTransactionId: debit.transaction.id,
           reason: input.reason,
+          source,
           initiatedByUserId: input.actorUserId,
         },
       });
-      await appendAdminAudit(tx, {
+      if (source === 'ADMIN') await appendAdminAudit(tx, {
         actorUserId: input.actorUserId,
         action: 'TOP_UP_REFUND_INITIATED',
         entityType: 'ProviderRefund',
@@ -106,8 +113,10 @@ export class CardRefundsService {
           {
             userId: payment.userId,
             type: 'WALLET_DEBIT',
-            title: 'Refund to your card',
-            message: `${rands(input.amountCents)} is being refunded from your wallet to the card you paid with.`,
+            title: source === 'PLAYER_UNDO' ? 'Top-up undone' : 'Refund to your card',
+            message: source === 'PLAYER_UNDO'
+              ? `${rands(input.amountCents)} of your top-up is being refunded to the card you paid with.`
+              : `${rands(input.amountCents)} is being refunded from your wallet to the card you paid with.`,
             targetPath: '/wallet',
             dedupeKey: notificationDedupeKey('provider-refund', row.id, 'initiated', payment.userId),
           },
