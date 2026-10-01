@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { HeroPhoto } from '@/components/HeroPhoto.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { GuestMatchCard, MatchCard } from '@/features/matches/components/MatchCard.js';
@@ -19,8 +20,11 @@ export function HomePage() {
   const venueSearch = playAs?.startsWith('team:') ? `?playAs=${encodeURIComponent(playAs)}${params.get('lock') === '1' ? '&lock=1' : ''}` : '';
   const name = user?.displayName || user?.username || 'player';
   return <section className="grid grid-cols-[minmax(0,1fr)] gap-10">
-    <div className="relative min-h-[25rem] overflow-hidden rounded-[1.4rem_1.4rem_1.4rem_0.45rem] border-2 border-brand-900 bg-brand-900 bg-cover bg-[72%_center] text-content-inverse shadow-[8px_9px_0_rgb(var(--theme-accent-scarlet))] sm:min-h-[30rem]" style={{ backgroundImage: "url('/art/matchday-heroes.png')" }}>
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(var(--theme-brand-900)/0.98)_0%,rgb(var(--theme-brand-900)/0.9)_38%,rgb(var(--theme-brand-900)/0.25)_72%,transparent_100%)]" />
+    {/* CEO touch-up batch 3.5, item 7: Cape Town at dusk. On phones the text covers the photo, so the whole photo is
+        darkened; from sm up the gradient fades from behind the text to the mountain on the right. */}
+    <div className="relative min-h-[25rem] overflow-hidden rounded-[1.4rem_1.4rem_1.4rem_0.45rem] border-2 border-brand-900 bg-brand-900 text-content-inverse shadow-[8px_9px_0_rgb(var(--theme-accent-scarlet))] sm:min-h-[30rem]">
+      <HeroPhoto priority sizes="(min-width: 1280px) 1216px, 100vw" className="object-[62%_40%]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--theme-brand-900)/0.72)_0%,rgb(var(--theme-brand-900)/0.86)_100%)] sm:bg-[linear-gradient(90deg,rgb(var(--theme-brand-900)/0.97)_0%,rgb(var(--theme-brand-900)/0.88)_40%,rgb(var(--theme-brand-900)/0.4)_72%,rgb(var(--theme-brand-900)/0.1)_100%)]" data-testid="hero-shade" />
       <div className="relative flex min-h-[25rem] max-w-2xl flex-col justify-center p-6 sm:min-h-[30rem] sm:p-10 lg:p-12"><p className="inline-flex w-fit -skew-x-6 bg-danger-600 px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-content-inverse">Matchday is calling</p>{user ? <h1 className="mt-5 text-4xl font-black uppercase leading-[0.92] sm:text-6xl">Welcome back,<span className="block text-hero-accent">{name}</span></h1> : <h1 className="mt-5 text-4xl font-black uppercase leading-[0.92] sm:text-6xl">Find players. Build a squad.<span className="block text-hero-accent">Get on the pitch.</span></h1>}<p className="mt-5 max-w-lg text-lg font-semibold text-content-inverse/90">Choose an approved venue, select a live slot, and build your next match.</p><div className="mt-7 flex flex-wrap gap-3"><a href="#venues" className="inline-flex min-h-12 items-center rounded-md bg-hero-accent px-5 text-sm font-black uppercase text-ink">Find a venue</a>{user ? <Link to="/teams/create" className="inline-flex min-h-12 items-center rounded-md border-2 border-content-inverse px-5 text-sm font-black uppercase text-content-inverse">Create Team</Link> : <GuestAction action="create a team" className="inline-flex min-h-12 items-center rounded-md border-2 border-content-inverse px-5 text-sm font-black uppercase text-content-inverse" />}</div></div>
     </div>
     <section id="venues" className="grid grid-cols-[minmax(0,1fr)] gap-5"><div><p className="anime-kicker">Cape Town pitches</p><h2 className="mt-2 text-3xl font-black uppercase text-content-strong">Choose a venue</h2><p className="mt-1 text-sm text-content-muted">Every match is R80 a player, with a FootyFinder referee.</p></div>

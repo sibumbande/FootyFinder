@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react';
+import { HeroPhoto } from '@/components/HeroPhoto.js';
 import { Logo } from '@/components/Logo.js';
 import { ThemeToggle } from '@/components/ThemeToggle.js';
 import { TERMS_ANCHORS } from '@footy-finder/shared';
@@ -11,11 +12,10 @@ export function AuthLayout({
 }: PropsWithChildren<{ eyebrow: string; title: string; description: string }>) {
   return (
     <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(30rem,0.82fr)]">
-      <aside
-        className="relative hidden overflow-hidden border-r-8 border-danger-600 bg-brand-900 bg-cover bg-center p-12 text-content-inverse lg:flex lg:flex-col lg:justify-between"
-        style={{ backgroundImage: "url('/art/matchday-heroes.png')" }}
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--theme-brand-900)/0.72),rgb(var(--theme-brand-900)/0.95))]" />
+      {/* CEO touch-up batch 3.5, item 7: the same Cape Town photo as the home hero (desktop only). */}
+      <aside className="relative hidden overflow-hidden border-r-8 border-danger-600 bg-brand-900 p-12 text-content-inverse lg:flex lg:flex-col lg:justify-between">
+        <HeroPhoto sizes="50vw" className="object-[55%_center]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--theme-brand-900)/0.35)_0%,rgb(var(--theme-brand-900)/0.55)_35%,rgb(var(--theme-brand-900)/0.92)_62%,rgb(var(--theme-brand-900)/0.96)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgb(var(--theme-content-inverse)/0.18)_0_1px,transparent_1.5px)] bg-[length:9px_9px]" />
         <div className="relative">
           <Logo light />

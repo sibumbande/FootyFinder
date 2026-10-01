@@ -12,3 +12,6 @@ coverage
 /playwright-report/
 /blob-report/
 /apps/api/src/generated/prisma/
+
+# CEO touch-up batch 3.5, item 7: the 6144 px original hero photo stays local; apps/web/scripts/build-hero-images.mjs makes the committed sizes.
+/apps/web/public/hero-cape-town.jpg

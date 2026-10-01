@@ -136,6 +136,11 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       const page = await context.newPage();
       for (const path of ['/', '/matches', `/m/${publicSlug}`, `/matches/${matchId}`, `/venues/${venueSlug}`, '/social?tab=teams', '/social?tab=leaderboards', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register', '/forgot-password', '/waiting-list'])
         await expectFits(page, path);
+      // CEO touch-up batch 3.5, item 7: phones download a small WebP of the hero photo, never the full-size one.
+      await page.goto('/');
+      const hero = page.getByTestId('hero-photo');
+      await expect(hero).toBeVisible();
+      await expect.poll(() => hero.evaluate((image: HTMLImageElement) => image.currentSrc)).toMatch(/\/hero\/cape-town-(640|960)\.webp$/);
       await context.close();
     });
 
