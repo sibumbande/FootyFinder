@@ -158,6 +158,15 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       // The carousel bleeds to the screen edges by design; measure once the page transition has settled.
       await expectFits(page, '/');
       await expect(page.getByTestId('venue-carousel')).toBeVisible();
+      // CEO touch-up batch 3.5, item 1: upcoming matches use the Matches page cards, stacked one per row on phones.
+      const cards = page.getByTestId('upcoming-matches').locator('article');
+      await expect(cards.first()).toBeVisible();
+      const boxes = await cards.evaluateAll((items) => items.map((item) => item.getBoundingClientRect()).map(({ left, width: w }) => ({ left, w })));
+      expect(boxes.length).toBeLessThanOrEqual(5);
+      for (const box of boxes) {
+        expect(Math.abs(box.left - boxes[0]!.left)).toBeLessThanOrEqual(1);
+        expect(box.w).toBeGreaterThan(width * 0.8);
+      }
 
       // The formation shows one pitch at a time, with Home/Away tabs, and fits.
       await page.goto(`/matches/${matchId}#formation`);

@@ -99,6 +99,7 @@ export function GuestMatchCard({ match }: { match: PublicMatchPreview }) {
       format={match.format}
       status={match.status}
       teamMatch={Boolean(teamMatch)}
+      substitutesPerTeam={match.substitutesPerTeam}
       filled={match.capacity.filled}
       capacity={match.capacity.total}
       teamLine={teamMatch ? `${teamMatch.homeTeamName} · ${teamMatchLabel(teamMatch)}` : undefined}

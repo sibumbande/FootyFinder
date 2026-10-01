@@ -342,6 +342,8 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
     filled: number;
     total: number;
   };
+  /** CEO touch-up batch 3.5, item 1: substitute places per side, shown on the card like the member list. */
+  substitutesPerTeam: number;
   /** Aggregate formation positions claimed (no identities). */
   positions: {
     filled: number;

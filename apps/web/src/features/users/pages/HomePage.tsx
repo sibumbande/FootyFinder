@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
-import { guestRow, memberRow, UpcomingMatchList } from '@/features/matches/components/UpcomingMatchList.js';
+import { GuestMatchCard, MatchCard } from '@/features/matches/components/MatchCard.js';
 import { useMatches } from '@/features/matches/hooks/useMatches.js';
 import { GuestAction } from '@/features/public/components/SignUpPrompt.js';
 import { usePublicMatches } from '@/features/public/hooks/usePublic.js';
@@ -41,21 +41,22 @@ const UPCOMING_COUNT = 5;
 
 function UpcomingSection({ pending, error, children }: { pending: boolean; error?: string; children: ReactNode }) {
   return <>
-    {pending && <div className="grid gap-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl bg-surface" />)}</div>}<FormError message={error} />
+    {pending && <div className="match-grid">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-3xl bg-surface" />)}</div>}<FormError message={error} />
     {children}
   </>;
 }
 
 const noneOpen = <p className="rounded-2xl bg-surface p-5 text-content-muted">No open upcoming matches yet.</p>;
 
-/** CEO touch-up batch 3, item 8: the 5 soonest matches still joinable (places left, before the 30-minute lock). */
+/** CEO touch-up batch 3, item 8: the 5 soonest matches still joinable (places left, before the 30-minute lock).
+ *  Batch 3.5, item 1: the same cards and grid as the Matches page (stacked on phones). */
 function MemberUpcoming() {
   const upcoming = useMatches({ joinableOnly: true, limit: UPCOMING_COUNT });
-  return <UpcomingSection pending={upcoming.isPending} error={upcoming.error?.message}>{upcoming.data && (upcoming.data.length ? <UpcomingMatchList rows={upcoming.data.map(memberRow)} /> : noneOpen)}</UpcomingSection>;
+  return <UpcomingSection pending={upcoming.isPending} error={upcoming.error?.message}>{upcoming.data && (upcoming.data.length ? <div className="match-grid" data-testid="upcoming-matches">{upcoming.data.map((match) => <MatchCard key={match.id} match={match} />)}</div> : noneOpen)}</UpcomingSection>;
 }
 
 function GuestUpcoming() {
   const upcoming = usePublicMatches();
   const open = upcoming.data?.filter((match) => match.joinability.canJoin).slice(0, UPCOMING_COUNT);
-  return <UpcomingSection pending={upcoming.isPending} error={upcoming.error?.message}>{open && (open.length ? <UpcomingMatchList rows={open.map(guestRow)} /> : noneOpen)}</UpcomingSection>;
+  return <UpcomingSection pending={upcoming.isPending} error={upcoming.error?.message}>{open && (open.length ? <div className="match-grid" data-testid="upcoming-matches">{open.map((match) => <GuestMatchCard key={match.slug} match={match} />)}</div> : noneOpen)}</UpcomingSection>;
 }

@@ -205,6 +205,7 @@ export class MatchesService {
       status,
       joinability: { canJoin: reason === 'AVAILABLE', reason },
       capacity: { filled, total },
+      substitutesPerTeam: match.substituteCapacityPerTeam,
       positions: {
         filled: individualSlots.filter(({ participantId }) => participantId).length,
         total: individualSlots.length,
