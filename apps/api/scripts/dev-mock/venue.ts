@@ -70,7 +70,8 @@ export async function removeMockVenue(log: (line: string) => void) {
   const venue = await prisma.managedVenue.findUnique({ where: { slug: DEV_SEED_VENUE_SLUG }, include: { media: true, fields: { select: { id: true, _count: { select: { reservations: true } } } } } });
   if (!venue) return;
   if (venue.fields.some(({ _count }) => _count.reservations > 0)) {
-    await prisma.managedVenue.update({ where: { id: venue.id }, data: { publicationStatus: 'DEACTIVATED', isActive: false, deactivatedAt: new Date(), deactivationReason: `${DEV_SEED} reset` } });
+    // A deactivated venue records who deactivated it: the mock player who stood in as its approver.
+    await prisma.managedVenue.update({ where: { id: venue.id }, data: { publicationStatus: 'DEACTIVATED', isActive: false, deactivatedByUserId: venue.approvedByUserId, deactivatedAt: new Date(), deactivationReason: `${DEV_SEED} reset` } });
     log(`${DEV_SEED_VENUE_NAME}: deactivated (it has bookings, so it is kept as history).`);
     return;
   }
