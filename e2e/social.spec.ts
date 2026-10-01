@@ -136,7 +136,8 @@ test.describe('Social: friends, team invites, recruitment, blocking and guest br
     await expect(guestPage.getByTestId('guest-player')).toContainText('Friendly plays on Saturdays');
     await expect(guestPage.getByRole('main').getByRole('link', { name: 'Sign up to play' })).toHaveAttribute('href', `/register?returnTo=%2Fplayers%2F${friend.id}`);
     await expect(guestPage.getByTestId('guest-player')).not.toContainText('@test.invalid');
-    await guestPage.goto(`/teams/${teamId}`);
+    // CEO touch-up batch 2, item 5: the guest team page has the member tabs; the squad lists the members.
+    await guestPage.goto(`/teams/${teamId}?tab=squad`);
     await expect(guestPage.getByTestId('guest-team')).toContainText(friend.name);
 
     // Blocking: the recruit blocks the captain; they disappear from each other's search.
