@@ -55,7 +55,7 @@ export function BookingsPage() {
             <h2 className="text-xl font-bold text-content-strong">Book through a Quick Match</h2>
             <p className="text-sm text-content-muted">
               Pick a slot on a venue calendar to create a Quick Match. Every player pays a fixed
-              R80 to join, including subs, and nobody pays the venue up front.
+              R80 to join, including subs.
             </p>
           </div>
           <Link
