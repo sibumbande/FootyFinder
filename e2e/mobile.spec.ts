@@ -35,6 +35,26 @@ async function offscreen(page: Page) {
   });
 }
 
+async function expectHeaderAligned(page: Page) {
+  await page.goto('/');
+  const header = page.locator('header').first();
+  await expect(header.getByRole('link', { name: 'Top up wallet' })).toHaveCount(0);
+  const controls = [
+    header.getByRole('link', { name: 'FootyFinder home' }),
+    header.getByRole('button', { name: /Switch to (dark|light) mode/ }),
+    header.getByRole('link', { name: /^Wallet balance/ }),
+    header.getByRole('button', { name: /^Notifications/ }),
+    header.locator('button[aria-haspopup="menu"]'),
+  ];
+  const centres: number[] = [];
+  for (const control of controls) {
+    const box = (await control.boundingBox())!;
+    expect.soft(box.height, 'header control height').toBeGreaterThanOrEqual(40);
+    centres.push(box.y + box.height / 2);
+  }
+  expect(Math.max(...centres) - Math.min(...centres), 'header controls share one centre line').toBeLessThanOrEqual(3);
+}
+
 async function expectFits(page: Page, path: string, label = path) {
   await page.goto(path);
   await page.locator('main').waitFor();
@@ -99,6 +119,16 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
     await f.prisma.$disconnect();
   });
 
+  test('the signed-in header lines up on desktop (CEO batch 3.5, item 2)', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.goto('/');
+    const login = await f.api(page, '/auth/login', { method: 'POST', body: { identifier: `${f.marker}-player@test.invalid`, password: f.PASSWORD } });
+    expect(login.status, JSON.stringify(login.body)).toBe(200);
+    await expectHeaderAligned(page);
+    await context.close();
+  });
+
   for (const width of WIDTHS) {
     test(`guest pages fit at ${width}px`, async ({ browser }) => {
       test.setTimeout(120_000);
@@ -131,6 +161,9 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       expect(box.x + box.width).toBeLessThanOrEqual(width);
       expect(await offscreen(page)).toEqual([]);
       await page.keyboard.press('Escape');
+
+      // CEO touch-up batch 3.5, item 2: no separate "+" top-up button; the header controls share one centre line.
+      await expectHeaderAligned(page);
 
       // The account menu fits too.
       await page.goto('/');

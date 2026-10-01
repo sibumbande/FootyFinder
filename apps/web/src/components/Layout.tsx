@@ -54,26 +54,11 @@ export function Layout() {
           )}
           {user && (
             <>
-              <Link
-                to="/wallet#top-up"
-                aria-label="Top up wallet"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border-2 border-line-strong bg-surface px-3 text-sm font-bold text-content shadow-[2px_3px_0_rgb(var(--theme-ink)/0.16)] hover:bg-surface-hover sm:min-h-11 sm:px-4"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="size-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                <span className="hidden sm:inline">Top up</span>
-              </Link>
+              {/* CEO touch-up batch 3.5, item 2: the balance chip is the one way to the wallet (and top-ups);
+                  every header control is 44 px tall on one centre line. */}
               <Link
                 to="/wallet"
-                className="rounded-md border border-line-strong bg-brand-900 px-2.5 py-2 text-right text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] sm:px-3"
+                className="inline-flex min-h-11 flex-col justify-center rounded-md border border-line-strong bg-brand-900 px-2.5 text-right text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] sm:px-3"
                 title="Wallet balance"
                 aria-label={`Wallet balance ${formatRands(user.balanceCents)}`}
               >
