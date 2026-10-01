@@ -145,7 +145,7 @@ The following information is provided in compliance with section 43 of ECTA:
 
 **5.2 Accurate information.** You must give true, current and complete information and keep it up to date. To activate your player profile you verify your email address and give your date of birth, your city, your years of playing experience, your preferred positions and a profile photo.
 
-**5.3 Your profile photo.** Your profile photo must be a clear selfie that shows your full face. It is shown to other signed-in users so that teammates, opponents and Referees can recognise you. It is not used for facial recognition. We may hide a photo that breaks these Terms, and you will then need to upload a new one.
+**5.3 Your profile photo.** Your profile photo must be a clear selfie that shows your full face. It is part of your player profile, which is visible to anyone (clause 8.3), so that teammates, opponents and Referees can recognise you. It is not used for facial recognition. We may hide a photo that breaks these Terms, and you will then need to upload a new one.
 
 **5.4 Credentials.** You are responsible for keeping your password confidential. We use one-time email links to verify your email address and to reset your password. Tell support immediately if you suspect someone else has used your Account.
 
@@ -213,6 +213,7 @@ We do not collect your phone number, emergency contact details or health informa
 
 **8.3 Other users and the public.** Anyone can browse the FootyFinder website without an account. The following are visible to anyone on the internet, including people without an account:
 - your player profile: your display name, username, profile photo, preferred positions, city, bio, Teams and match statistics;
+- your place on the leaderboards (clause 16.12);
 - Team pages: a Team's name, crest, members (with the same profile details), results record and average review rating;
 - Team recruitment posts and, while it is on, your "Looking for a team" card (clause 18.9);
 - public matches: the venue, time, format, fee and how many places are left; and, once a match has been played, its Final Result with the names of the scorers and assisters.
@@ -491,7 +492,9 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 **16.10 Reporting a problem.** A Final Result cannot be disputed. This does not affect your right to complain under clause 26. The Owner or a Captain of a Team that played, or the Host of a Quick Match (other than FootyFinder), may report a problem with a Final Result in the app within twenty-four (24) hours after it was recorded. FootyFinder reviews every report and tells the person who reported it the outcome in the app. A Final Result is changed only if FootyFinder finds a clear recording error (clause 16.7).
 
-**16.11 Your statistics.** Your profile shows your matches played, wins, draws and losses, goals and assists. They are worked out only from Final Results and the Lineup Record, and they change if FootyFinder corrects a result. Cancelled and abandoned matches, and matches the Referee recorded you as not playing in, do not count. A forfeit counts as a win or a loss, with no goals. Other signed-in users can see your statistics (clause 8.3).
+**16.11 Your statistics.** Your profile shows your matches played, wins, draws and losses, goals and assists. They are worked out only from Final Results and the Lineup Record, and they change if FootyFinder corrects a result. Cancelled and abandoned matches, and matches the Referee recorded you as not playing in, do not count. A forfeit counts as a win or a loss, with no goals. Your statistics are visible to anyone (clause 8.3).
+
+**16.12 Leaderboards.** The Social page shows leaderboards for matches played, goals and assists in Cape Town, this month and all time, worked out with the same rules as your statistics (clause 16.11). Your display name and profile photo are shown with your place.
 
 ## 17. Content You Upload
 

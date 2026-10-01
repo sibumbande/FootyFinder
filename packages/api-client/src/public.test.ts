@@ -20,3 +20,11 @@ describe('publicApi (Gate 9 / TKT-910)', () => {
     ]);
   });
 });
+
+describe('publicApi leaderboards (CEO batch 3.5, item 6)', () => {
+  it('asks for one board and period', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    await publicApi({ request } as unknown as ApiClient).leaderboard('goals', 'month');
+    expect(request).toHaveBeenCalledWith('/public/leaderboards?board=goals&period=month');
+  });
+});

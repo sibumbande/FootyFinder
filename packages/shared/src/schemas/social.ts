@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LEADERBOARD_BOARDS, LEADERBOARD_PERIODS } from '../types/leaderboard.js';
 
 /** Gate 9 / TKT-901: Discover search by display name or username (at least 2 characters). */
 export const socialSearchQuerySchema = z.object({
@@ -29,3 +30,10 @@ export const createTeamMemberInviteSchema = z.object({
   source: z.enum(['FRIEND', 'LOOKING']).default('FRIEND'),
 });
 export type CreateTeamMemberInviteInput = z.infer<typeof createTeamMemberInviteSchema>;
+
+/** CEO touch-up batch 3.5, item 6. */
+export const leaderboardQuerySchema = z.object({
+  board: z.enum(LEADERBOARD_BOARDS).default('matches'),
+  period: z.enum(LEADERBOARD_PERIODS).default('month'),
+});
+export type LeaderboardQuery = z.input<typeof leaderboardQuerySchema>;

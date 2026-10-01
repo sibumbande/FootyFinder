@@ -3,15 +3,18 @@ import { useSearchParams } from 'react-router-dom';
 import { DiscoverTab } from '../components/DiscoverTab.js';
 import { DmsTab } from '../components/DmsTab.js';
 import { FriendsTab } from '../components/FriendsTab.js';
+import { LeaderboardsTab } from '../components/LeaderboardsTab.js';
 import { TeamsTab } from '../components/TeamsTab.js';
 import { useSocialSummary } from '../hooks/useSocial.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { SignUpPrompt } from '@/features/public/components/SignUpPrompt.js';
 
-export const SOCIAL_TABS = ['discover', 'friends', 'teams', 'dms'] as const;
+// CEO touch-up batch 3.5, item 6: Leaderboards sits after Discover (open to guests, like Teams).
+export const SOCIAL_TABS = ['discover', 'leaderboards', 'friends', 'teams', 'dms'] as const;
 export type SocialTab = (typeof SOCIAL_TABS)[number];
 const placeholders: Record<SocialTab, string> = {
   discover: 'Search profiles by name...',
+  leaderboards: '',
   friends: 'Search your friends...',
   teams: 'Search teams and players...',
   dms: 'Search conversations...',
@@ -38,7 +41,7 @@ export function SocialPage() {
     friends: summary.data?.friends,
     dms: summary.data?.unreadConversations || undefined,
   };
-  const labels: Record<SocialTab, string> = { discover: 'Discover', friends: 'Friends', teams: 'Teams', dms: 'DMs' };
+  const labels: Record<SocialTab, string> = { discover: 'Discover', leaderboards: 'Leaderboards', friends: 'Friends', teams: 'Teams', dms: 'DMs' };
 
   return (
     <section className="grid grid-cols-[minmax(0,1fr)] gap-6">
@@ -86,7 +89,7 @@ export function SocialPage() {
             ))}
           </nav>
         </div>
-        <label className="mx-auto mt-4 flex w-full max-w-2xl items-center gap-3 rounded-full border border-line bg-surface-muted px-5 py-3 focus-within:ring-4 focus-within:ring-brand-100 sm:mt-8 sm:py-4">
+        {tab !== 'leaderboards' && <label className="mx-auto mt-4 flex w-full max-w-2xl items-center gap-3 rounded-full border border-line bg-surface-muted px-5 py-3 focus-within:ring-4 focus-within:ring-brand-100 sm:mt-8 sm:py-4">
           <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-content-muted" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
           <span className="sr-only">Search</span>
           <input
@@ -96,13 +99,14 @@ export function SocialPage() {
             className="w-full bg-transparent font-bold text-content-strong placeholder:text-content-muted focus:outline-none"
             data-testid="social-search"
           />
-        </label>
+        </label>}
       </div>
       <div className="rounded-[2rem] border border-line bg-surface p-5 shadow-sm sm:p-8">
-        {!user && tab !== 'teams' && (
+        {!user && tab !== 'teams' && tab !== 'leaderboards' && (
           <SignUpPrompt action={tab === 'discover' ? 'search players and add friends' : tab === 'friends' ? 'add friends' : 'send messages'} />
         )}
         {user && tab === 'discover' && <DiscoverTab query={query} />}
+        {tab === 'leaderboards' && <LeaderboardsTab />}
         {user && tab === 'friends' && <FriendsTab query={query} />}
         {tab === 'teams' && <TeamsTab query={query} signUpAction={<SignUpPrompt action="ask to join" compact />} />}
         {user && tab === 'dms' && <DmsTab query={query} />}

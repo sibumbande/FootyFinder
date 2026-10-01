@@ -73,7 +73,7 @@ test.describe('text contrast meets WCAG AA in light and dark (CEO batch 2, item 
     test(`guest pages (${theme})`, async ({ browser }) => {
       test.setTimeout(180_000);
       const { context, page } = await themedPage(browser, theme);
-      await expectReadable(page, theme, ['/', '/matches', `/m/${publicSlug}`, `/matches/${matchId}`, `/venues/${venueSlug}`, '/social?tab=teams', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register']);
+      await expectReadable(page, theme, ['/', '/matches', `/m/${publicSlug}`, `/matches/${matchId}`, `/venues/${venueSlug}`, '/social?tab=teams', '/social?tab=leaderboards', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register']);
       await context.close();
     });
 
@@ -83,7 +83,7 @@ test.describe('text contrast meets WCAG AA in light and dark (CEO batch 2, item 
       await page.goto('/');
       const login = await f.api(page, '/auth/login', { method: 'POST', body: { identifier: `${f.marker}-player@test.invalid`, password: f.PASSWORD } });
       expect(login.status, JSON.stringify(login.body)).toBe(200);
-      await expectReadable(page, theme, ['/', '/matches', `/matches/${matchId}`, `/venues/${venueSlug}`, '/teams', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/players/${userId}`, '/social', '/wallet', '/matches/new', '/support']);
+      await expectReadable(page, theme, ['/', '/matches', `/matches/${matchId}`, `/venues/${venueSlug}`, '/teams', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/players/${userId}`, '/social', '/social?tab=leaderboards', '/wallet', '/matches/new', '/support']);
       await context.close();
     });
 

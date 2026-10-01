@@ -134,7 +134,7 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       test.setTimeout(120_000);
       const context = await browser.newContext({ viewport: { width, height: 800 }, hasTouch: true, isMobile: true });
       const page = await context.newPage();
-      for (const path of ['/', '/matches', `/m/${publicSlug}`, `/matches/${matchId}`, `/venues/${venueSlug}`, '/social?tab=teams', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register', '/forgot-password', '/waiting-list'])
+      for (const path of ['/', '/matches', `/m/${publicSlug}`, `/matches/${matchId}`, `/venues/${venueSlug}`, '/social?tab=teams', '/social?tab=leaderboards', `/teams/${teamId}`, `/players/${userId}`, '/legal/terms', '/login', '/register', '/forgot-password', '/waiting-list'])
         await expectFits(page, path);
       await context.close();
     });
@@ -148,7 +148,7 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       expect(login.status, JSON.stringify(login.body)).toBe(200);
       // CEO touch-up batch 3, item 11: plus the pages the 390 px audit found broken (team create/invites/settings,
       // onboarding, bookings, disputes).
-      for (const path of ['/', '/matches', '/social', '/social?tab=friends', '/social?tab=teams', '/social?tab=dms', '/wallet', '/teams', '/teams/create', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/teams/${teamId}?tab=settings`, `/matches/${matchId}`, '/matches/new', `/players/${userId}`, '/support', '/bookings', '/disputes', '/onboarding'])
+      for (const path of ['/', '/matches', '/social', '/social?tab=leaderboards', '/social?tab=friends', '/social?tab=teams', '/social?tab=dms', '/wallet', '/teams', '/teams/create', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/teams/${teamId}?tab=settings`, `/matches/${matchId}`, '/matches/new', `/players/${userId}`, '/support', '/bookings', '/disputes', '/onboarding'])
         await expectFits(page, path);
 
       // The notifications panel opens fully on screen, under the header.
@@ -180,6 +180,10 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       await expect(page.getByRole('tablist', { name: 'Social' })).toBeHidden();
       await page.getByTestId('social-section-select').selectOption('teams');
       await expect(page).toHaveURL(/tab=teams/);
+      // CEO touch-up batch 3.5, item 6: Leaderboards comes after Discover and before Friends.
+      expect((await page.getByTestId('social-section-select').locator('option').allTextContents()).slice(0, 3).map((text) => text.split(' ')[0])).toEqual(['Discover', 'Leaderboards', 'Friends']);
+      await page.getByTestId('social-section-select').selectOption('leaderboards');
+      await expect(page.getByTestId('leaderboard-goals')).toBeVisible();
       await page.goto(`/teams/${teamId}`);
       const firstTab = (await page.getByRole('tab', { name: 'overview' }).boundingBox())!;
       expect(firstTab.height).toBeGreaterThanOrEqual(43.5); // 44 px (2.75rem), allowing sub-pixel layout

@@ -39,11 +39,11 @@ beforeEach(() => {
 });
 
 describe('Social page (Gate 9 / TKT-902)', () => {
-  it('matches the CEO layout: title, subtitle, four tabs with counts and a search box', () => {
+  it('matches the CEO layout: title, subtitle, five tabs (Leaderboards after Discover, CEO batch 3.5) with counts and a search box', () => {
     render(<MemoryRouter><SocialPage /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: /social network/i })).toBeTruthy();
     expect(screen.getByText(/players, friends, and squads in your city/i)).toBeTruthy();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Discover', 'Friends(11)', 'Teams', 'DMs(2)']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Discover', 'Leaderboards', 'Friends(11)', 'Teams', 'DMs(2)']);
     expect(screen.getByPlaceholderText('Search profiles by name...')).toBeTruthy();
     expect(screen.getByText('No new profiles found.')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: /friends/i }));
