@@ -33,6 +33,11 @@ const adminMatchSelect = {
   durationMinutes: true,
   goNoGoAt: true,
   refereeAssignedAt: true,
+  // CEO touch-up batch 3, item 5: lets the admin make an empty Quick Match free.
+  freeOnFootyFinder: true,
+  firstTimersOnly: true,
+  otherSideMode: true,
+  _count: { select: { participants: { where: { status: 'JOINED' as const } } } },
   venue: { select: { name: true } },
   referee: { select: { ...person.select, refereeGrants: { where: { revokedAt: null }, select: { id: true }, take: 1 } } },
   refereeAssignments: {
@@ -54,6 +59,9 @@ const toAdminRefereeMatch = (row: AdminMatchRow): AdminRefereeMatch => ({
   matchEndsAt: getMatchEndsAt(row).toISOString(),
   goNoGoAt: (row.goNoGoAt ?? getGoNoGoAt(row.startsAt)).toISOString(),
   venueName: row.venue.name,
+  freeOnFootyFinder: row.freeOnFootyFinder,
+  firstTimersOnly: row.firstTimersOnly,
+  canBeMadeFree: row.mode === 'QUICK_GAME' && !row.otherSideMode && row._count.participants === 0,
   referee: row.referee
     ? {
         id: row.referee.id,

@@ -53,6 +53,10 @@ export interface AdminRefereeMatch {
   matchEndsAt: string;
   goNoGoAt: string;
   venueName: string;
+  /** CEO touch-up batch 3, item 5: free "On FootyFinder"; can be changed only while nobody has joined. */
+  freeOnFootyFinder: boolean;
+  firstTimersOnly: boolean;
+  canBeMadeFree: boolean;
   referee: (MatchReferee & { accountStatus: AccountStatus; activeReferee: boolean }) | null;
   refereeAssignedAt?: string | null;
   history: RefereeAssignmentHistoryEntry[];

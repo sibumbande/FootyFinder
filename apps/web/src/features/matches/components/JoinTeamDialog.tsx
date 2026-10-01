@@ -93,7 +93,7 @@ export function JoinTeamDialog({
         <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-surface-muted p-4 text-sm">
           <div>
             <dt className="text-content-muted">Match fee</dt>
-            <dd className="font-bold text-content-strong">{formatRands(match.feeCents)}</dd>
+            <dd className="font-bold text-content-strong">{match.freeOnFootyFinder ? 'Free, on FootyFinder' : formatRands(match.feeCents)}</dd>
           </div>
           <div>
             <dt className="text-content-muted">Wallet</dt>
@@ -109,9 +109,12 @@ export function JoinTeamDialog({
           >
             This match goes ahead only if every position is filled and a FootyFinder referee is assigned
             by {formatClock(match.goNoGoAt)} (30
-            minutes before kickoff). If not, it&apos;s cancelled automatically and your{' '}
-            {rands(match.feeCents)} is refunded to your wallet.
+            minutes before kickoff). If not, it&apos;s cancelled automatically{match.freeOnFootyFinder ? '. It is free, so there is nothing to refund.' : <> and your {rands(match.feeCents)} is refunded to your wallet.</>}
           </p>
+        )}
+        {/* CEO touch-up batch 3, item 5. */}
+        {match.firstTimersOnly && (
+          <p className="mt-3 text-sm font-semibold text-content">This free match is for players who have never played a match on FootyFinder.</p>
         )}
         {join.error && (
           <p className="mt-4 text-sm font-semibold text-danger-700">{join.error.message}</p>
@@ -128,7 +131,7 @@ export function JoinTeamDialog({
             </Link>
           ) : (
             <Button loading={join.isPending} onClick={submit}>
-              Pay & join {QUICK_MATCH_SIDE_LABELS[team]}
+              {match.freeOnFootyFinder ? `Join ${QUICK_MATCH_SIDE_LABELS[team]} for free` : `Pay & join ${QUICK_MATCH_SIDE_LABELS[team]}`}
             </Button>
           )}
           <Button variant="secondary" onClick={onClose}>

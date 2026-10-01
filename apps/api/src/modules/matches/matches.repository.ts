@@ -15,6 +15,7 @@ import {
   getCancellationCreditCents,
   getMaxParticipantsPerTeam,
   isLobbyFrozen,
+  MATCH_FEE_CENTS,
 } from '@footy-finder/shared';
 import type { Notification, Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
@@ -39,10 +40,13 @@ import {
   FinancialRepository,
 } from '../wallet/financial.repository.js';
 import { assertNoPlayerOverlap } from './player-overlap.js';
+import { hasPlayedAMatch, reversePromotionalCosts } from './free-matches.js';
 
 export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
 export class TeamFullError extends Error {}
+/** CEO touch-up batch 3, item 5: this free match is for players who have never played a match. */
+export class FirstTimersOnlyError extends Error {}
 export class MatchClosedError extends Error {}
 /** DEC-018 (D1): the lobby is frozen from the go/no-go instant (T-30) until kickoff. */
 export class LineupLockedError extends Error {}
@@ -119,6 +123,8 @@ export const publicPreviewSelect = {
   startsAt: true,
   durationMinutes: true,
   feeCents: true,
+  freeOnFootyFinder: true,
+  firstTimersOnly: true,
   venue: { select: { name: true, city: true, region: true } },
   // CEO touch-up batch 3, item 1: the venue page and cover photo only (DEC-018: never prices or policies).
   fieldReservation: { select: { field: { select: { venue: { select: { slug: true, coverImageUrl: true, coverImageAlt: true } } } } } },
@@ -352,6 +358,8 @@ export class MatchesRepository {
         getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam)
       )
         throw new TeamFullError();
+      // CEO touch-up batch 3, item 5: "first-time players only" free matches.
+      if (match.firstTimersOnly && (await hasPlayedAMatch(tx, userId))) throw new FirstTimersOnlyError();
 
       let debit;
       try {
@@ -362,7 +370,7 @@ export class MatchesRepository {
           idempotencyKey: `match-payment:${idempotencyKey}`,
           referenceType: 'MATCH',
           referenceId: matchId,
-          description: `Entry fee for ${match.name}`,
+          description: match.freeOnFootyFinder ? `Free match on FootyFinder: ${match.name}` : `Entry fee for ${match.name}`,
         });
       } catch (error) {
         if (error instanceof FinancialInsufficientFundsError) throw new InsufficientBalanceError();
@@ -386,6 +394,13 @@ export class MatchesRepository {
           idempotencyKey,
         },
       });
+      // CEO touch-up batch 3, item 5: FootyFinder covers this player's fee in its own promotions ledger (no wallet).
+      if (match.freeOnFootyFinder)
+        await tx.promotionalCost.upsert({
+          where: { participantId: participant.id },
+          create: { matchId, participantId: participant.id, userId, amountCents: MATCH_FEE_CENTS, description: `Free match on FootyFinder: ${match.name}` },
+          update: { status: 'ACTIVE', reversedAt: null, reversalReason: null },
+        });
 
       const cancellation = await tx.participantCancellation.findFirst({
         where: {
@@ -519,6 +534,8 @@ export class MatchesRepository {
         where: { id: participant.id },
         data: { status: 'LEFT', leftAt: now },
       });
+      // CEO touch-up batch 3, item 5: a player leaving a free match is no longer covered by FootyFinder.
+      await reversePromotionalCosts(tx, { participantId: participant.id }, 'PLAYER_LEFT', now);
       if (!participant.payment) return { cancellation: null, replayed: false, notifications: [] };
       const initialCreditCents = getCancellationCreditCents(
         participant.payment.amountCents,
@@ -567,7 +584,9 @@ export class MatchesRepository {
           type: 'PLAYER_CANCELLED',
           title: 'Place cancelled',
           message:
-            cancellation.initialCreditCents > 0
+            match.freeOnFootyFinder
+              ? 'You left the free match. Nothing was paid, so nothing is refunded.'
+              : cancellation.initialCreditCents > 0
               ? `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`
               : `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. Your fee will be credited if a replacement joins.`,
           targetPath: `/matches/${matchId}`,
@@ -839,7 +858,14 @@ export class MatchesRepository {
       reason === 'FOOTYFINDER_CANCELLED' ? feeReturnedIds.has(userId) : teamMemberIds.has(userId);
     const refundedUserIds: string[] = [];
     const refundedCentsByUser = new Map<string, number>();
+    // CEO touch-up batch 3, item 5: free-match players paid nothing, so nothing is credited; FootyFinder's
+    // promotional cover for them is reversed instead.
+    await reversePromotionalCosts(tx, { matchId }, `MATCH_CANCELLED:${reason}`, new Date());
     for (const payment of match.payments) {
+      if (payment.amountCents === 0) {
+        await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
+        continue;
+      }
       await this.financial.credit(tx, {
         userId: payment.userId,
         amountCents: payment.amountCents,

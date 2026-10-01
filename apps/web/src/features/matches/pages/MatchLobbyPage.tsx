@@ -28,6 +28,7 @@ import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
 import { ResultForm } from '../components/ResultForm.js';
+import { FreeMatchBadge } from '../components/FreeMatchBadge.js';
 import { MatchVenuePhoto } from '../components/MatchVenuePhoto.js';
 import { ShareMatchActions } from '../components/ShareMatchActions.js';
 import {
@@ -201,6 +202,7 @@ export function MatchLobbyPage() {
               <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">
                 {match.visibility.toLowerCase()}
               </span>
+              {match.freeOnFootyFinder && <FreeMatchBadge onDark firstTimersOnly={match.firstTimersOnly} />}
               {isHost && (
                 <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">
                   Organiser

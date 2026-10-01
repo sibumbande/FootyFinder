@@ -3,6 +3,7 @@ import { ApiError } from '@footy-finder/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { adminClient } from './api.js';
+import { FreeMatchControl } from './FreeMatchControl.js';
 import { AdminActionError } from './FreshMfa.js';
 
 const rootKey = ['admin', 'referee-matches'] as const;
@@ -159,6 +160,7 @@ function RefereeMatchCard({ match }: { match: AdminRefereeMatch }) {
             </div>
           )}
           <AdminActionError error={remove.error} />
+          <FreeMatchControl match={match} rootKey={rootKey} />
           <h3>Cancel match (weather/venue)</h3>
           <p className="muted">
             Before kick-off only. Every player gets a full refund to their wallet, held team money goes back to each

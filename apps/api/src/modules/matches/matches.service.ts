@@ -42,6 +42,7 @@ import {
   PositionAlreadyClaimedError,
   PositionWrongSideError,
   TeamFullError,
+  FirstTimersOnlyError,
   TeamMatchPlanningError,
   OtherSideRefusedError,
   OwnTeamConflictError,
@@ -194,6 +195,8 @@ export class MatchesService {
       durationMinutes: match.durationMinutes,
       format: match.format,
       feeCents: match.feeCents,
+      freeOnFootyFinder: match.freeOnFootyFinder,
+      firstTimersOnly: match.firstTimersOnly,
       currency: 'ZAR',
       rules: match.rules.map((code) => ({ code, label: MATCH_RULE_CONFIG[code].label })),
       status,
@@ -621,6 +624,8 @@ export class MatchesService {
         'ALREADY_JOINED',
       );
     if (error instanceof TeamFullError) throw new AppError(409, 'That team is full.', 'TEAM_FULL');
+    if (error instanceof FirstTimersOnlyError)
+      throw new AppError(409, 'This free match is for players who have never played a match on FootyFinder.', 'FIRST_TIMERS_ONLY');
     rethrowOtherSideError(error);
     if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
     if (error instanceof LineupLockedError) this.throwLineupLocked();

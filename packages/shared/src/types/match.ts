@@ -269,6 +269,9 @@ export interface Match extends MatchGoNoGoFacts {
   durationMinutes: number;
   matchEndsAt: string;
   feeCents: number;
+  /** CEO touch-up batch 3, item 5: a free "On FootyFinder" match (R0), optionally for first-time players only. */
+  freeOnFootyFinder: boolean;
+  firstTimersOnly: boolean;
   currency: 'ZAR';
   status: MatchStatus;
   participantCount: number;
@@ -325,6 +328,9 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
   durationMinutes: number;
   format: MatchFormat;
   feeCents: number;
+  /** CEO touch-up batch 3, item 5: a free "On FootyFinder" match (R0), optionally for first-time players only. */
+  freeOnFootyFinder: boolean;
+  firstTimersOnly: boolean;
   currency: 'ZAR';
   rules: Array<{ code: MatchRule; label: string }>;
   status: MatchStatus;

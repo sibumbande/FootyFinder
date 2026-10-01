@@ -82,5 +82,27 @@ export function FinancePage() {
       {wallet.balanceCents >= 0 && <div className="row"><input aria-label="Reason for lifting" placeholder="Reason (required)" value={liftReason} onChange={(event) => setLiftReason(event.target.value)} /><button type="button" disabled={lift.isPending || liftReason.trim().length < 5} onClick={() => lift.mutate(wallet.userId)}>Lift restriction</button></div>}
     </article>)}</div>
     {lift.error && <p className="error">{lift.error.message}</p>}
+    <FreeMatchCosts />
   </section>;
+}
+
+/**
+ * CEO touch-up batch 3, item 5: what free "On FootyFinder" matches cost. Fees waived = R80 x players covered
+ * (promotional cost, never wallet money); the real cash cost is the venue payable raised at kickoff (before
+ * kickoff, the expected field price).
+ */
+function FreeMatchCosts() {
+  const report = useQuery({ queryKey: ['admin', 'finance', 'free-matches'], queryFn: async () => (await adminClient.freeMatchCosts()).data });
+  const totals = report.data?.totals;
+  return <>
+    <h3>Free matches (On FootyFinder)</h3>
+    <p className="muted">Fees waived are R80 for each player FootyFinder covered. FootyFinder&apos;s actual cost is the venue payable; before kickoff the expected field price is shown.</p>
+    {report.error && <p className="error">{report.error.message}</p>}
+    {totals && <p data-testid="free-match-totals"><strong>{totals.matchCount} free {totals.matchCount === 1 ? 'match' : 'matches'}</strong> · {totals.playersCovered} {totals.playersCovered === 1 ? 'player' : 'players'} covered · fees waived {rands(totals.feesWaivedCents)} · venue payables {rands(totals.venuePayableCents)} · expected venue cost (not yet played) {rands(totals.expectedVenueCostCents)}</p>}
+    {report.data?.matches.length === 0 && <p className="muted">No free matches yet.</p>}
+    <div className="audit-list">{report.data?.matches.map((row) => <article key={row.matchId}>
+      <strong>{row.name}{row.firstTimersOnly ? ' · first-time players only' : ''}</strong>
+      <span>{new Date(row.startsAt).toLocaleString()} · {row.status.toLowerCase()} · {row.playersCovered} covered · fees waived {rands(row.feesWaivedCents)} · venue cost {row.venueCostKind === 'NONE' ? 'none' : `${rands(row.venueCostCents)}${row.venueCostKind === 'EXPECTED' ? ' (expected)' : ''}`}</span>
+    </article>)}</div>
+  </>;
 }

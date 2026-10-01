@@ -23,6 +23,7 @@ Tickets: TKT-311 to TKT-315. See DEC-018 and section 9A of the ticket breakdown.
 7. **Legacy matches (D4).** Matches created before DEC-018 have `goNoGoAt = NULL`. They keep their stored fee and old rules, and are never auto-cancelled.
 8. **Venue costs are admin-only.** No player- or host-facing UI or API returns `ManagedFieldPrice` amounts, reservation price snapshots or funding totals.
 9. **Player pooled field bookings retired (D5).** `GET /bookings/fields`, `POST /bookings` and `POST /bookings/:id/contributions` return `410 PLAYER_FIELD_BOOKING_RETIRED`. Booking history stays readable, with no money fields. Team Matches never used this flow.
+10. **Free "On FootyFinder" matches (CEO batch 3, item 5; ToS 13.11).** An admin (fresh MFA, reason, audited `MATCH_MARKED_FREE`/`MATCH_UNMARKED_FREE`) can make an empty Quick Match free, optionally "first-time players only", and make it paid again while nobody has joined. Players join for R0 (a R0 `MATCH_ENTRY_DEBIT`, no wallet money); FootyFinder's R80 per player goes into the separate `PromotionalCost` ledger (never a wallet) and is reversed when the player leaves or the match is cancelled. Go/no-go and the venue payable are unchanged, so the real cash cost of a free match is its venue payable. Admin → Finance → "Free matches" shows fees waived and venue cost per match and in total; reconciliation checks every free-match player has exactly one live cover. Smoke: `npm run smoke:free-matches`.
 
 ## Venue cost reference: ADMIN-ONLY, never shown to players or hosts
 

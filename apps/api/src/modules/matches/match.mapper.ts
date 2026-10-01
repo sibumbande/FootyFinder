@@ -101,6 +101,9 @@ export function toMatch(
       durationMinutes: match.durationMinutes,
     }).toISOString(),
     feeCents: match.feeCents,
+    // CEO touch-up batch 3, item 5.
+    freeOnFootyFinder: match.freeOnFootyFinder,
+    firstTimersOnly: match.firstTimersOnly,
     currency: 'ZAR',
     status,
     participantCount: match.participants.length,

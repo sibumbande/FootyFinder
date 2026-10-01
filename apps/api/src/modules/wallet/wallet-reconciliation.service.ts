@@ -20,6 +20,7 @@ export class WalletReconciliationService {
     const payableCount = await this.payables(issues);
     const settlementBatchCount = await this.batches(issues);
     const teamWalletCount = await this.teamWallets(issues);
+    await this.freeMatches(issues);
     return {
       generatedAt: now.toISOString(),
       ...wallet,
@@ -30,6 +31,31 @@ export class WalletReconciliationService {
       issueCount: issues.length,
       issues,
     };
+  }
+
+  /**
+   * CEO touch-up batch 3, item 5: in a free match every payment is R0, every joined player has exactly one ACTIVE
+   * promotional cover (FootyFinder's own ledger, never a wallet), and no cover stays ACTIVE for a player who left.
+   */
+  private async freeMatches(issues: WalletReconciliationIssue[]) {
+    const matches = await prisma.match.findMany({
+      where: { freeOnFootyFinder: true },
+      select: {
+        id: true,
+        status: true,
+        payments: { select: { id: true, amountCents: true } },
+        participants: { select: { id: true, status: true, promotionalCost: { select: { id: true, status: true } } } },
+      },
+    });
+    for (const match of matches) {
+      for (const payment of match.payments)
+        if (payment.amountCents !== 0) issues.push({ code: 'FREE_MATCH_PAYMENT_NOT_ZERO', referenceId: payment.id, expectedCents: 0, actualCents: payment.amountCents });
+      for (const participant of match.participants) {
+        const active = participant.promotionalCost?.status === 'ACTIVE';
+        if (participant.status === 'JOINED' && match.status !== 'CANCELLED' && !active) issues.push({ code: 'FREE_MATCH_COVER_MISSING', referenceId: participant.id });
+        if (active && (participant.status !== 'JOINED' || match.status === 'CANCELLED')) issues.push({ code: 'FREE_MATCH_COVER_WITHOUT_PLAYER', referenceId: participant.id });
+      }
+    }
   }
 
   private async wallets(issues: WalletReconciliationIssue[]) {

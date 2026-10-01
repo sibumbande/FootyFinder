@@ -605,6 +605,7 @@ model User {
   venueContentDecided       VenueContentChange[]      @relation("VenueContentDecider")
   fieldClosuresCreated      ManagedFieldClosure[]     @relation("FieldClosureCreator")
   fieldClosuresRemoved      ManagedFieldClosure[]     @relation("FieldClosureRemover")
+  promotionalCosts          PromotionalCost[]
   providerPayments          ProviderPayment[]
   initiatedRefunds          ProviderRefund[]          @relation("RefundInitiator")
   linkedBeneficiaries       VenueBeneficiary[]        @relation("BeneficiaryLinkedUser")
@@ -1364,24 +1365,24 @@ model ProviderDispute {
 
 /// Gate 6 / TKT-607: a venue's bank details (encrypted, admin-only, second-admin approval).
 model VenueBeneficiary {
-  id               String                 @id @db.Uuid
-  venueId          String                 @db.Uuid
-  displayName      String
-  encryptedDetails String
-  keyVersion       Int                    @default(1)
-  accountLast4     String
-  linkedUserId     String?                @db.Uuid
-  status           VenueBeneficiaryStatus @default(PENDING_APPROVAL)
-  createdByUserId  String                 @db.Uuid
-  approvedByUserId String?                @db.Uuid
-  approvedAt       DateTime?
-  retiredAt        DateTime?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  venue            ManagedVenue           @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  linkedUser       User?                  @relation("BeneficiaryLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  createdBy        User                   @relation("BeneficiaryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  approvedBy       User?                  @relation("BeneficiaryApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  id                String                 @id @db.Uuid
+  venueId           String                 @db.Uuid
+  displayName       String
+  encryptedDetails  String
+  keyVersion        Int                    @default(1)
+  accountLast4      String
+  linkedUserId      String?                @db.Uuid
+  status            VenueBeneficiaryStatus @default(PENDING_APPROVAL)
+  createdByUserId   String                 @db.Uuid
+  approvedByUserId  String?                @db.Uuid
+  approvedAt        DateTime?
+  retiredAt         DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  venue             ManagedVenue           @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  linkedUser        User?                  @relation("BeneficiaryLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy         User                   @relation("BeneficiaryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy        User?                  @relation("BeneficiaryApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   settlementBatches VenueSettlementBatch[]
 
   @@index([venueId, status])
@@ -1413,10 +1414,10 @@ model VenuePayable {
 
 /// Gate 6 / TKT-607: a reasoned correction to a payable (applied before or at the next settlement).
 model VenuePayableAdjustment {
-  id          String       @id @default(uuid()) @db.Uuid
-  payableId   String       @db.Uuid
-  amountCents Int
-  reason      String
+  id             String                @id @default(uuid()) @db.Uuid
+  payableId      String                @db.Uuid
+  amountCents    Int
+  reason         String
   actorUserId    String                @db.Uuid
   appliedBatchId String?               @db.Uuid
   createdAt      DateTime              @default(now())
@@ -1520,26 +1521,30 @@ model Venue {
 }
 
 model Match {
-  id                        String                    @id @default(uuid()) @db.Uuid
-  publicSlug                String?                   @unique
+  id                        String                     @id @default(uuid()) @db.Uuid
+  publicSlug                String?                    @unique
   name                      String
   description               String?
-  createdById               String                    @db.Uuid
-  venueId                   String                    @db.Uuid
-  mode                      MatchMode                 @default(QUICK_GAME)
+  createdById               String                     @db.Uuid
+  venueId                   String                     @db.Uuid
+  mode                      MatchMode                  @default(QUICK_GAME)
   format                    MatchFormat
-  substituteCapacityPerTeam Int                       @default(5)
-  rollingSubstitutes        Boolean                   @default(false)
-  rules                     MatchRule[]               @default([])
+  substituteCapacityPerTeam Int                        @default(5)
+  rollingSubstitutes        Boolean                    @default(false)
+  rules                     MatchRule[]                @default([])
   visibility                MatchVisibility
-  inviteToken               String?                   @unique
-  inviteTokenHash           String?                   @unique
+  inviteToken               String?                    @unique
+  inviteTokenHash           String?                    @unique
   startsAt                  DateTime
   durationMinutes           Int
   feeCents                  Int
-  currency                  String                    @default("ZAR")
-  status                    MatchStatus               @default(OPEN)
-  formationVersion          Int                       @default(0)
+  currency                  String                     @default("ZAR")
+  /// CEO touch-up batch 3, item 5: a free "On FootyFinder" Quick Match (players join for R0).
+  freeOnFootyFinder         Boolean                    @default(false)
+  firstTimersOnly           Boolean                    @default(false)
+  promotionalCosts          PromotionalCost[]
+  status                    MatchStatus                @default(OPEN)
+  formationVersion          Int                        @default(0)
   goNoGoAt                  DateTime?
   confirmedAt               DateTime?
   cancellationReason        String?
@@ -1549,12 +1554,12 @@ model Match {
   /// NULL until the other side is taken; changed only under the Match row lock.
   otherSideTakenBy          TeamMatchOtherSideTakenBy?
   /// Gate 8 / DEC-020: the FootyFinder referee assigned to this match (T-30 go/no-go matches only).
-  refereeUserId             String?                   @db.Uuid
+  refereeUserId             String?                    @db.Uuid
   refereeAssignedAt         DateTime?
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
-  createdBy                 User                      @relation("MatchCreator", fields: [createdById], references: [id])
-  venue                     Venue                     @relation(fields: [venueId], references: [id])
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  createdBy                 User                       @relation("MatchCreator", fields: [createdById], references: [id])
+  venue                     Venue                      @relation(fields: [venueId], references: [id])
   participants              MatchParticipant[]
   formationSlots            FormationSlot[]
   messages                  LobbyMessage[]
@@ -1567,7 +1572,7 @@ model Match {
   venuePayable              VenuePayable?
   teamWalletHolds           TeamWalletHold[]
   teamMatchAuditEvents      TeamMatchAuditEvent[]
-  referee                   User?                     @relation("MatchReferee", fields: [refereeUserId], references: [id], onDelete: Restrict)
+  referee                   User?                      @relation("MatchReferee", fields: [refereeUserId], references: [id], onDelete: Restrict)
   refereeAssignments        MatchRefereeAssignment[]
   lineupEntries             MatchLineupEntry[]
   captainSubmissions        CaptainResultSubmission[]
@@ -1863,20 +1868,46 @@ model TeamMatchLineupSlot {
   @@index([matchTeamId, isOpen])
 }
 
+/// CEO touch-up batch 3, item 5: FootyFinder's promotions ledger (never a wallet). One ACTIVE row per player in a
+/// free match: the R80 fee FootyFinder waives; reversed when the player leaves or the match is cancelled.
+model PromotionalCost {
+  id             String                @id @default(uuid()) @db.Uuid
+  matchId        String                @db.Uuid
+  participantId  String                @unique @db.Uuid
+  userId         String                @db.Uuid
+  amountCents    Int
+  status         PromotionalCostStatus @default(ACTIVE)
+  description    String
+  createdAt      DateTime              @default(now())
+  reversedAt     DateTime?
+  reversalReason String?
+  match          Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant    MatchParticipant      @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([matchId, status])
+}
+
+enum PromotionalCostStatus {
+  ACTIVE
+  REVERSED
+}
+
 model MatchParticipant {
-  id             String                   @id @default(uuid()) @db.Uuid
-  matchId        String                   @db.Uuid
-  userId         String                   @db.Uuid
-  status         ParticipantStatus        @default(JOINED)
-  team           TeamSide
-  joinedAt       DateTime                 @default(now())
-  leftAt         DateTime?
-  match          Match                    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  formationSlot  FormationSlot?
-  payment        MatchPayment?
-  scoring        MatchScorer[]
-  replacementFor ParticipantCancellation? @relation("ReplacementParticipant")
+  id              String                   @id @default(uuid()) @db.Uuid
+  matchId         String                   @db.Uuid
+  userId          String                   @db.Uuid
+  status          ParticipantStatus        @default(JOINED)
+  team            TeamSide
+  joinedAt        DateTime                 @default(now())
+  leftAt          DateTime?
+  match           Match                    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  formationSlot   FormationSlot?
+  payment         MatchPayment?
+  promotionalCost PromotionalCost?
+  scoring         MatchScorer[]
+  replacementFor  ParticipantCancellation? @relation("ReplacementParticipant")
 
   @@unique([matchId, userId])
   @@index([matchId, team, status])
@@ -2100,34 +2131,34 @@ model Notification {
 }
 
 model Team {
-  id              String           @id @default(uuid()) @db.Uuid
-  name            String
-  shortName       String?          @unique
-  description     String?
-  profileImageUrl String?
-  locationText    String?
-  primaryFormat   MatchFormat
-  primaryColor    String?
-  secondaryColor  String?
-  ownerUserId     String           @db.Uuid
+  id               String                @id @default(uuid()) @db.Uuid
+  name             String
+  shortName        String?               @unique
+  description      String?
+  profileImageUrl  String?
+  locationText     String?
+  primaryFormat    MatchFormat
+  primaryColor     String?
+  secondaryColor   String?
+  ownerUserId      String                @db.Uuid
   /// Gate 7 / D7: a closed team is archived, never deleted, so its money history is kept.
-  archivedAt      DateTime?
-  memberInvites   TeamMemberInvite[]
+  archivedAt       DateTime?
+  memberInvites    TeamMemberInvite[]
   recruitmentPosts TeamRecruitmentPost[]
-  joinRequests    TeamJoinRequest[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  owner           User             @relation("TeamOwner", fields: [ownerUserId], references: [id])
-  memberships     TeamMembership[]
-  invites         TeamInvite[]
-  formations      TeamFormation[]
-  matchSides      MatchTeam[]
-  wallet          TeamWalletAccount?
+  joinRequests     TeamJoinRequest[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  owner            User                  @relation("TeamOwner", fields: [ownerUserId], references: [id])
+  memberships      TeamMembership[]
+  invites          TeamInvite[]
+  formations       TeamFormation[]
+  matchSides       MatchTeam[]
+  wallet           TeamWalletAccount?
   matchAuditEvents TeamMatchAuditEvent[]
-  chatMessages    TeamMessage[]
-  chatReadStates  TeamChatReadState[]
-  lineupEntries   MatchLineupEntry[]   @relation("MatchLineupTeam")
-  reviews         TeamReview[]
+  chatMessages     TeamMessage[]
+  chatReadStates   TeamChatReadState[]
+  lineupEntries    MatchLineupEntry[]    @relation("MatchLineupTeam")
+  reviews          TeamReview[]
 
   @@index([ownerUserId])
   @@index([name])

@@ -18,7 +18,7 @@ vi.mock('@/features/social/hooks/useRecruitment.js', () => ({
 const match: PublicMatchPreview = {
   slug: 'm-0123456789abcdef01234567', canonicalUrl: 'https://footyfinder.test/m/m-0123456789abcdef01234567', name: 'Friday Fives',
   venue: { name: 'Italian Club', city: 'Cape Town', region: 'Western Cape' }, startsAt: '2099-01-01T16:00:00.000Z', durationMinutes: 60,
-  format: 'FIVE_A_SIDE', feeCents: 8_000, currency: 'ZAR', rules: [], status: 'OPEN', joinability: { canJoin: true, reason: 'AVAILABLE' },
+  format: 'FIVE_A_SIDE', feeCents: 8_000, currency: 'ZAR', freeOnFootyFinder: false, firstTimersOnly: false, rules: [], status: 'OPEN', joinability: { canJoin: true, reason: 'AVAILABLE' },
   capacity: { filled: 7, total: 14 }, positions: { filled: 6, total: 10 },
   sides: { home: { filled: 4, total: 5 }, away: { filled: 2, total: 5 } },
   goNoGoAt: '2099-01-01T15:30:00.000Z',

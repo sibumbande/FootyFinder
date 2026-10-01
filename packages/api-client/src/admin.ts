@@ -17,6 +17,9 @@ import type {
   FieldClosureInput,
   FieldClosureResult,
   FieldClosureClash,
+  AdminFreeMatchInput,
+  AdminFreeMatchResult,
+  FreeMatchCostReport,
   AdminSupportListQuery,
   AdminSupportReplyInput,
   UpdateSupportTicketInput,
@@ -91,6 +94,10 @@ export const adminApi = (client: ApiClient) => ({
   removeReferee: (matchId: string, input: RemoveRefereeInput) =>
     client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee/remove`, post(input)),
   /** CEO Q4: "Cancel match (weather/venue)" before kick-off (fresh MFA, written reason, audited). */
+  /** CEO touch-up batch 3, item 5: free "On FootyFinder" matches (fresh MFA, reason, audit) and their cost. */
+  markFreeMatch: (matchId: string, input: AdminFreeMatchInput) =>
+    client.request<{ data: AdminFreeMatchResult }>(`/admin/matches/${id(matchId)}/free`, post(input)),
+  freeMatchCosts: () => client.request<{ data: FreeMatchCostReport }>('/admin/finance/free-matches'),
   cancelMatch: (matchId: string, input: AdminCancelMatchInput) =>
     client.request<{ data: { matchId: string; status: 'CANCELLED'; refundedUserCount: number } }>(
       `/admin/matches/${id(matchId)}/cancel`,

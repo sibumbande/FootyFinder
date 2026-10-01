@@ -245,3 +245,13 @@ export type MarkSettlementPaidInput = z.infer<typeof markSettlementPaidSchema>;
 export const adminSettlementQuerySchema = z.object({
   status: z.enum(['PREPARED', 'APPROVED', 'PAID', 'CANCELLED']).optional(),
 });
+
+/** CEO touch-up batch 3, item 5: mark or unmark a Quick Match free ("On FootyFinder"); fresh MFA, reason, audit. */
+export const adminFreeMatchSchema = z
+  .object({
+    free: z.boolean(),
+    firstTimersOnly: z.boolean().default(false),
+    reason: z.string().trim().min(5).max(500),
+  })
+  .refine((value) => value.free || !value.firstTimersOnly, { path: ['firstTimersOnly'], message: '"First-time players only" needs a free match.' });
+export type AdminFreeMatchInput = z.input<typeof adminFreeMatchSchema>;

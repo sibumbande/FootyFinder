@@ -13,6 +13,7 @@ import * as social from '../social/social.controller.js';
 import * as matchCancel from '../matches/admin-match-cancel.controller.js';
 import * as venueContent from './venue-content.controller.js';
 import * as fieldClosures from './field-closures.controller.js';
+import * as freeMatches from '../matches/free-match.admin.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -107,6 +108,9 @@ adminRouter.post('/finance/top-ups/:paymentId/refunds', costlyMutationRateLimit,
 adminRouter.post('/finance/refunds/:refundId/retry', costlyMutationRateLimit, finance.retryRefund);
 adminRouter.post('/finance/refunds/:refundId/restore', costlyMutationRateLimit, finance.restoreRefund);
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
+// CEO touch-up batch 3, item 5: free "On FootyFinder" matches.
+adminRouter.get('/finance/free-matches', freeMatches.freeMatchCosts);
+adminRouter.post('/matches/:matchId/free', requireRecentAdminMfa, costlyMutationRateLimit, freeMatches.markFreeMatch);
 adminRouter.post('/finance/wallets/:userId/lift-restriction', costlyMutationRateLimit, finance.liftRestriction);
 // Gate 6 / TKT-607: venue beneficiaries (encrypted bank details) and payables. Admin-only.
 adminRouter.get('/venues/:venueId/beneficiaries', settlement.listBeneficiaries);

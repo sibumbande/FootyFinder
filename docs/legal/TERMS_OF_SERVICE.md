@@ -86,9 +86,9 @@ In these Terms, unless the context indicates otherwise:
 - **"Personal Information"** has the meaning given to it in POPIA.
 - **"Platform"** means the FootyFinder website, web app and related services.
 - **"POPIA"** means the Protection of Personal Information Act 4 of 2013.
-- **"Quick Match"** means a match created by an individual user, the Host, in which every player pays the Slot Fee (clause 11).
+- **"Quick Match"** means a match created by an individual user, the Host, in which every player pays the Slot Fee (clause 11), unless it is a free match (clause 13.11).
 - **"Referee"** (or "FootyFinder Referee") means the person FootyFinder assigns to referee a match under clause 16.2. A Referee may be an employee, an independent contractor or a volunteer.
-- **"Slot Fee"** means the fixed fee of R80 that a player pays to join a match, whether in a starting position or as a substitute. FootyFinder sets the Slot Fee; a Host cannot set or change it.
+- **"Slot Fee"** means the fixed fee of R80 that a player pays to join a match, whether in a starting position or as a substitute. FootyFinder sets the Slot Fee; a Host cannot set or change it. In a free match (clause 13.11) the Slot Fee is R0.
 - **"Substitute"** (or "sub") means a player who has joined a match but does not hold a starting position. The app lists substitutes under each side's "reserves".
 - **"Team"** means a group of users registered together on the platform.
 - **"Team Match"** means a public match created by a Team under clause 12.8, in which that Team is the home side.
@@ -313,7 +313,7 @@ Search engines may list these public pages. Before a match is played, people wit
 - may, before the Lobby locks (clause 11.8), move players between positions and between the two sides, or take a player off a position so that they become a substitute (in the reserves). Players are told in the app when the Host changes their position. The Host cannot remove a player from the match, and a player moved this way keeps their place and their fee; and
 - may cancel the match until the Lobby locks (clause 14.1).
 
-**11.2 Joining.** When you join a match you choose a side, and the R80 Slot Fee is taken from your Wallet straight away (clause 13.3). You start in that side's reserves.
+**11.2 Joining.** When you join a match you choose a side, and the R80 Slot Fee is taken from your Wallet straight away (clause 13.3). In a free match nothing is taken (clause 13.11). You start in that side's reserves.
 
 **11.3 Claiming a position.** After joining, you claim an open starting position on your side of the pitch. Positions go to whoever claims them first: the first confirmed claim wins, and the order in which players paid does not matter. You may move yourself to another open position on your side. To switch sides, first move back to the reserves.
 
@@ -392,9 +392,9 @@ The home Team cannot turn away the Team or players who take the Other Side.
 
 **13.2 Not a bank.** We are not a bank, an authorised payment service provider or a registered financial services provider. All card payments are processed and settled by Paystack.
 
-**13.3 Paying for a match.** When you join a match, the R80 Slot Fee is taken from your Wallet straight away. If your Wallet does not hold enough, you cannot join until you top up. If the match does not go ahead, the fee is credited back to your Wallet under clause 14.
+**13.3 Paying for a match.** When you join a match, the R80 Slot Fee is taken from your Wallet straight away (in a free match nothing is taken, clause 13.11). If your Wallet does not hold enough, you cannot join until you top up. If the match does not go ahead, the fee is credited back to your Wallet under clause 14.
 
-**13.4 The price you see.** The Slot Fee is a fixed R80 per player per match, and a Team Match Fee is R80 per place (clause 12.10), set by FootyFinder. The price you see before you join is the price you pay. We do not add undisclosed charges.
+**13.4 The price you see.** The Slot Fee is a fixed R80 per player per match, unless the match is shown as a free match (clause 13.11), and a Team Match Fee is R80 per place (clause 12.10), set by FootyFinder. The price you see before you join is the price you pay. We do not add undisclosed charges.
 
 **13.5 Topping up.** You add money to your Wallet by card on Paystack's secure checkout page, in amounts from R50 to R5,000 per top-up. We pay Paystack's fees, so the full amount you pay goes into your Wallet. A top-up is credited only once Paystack confirms the payment to us; returning to the app does not credit anything by itself. If a payment is declined, abandoned or cannot be confirmed, nothing is credited. If your card was charged but nothing was credited, contact support and we will refund the charge to your card.
 
@@ -407,6 +407,8 @@ The home Team cannot turn away the Team or players who take the Other Side.
 **13.9 Chargebacks and fraud.** If a card payment is reversed or disputed with your bank (a chargeback) or found to be fraudulent, we reverse the matching Wallet credit, even if this makes your balance negative. While a dispute is open or your balance is below zero, you cannot join matches or spend from your Wallet. The restriction lifts automatically once your balance is back at zero or above and no dispute is open, and our team may also lift it. If the dispute is resolved in our favour, we restore the reversed credit to your Wallet. We may also suspend the Account and recover any charge Paystack levies on us. We will tell you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
 
 **13.10 No betting or gambling.** The Wallet may not be used for wagering. FootyFinder is not a gambling operator, and nothing on the platform is a bet, a lottery or a game of chance under the National Gambling Act 7 of 2004.
+
+**13.11 Free matches.** FootyFinder may make some Quick Matches free. A free match is shown as "Free match, on FootyFinder" before you join, and you join it for R0: nothing is taken from your Wallet, so nothing is refunded if you leave the match or if it is cancelled. A free place has no cash value: it is never credited to your Wallet and cannot be withdrawn or refunded to a card. FootyFinder may mark a free match "first-time players only", which means only players who have never played a match on FootyFinder can join it. FootyFinder can make a match free, or paid again, only before anyone has joined it. All other rules for Quick Matches apply to free matches as normal, including positions, the Lobby lock, the go/no-go check and the Code of Conduct.
 
 ## 14. Cancellations, Refunds and No-Shows
 
@@ -680,7 +682,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 |---|---|
 | Who we are | FootyFinder (Pty) Ltd, a Cape Town company that helps you find, join and pay for football matches. |
 | Who can join | Anyone 18 or older. We may ask you to verify your age or identity; we never use face or biometric checks. |
-| What you pay | A fixed R80 per match, taken from your Wallet when you join. Subs pay R80 too. A Team pays R80 for every starting position plus every sub it brings, from its Team Wallet. |
+| What you pay | A fixed R80 per match, taken from your Wallet when you join. Subs pay R80 too. Free matches shown as "on FootyFinder" cost R0 (clause 13.11). A Team pays R80 for every starting position plus every sub it brings, from its Team Wallet. |
 | Your money | Top up R50 to R5,000 by card through Paystack; we pay the fees. Wallet credit is spent only on FootyFinder and can't be withdrawn. If your account closes, the balance goes back to your card. We never confiscate it. |
 | When a game goes ahead | Only if every starting position is filled (or, for Team Matches, the team fees are in) and a FootyFinder referee is assigned 30 minutes before kick-off. Otherwise it is cancelled and everyone gets their money back. |
 | If the game is off before kick-off | Cancelled at the 30-minute check, by the Host or the home Team, or by us for weather or venue problems: your R80 comes back to your Wallet and held team money goes back to the Team Wallet. |

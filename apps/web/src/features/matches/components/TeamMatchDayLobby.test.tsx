@@ -40,6 +40,8 @@ vi.mock('../hooks/useMatches.js', () => ({
 
 const match: Match = {
   id: 'match-1',
+  freeOnFootyFinder: false,
+  firstTimersOnly: false,
   name: 'Private fixture',
   createdById: 'owner',
   mode: 'TEAM_MATCH',

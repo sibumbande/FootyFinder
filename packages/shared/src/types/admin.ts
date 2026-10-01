@@ -192,3 +192,39 @@ export interface FieldClosureResult {
   venue: ManagedVenue;
   clashes: FieldClosureClash[];
 }
+
+/** CEO touch-up batch 3, item 5: the outcome of marking or unmarking a free match. */
+export interface AdminFreeMatchResult {
+  matchId: string;
+  freeOnFootyFinder: boolean;
+  firstTimersOnly: boolean;
+  feeCents: number;
+}
+
+/**
+ * CEO touch-up batch 3, item 5: what free matches cost FootyFinder. `feesWaivedCents` is R80 x the players
+ * FootyFinder covered; `venueCostCents` is the real cash cost, the venue payable (raised at kickoff). Before
+ * kickoff the venue cost is the expected field price, flagged `venueCostKind: 'EXPECTED'`.
+ */
+export interface FreeMatchCostRow {
+  matchId: string;
+  name: string;
+  startsAt: string;
+  status: string;
+  firstTimersOnly: boolean;
+  playersCovered: number;
+  feesWaivedCents: number;
+  venueCostCents: number;
+  venueCostKind: 'PAYABLE' | 'EXPECTED' | 'NONE';
+}
+
+export interface FreeMatchCostReport {
+  matches: FreeMatchCostRow[];
+  totals: {
+    matchCount: number;
+    playersCovered: number;
+    feesWaivedCents: number;
+    venuePayableCents: number;
+    expectedVenueCostCents: number;
+  };
+}

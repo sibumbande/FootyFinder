@@ -139,6 +139,10 @@ export interface WalletReconciliationIssue {
 export type WalletReconciliationIssueCode =
   | 'BALANCE_LEDGER_MISMATCH'
   | 'PAYMENT_LEDGER_MISSING'
+  // CEO touch-up batch 3, item 5: free matches.
+  | 'FREE_MATCH_PAYMENT_NOT_ZERO'
+  | 'FREE_MATCH_COVER_MISSING'
+  | 'FREE_MATCH_COVER_WITHOUT_PLAYER'
   | 'BOOKING_CONTRIBUTION_LEDGER_MISSING'
   | 'NEGATIVE_AVAILABLE_BALANCE'
   | 'TERMINAL_DEPOSIT_INCONSISTENT'
