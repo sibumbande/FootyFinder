@@ -160,6 +160,11 @@ export const discoveryQuerySchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .default('false'),
+    /** CEO touch-up batch 3, item 8: still joinable (places left and before the 30-minute lobby lock). */
+    joinableOnly: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .default('false'),
     limit: z.coerce.number().int().min(1).max(200).default(200),
   })
   .strict();

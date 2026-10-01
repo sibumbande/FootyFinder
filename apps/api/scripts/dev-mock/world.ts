@@ -46,3 +46,7 @@ export function range(from: number, to: number) {
 }
 
 export const isDevSeedMatchName = (name: string) => name.startsWith(DEV_SEED_MATCH_PREFIX);
+
+/** CEO touch-up batch 3 (D10): a second, clearly labelled mock venue so the home carousel can be swiped locally. */
+export const DEV_SEED_VENUE_SLUG = 'dev-seed-mock-green-point-astro';
+export const DEV_SEED_VENUE_NAME = 'Mock: Green Point Astro';

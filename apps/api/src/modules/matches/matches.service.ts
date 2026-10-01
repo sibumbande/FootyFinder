@@ -81,10 +81,13 @@ export class MatchesService {
     private readonly teamMatches = new TeamMatchesService(),
   ) {}
 
-  async list(query: DiscoveryQuery) {
-    const repositoryQuery = query.availableOnly ? { ...query, limit: 200 } : query;
+  async list(query: DiscoveryQuery, now = new Date()) {
+    const filtered = query.availableOnly || query.joinableOnly;
+    const repositoryQuery = filtered ? { ...query, limit: 200 } : query;
     let matches = (await this.matches.listPublic(repositoryQuery)).map((match) => toMatch(match));
-    if (query.availableOnly)
+    // CEO touch-up batch 3, item 8: the home page lists only matches a player can still join.
+    if (query.joinableOnly) matches = matches.filter((match) => !isLobbyFrozen(match, now) && new Date(match.startsAt) > now);
+    if (filtered)
       matches = matches.filter(
         (match) =>
           !isMatchAtCapacity(

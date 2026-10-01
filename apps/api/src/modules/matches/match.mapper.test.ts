@@ -86,3 +86,19 @@ describe('match mapper capacity status', () => {
     });
   });
 });
+
+describe('home page upcoming matches (CEO batch 3, item 8)', () => {
+  it('lists only matches that can still be joined: places left and before the 30-minute lobby lock', async () => {
+    const { vi } = await import('vitest');
+    const { MatchesService } = await import('./matches.service.js');
+    const future = new Date(Date.now() + 3_600_000);
+    const open = { ...record(0), id: 'open', goNoGoAt: future };
+    const locked = { ...record(0), id: 'locked', goNoGoAt: new Date(Date.now() - 60_000) };
+    const full = { ...record(10), id: 'full', goNoGoAt: future };
+    const repository = { listPublic: vi.fn().mockResolvedValue([open, locked, full]) };
+    const service = new MatchesService(repository as never);
+    const listed = await service.list({ joinableOnly: true, availableOnly: false, limit: 5 });
+    expect(listed.map(({ id }) => id)).toEqual(['open']);
+    expect(repository.listPublic).toHaveBeenCalledWith(expect.objectContaining({ limit: 200 }));
+  });
+});

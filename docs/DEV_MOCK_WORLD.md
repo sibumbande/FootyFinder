@@ -8,7 +8,8 @@ A dev-only seed that fills your **local** `footy_finder` database with 30 mock p
 ## Before you start
 
 - Your own admin account exists, and the Terms of Service are published (`legal:publish` with `docs/legal/legal-launch.json`).
-- A published venue has a field that supports **5-a-side** and one that supports **7-a-side**. They can be the same field. Each needs a price for that format. The seed never creates or changes venues, fields, slots or prices. If one is missing, it stops and tells you which to create in Admin → Venues.
+- A published venue has a field that supports **5-a-side** and one that supports **7-a-side**. They can be the same field. Each needs a price for that format. The seed never changes your venues, fields, slots or prices. If one is missing, it stops and tells you which to create in Admin → Venues.
+- CEO touch-up batch 3 (D10): the seed also creates one clearly labelled mock venue, **"Mock: Green Point Astro"** (slug `dev-seed-mock-green-point-astro`, generated placeholder photos, a 5/7-a-side field open 06:00-23:00), so the home page venue carousel has more than one card to swipe. Scenario matches still use your own venue. `--reset-mock` removes it (or deactivates it if anything was booked on it).
 - The dev API (`npm run dev:api`) and the web app (`npm run dev:web`) are running. The API's job queue runs the T-30 check, and its match scheduler starts and ends matches.
 
 ## Commands (from `apps/api`; `.env` is loaded)
@@ -89,7 +90,7 @@ It ignores the field's opening hours (it's a time machine). Each shift is audite
 - **Started, finished and already-cancelled scenario matches are kept as history**, with their venue payables, lineups, results and reviews. Their ledger entries depend on them. They are marked "Kept as history by --reset-mock" in the description; their names already start with `[DEV SEED]`. A Team Match past its T-30 check that has not kicked off can't be cancelled by anyone; it is reported and left to play out.
 - **Mock teams** are closed through the normal team-closure path. Unspent team money goes back to each contributor's wallet, and the team is archived (never deleted). Their team chats and the mock players' notifications are cleared.
 - **Social:** recruitment posts are closed, join requests and friend requests from mock players are cancelled, looking cards are switched off, and friendships between mock players are removed. Your own friendships stay.
-- **Never touched:** your accounts, venues, fields, slots, prices, your own teams and matches, and the audit log.
+- **Never touched:** your accounts, your venues, fields, slots, prices, your own teams and matches, and the audit log. Only the mock venue above is removed.
 - The reset is audited (`DEV_SEED_MOCK_RESET`). The next seed run starts a new round with fresh teams and scenarios.
 
 ## Safety locks

@@ -21,6 +21,7 @@ import { DepositsService } from '../../src/modules/wallet/deposits.service.js';
 import { FriendsService } from '../../src/modules/social/friends.service.js';
 import { RecruitmentService } from '../../src/modules/social/recruitment.service.js';
 import { ShiftRefusedError, devSeedMatchLink, shiftDevSeedMatch } from './shift.js';
+import { ensureMockVenue, removeMockVenue } from './venue.js';
 import {
   DEV_SEED,
   DEV_SEED_BATCH_LABEL,
@@ -457,6 +458,8 @@ export async function seed(meEmail: string | undefined) {
   const round = await generation();
   console.log(`DEV SEED mock world, round ${round}\n`);
   const players = await ensurePlayers();
+  console.log('Mock venue');
+  await ensureMockVenue(log, players.get(1)!.id, players.get(2)!.id);
   await fundWallets(players, round);
   const teamIds = await ensureTeams(players);
   const meForSocial = meEmail ? await prisma.user.findUnique({ where: { email: meEmail.trim().toLowerCase() }, select: { id: true, isTestAccount: true } }) : null;
@@ -531,6 +534,8 @@ export async function resetMock(meEmail: string | undefined) {
   for (const line of summary.notCancelled) log(`Could not cancel (left as is): ${line}`);
 
   await resetSocial(userIds);
+  console.log('Mock venue');
+  await removeMockVenue(log);
   console.log('Mock teams');
   const teams = await prisma.team.findMany({ where: { ownerUserId: { in: userIds }, archivedAt: null } });
   for (const team of teams) {
