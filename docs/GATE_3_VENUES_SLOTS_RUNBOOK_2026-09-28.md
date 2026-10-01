@@ -21,6 +21,7 @@ Status: implementation complete in code; production venue data and database/brow
 4. A different MFA-verified administrator approves and publishes it.
 5. Any catalogue change returns the venue to draft. Emergency deactivation records actor, time, and reason and immediately removes the venue from public reads.
 6. CEO touch-up batch 3 (D1): photo edits on a **live** venue no longer return it to draft. Photos are uploaded (JPG/PNG/WebP, resized to 1600 px WebP plus a 400 px thumbnail, metadata stripped) and saved as a pending change; the venue stays live with its current photos until a different MFA-verified admin approves the change (or anyone rejects it). Draft venues apply photo edits directly. Smoke: `npm run smoke:venue-photos`. File storage for launch: `docs/LAUNCH_FILE_STORAGE.md`.
+7. CEO touch-up batch 3 (D1), field closures: an admin closes a field one-off or weekly (venue timezone, optional end date) with an internal reason. Closures go live immediately (fresh MFA, audited `FIELD_CLOSURE_CREATED/REMOVED`) and the venue stays live; closed times are never offered or bookable (`FIELD_CLOSED`). Matches already booked into a closure are listed under the field with "Cancel match (weather/venue)"; nothing is cancelled automatically. Closures and reasons never reach players. Smoke: `npm run smoke:field-closures`.
 
 Canonical slugs are not changed by ordinary updates. Alias lookup is supported for explicitly migrated historical slugs.
 

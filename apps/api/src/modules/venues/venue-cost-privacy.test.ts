@@ -9,7 +9,7 @@ const VENUE_COST_KEY =
   /price|amountCents|fromPrice|funded|remaining|guarantee|obligation|requiredCents/i;
 // CEO touch-up batch 2, item 7: the venue's own cancellation policy (an agreement between FootyFinder and the
 // venue) is admin-only too. Players and guests only ever see the FootyFinder rules (ToS clause 14).
-const VENUE_POLICY_KEY = /cancellationPolic|policyText|fullCreditBeforeHours|lateCreditPercent|venueCancellationPercent/i;
+const VENUE_POLICY_KEY = /cancellationPolic|policyText|fullCreditBeforeHours|lateCreditPercent|venueCancellationPercent|closure/i;
 const VENUE_POLICY_TEXT = 'VENUE-POLICY-SECRET full credit more than 24 hours before kickoff';
 const leakedKeys = (value: unknown, pattern: RegExp, path = '$'): string[] => {
   if (Array.isArray(value)) return value.flatMap((item, index) => leakedKeys(item, pattern, `${path}[${index}]`));
@@ -23,6 +23,8 @@ const leakedKeys = (value: unknown, pattern: RegExp, path = '$'): string[] => {
 const expectNoVenuePolicy = (json: unknown) => {
   expect(leakedKeys(json, VENUE_POLICY_KEY)).toEqual([]);
   expect(JSON.stringify(json)).not.toContain('VENUE-POLICY-SECRET');
+  // CEO touch-up batch 3, item 3: field closures and their internal reasons are admin-only too.
+  expect(JSON.stringify(json)).not.toContain('CLOSURE-SECRET');
 };
 const expectNoVenueCost = (payload: unknown) => {
   const json = JSON.parse(JSON.stringify(payload));
@@ -97,6 +99,7 @@ const venueRow = {
         endMinute: 1440,
       })),
       exceptions: [],
+      closures: [{ kind: 'ONE_OFF', startsAt: new Date('2099-01-01T08:00:00Z'), endsAt: new Date('2099-01-01T10:00:00Z'), dayOfWeek: null, startMinute: null, endMinute: null, startsOn: null, endsOn: null, reason: 'CLOSURE-SECRET club training' }],
     },
   ],
 };

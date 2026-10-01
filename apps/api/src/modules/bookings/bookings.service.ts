@@ -25,6 +25,7 @@ import { toPublicUser } from '../users/user.mapper.js';
 import { FinancialInsufficientFundsError, FinancialRepository } from '../wallet/financial.repository.js';
 import { createMatchInviteToken, hashMatchInviteToken } from '../matches/invite-token.js';
 import { createPublicMatchSlug } from '../matches/public-match.js';
+import { activeClosures, overlapsClosure } from '../venues/field-closures.js';
 
 const bookingInclude = {
   match: { include: matchInclude },
@@ -108,11 +109,13 @@ export class BookingsService {
     const endsAt = new Date(startsAt.getTime() + MATCH_DURATION_MINUTES * 60_000);
     const field = await tx.managedField.findUnique({
       where: { id: fieldId },
-      include: { venue: { include: { cancellationPolicies: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] }, orderBy: { effectiveFrom: 'desc' } } } }, supportedFormats: true, availabilityPeriods: true, exceptions: { where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }, prices: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] } } },
+      include: { venue: { include: { cancellationPolicies: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] }, orderBy: { effectiveFrom: 'desc' } } } }, supportedFormats: true, availabilityPeriods: true, exceptions: { where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }, closures: activeClosures, prices: { where: { effectiveFrom: { lte: startsAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: startsAt } }] } } },
     });
     if (!field || !field.venue.isActive || field.venue.publicationStatus !== 'PUBLISHED' || field.status !== 'ACTIVE') throw new AppError(409, 'That field is not bookable.', 'FIELD_NOT_BOOKABLE');
     if (!field.supportedFormats.some((item) => item.format === format)) throw new AppError(409, 'That field does not support this format.', 'FIELD_FORMAT_UNSUPPORTED');
     if (!isWithinFieldAvailability(field, startsAt, endsAt)) throw new AppError(409, 'That time is outside field availability.', 'FIELD_UNAVAILABLE');
+    // CEO touch-up batch 3, item 3: a closed time can never be booked.
+    if (overlapsClosure(field.closures, startsAt, endsAt, field.venue.timezone)) throw new AppError(409, 'The field is closed at that time. Choose another slot.', 'FIELD_CLOSED');
     const local = localParts(startsAt, field.venue.timezone);
     const price = field.prices
       .filter((item) => !item.format || item.format === format)

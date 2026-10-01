@@ -7,7 +7,7 @@ import type {
   ManagedVenueMediaInput,
   VenueCancellationPolicyInput,
 } from '@footy-finder/shared';
-import type { ManagedVenue, VenueContentChangeView, VenueContentPayload } from '@footy-finder/shared';
+import type { FieldClosure, ManagedVenue, VenueContentChangeView, VenueContentPayload } from '@footy-finder/shared';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
@@ -21,6 +21,7 @@ export const include = {
       supportedFormats: true,
       availabilityPeriods: { orderBy: [{ dayOfWeek: 'asc' as const }, { startMinute: 'asc' as const }] },
       exceptions: { orderBy: { startsAt: 'asc' as const } },
+      closures: { where: { removedAt: null }, orderBy: { createdAt: 'asc' as const } },
       prices: { orderBy: { effectiveFrom: 'desc' as const } },
     },
     orderBy: { name: 'asc' as const },
@@ -91,6 +92,7 @@ export const venueDto = (venue: CatalogVenue): ManagedVenue => ({
       available: exception.available,
       ...(exception.reason ? { reason: exception.reason } : {}),
     })),
+    closures: field.closures.map(closureDto),
     prices: field.prices.map((price) => ({
       id: price.id,
       amountCents: price.amountCents,
@@ -105,6 +107,20 @@ export const venueDto = (venue: CatalogVenue): ManagedVenue => ({
     createdAt: field.createdAt.toISOString(),
     updatedAt: field.updatedAt.toISOString(),
   })),
+});
+
+export const closureDto = (closure: CatalogVenue['fields'][number]['closures'][number]): FieldClosure => ({
+  id: closure.id,
+  kind: closure.kind,
+  ...(closure.startsAt ? { startsAt: closure.startsAt.toISOString() } : {}),
+  ...(closure.endsAt ? { endsAt: closure.endsAt.toISOString() } : {}),
+  ...(closure.dayOfWeek === null ? {} : { dayOfWeek: closure.dayOfWeek }),
+  ...(closure.startMinute === null ? {} : { startMinute: closure.startMinute }),
+  ...(closure.endMinute === null ? {} : { endMinute: closure.endMinute }),
+  ...(closure.startsOn ? { startsOn: closure.startsOn.toISOString().slice(0, 10) } : {}),
+  ...(closure.endsOn ? { endsOn: closure.endsOn.toISOString().slice(0, 10) } : {}),
+  reason: closure.reason,
+  createdAt: closure.createdAt.toISOString(),
 });
 
 const contentChangeView = (change: CatalogVenue['contentChanges'][number]): VenueContentChangeView => ({

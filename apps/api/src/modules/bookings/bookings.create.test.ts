@@ -52,6 +52,7 @@ const field = {
     endMinute: 1440,
   })),
   exceptions: [],
+  closures: [],
   prices: [
     {
       id: 'price-1',

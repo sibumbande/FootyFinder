@@ -9,6 +9,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { adminClient } from './api.js';
+import { FieldClosures } from './FieldClosures.js';
 import { VenuePhotos } from './VenuePhotos.js';
 
 const venuesKey = ['admin', 'venues'] as const;
@@ -61,9 +62,6 @@ function FieldEditor({ field }: { field: ManagedField }) {
   const [day, setDay] = useState(1);
   const [start, setStart] = useState('08:00');
   const [end, setEnd] = useState('22:00');
-  const [exceptionStart, setExceptionStart] = useState('');
-  const [exceptionEnd, setExceptionEnd] = useState('');
-  const [exceptionReason, setExceptionReason] = useState('');
   const [price, setPrice] = useState('800');
   const [priceFrom, setPriceFrom] = useState('');
   const [priceTo, setPriceTo] = useState('');
@@ -129,29 +127,19 @@ function FieldEditor({ field }: { field: ManagedField }) {
       </details>
 
       <details>
-        <summary>Closures and availability exceptions</summary>
-        <div className="stack inset">
-          {field.exceptions.map((exception) => (
-            <div className="row between" key={exception.id}>
-              <span><strong>{exception.available ? 'Open' : 'Closed'}</strong> · {new Date(exception.startsAt).toLocaleString()}–{new Date(exception.endsAt).toLocaleString()} {exception.reason ? `· ${exception.reason}` : ''}</span>
-              <button className="danger small" disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.removeFieldException(field.id, exception.id))}>Remove</button>
-            </div>
-          ))}
-          <form className="form-grid three" onSubmit={(event) => {
-            event.preventDefault();
-            mutation.mutate(() => adminClient.addFieldException(field.id, {
-              startsAt: new Date(exceptionStart).toISOString(),
-              endsAt: new Date(exceptionEnd).toISOString(),
-              available: false,
-              ...(exceptionReason ? { reason: exceptionReason } : {}),
-            }));
-          }}>
-            <label>Closure begins<input type="datetime-local" value={exceptionStart} onChange={(event) => setExceptionStart(event.target.value)} required /></label>
-            <label>Closure ends<input type="datetime-local" value={exceptionEnd} onChange={(event) => setExceptionEnd(event.target.value)} required /></label>
-            <label>Reason<input value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></label>
-            <button disabled={mutation.isPending}>Add closure</button>
-          </form>
-        </div>
+        <summary>Closures (one-off and weekly)</summary>
+        <FieldClosures field={field} venuesKey={venuesKey} />
+        {field.exceptions.length > 0 && (
+          <div className="stack inset">
+            <p className="muted">Older availability exceptions (removing one returns the venue to draft):</p>
+            {field.exceptions.map((exception) => (
+              <div className="row between" key={exception.id}>
+                <span><strong>{exception.available ? 'Open' : 'Closed'}</strong> · {new Date(exception.startsAt).toLocaleString()}–{new Date(exception.endsAt).toLocaleString()} {exception.reason ? `· ${exception.reason}` : ''}</span>
+                <button className="danger small" disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.removeFieldException(field.id, exception.id))}>Remove</button>
+              </div>
+            ))}
+          </div>
+        )}
       </details>
 
       <details>

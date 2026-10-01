@@ -275,6 +275,11 @@ enum VenuePublicationStatus {
   DEACTIVATED
 }
 
+enum FieldClosureKind {
+  ONE_OFF
+  WEEKLY
+}
+
 enum VenueLinkType {
   WEBSITE
   INSTAGRAM
@@ -598,6 +603,8 @@ model User {
   venuePhotoUploads         VenuePhotoFile[]
   venueContentSubmitted     VenueContentChange[]      @relation("VenueContentSubmitter")
   venueContentDecided       VenueContentChange[]      @relation("VenueContentDecider")
+  fieldClosuresCreated      ManagedFieldClosure[]     @relation("FieldClosureCreator")
+  fieldClosuresRemoved      ManagedFieldClosure[]     @relation("FieldClosureRemover")
   providerPayments          ProviderPayment[]
   initiatedRefunds          ProviderRefund[]          @relation("RefundInitiator")
   linkedBeneficiaries       VenueBeneficiary[]        @relation("BeneficiaryLinkedUser")
@@ -895,6 +902,28 @@ model ManagedVenueMedia {
   @@index([venueId])
 }
 
+/// CEO touch-up batch 3, item 3: a one-off or weekly field closure (admin-only; reason never shown to players).
+model ManagedFieldClosure {
+  id              String           @id @default(uuid()) @db.Uuid
+  fieldId         String           @db.Uuid
+  kind            FieldClosureKind
+  startsAt        DateTime?
+  endsAt          DateTime?
+  dayOfWeek       Int?
+  startMinute     Int?
+  endMinute       Int?
+  startsOn        DateTime?        @db.Date
+  endsOn          DateTime?        @db.Date
+  reason          String
+  createdByUserId String           @db.Uuid
+  createdAt       DateTime         @default(now())
+  removedAt       DateTime?
+  removedByUserId String?          @db.Uuid
+  field           ManagedField     @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  createdBy       User             @relation("FieldClosureCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  removedBy       User?            @relation("FieldClosureRemover", fields: [removedByUserId], references: [id], onDelete: Restrict)
+}
+
 /// CEO touch-up batch 3, item 2: up to five https links per venue.
 model ManagedVenueLink {
   id        String        @id @default(uuid()) @db.Uuid
@@ -983,6 +1012,7 @@ model ManagedField {
   supportedFormats        ManagedFieldSupportedFormat[]
   availabilityPeriods     ManagedFieldAvailability[]
   exceptions              ManagedFieldException[]
+  closures                ManagedFieldClosure[]
   prices                  ManagedFieldPrice[]
   reservations            FieldReservation[]
 

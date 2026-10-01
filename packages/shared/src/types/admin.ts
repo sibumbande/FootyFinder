@@ -61,6 +61,8 @@ export interface ManagedField {
   supportedFormats: Array<'FIVE_A_SIDE' | 'SEVEN_A_SIDE' | 'ELEVEN_A_SIDE'>;
   availabilityPeriods: ManagedFieldAvailability[];
   exceptions: ManagedFieldException[];
+  /** CEO touch-up batch 3, item 3: active closures (admin-only). */
+  closures: FieldClosure[];
   prices: ManagedFieldPrice[];
   createdAt: string;
   updatedAt: string;
@@ -160,4 +162,33 @@ export interface VenueContentChangeView {
   submittedByUserId: string;
   submittedAt: string;
   payload: VenueContentPayload;
+}
+
+/** CEO touch-up batch 3, item 3: a one-off or weekly field closure (admin-only; the reason is internal). */
+export interface FieldClosure {
+  id: string;
+  kind: 'ONE_OFF' | 'WEEKLY';
+  startsAt?: string;
+  endsAt?: string;
+  dayOfWeek?: number;
+  startMinute?: number;
+  endMinute?: number;
+  startsOn?: string;
+  endsOn?: string;
+  reason: string;
+  createdAt: string;
+}
+
+/** An upcoming match whose booked time falls inside a closure. Never cancelled automatically. */
+export interface FieldClosureClash {
+  matchId: string;
+  matchName: string;
+  status: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface FieldClosureResult {
+  venue: ManagedVenue;
+  clashes: FieldClosureClash[];
 }

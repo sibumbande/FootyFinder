@@ -137,6 +137,34 @@ export const venueContentInputSchema = z.object({
 export type VenueContentInput = z.input<typeof venueContentInputSchema>;
 export type VenueContentData = z.infer<typeof venueContentInputSchema>;
 
+/**
+ * CEO touch-up batch 3, item 3: close a field for a one-off time range, or weekly (day and local times in the
+ * venue's timezone) from a start date with an optional end date. The reason is internal (admins only).
+ */
+const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
+const closureReason = z.string().trim().min(3, 'Give an internal reason (at least 3 characters).').max(240);
+export const fieldClosureInputSchema = z.union([
+  z.object({ kind: z.literal('ONE_OFF'), startsAt: z.string().datetime(), endsAt: z.string().datetime(), reason: closureReason }),
+  z.object({
+    kind: z.literal('WEEKLY'),
+    dayOfWeek: z.number().int().min(0).max(6),
+    startMinute: z.number().int().min(0).max(1439),
+    endMinute: z.number().int().min(1).max(1440),
+    startsOn: localDate,
+    endsOn: localDate.optional(),
+    reason: closureReason,
+  }),
+]).superRefine((value, context) => {
+  if (value.kind === 'ONE_OFF' && value.startsAt >= value.endsAt)
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['endsAt'], message: 'The closure must end after it starts.' });
+  if (value.kind === 'WEEKLY' && value.startMinute >= value.endMinute)
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['endMinute'], message: 'The closure must end after it starts.' });
+  if (value.kind === 'WEEKLY' && value.endsOn && value.endsOn < value.startsOn)
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['endsOn'], message: 'The end date must be on or after the start date.' });
+});
+export type FieldClosureInput = z.infer<typeof fieldClosureInputSchema>;
+export const fieldClosureRemovalSchema = z.object({ reason: closureReason });
+
 export const venueContentDecisionSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 
 export const venueCancellationPolicyInputSchema = z.object({

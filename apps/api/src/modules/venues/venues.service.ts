@@ -1,6 +1,7 @@
 import type { MatchFormat, PublicVenueCard, PublicVenueDetail, VenueAvailabilitySlot, VenueSlotsQuery } from '@footy-finder/shared';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';
+import { activeClosures, overlapsClosure } from './field-closures.js';
 
 const venueInclude = {
   media: { orderBy: { sortOrder: 'asc' as const } },
@@ -12,6 +13,8 @@ const venueInclude = {
       prices: { orderBy: { amountCents: 'asc' as const } },
       availabilityPeriods: true,
       exceptions: true,
+      // CEO touch-up batch 3, item 3: used to skip closed times; never mapped into public DTOs.
+      closures: activeClosures,
     },
     orderBy: { name: 'asc' as const },
   },
@@ -143,6 +146,7 @@ export class VenuesService {
         const weekly = field.availabilityPeriods.some((item) => item.dayOfWeek === local.weekday && item.startMinute <= minute && item.endMinute >= minute + 60);
         const availableException = exceptions.some((item) => item.available && item.startsAt <= startsAt && item.endsAt >= endsAt);
         if (exceptions.some((item) => !item.available) || (!weekly && !availableException)) continue;
+        if (overlapsClosure(field.closures, startsAt, endsAt, venue!.timezone)) continue;
         if (reservations.some((item) => item.startsAt < new Date(endsAt.getTime() + field.turnaroundBufferMinutes * 60_000) && new Date(item.endsAt.getTime() + item.turnaroundBufferMinutesSnapshot * 60_000) > startsAt)) continue;
         const price = applicablePrice(field.prices, startsAt, query.format, venue!.timezone);
         if (!price) continue;

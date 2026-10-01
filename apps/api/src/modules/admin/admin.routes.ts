@@ -12,6 +12,7 @@ import * as teamReviews from '../team-reviews/team-reviews.controller.js';
 import * as social from '../social/social.controller.js';
 import * as matchCancel from '../matches/admin-match-cancel.controller.js';
 import * as venueContent from './venue-content.controller.js';
+import * as fieldClosures from './field-closures.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -39,6 +40,7 @@ registerUuidRouteParams(adminRouter, [
   'postId',
   'cardId',
   'changeId',
+  'closureId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -73,6 +75,10 @@ adminRouter.delete(
   controller.removeFieldException,
 );
 adminRouter.post('/fields/:fieldId/prices', costlyMutationRateLimit, controller.addFieldPrice);
+// CEO touch-up batch 3, item 3 (D1): closures go live immediately with fresh MFA, a reason and an audit entry.
+adminRouter.post('/fields/:fieldId/closures', requireRecentAdminMfa, costlyMutationRateLimit, fieldClosures.addFieldClosure);
+adminRouter.post('/fields/:fieldId/closures/:closureId/remove', requireRecentAdminMfa, costlyMutationRateLimit, fieldClosures.removeFieldClosure);
+adminRouter.get('/fields/:fieldId/closure-clashes', fieldClosures.fieldClosureClashes);
 adminRouter.get('/support/tickets', controller.listSupportTickets);
 adminRouter.get('/support/tickets/:ticketId', controller.getSupportTicket);
 adminRouter.post(

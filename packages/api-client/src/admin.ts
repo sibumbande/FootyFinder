@@ -14,6 +14,9 @@ import type {
   VenueCancellationPolicyInput,
   VenueContentInput,
   VenuePhotoUpload,
+  FieldClosureInput,
+  FieldClosureResult,
+  FieldClosureClash,
   AdminSupportListQuery,
   AdminSupportReplyInput,
   UpdateSupportTicketInput,
@@ -199,6 +202,13 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: ManagedVenue }>(`/admin/venue-content-changes/${changeId}/approve`, { method: 'POST' }),
   rejectVenueContentChange: (changeId: string, reason: string) =>
     client.request<{ data: ManagedVenue }>(`/admin/venue-content-changes/${changeId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  /** CEO touch-up batch 3, item 3: closures go live immediately (fresh MFA, reason, audit). */
+  addFieldClosure: (fieldId: string, input: FieldClosureInput) =>
+    client.request<{ data: FieldClosureResult }>(`/admin/fields/${fieldId}/closures`, { method: 'POST', body: JSON.stringify(input) }),
+  removeFieldClosure: (fieldId: string, closureId: string, reason: string) =>
+    client.request<{ data: ManagedVenue }>(`/admin/fields/${fieldId}/closures/${closureId}/remove`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  fieldClosureClashes: (fieldId: string) =>
+    client.request<{ data: FieldClosureClash[] }>(`/admin/fields/${fieldId}/closure-clashes`),
   addVenueCancellationPolicy: (venueId: string, input: VenueCancellationPolicyInput) =>
     client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/cancellation-policies`, { method: 'POST', body: JSON.stringify(input) }),
   submitVenue: (venueId: string) => client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/submit`, { method: 'POST' }),
