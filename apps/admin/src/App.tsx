@@ -16,6 +16,7 @@ import { MatchRefereesPage } from './MatchRefereesPage.js';
 import { ResultsPage } from './ResultsPage.js';
 import { TeamReviewsPage } from './TeamReviewsPage.js';
 import { RecruitmentPage } from './RecruitmentPage.js';
+import { ThemeToggle } from './theme.js';
 
 const meKey = ['admin', 'me'] as const;
 const mfaKey = ['admin', 'mfa'] as const;
@@ -339,44 +340,62 @@ function AuditLog() {
   );
 }
 
+const NAV_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, string]>]> = [
+  ['Overview', [['/', 'Dashboard']]],
+  ['Matches', [['/matches', 'Load matches'], ['/match-referees', 'Match referees'], ['/results', 'Results']]],
+  ['Venues', [['/venues', 'Venues & fields']]],
+  ['Money', [['/finance', 'Finance'], ['/settlement', 'Venue settlement']]],
+  ['People and safety', [['/support', 'Support inbox'], ['/moderation', 'Moderation'], ['/disputes', 'Disputes'], ['/referees', 'Referees'], ['/team-reviews', 'Team reviews'], ['/recruitment', 'Recruitment']]],
+  ['System', [['/test-data', 'Test data'], ['/audit', 'Audit log']]],
+];
+
 function AdminShell() {
   const cache = useQueryClient();
   const logout = useMutation({
     mutationFn: () => authClient.logout(),
     onSuccess: () => cache.clear(),
   });
+  const [menuOpen, setMenuOpen] = useState(false);
+  const close = () => setMenuOpen(false);
+  // CEO touch-up batch 3.5, item 3: a grouped menu that scrolls on its own, with the theme toggle and
+  // Log out always on screen (desktop) or in the Menu (phones).
   return (
     <div className="app-shell">
-      <aside>
-        <div className="admin-brand">
-          <span className="admin-brand-mark" aria-hidden="true">
-            88
-          </span>
-          <div>
-            <p className="eyebrow">Footy Finder</p>
-            <h1>Operations</h1>
+      <aside className={menuOpen ? 'menu-open' : undefined}>
+        <div className="side-top">
+          <div className="admin-brand">
+            <span className="admin-brand-mark" aria-hidden="true">
+              88
+            </span>
+            <div>
+              <p className="eyebrow">Footy Finder</p>
+              <h1 className="brand-title">Operations</h1>
+            </div>
+          </div>
+          <button type="button" className="ghost menu-button" aria-expanded={menuOpen} aria-controls="admin-menu" onClick={() => setMenuOpen((open) => !open)}>
+            {menuOpen ? 'Close' : 'Menu'}
+          </button>
+        </div>
+        <div className="side-menu" id="admin-menu">
+          <nav aria-label="Admin sections">
+            {NAV_GROUPS.map(([heading, links]) => (
+              <div className="nav-group" key={heading}>
+                <p className="nav-heading">{heading}</p>
+                {links.map(([to, label]) => (
+                  <NavLink key={to} to={to} end={to === '/'} onClick={close}>
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            ))}
+          </nav>
+          <div className="side-footer">
+            <ThemeToggle />
+            <button className="ghost logout" onClick={() => logout.mutate()}>
+              Log out
+            </button>
           </div>
         </div>
-        <nav>
-          <NavLink to="/">Dashboard</NavLink>
-          <NavLink to="/venues">Venues & fields</NavLink>
-          <NavLink to="/support">Support inbox</NavLink>
-          <NavLink to="/test-data">Test data</NavLink>
-          <NavLink to="/finance">Finance</NavLink>
-          <NavLink to="/settlement">Venue settlement</NavLink>
-          <NavLink to="/matches">Load Matches</NavLink>
-          <NavLink to="/moderation">Moderation</NavLink>
-          <NavLink to="/disputes">Disputes</NavLink>
-          <NavLink to="/referees">Referees</NavLink>
-          <NavLink to="/match-referees">Match referees</NavLink>
-          <NavLink to="/results">Results</NavLink>
-          <NavLink to="/team-reviews">Team reviews</NavLink>
-          <NavLink to="/recruitment">Recruitment</NavLink>
-          <NavLink to="/audit">Audit log</NavLink>
-        </nav>
-        <button className="ghost" onClick={() => logout.mutate()}>
-          Log out
-        </button>
       </aside>
       <main className="content">
         <Routes>

@@ -7,6 +7,9 @@ import { assertDisposableTestDatabase } from '../../apps/api/src/database/test-d
  * Disposable browser-test fixtures (players, a published venue, a team) on the disposable test
  * database, plus a cleanup that removes everything created under the marker.
  */
+/** The API the browser tests talk to (override with E2E_API_URL to run against side-port servers). */
+export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+
 export function createFixtures(prefix: string) {
   assertDisposableTestDatabase({ databaseUrl: process.env.DATABASE_URL, nodeEnv: process.env.NODE_ENV });
   const prisma = new PrismaClient({
@@ -30,8 +33,8 @@ export function createFixtures(prefix: string) {
     options: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
   ): Promise<ApiResult<T>> {
     return page.evaluate(
-      async ({ path, options }) => {
-        const response = await fetch(`http://localhost:3000${path}`, {
+      async ({ path, options, base }) => {
+        const response = await fetch(`${base}${path}`, {
           method: options.method ?? 'GET',
           credentials: 'include',
           headers: { ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...options.headers },
@@ -39,15 +42,15 @@ export function createFixtures(prefix: string) {
         });
         return { status: response.status, body: await response.json() };
       },
-      { path, options },
+      { path, options, base: API_URL },
     );
   }
 
-  async function register(page: Page, suffix: string, firstName: string) {
+  async function register(page: Page, suffix: string, firstName: string, email = `${marker}-${suffix}@test.invalid`) {
     const response = await api<{ id: string }>(page, '/auth/register', {
       method: 'POST',
       body: {
-        email: `${marker}-${suffix}@test.invalid`,
+        email,
         username: `${marker.replaceAll('-', '')}_${suffix}`.slice(0, 30),
         firstName,
         lastName: 'Mobile Test',
@@ -129,7 +132,7 @@ export function createFixtures(prefix: string) {
   function recordResponses(page: Page) {
     const bodies: string[] = [];
     page.on('response', async (response) => {
-      if (!response.url().startsWith('http://localhost:3000') || !(response.headers()['content-type'] ?? '').includes('json')) return;
+      if (!response.url().startsWith(API_URL) || !(response.headers()['content-type'] ?? '').includes('json')) return;
       try {
         bodies.push(await response.text());
       } catch {
@@ -176,5 +179,23 @@ export function createFixtures(prefix: string) {
     expect(await prisma.user.count({ where: { email: { startsWith: marker } } })).toBe(0);
   }
 
-  return { prisma, marker, PASSWORD, VENUE_PRICE_CENTS, api, register, deposit, createTeam, contribute, createPublishedVenue, recordResponses, cleanFixtures };
+  /**
+   * CEO touch-up batch 3.5, item 3: a platform admin whose session has passed the admin MFA check just now.
+   * Its email does not start with the marker: admins write permanent audit rows, so they are never deleted.
+   */
+  async function registerAdmin(page: Page, suffix = 'adm') {
+    const email = `admin-${suffix}-${marker}@test.invalid`;
+    const { id } = await register(page, suffix, 'Admin', email);
+    // Detached from the disposable test batch, which is deleted at clean-up while the admin stays.
+    await prisma.user.update({ where: { id }, data: { platformRole: 'ADMIN', isTestAccount: false, testDataBatchId: null } });
+    await verifyAdminSession(id);
+    return { id, email };
+  }
+
+  /** Marks the admin's sessions as MFA-verified at the given time (now = fresh enough for fresh-MFA actions). */
+  async function verifyAdminSession(userId: string, at = new Date()) {
+    await prisma.authSession.updateMany({ where: { userId, revokedAt: null }, data: { adminVerifiedAt: at } });
+  }
+
+  return { prisma, marker, PASSWORD, VENUE_PRICE_CENTS, api, register, registerAdmin, verifyAdminSession, deposit, createTeam, contribute, createPublishedVenue, recordResponses, cleanFixtures };
 }
