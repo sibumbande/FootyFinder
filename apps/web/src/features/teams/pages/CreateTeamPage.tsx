@@ -82,8 +82,8 @@ export function CreateTeamPage() {
       </div>
       <div className="rounded-3xl border border-line bg-surface p-5 shadow-soft sm:p-8">
         {step === 0 && (
-          <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
-            <div className="grid gap-4">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
               <Input
                 label="Team name"
                 value={name}
@@ -123,7 +123,7 @@ export function CreateTeamPage() {
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   onChange={(event) => setImage(event.target.files?.[0])}
-                  className="rounded-xl border border-line-strong bg-surface p-3 font-normal"
+                  className="w-full min-w-0 rounded-xl border border-line-strong bg-surface p-3 font-normal"
                 />
                 <span className="font-normal text-content-muted">
                   PNG, JPEG or WEBP, up to 5 MB.

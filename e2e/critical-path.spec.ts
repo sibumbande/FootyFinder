@@ -368,7 +368,8 @@ test.describe('browser critical path', () => {
         rollingSubstitutes: true,
         rules: ['GOALKEEPERS_SWAP_AFTER_EVERY_GOAL'],
         visibility: 'PUBLIC',
-        startsAt: new Date(venueFixture.startsAt.getTime() + 3 * 60 * 60_000).toISOString(),
+        // Same time the next day: "+3 hours" could cross midnight late in the evening, which bookings refuse.
+        startsAt: new Date(venueFixture.startsAt.getTime() + 24 * 60 * 60_000).toISOString(),
         managedFieldId: venueFixture.field.id,
         playAsTeamId: team.body.data!.id,
         otherSideMode: 'TEAMS_ONLY',

@@ -291,7 +291,7 @@ function TeamSettings({ team }: { team: TeamDetail }) {
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            className="rounded-xl border border-line-strong p-3"
+            className="w-full min-w-0 rounded-xl border border-line-strong p-3"
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) image.mutate(file);

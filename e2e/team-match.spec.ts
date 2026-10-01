@@ -268,9 +268,9 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
 
     // Team chat: a member sees the captain's message arrive live.
     await memberPage.goto(`/teams/${homeTeamId}`);
-    await memberPage.getByRole('button', { name: 'chat' }).click();
+    await memberPage.getByRole('tab', { name: 'chat' }).click();
     await homePage.goto(`/teams/${homeTeamId}`);
-    await homePage.getByRole('button', { name: 'chat' }).click();
+    await homePage.getByRole('tab', { name: 'chat' }).click();
     await homePage.getByPlaceholder('Message your team').fill('Meters are full, see you Saturday');
     await homePage.getByRole('button', { name: 'Send' }).click();
     await expect(memberPage.getByText('Meters are full, see you Saturday')).toBeVisible({ timeout: 5_000 });
