@@ -12,6 +12,7 @@ const query = (filters: Record<string, string | undefined> = {}) => {
 /** Gate 9 / TKT-910: read-only guest browsing (no account). */
 export const publicApi = (client: ApiClient) => ({
   matches: (format?: MatchFormat) => client.request<{ data: PublicMatchPreview[] }>(`/public/matches${query({ format })}`),
+  matchById: (matchId: string) => client.request<{ data: PublicMatchPreview }>(`/public/matches/by-id/${id(matchId)}`),
   team: (teamId: string) => client.request<{ data: PublicTeamView }>(`/public/teams/${id(teamId)}`),
   player: (userId: string) => client.request<{ data: GuestPlayerProfile }>(`/public/players/${id(userId)}`),
   recruitmentPosts: (filters?: RecruitmentFilters) => client.request<{ data: RecruitmentPostView[] }>(`/public/recruitment/posts${query(filters)}`),

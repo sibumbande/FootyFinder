@@ -5,6 +5,7 @@ import { MatchListPage } from './MatchListPage.js';
 
 const mocks = vi.hoisted(() => ({ useMatches: vi.fn() }));
 vi.mock('../hooks/useMatches.js', () => ({ useMatches: mocks.useMatches }));
+vi.mock('@/features/auth/hooks/useAuth.js', () => ({ useAuth: () => ({ user: { id: 'member-1' }, isPending: false }) }));
 
 describe('MatchListPage', () => {
   it('uses only supported discovery filters and never requests browser location', () => {

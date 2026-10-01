@@ -66,6 +66,12 @@ export const rethrowOtherSideError = (error: unknown) => {
     throw new AppError(409, "You can't play against your own team.", 'OWN_TEAM_CONFLICT');
 };
 
+/** CEO touch-up batch 2, item 5: how many starting positions on one side are taken (never by whom). */
+const sideCount = (slots: Array<{ participantId: string | null; team: 'HOME' | 'AWAY' }>, team: 'HOME' | 'AWAY') => {
+  const side = slots.filter((slot) => slot.team === team);
+  return { filled: side.filter(({ participantId }) => participantId).length, total: side.length };
+};
+
 export class MatchesService {
   constructor(
     private readonly matches = new MatchesRepository(),
@@ -134,6 +140,12 @@ export class MatchesService {
       throw new AppError(404, 'Public match not found.', 'PUBLIC_MATCH_NOT_FOUND');
     return this.toPublicPreview(match);
   }
+  async publicPreviewById(id: string): Promise<PublicMatchPreview> {
+    const match = await this.matches.findPublicPreviewById(id);
+    if (!match)
+      throw new AppError(404, 'Public match not found.', 'PUBLIC_MATCH_NOT_FOUND');
+    return this.toPublicPreview(match);
+  }
   /** Gate 9 / TKT-910: upcoming public matches anyone can browse (counts only, no names). */
   async publicList(query: { format?: MatchFormat } = {}, now = new Date()) {
     const matches = await this.matches.findPublicPreviews({
@@ -190,6 +202,10 @@ export class MatchesService {
       positions: {
         filled: individualSlots.filter(({ participantId }) => participantId).length,
         total: individualSlots.length,
+      },
+      sides: {
+        home: sideCount(match.formationSlots, 'HOME'),
+        away: sideCount(match.formationSlots, 'AWAY'),
       },
       ...(match.otherSideMode && {
         teamMatch: {

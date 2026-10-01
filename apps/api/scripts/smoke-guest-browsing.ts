@@ -66,6 +66,11 @@ async function main() {
   assert(!JSON.stringify(list.body).match(PRIVATE) && !JSON.stringify(list.body).includes('Scorer'), 'The public list exposed a name or private data.');
   const played = await guest().get(`/public/matches/${finished.publicSlug}`).expect(200);
   assert(played.body.data.result?.goals?.[0]?.scorer?.length && played.body.data.result.homeScore === 1, 'The played match does not show its scorer.');
+  // CEO touch-up batch 2, item 5: a guest opening a /matches/:id link gets the same counts-only view; private matches stay hidden.
+  const byId = await guest().get(`/public/matches/by-id/${upcoming.id}`).expect(200);
+  assert(byId.body.data.slug === upcoming.publicSlug && byId.body.data.capacity.filled === 1 && byId.body.data.sides, 'The guest match view by id is wrong.');
+  assert(!JSON.stringify(byId.body).match(PRIVATE) && !JSON.stringify(byId.body).includes('Scorer') && !JSON.stringify(byId.body).includes(scorer!.id), 'The guest match view by id exposed a name or private data.');
+  await guest().get(`/public/matches/by-id/${hidden.id}`).expect(404);
 
   // Team page, player profile and recruitment board.
   const teamView = await guest().get(`/public/teams/${team.id}`).expect(200);

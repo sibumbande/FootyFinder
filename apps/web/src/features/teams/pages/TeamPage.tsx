@@ -7,7 +7,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { formatDate } from '@/utils/format-date.js';
-import { TeamAvatar } from '../components/TeamAvatar.js';
+import { TeamHeroView, TeamTabs } from '../components/TeamHeroView.js';
 import { TeamFormationEditor } from '../components/TeamFormationEditor.js';
 import { TeamInvitePanel } from '../components/TeamInvitePanel.js';
 import { TeamWalletPanel } from '../components/TeamWalletPanel.js';
@@ -48,20 +48,7 @@ export function TeamPage() {
           This team was closed on {formatDate(team.data.archivedAt!)}. Its history is kept, and any unspent contributions were returned to each contributor&apos;s wallet.
         </p>
       )}
-      <nav
-        className="flex gap-1 overflow-x-auto rounded-xl bg-surface-muted p-1"
-        aria-label="Team sections"
-      >
-        {allowedTabs.map((item) => (
-          <button
-            key={item}
-            onClick={() => setTab(item)}
-            className={`min-h-10 whitespace-nowrap rounded-lg px-4 text-sm font-bold capitalize ${tab === item ? 'bg-surface text-brand-700 shadow-sm' : 'text-content-muted'}`}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
+      <TeamTabs tabs={allowedTabs} current={tab} onChange={setTab} />
       <div className="rounded-3xl border border-line bg-surface p-5 shadow-sm sm:p-7">
         {tab === 'overview' && <Overview team={team.data} />}
         {tab === 'matches' && <TeamMatches team={team.data} />}
@@ -77,41 +64,20 @@ export function TeamPage() {
 }
 function TeamHero({ team }: { team: TeamDetail }) {
   return (
-    <header className="overflow-hidden rounded-3xl border border-line bg-surface shadow-soft">
-      <div
-        className="h-24 sm:h-32"
-        style={{
-          background: `linear-gradient(120deg, ${team.primaryColor ?? 'rgb(var(--theme-brand-600))'}, ${team.secondaryColor ?? 'rgb(var(--theme-brand-900))'})`,
-        }}
-      />
-      <div className="flex flex-col gap-4 p-6 sm:-mt-12 sm:flex-row sm:items-end">
-        <TeamAvatar team={team} size="lg" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-3xl font-black text-content-strong">{team.name}</h1>
-            {team.shortName && (
-              <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">
-                {team.shortName}
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-content-muted">
-            {team.locationText || 'Location not set'} ·{' '}
-            {MATCH_FORMAT_CONFIG[team.primaryFormat].label} · {team.memberCount} members
-          </p>
-        </div>
-        {team.viewerRole && (
-          <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-bold text-brand-700">
-            {team.viewerRole.toLowerCase()}
-          </span>
-        )}
-        {!team.archivedAt && (team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && (
-          <Link className="button" to={`/matches/new?playAs=team:${team.id}&lock=1`}>
-            Create team match
-          </Link>
-        )}
-      </div>
-    </header>
+    <TeamHeroView
+      team={team}
+      memberCount={team.memberCount}
+      badge={team.viewerRole && (
+        <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-bold text-brand-700">
+          {team.viewerRole.toLowerCase()}
+        </span>
+      )}
+      action={!team.archivedAt && (team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN') && (
+        <Link className="button" to={`/matches/new?playAs=team:${team.id}&lock=1`}>
+          Create team match
+        </Link>
+      )}
+    />
   );
 }
 function TeamMatches({ team }: { team: TeamDetail }) {

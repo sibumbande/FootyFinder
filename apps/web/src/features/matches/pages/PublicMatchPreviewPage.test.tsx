@@ -35,6 +35,7 @@ const preview = {
   joinability: { canJoin: true, reason: 'AVAILABLE' },
   capacity: { filled: 7, total: 10 },
   positions: { filled: 3, total: 10 },
+  sides: { home: { filled: 2, total: 5 }, away: { filled: 1, total: 5 } },
 };
 
 const renderPage = () =>
@@ -62,10 +63,10 @@ describe('PublicMatchPreviewPage', () => {
       'href',
       `/login?returnTo=%2Fm%2F${preview.slug}`,
     );
-    expect(screen.getByRole('link', { name: 'Sign up to play' })).toHaveAttribute(
-      'href',
-      `/register?returnTo=%2Fm%2F${preview.slug}`,
-    );
+    // CEO touch-up batch 2, item 5: guests get the lobby layout; every action is "Sign up to play".
+    for (const link of screen.getAllByRole('link', { name: 'Sign up to play' }))
+      expect(link).toHaveAttribute('href', `/register?returnTo=%2Fm%2F${preview.slug}`);
+    expect(screen.getByTestId('guest-side-home')).toHaveTextContent('2 of 5');
   });
 
   it('keeps a safe page without a join action when the match is full', () => {

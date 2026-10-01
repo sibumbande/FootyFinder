@@ -1,4 +1,4 @@
-import { getMaxMatchParticipants, MATCH_FORMAT_CONFIG, type Match } from '@footy-finder/shared';
+import { getMaxMatchParticipants, MATCH_FORMAT_CONFIG, type Match, type PublicMatchPreview } from '@footy-finder/shared';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
@@ -10,56 +10,96 @@ export const teamMatchLabel = (match: Pick<Match, 'otherSideMode' | 'otherSideTa
         : match.otherSideTakenBy === 'INDIVIDUALS' ? 'Open to players'
           : 'Open to teams and players';
 
-export function MatchCard({ match }: { match: Match }) {
-  const capacity = getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
-  const home = match.otherSideMode ? match.teamSides.find((side) => side.side === 'HOME') : undefined;
+const feeLabel = (match: Pick<Match, 'otherSideMode' | 'otherSideTakenBy' | 'feeCents'> & { currency?: string }) =>
+  match.otherSideMode
+    ? match.otherSideMode === 'OPEN' && match.otherSideTakenBy !== 'TEAM'
+      ? `Players ${formatCurrency(match.feeCents, match.currency)} each`
+      : 'Team fee from the team wallet'
+    : match.feeCents === 0 ? 'Free' : formatCurrency(match.feeCents, match.currency);
+
+type MatchCardViewProps = {
+  name: string;
+  format: Match['format'];
+  status: string;
+  teamMatch: boolean;
+  substitutesPerTeam?: number;
+  filled: number;
+  capacity: number;
+  teamLine?: string;
+  venueName: string;
+  city: string;
+  startsAt: string;
+  fee: string;
+  href: string;
+};
+
+/** CEO touch-up batch 2, item 5: one card for members and guests alike (guests get counts only). */
+function MatchCardView(props: MatchCardViewProps) {
   return (
     <article className="anime-panel flex h-full flex-col p-5 transition hover:-translate-y-1 hover:border-brand-500">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {match.otherSideMode && (
-            <span className="score-chip bg-danger-600 text-content-inverse">Team match</span>
+          {props.teamMatch && <span className="score-chip bg-danger-600 text-content-inverse">Team match</span>}
+          <span className="score-chip bg-brand-600 text-content-inverse">{MATCH_FORMAT_CONFIG[props.format].shortLabel}</span>
+          <span className="score-chip bg-surface-muted text-content-muted">{props.status.replace('_', ' ').toLowerCase()}</span>
+          {props.substitutesPerTeam !== undefined && (
+            <span className="score-chip bg-warning-50 text-warning-700">+{props.substitutesPerTeam} subs/team</span>
           )}
-          <span className="score-chip bg-brand-600 text-content-inverse">
-            {MATCH_FORMAT_CONFIG[match.format].shortLabel}
-          </span>
-          <span className="score-chip bg-surface-muted text-content-muted">
-            {match.status.replace('_', ' ').toLowerCase()}
-          </span>
-          <span className="score-chip bg-warning-50 text-warning-700">
-            +{match.substituteCapacityPerTeam} subs/team
-          </span>
         </div>
-        <span className="text-sm font-bold text-content-muted">
-          {match.participantCount}/{capacity}
-        </span>
+        <span className="text-sm font-bold text-content-muted">{props.filled}/{props.capacity}</span>
       </div>
-      <h2 className="mt-4 text-2xl font-bold uppercase leading-tight text-content-strong">
-        {match.name}
-      </h2>
-      {home && (
-        <p className="mt-2 text-sm font-bold text-content-strong">
-          {home.teamNameSnapshot} · {teamMatchLabel(match)}
-        </p>
-      )}
-      <p className="mt-2 text-sm font-semibold text-brand-700">{match.venue.name}</p>
-      <p className="mt-1 text-sm text-content-muted">
-        {match.venue.city} · {formatDate(match.startsAt)}
-      </p>
+      <h2 className="mt-4 text-2xl font-bold uppercase leading-tight text-content-strong">{props.name}</h2>
+      {props.teamLine && <p className="mt-2 text-sm font-bold text-content-strong">{props.teamLine}</p>}
+      <p className="mt-2 text-sm font-semibold text-brand-700">{props.venueName}</p>
+      <p className="mt-1 text-sm text-content-muted">{props.city} · {formatDate(props.startsAt)}</p>
       <div className="mt-4 flex items-center justify-between text-sm">
-        <span className="font-bold text-content-strong">
-          {match.otherSideMode
-            ? match.otherSideMode === 'OPEN' && match.otherSideTakenBy !== 'TEAM'
-              ? `Players ${formatCurrency(match.feeCents, match.currency)} each`
-              : 'Team fee from the team wallet'
-            : match.feeCents === 0 ? 'Free' : formatCurrency(match.feeCents, match.currency)}
-        </span>
+        <span className="font-bold text-content-strong">{props.fee}</span>
       </div>
       <div className="mt-auto pt-5">
-        <Link className="button w-full" to={`/matches/${match.id}`}>
-          View match
-        </Link>
+        <Link className="button w-full" to={props.href}>View match</Link>
       </div>
     </article>
+  );
+}
+
+export function MatchCard({ match }: { match: Match }) {
+  const home = match.otherSideMode ? match.teamSides.find((side) => side.side === 'HOME') : undefined;
+  return (
+    <MatchCardView
+      name={match.name}
+      format={match.format}
+      status={match.status}
+      teamMatch={Boolean(match.otherSideMode)}
+      substitutesPerTeam={match.substituteCapacityPerTeam}
+      filled={match.participantCount}
+      capacity={getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam)}
+      teamLine={home ? `${home.teamNameSnapshot} · ${teamMatchLabel(match)}` : undefined}
+      venueName={match.venue.name}
+      city={match.venue.city}
+      startsAt={match.startsAt}
+      fee={feeLabel(match)}
+      href={`/matches/${match.id}`}
+    />
+  );
+}
+
+/** Gate 9 / TKT-910: the guest version reads the public preview (venue, time, fee, places; no names). */
+export function GuestMatchCard({ match }: { match: PublicMatchPreview }) {
+  const teamMatch = match.teamMatch;
+  return (
+    <MatchCardView
+      name={match.name}
+      format={match.format}
+      status={match.status}
+      teamMatch={Boolean(teamMatch)}
+      filled={match.capacity.filled}
+      capacity={match.capacity.total}
+      teamLine={teamMatch ? `${teamMatch.homeTeamName} · ${teamMatchLabel(teamMatch)}` : undefined}
+      venueName={match.venue.name}
+      city={match.venue.city}
+      startsAt={match.startsAt}
+      fee={feeLabel({ otherSideMode: teamMatch?.otherSideMode, otherSideTakenBy: teamMatch?.otherSideTakenBy ?? null, feeCents: match.feeCents, currency: match.currency })}
+      href={`/m/${match.slug}`}
+    />
   );
 }

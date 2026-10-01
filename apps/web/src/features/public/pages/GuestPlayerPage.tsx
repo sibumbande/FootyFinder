@@ -6,7 +6,10 @@ import { positionLabel } from '@/features/social/recruitment-labels.js';
 import { SignUpPrompt } from '../components/SignUpPrompt.js';
 import { usePublicPlayer } from '../hooks/usePublic.js';
 
-/** Gate 9 / TKT-910: a player profile for visitors: name, username, photo, positions, city, bio, teams, stats. */
+/**
+ * Gate 9 / TKT-910: a player profile for visitors: name, username, photo, positions, city, bio, teams, stats.
+ * CEO touch-up batch 2, item 5: laid out like the member profile; add friend becomes "Sign up to play".
+ */
 export function GuestPlayerPage() {
   const { userId = '' } = useParams();
   const player = usePublicPlayer(userId);
@@ -40,6 +43,7 @@ export function GuestPlayerPage() {
           </div>
         ))}
       </section>
+      <p className="-mt-3 text-xs text-content-muted">Statistics count final results recorded by FootyFinder referees.</p>
       {view.teams.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface p-6 shadow-sm">
           <h2 className="text-xl font-bold text-content-strong">Teams</h2>
@@ -47,7 +51,10 @@ export function GuestPlayerPage() {
             {view.teams.map((team) => (
               <Link key={team.id} to={`/teams/${team.id}`} className="flex items-center gap-3 rounded-2xl border border-line p-3 hover:bg-surface-hover">
                 <TeamAvatar team={team} size="sm" />
-                <span className="font-bold text-content-strong">{team.name}</span>
+                <span className="min-w-0">
+                  <span className="block font-bold text-content-strong">{team.name}</span>
+                  <span className="block text-xs font-bold uppercase text-brand-700">{team.role}</span>
+                </span>
               </Link>
             ))}
           </div>

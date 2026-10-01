@@ -172,6 +172,10 @@ export class MatchesRepository {
   findPublicPreviewBySlug(publicSlug: string) {
     return prisma.match.findFirst({ where: { publicSlug, visibility: 'PUBLIC' }, select: publicPreviewSelect });
   }
+  /** CEO touch-up batch 2, item 5: the same guest view, for a guest who opens a /matches/:id link. */
+  findPublicPreviewById(id: string) {
+    return prisma.match.findFirst({ where: { id, visibility: 'PUBLIC', publicSlug: { not: null } }, select: publicPreviewSelect });
+  }
   /** Gate 9 / TKT-910: upcoming public matches for the guest match list. */
   findPublicPreviews(where: Prisma.MatchWhereInput, take = 50) {
     return prisma.match.findMany({ where: { ...where, visibility: 'PUBLIC', publicSlug: { not: null } }, select: publicPreviewSelect, orderBy: { startsAt: 'asc' }, take });

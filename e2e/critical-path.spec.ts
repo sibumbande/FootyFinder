@@ -285,7 +285,7 @@ test.describe('browser critical path', () => {
     });
     await playerPage.goto(`/m/${quickMatch.publicSlug}`);
     await expect(playerPage.getByRole('heading', { name: `${marker} paid match` })).toBeVisible();
-    await playerPage.getByRole('link', { name: 'Log in', exact: true }).click();
+    await playerPage.getByRole('main').getByRole('link', { name: 'Log in', exact: true }).click();
     await playerPage.getByLabel('Email or username').fill(`${marker}-player@test.invalid`);
     await playerPage.getByLabel('Password').fill('FootyFinder123!');
     await playerPage.getByRole('button', { name: 'Sign in' }).click();

@@ -1,11 +1,10 @@
 import { MATCH_FORMAT_CONFIG } from '@footy-finder/shared';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Logo } from '@/components/Logo.js';
-import { ThemeToggle } from '@/components/ThemeToggle.js';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
+import { GuestMatchLobby, joinMessage } from '@/features/public/components/GuestMatchLobby.js';
 import { PublicResult } from '@/features/public/components/PublicResult.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
@@ -26,10 +25,10 @@ export function PublicMatchPreviewPage() {
   const returnTo = `/m/${slug}`;
 
   if (previewQuery.isPending)
-    return <div className="mx-auto mt-12 h-[36rem] max-w-4xl animate-pulse rounded-3xl bg-surface" />;
+    return <div className="mx-auto h-[36rem] max-w-4xl animate-pulse rounded-3xl bg-surface" />;
   if (!preview || previewQuery.error)
     return (
-      <PublicShell>
+      <>
         <section className="mx-auto max-w-xl rounded-3xl border border-line bg-surface p-8 text-center shadow-soft">
           <h1 className="text-2xl font-black text-content-strong">Match unavailable</h1>
           <FormError message="This public match link is invalid or unavailable." />
@@ -37,8 +36,11 @@ export function PublicMatchPreviewPage() {
             Sign in
           </Link>
         </section>
-      </PublicShell>
+      </>
     );
+
+  // CEO touch-up batch 2, item 5: guests get the same lobby layout as members (counts only, TKT-910).
+  if (!authPending && !user) return <GuestMatchLobby preview={preview} />;
 
   const match = matchQuery.data;
   const alreadyJoined = match?.participants?.some((participant) => participant.userId === user?.id);
@@ -53,8 +55,8 @@ export function PublicMatchPreviewPage() {
   };
 
   return (
-    <PublicShell>
-      <main className="mx-auto grid max-w-4xl gap-6">
+    <>
+      <div className="mx-auto grid max-w-4xl gap-6">
         <section className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-9">
           <div className="flex flex-wrap gap-2 text-xs font-black uppercase tracking-wider">
             <span className="rounded-full bg-brand-100 px-3 py-1 text-brand-700">
@@ -98,16 +100,6 @@ export function PublicMatchPreviewPage() {
             </p>
           )}
           <div className="mt-6 flex flex-wrap gap-3">
-            {!authPending && !user && (
-              <>
-                <Link className="button inline-flex" to={`/register?returnTo=${encodeURIComponent(returnTo)}`}>
-                  Sign up to play
-                </Link>
-                <Link className="button-secondary inline-flex" to={`/login?returnTo=${encodeURIComponent(returnTo)}`}>
-                  Log in
-                </Link>
-              </>
-            )}
             {user && needsVerification && (
               <Link className="button inline-flex" to={`/verify-email?returnTo=${encodeURIComponent(returnTo)}`}>
                 Verify email to continue
@@ -131,23 +123,11 @@ export function PublicMatchPreviewPage() {
             <FormError message="Your account cannot open this match right now." />
           )}
         </section>
-      </main>
+      </div>
       {match && (
         <JoinTeamDialog match={match} open={joinOpen} onClose={() => setJoinOpen(false)} />
       )}
-    </PublicShell>
-  );
-}
-
-function PublicShell({ children }: { children: ReactNode }) {
-  return (
-    <div className="min-h-screen bg-canvas px-4 pb-12">
-      <header className="mx-auto flex max-w-6xl items-center justify-between py-5">
-        <Logo />
-        <ThemeToggle />
-      </header>
-      {children}
-    </div>
+    </>
   );
 }
 
@@ -160,21 +140,3 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function joinMessage(reason: string) {
-  switch (reason) {
-    case 'AVAILABLE':
-      return 'Places are available. Sign in or create an account to choose a team.';
-    case 'FULL':
-      return 'This match is full. The page remains available for match details.';
-    case 'CANCELLED':
-      return 'This match has been cancelled and cannot be joined.';
-    case 'STARTED':
-      return 'This match has already started and cannot be joined.';
-    case 'COMPLETED':
-      return 'This match has finished and cannot be joined.';
-    case 'LINEUP_LOCKED':
-      return 'The lineup locked 30 minutes before kickoff, so this match can no longer be joined.';
-    default:
-      return 'This match is not accepting players.';
-  }
-}

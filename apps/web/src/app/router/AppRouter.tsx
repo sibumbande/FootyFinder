@@ -5,7 +5,7 @@ import { GuestRoute } from '@/features/auth/components/GuestRoute.js';
 import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute.js';
 import { GuestAwareRoute } from '@/features/auth/components/GuestAwareRoute.js';
 import { MemberOrGuest } from '@/features/public/components/MemberOrGuest.js';
-import { GuestMatchesPage } from '@/features/public/pages/GuestMatchesPage.js';
+import { GuestMatchPage } from '@/features/public/pages/GuestMatchPage.js';
 import { GuestPlayerPage } from '@/features/public/pages/GuestPlayerPage.js';
 import { GuestTeamPage } from '@/features/public/pages/GuestTeamPage.js';
 import { LoginPage } from '@/features/auth/pages/LoginPage.js';
@@ -58,12 +58,16 @@ export function AppRouter() {
         <Route path="/confirm-email-change" element={animated(<ConfirmEmailChangePage />)} />
         <Route path="/waiting-list" element={animated(<WaitingListPage />)} />
         <Route path="/legal/:document" element={animated(<LegalPage />)} />
-        <Route path="/m/:slug" element={animated(<PublicMatchPreviewPage />)} />
+        {/* CEO touch-up batch 2, item 5: the shared match link sits in the normal layout for everyone. */}
+        <Route element={<Layout />}>
+          <Route path="/m/:slug" element={animated(<PublicMatchPreviewPage />)} />
+        </Route>
         {/* Gate 9 / TKT-910: pages anyone may browse; guests get the read-only view. */}
         <Route element={<GuestAwareRoute />}>
           <Route element={<Layout />}>
-            <Route index element={animated(<MemberOrGuest member={<HomePage />} guest={<GuestMatchesPage home />} />)} />
-            <Route path="/matches" element={animated(<MemberOrGuest member={<MatchListPage />} guest={<GuestMatchesPage />} />)} />
+            <Route index element={animated(<HomePage />)} />
+            <Route path="/matches" element={animated(<MatchListPage />)} />
+            <Route path="/matches/:matchId" element={animated(<MemberOrGuest member={<MatchLobbyPage />} guest={<GuestMatchPage />} />)} />
             <Route path="/venues/:slug" element={animated(<VenueDetailPage />)} />
             <Route path="/players/:userId" element={animated(<MemberOrGuest member={<PlayerProfilePage />} guest={<GuestPlayerPage />} />)} />
             <Route path="/social" element={animated(<SocialPage />)} />
@@ -74,7 +78,6 @@ export function AppRouter() {
           <Route element={<Layout />}>
             <Route path="/onboarding" element={animated(<OnboardingPage />)} />
             <Route path="/matches/new" element={animated(<CreateMatchPage />)} />
-            <Route path="/matches/:matchId" element={animated(<MatchLobbyPage />)} />
             <Route path="/referee" element={animated(<RefereePage />)} />
             <Route path="/referee/matches/:matchId" element={animated(<RefereeMatchPage />)} />
             <Route path="/matches/invite/:token" element={animated(<InviteMatchPage />)} />

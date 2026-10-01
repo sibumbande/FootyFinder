@@ -17,6 +17,15 @@ publicMatchesRouter.get('/', publicPreviewRateLimit, async (req, res, next) => {
   }
 });
 
+// CEO touch-up batch 2, item 5: the same guest-safe view for a guest who opens a /matches/:id link.
+publicMatchesRouter.get('/by-id/:id', publicPreviewRateLimit, async (req, res, next) => {
+  try {
+    res.json({ data: await service.publicPreviewById(z.string().uuid().parse(req.params.id)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 publicMatchesRouter.get('/:slug', publicPreviewRateLimit, async (req, res, next) => {
   try {
     res.json({ data: await service.publicPreview(publicMatchSlugSchema.parse(req.params.slug)) });

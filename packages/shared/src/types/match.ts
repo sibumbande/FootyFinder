@@ -335,6 +335,8 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
     filled: number;
     total: number;
   };
+  /** CEO touch-up batch 2, item 5: starting positions filled on each side (counts only, never who). */
+  sides: Record<'home' | 'away', { filled: number; total: number }>;
   /** Gate 7 / DEC-019 team match labels (team names only; no people, no money beyond the rules). */
   teamMatch?: {
     homeTeamName: string;

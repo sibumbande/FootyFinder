@@ -134,7 +134,7 @@ test.describe('Social: friends, team invites, recruitment, blocking and guest br
     await expect(guestPage.getByTestId('sign-up-prompt')).toBeVisible();
     await guestPage.goto(`/players/${friend.id}`);
     await expect(guestPage.getByTestId('guest-player')).toContainText('Friendly plays on Saturdays');
-    await expect(guestPage.getByRole('link', { name: 'Sign up to add friend' })).toHaveAttribute('href', `/register?returnTo=%2Fplayers%2F${friend.id}`);
+    await expect(guestPage.getByRole('main').getByRole('link', { name: 'Sign up to play' })).toHaveAttribute('href', `/register?returnTo=%2Fplayers%2F${friend.id}`);
     await expect(guestPage.getByTestId('guest-player')).not.toContainText('@test.invalid');
     await guestPage.goto(`/teams/${teamId}`);
     await expect(guestPage.getByTestId('guest-team')).toContainText(friend.name);

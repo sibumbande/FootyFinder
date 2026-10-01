@@ -231,7 +231,7 @@ describe('anonymous public Match preview', () => {
           goNoGoAt,
           confirmedAt: null,
           cancellationReason: null,
-          formationSlots: [{ participantId: 'p1' }, { participantId: null }],
+          formationSlots: [{ participantId: 'p1', team: 'HOME' }, { participantId: null, team: 'AWAY' }],
         }),
       ),
     } as unknown as MatchesRepository;
@@ -241,6 +241,7 @@ describe('anonymous public Match preview', () => {
     expect(preview).toMatchObject({
       goNoGoAt: goNoGoAt.toISOString(),
       positions: { filled: 1, total: 2 },
+      sides: { home: { filled: 1, total: 1 }, away: { filled: 0, total: 1 } },
       joinability: { canJoin: false, reason: 'LINEUP_LOCKED' },
     });
     expect(JSON.stringify(preview)).not.toMatch(/p1/);
@@ -276,10 +277,18 @@ describe('anonymous public Match preview', () => {
       joinability: { canJoin: true, reason: 'AVAILABLE' },
       capacity: { filled: 1, total: 10 },
       positions: { filled: 0, total: 0 },
+      sides: { home: { filled: 0, total: 0 }, away: { filled: 0, total: 0 } },
     });
     expect(JSON.stringify(preview)).not.toMatch(
       /internal-match-id|inviteToken|host@example|player@example|wallet|addressLine1/,
     );
+  });
+
+  it('finds the same guest view by match id, for public matches only (CEO batch 2, item 5)', async () => {
+    const findPublicPreviewById = vi.fn().mockResolvedValueOnce(publicMatch()).mockResolvedValueOnce(null);
+    const service = new MatchesService({ findPublicPreviewById } as unknown as MatchesRepository);
+    await expect(service.publicPreviewById('internal-match-id')).resolves.toMatchObject({ slug: 'm-0123456789abcdef01234567', capacity: { filled: 1, total: 10 } });
+    await expect(service.publicPreviewById('private-match-id')).rejects.toMatchObject({ code: 'PUBLIC_MATCH_NOT_FOUND' });
   });
 
   it.each([
