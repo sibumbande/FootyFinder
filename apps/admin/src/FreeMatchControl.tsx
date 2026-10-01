@@ -36,7 +36,7 @@ export function FreeMatchControl({ match, rootKey }: { match: AdminRefereeMatch;
           )}
           <input aria-label="Reason for changing the match price" placeholder="Reason (for the audit log)" value={reason} onChange={(event) => setReason(event.target.value)} />
           <button type="button" disabled={reason.trim().length < 5 || mark.isPending} onClick={() => mark.mutate(!match.freeOnFootyFinder)}>
-            {match.freeOnFootyFinder ? 'Make it a paid match (R80)' : 'Make it free'}
+            {match.freeOnFootyFinder ? 'Undo free (back to R80)' : 'Make free (On FootyFinder)'}
           </button>
         </div>
       )}

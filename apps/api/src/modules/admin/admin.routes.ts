@@ -15,6 +15,7 @@ import * as venueContent from './venue-content.controller.js';
 import * as fieldClosures from './field-closures.controller.js';
 import * as freeMatches from '../matches/free-match.admin.controller.js';
 import * as waitingList from '../cities/waiting-list.admin.controller.js';
+import * as adminMatches from '../matches/admin-matches.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -132,8 +133,11 @@ adminRouter.post('/settlement/batches', costlyMutationRateLimit, settlementBatch
 adminRouter.post('/settlement/batches/:batchId/approve', costlyMutationRateLimit, requireRecentAdminMfa, settlementBatches.approve);
 adminRouter.post('/settlement/batches/:batchId/mark-paid', costlyMutationRateLimit, requireRecentAdminMfa, settlementBatches.markPaid);
 adminRouter.post('/settlement/batches/:batchId/cancel', costlyMutationRateLimit, settlementBatches.cancel);
-adminRouter.get('/matches', controller.listManagedMatches);
-adminRouter.post('/matches', costlyMutationRateLimit, controller.createManagedMatch);
+// CEO touch-up batch 3.5, item 5: the Matches section (search, one page per match, Create match with fresh MFA).
+adminRouter.get('/matches', adminMatches.listAdminMatches);
+adminRouter.post('/matches', requireRecentAdminMfa, costlyMutationRateLimit, adminMatches.createAdminMatch);
+adminRouter.get('/matches/:matchId', adminMatches.adminMatchDetail);
+adminRouter.post('/matches/:matchId/invite', costlyMutationRateLimit, adminMatches.rotateAdminMatchInvite);
 adminRouter.get('/moderation/reports', moderation.listReports);
 adminRouter.get('/moderation/reports/:reportId', moderation.getReport);
 adminRouter.put('/moderation/reports/:reportId', costlyMutationRateLimit, moderation.updateReport);

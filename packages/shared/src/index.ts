@@ -19,6 +19,7 @@ export * from './types/team-review.js';
 export * from './types/social.js';
 export * from './types/recruitment.js';
 export * from './types/public.js';
+export * from './types/admin-matches.js';
 export * from './config/match-formats.js';
 export * from './config/match-rules.js';
 export * from './config/formations.js';

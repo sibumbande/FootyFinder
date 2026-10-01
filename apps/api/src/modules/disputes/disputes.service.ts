@@ -13,6 +13,7 @@ import { appendAdminAudit } from '../admin/admin-audit.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { toPublicUser } from '../users/user.mapper.js';
+import { hostAudience, playerHostId } from '../matches/host.js';
 
 const actorSelect = {
   id: true,
@@ -188,7 +189,7 @@ export class DisputesService {
       },
     });
     if (!result) throw new AppError(404, 'Dispute target not found.', 'DISPUTE_TARGET_NOT_FOUND');
-    const allowed = result.match.createdById === userId
+    const allowed = playerHostId(result.match) === userId
       || result.match.participants.some((item) => item.userId === userId)
       || result.match.teamSides.some((side) => side.team?.memberships.some((item) => item.userId === userId));
     if (!allowed) throw new AppError(404, 'Dispute target not found.', 'DISPUTE_TARGET_NOT_FOUND');
@@ -214,7 +215,7 @@ export class DisputesService {
     });
     if (!reservation) throw new AppError(404, 'Dispute target not found.', 'DISPUTE_TARGET_NOT_FOUND');
     const contributionIds = reservation.obligations.flatMap((item) => item.contributions.map((contribution) => contribution.userId));
-    const allowed = reservation.match.createdById === userId || reservation.match.participants.some((item) => item.userId === userId) || contributionIds.includes(userId);
+    const allowed = playerHostId(reservation.match) === userId || reservation.match.participants.some((item) => item.userId === userId) || contributionIds.includes(userId);
     if (!allowed) throw new AppError(404, 'Dispute target not found.', 'DISPUTE_TARGET_NOT_FOUND');
     return {
       reservationId: reservation.id,
@@ -258,6 +259,6 @@ export class DisputesService {
     if (scorers.length) await tx.matchScorer.createMany({ data: scorers.map((item) => ({ matchResultId: resultId, ...item })) });
     await tx.matchResult.update({ where: { id: resultId }, data: { homeScore: input.homeScore, awayScore: input.awayScore } });
     await tx.matchResultRevision.create({ data: { matchResultId: resultId, revisionNumber, homeScore: input.homeScore, awayScore: input.awayScore, scorersSnapshot: scorers, reason: 'ADMIN_CORRECTION', createdByAdminUserId: adminUserId } });
-    return { matchId: result.matchId, recipientIds: [result.match.createdById, ...result.match.participants.map((item) => item.userId)] };
+    return { matchId: result.matchId, recipientIds: [...hostAudience(result.match), ...result.match.participants.map((item) => item.userId)] };
   }
 }

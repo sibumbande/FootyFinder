@@ -77,7 +77,7 @@ In these Terms, unless the context indicates otherwise:
 - **"Fill Meter"** means the running total of Team Wallet money a Team has put towards its Team Match Fee for a particular Team Match, for example "R0 / R1,120".
 - **"Final Result"** means the result of a match recorded by its Referee, or by FootyFinder under clause 16.8, including the score, the scorer and any assister of each goal, and which players did not play.
 - **"Go/no-go check"** means the check made 30 minutes before kick-off that decides whether a match goes ahead (clauses 11.7 and 12.17).
-- **"Host"** means the user who creates a Quick Match. The Host is a player with the organiser powers in clause 11.1, not a match official.
+- **"Host"** means the user who creates a Quick Match, or FootyFinder when it creates one itself (shown as "Hosted by FootyFinder", clause 11.13). The Host has the organiser powers in clause 11.1 and is not a match official.
 - **"Lineup Record"** means the record of the players on each side of a match, taken automatically at kick-off.
 - **"Lobby"** means the page for a specific scheduled match, showing its sides, its starting positions on the pitch and its substitute places.
 - **"Other Side"** means the away side of a Team Match, which another Team or individual players can take (clause 12.13).
@@ -86,7 +86,7 @@ In these Terms, unless the context indicates otherwise:
 - **"Personal Information"** has the meaning given to it in POPIA.
 - **"Platform"** means the FootyFinder website, web app and related services.
 - **"POPIA"** means the Protection of Personal Information Act 4 of 2013.
-- **"Quick Match"** means a match created by an individual user, the Host, in which every player pays the Slot Fee (clause 11), unless it is a free match (clause 13.11).
+- **"Quick Match"** means a match created by an individual user or by FootyFinder (the Host), in which every player pays the Slot Fee (clause 11), unless it is a free match (clause 13.11).
 - **"Referee"** (or "FootyFinder Referee") means the person FootyFinder assigns to referee a match under clause 16.2. A Referee may be an employee, an independent contractor or a volunteer.
 - **"Slot Fee"** means the fixed fee of R80 that a player pays to join a match, whether in a starting position or as a substitute. FootyFinder sets the Slot Fee; a Host cannot set or change it. In a free match (clause 13.11) the Slot Fee is R0.
 - **"Substitute"** (or "sub") means a player who has joined a match but does not hold a starting position. The app lists substitutes under each side's "reserves".
@@ -335,6 +335,8 @@ Search engines may list these public pages. Before a match is played, people wit
 
 **11.12 One match at a time.** You cannot be in two matches at the same time. You cannot join a match, be picked as a starter or substitute in a Team's lineup, or be included when your Team takes a side, if that match's time overlaps another match you are already in, whether as a player on either side (including as a substitute) or as its Referee. A match's time runs from kick-off to its scheduled end plus 30 minutes: for a 60-minute match kicking off at 14:00, that is 14:00 to 15:30. If a Team takes a side and some members of its saved squad are already in an overlapping match, those members are left out of its lineup and the Owner or Captain who acted is told. A Referee may still play in the match they referee (clause 16.2).
 
+**11.13 Matches hosted by FootyFinder.** FootyFinder may host Quick Matches, shown as "Hosted by FootyFinder". FootyFinder does not join or play in them. It uses the Host's powers in clause 11.1 through its staff, and all other match rules (the Slot Fee or a free match, positions, the Lobby lock, go/no-go, cancellation and refunds) apply as normal.
+
 ## 12. Teams, Team Wallets and Team Matches
 
 ### Teams
@@ -485,9 +487,9 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 **16.8 If the Referee does not record the result.** If the Referee does not attend or does not record the result, FootyFinder may record the Final Result using the best information available to it, including any version sent under clause 16.9. Our team is alerted if there is no result two (2) hours after the scheduled end of the match.
 
-**16.9 Your version of the result.** The Owner or a Captain of a Team that played, or the Host of a Quick Match, may send their own version of the result in the app, from the scheduled end of the match until twenty-four (24) hours after it. They may send it again; the latest version is used. Only FootyFinder sees it. It is information for FootyFinder only and never changes the Referee's result.
+**16.9 Your version of the result.** The Owner or a Captain of a Team that played, or the Host of a Quick Match (other than FootyFinder), may send their own version of the result in the app, from the scheduled end of the match until twenty-four (24) hours after it. They may send it again; the latest version is used. Only FootyFinder sees it. It is information for FootyFinder only and never changes the Referee's result.
 
-**16.10 Reporting a problem.** A Final Result cannot be disputed. This does not affect your right to complain under clause 26. The Owner or a Captain of a Team that played, or the Host of a Quick Match, may report a problem with a Final Result in the app within twenty-four (24) hours after it was recorded. FootyFinder reviews every report and tells the person who reported it the outcome in the app. A Final Result is changed only if FootyFinder finds a clear recording error (clause 16.7).
+**16.10 Reporting a problem.** A Final Result cannot be disputed. This does not affect your right to complain under clause 26. The Owner or a Captain of a Team that played, or the Host of a Quick Match (other than FootyFinder), may report a problem with a Final Result in the app within twenty-four (24) hours after it was recorded. FootyFinder reviews every report and tells the person who reported it the outcome in the app. A Final Result is changed only if FootyFinder finds a clear recording error (clause 16.7).
 
 **16.11 Your statistics.** Your profile shows your matches played, wins, draws and losses, goals and assists. They are worked out only from Final Results and the Lineup Record, and they change if FootyFinder corrects a result. Cancelled and abandoned matches, and matches the Referee recorded you as not playing in, do not count. A forfeit counts as a win or a loss, with no goals. Other signed-in users can see your statistics (clause 8.3).
 

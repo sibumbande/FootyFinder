@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { managedMatchSchema } from './match.js';
 
 const timezoneSchema = z.string().trim().min(3).max(80).refine((timezone) => {
   try {
@@ -265,3 +266,28 @@ export const adminWaitingListQuerySchema = z.object({
 export type AdminWaitingListQuery = z.input<typeof adminWaitingListQuerySchema>;
 export const adminWaitingListCsvQuerySchema = z.object({ cityId: z.string().uuid().optional() });
 
+/**
+ * CEO touch-up batch 3.5, item 5: an admin creates a FootyFinder-hosted Quick Match on a real slot (same booking
+ * rules as players), optionally free "On FootyFinder" and for first-time players only.
+ */
+export const adminCreateMatchSchema = managedMatchSchema
+  .extend({
+    freeOnFootyFinder: z.boolean().default(false),
+    firstTimersOnly: z.boolean().default(false),
+  })
+  .refine((value) => value.freeOnFootyFinder || !value.firstTimersOnly, { path: ['firstTimersOnly'], message: '"First-time players only" needs a free match.' });
+export type AdminCreateMatchInput = z.input<typeof adminCreateMatchSchema>;
+
+export const ADMIN_MATCH_VIEWS = ['upcoming', 'live', 'finished', 'cancelled'] as const;
+export const ADMIN_MATCH_NEEDS = ['referee', 'result', 'problem'] as const;
+const dayString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.');
+export const adminMatchListQuerySchema = z.object({
+  view: z.enum(ADMIN_MATCH_VIEWS).default('upcoming'),
+  needs: z.enum(ADMIN_MATCH_NEEDS).optional(),
+  venueId: z.string().uuid().optional(),
+  q: z.string().trim().max(120).optional(),
+  from: dayString.optional(),
+  to: dayString.optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
+export type AdminMatchListQuery = z.input<typeof adminMatchListQuerySchema>;

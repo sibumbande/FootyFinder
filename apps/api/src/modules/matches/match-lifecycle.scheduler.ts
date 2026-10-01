@@ -11,6 +11,7 @@ import { incrementOperationalMetric } from '../../observability/operational-metr
 import { createVenuePayableForStartedMatch } from '../settlement/venue-payables.js';
 import { recordKickoffLineup } from './lineup-record.js';
 import { enqueueResultOverdueJob } from '../referees/referee-results.js';
+import { hostAudience } from './host.js';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -80,12 +81,13 @@ export async function transitionMatchToStarted(
         id: true,
         name: true,
         createdById: true,
+        hostedByFootyFinder: true,
         participants: { where: { status: 'JOINED' }, select: { userId: true } },
         teamSides: { select: { team: { select: { memberships: { select: { userId: true } } } } } },
       },
     });
     const recipients = new Set([
-      match.createdById,
+      ...hostAudience(match),
       ...match.participants.map(({ userId }) => userId),
       ...match.teamSides.flatMap(({ team }) => team?.memberships.map(({ userId }) => userId) ?? []),
     ]);

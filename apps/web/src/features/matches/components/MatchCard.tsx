@@ -2,7 +2,7 @@ import { getMaxMatchParticipants, MATCH_FORMAT_CONFIG, type Match, type PublicMa
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
-import { FreeMatchBadge } from './FreeMatchBadge.js';
+import { FreeMatchBadge, HostedByFootyFinderBadge } from './FreeMatchBadge.js';
 /** Gate 7 / DEC-019: how a public team match is labelled in the lobby. */
 export const teamMatchLabel = (match: Pick<Match, 'otherSideMode' | 'otherSideTakenBy'>) =>
   !match.otherSideMode ? null
@@ -35,6 +35,8 @@ type MatchCardViewProps = {
   /** CEO touch-up batch 3, item 5. */
   free?: boolean;
   firstTimersOnly?: boolean;
+  /** CEO touch-up batch 3.5, item 5. */
+  hostedByFootyFinder?: boolean;
 };
 
 /** CEO touch-up batch 2, item 5: one card for members and guests alike (guests get counts only). */
@@ -52,7 +54,12 @@ function MatchCardView(props: MatchCardViewProps) {
         </div>
         <span className="text-sm font-bold text-content-muted">{props.filled}/{props.capacity}</span>
       </div>
-      {props.free && <div className="mt-3 flex flex-wrap gap-2"><FreeMatchBadge firstTimersOnly={props.firstTimersOnly} /></div>}
+      {(props.free || props.hostedByFootyFinder) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {props.hostedByFootyFinder && <HostedByFootyFinderBadge />}
+          {props.free && <FreeMatchBadge firstTimersOnly={props.firstTimersOnly} />}
+        </div>
+      )}
       <h2 className="mt-4 text-2xl font-bold uppercase leading-tight text-content-strong">{props.name}</h2>
       {props.teamLine && <p className="mt-2 text-sm font-bold text-content-strong">{props.teamLine}</p>}
       <p className="mt-2 text-sm font-semibold text-brand-700">{props.venueName}</p>
@@ -86,6 +93,7 @@ export function MatchCard({ match }: { match: Match }) {
       href={`/matches/${match.id}`}
       free={match.freeOnFootyFinder}
       firstTimersOnly={match.firstTimersOnly}
+      hostedByFootyFinder={match.hostedByFootyFinder}
     />
   );
 }
@@ -110,6 +118,7 @@ export function GuestMatchCard({ match }: { match: PublicMatchPreview }) {
       href={`/m/${match.slug}`}
       free={match.freeOnFootyFinder}
       firstTimersOnly={match.firstTimersOnly}
+      hostedByFootyFinder={match.hostedByFootyFinder}
     />
   );
 }

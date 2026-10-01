@@ -147,7 +147,11 @@ export function createFixtures(prefix: string) {
     const userIds = users.map(({ id }) => id);
     const teams = await prisma.team.findMany({ where: { name: { startsWith: marker } }, select: { id: true } });
     const teamIds = teams.map(({ id }) => id);
-    const matches = await prisma.match.findMany({ where: { createdById: { in: userIds } }, select: { id: true, venueId: true } });
+    // Includes matches an admin created on the fixture venue (CEO batch 3.5, item 5: their creator is the admin, who stays).
+    const matches = await prisma.match.findMany({
+      where: { OR: [{ createdById: { in: userIds } }, ...(managedVenueId ? [{ fieldReservation: { field: { venueId: managedVenueId } } }] : [])] },
+      select: { id: true, venueId: true },
+    });
     const matchIds = matches.map(({ id }) => id);
     const accounts = await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } });
     const accountIds = accounts.map(({ id }) => id);

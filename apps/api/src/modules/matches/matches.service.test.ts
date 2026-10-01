@@ -276,6 +276,7 @@ describe('anonymous public Match preview', () => {
       status: 'OPEN',
       joinability: { canJoin: true, reason: 'AVAILABLE' },
       capacity: { filled: 1, total: 10 },
+      substitutesPerTeam: 0,
       positions: { filled: 0, total: 0 },
       sides: { home: { filled: 0, total: 0 }, away: { filled: 0, total: 0 } },
     });

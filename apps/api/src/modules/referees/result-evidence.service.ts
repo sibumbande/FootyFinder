@@ -14,6 +14,7 @@ import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';
 import { buildLineup } from '../matches/lineup-record.js';
 import { managedTeamSides } from '../team-matches/team-side-authority.js';
+import { playerHostId } from '../matches/host.js';
 
 /** D11: captains may send their own version until 24 hours after the scheduled end. */
 export const CAPTAIN_VERSION_WINDOW_HOURS = 24;
@@ -29,6 +30,7 @@ const matchSelect = {
   durationMinutes: true,
   goNoGoAt: true,
   createdById: true,
+  hostedByFootyFinder: true,
   referee: { select: { id: true, username: true, profile: { select: { displayName: true, avatarUrl: true } } } },
   result: { select: { finalSource: true, submittedAt: true } },
 } satisfies Prisma.MatchSelect;
@@ -72,7 +74,7 @@ export class ResultEvidenceService {
 
   /** Who the viewer speaks for: a Quick Match host (side null) or the side they captain. */
   private async captaincy(match: EvidenceMatch, userId: string) {
-    if (match.mode === 'QUICK_GAME') return match.createdById === userId ? { side: null } : null;
+    if (match.mode === 'QUICK_GAME') return playerHostId(match) === userId ? { side: null } : null;
     const [side] = await managedTeamSides(prisma, match.id, userId);
     return side ? { side } : null;
   }

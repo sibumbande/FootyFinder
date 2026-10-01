@@ -22,6 +22,11 @@ import type {
   FreeMatchCostReport,
   AdminWaitingList,
   AdminWaitingListQuery,
+  AdminCreateMatchInput,
+  AdminCreatedMatch,
+  AdminMatchDetail,
+  AdminMatchList,
+  AdminMatchListQuery,
   AdminSupportListQuery,
   AdminSupportReplyInput,
   UpdateSupportTicketInput,
@@ -30,8 +35,6 @@ import type {
   AdminTestDataBatch,
   CreateAdminTestDataBatchInput,
   WalletReconciliationReport,
-  AdminFieldBooking,
-  ManagedMatchBookingInput,
   ModerationReport,
   AdminModerationReportQuery,
   UpdateModerationReportInput,
@@ -293,12 +296,13 @@ export const adminApi = (client: ApiClient) => ({
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
-  managedMatches: () => client.request<{ data: AdminFieldBooking[] }>('/admin/matches'),
-  createManagedMatch: (input: ManagedMatchBookingInput) =>
-    client.request<{ data: AdminFieldBooking }>('/admin/matches', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
+  // CEO touch-up batch 3.5, item 5: the Matches section.
+  adminMatches: (query: AdminMatchListQuery = {}) =>
+    client.request<{ data: AdminMatchList }>(`/admin/matches${queryString(query)}`),
+  adminMatch: (matchId: string) => client.request<{ data: AdminMatchDetail }>(`/admin/matches/${id(matchId)}`),
+  createAdminMatch: (input: AdminCreateMatchInput) => client.request<{ data: AdminCreatedMatch }>('/admin/matches', post(input)),
+  rotateAdminMatchInvite: (matchId: string) =>
+    client.request<{ data: { inviteUrl: string } }>(`/admin/matches/${id(matchId)}/invite`, post()),
   moderationReports: (query: AdminModerationReportQuery = {}) => {
     const params = new URLSearchParams();
     if (query.status) params.set('status', query.status);

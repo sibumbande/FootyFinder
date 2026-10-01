@@ -5,7 +5,7 @@ import type {
   MatchParticipant,
   MatchStatus,
 } from '@footy-finder/shared';
-import { getEffectiveMatchStatus, getMatchEndsAt, isMatchAtCapacity } from '@footy-finder/shared';
+import { FOOTYFINDER_HOST_ID, getEffectiveMatchStatus, getMatchEndsAt, isMatchAtCapacity } from '@footy-finder/shared';
 import { toPublicUser } from '../users/user.mapper.js';
 import type { MatchRecord, ParticipantRecord } from './match.query.js';
 import { publicMatchUrl } from './public-match.js';
@@ -87,7 +87,9 @@ export function toMatch(
       : {}),
     name: match.name,
     description: match.description,
-    createdById: match.createdById,
+    // CEO touch-up batch 3.5, item 5: FootyFinder-hosted matches never expose the admin who created them.
+    createdById: match.hostedByFootyFinder ? FOOTYFINDER_HOST_ID : match.createdById,
+    hostedByFootyFinder: match.hostedByFootyFinder,
     mode: match.mode,
     format: match.format,
     substituteCapacityPerTeam: match.substituteCapacityPerTeam,
@@ -118,7 +120,7 @@ export function toMatch(
       longitude: match.venue.longitude === null ? null : Number(match.venue.longitude),
       ...venuePhotoFacts(match.fieldReservation?.field?.venue),
     },
-    createdBy: toPublicUser(match.createdBy),
+    ...(match.hostedByFootyFinder ? {} : { createdBy: toPublicUser(match.createdBy) }),
     participants: match.participants.map(toMatchParticipant),
     formationSlots: match.formationSlots.map(toFormationSlot),
     formationVersion: match.formationVersion,

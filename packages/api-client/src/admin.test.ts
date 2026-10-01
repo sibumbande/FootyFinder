@@ -165,8 +165,8 @@ describe('adminApi', () => {
     await api.createTestDataBatch({ label: 'QA batch', accountCount: 3 });
     await api.removeTestDataBatch('batch-id');
     await api.walletReconciliation();
-    await api.managedMatches();
-    await api.createManagedMatch({
+    await api.adminMatches({ view: 'upcoming', needs: 'referee', q: 'Friday' });
+    await api.createAdminMatch({
       managedFieldId: '11111111-1111-4111-8111-111111111111',
       name: 'Admin Match',
       format: 'FIVE_A_SIDE',
@@ -175,7 +175,11 @@ describe('adminApi', () => {
       rules: [],
       visibility: 'PUBLIC',
       startsAt: '2026-09-01T18:00:00.000Z',
+      freeOnFootyFinder: true,
+      firstTimersOnly: true,
     });
+    await api.adminMatch('match-id');
+    await api.rotateAdminMatchInvite('match-id');
     expect(request.mock.calls.map(([path]) => path)).toEqual([
       '/admin/support/tickets?status=OPEN&assignedToMe=true',
       '/admin/support/tickets/ticket-id',
@@ -186,8 +190,10 @@ describe('adminApi', () => {
       '/admin/test-data/batches',
       '/admin/test-data/batches/batch-id',
       '/admin/finance/reconciliation',
+      '/admin/matches?view=upcoming&needs=referee&q=Friday',
       '/admin/matches',
-      '/admin/matches',
+      '/admin/matches/match-id',
+      '/admin/matches/match-id/invite',
     ]);
   });
 

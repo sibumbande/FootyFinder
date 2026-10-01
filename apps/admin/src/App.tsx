@@ -8,12 +8,11 @@ import { SupportPage } from './SupportPage.js';
 import { TestDataPage } from './TestDataPage.js';
 import { FinancePage } from './FinancePage.js';
 import { SettlementsPage } from './SettlementsPage.js';
-import { MatchLoadingPage } from './MatchLoadingPage.js';
 import { ModerationPage } from './ModerationPage.js';
 import { DisputesPage } from './DisputesPage.js';
 import { RefereesPage } from './RefereesPage.js';
-import { MatchRefereesPage } from './MatchRefereesPage.js';
-import { ResultsPage } from './ResultsPage.js';
+import { MatchesPage } from './MatchesPage.js';
+import { MatchPage } from './MatchPage.js';
 import { TeamReviewsPage } from './TeamReviewsPage.js';
 import { RecruitmentPage } from './RecruitmentPage.js';
 import { ThemeToggle } from './theme.js';
@@ -254,7 +253,7 @@ function UnassignedRefereesPanel() {
       {unassigned.data.length
         ? `${unassigned.data.length} upcoming match(es) have no referee. `
         : 'Every upcoming match has a referee. '}
-      <NavLink to="/match-referees">Match referees</NavLink>
+      <NavLink to="/matches?needs=referee">Matches needing a referee</NavLink>
     </p>
   );
 }
@@ -276,7 +275,8 @@ function ResultsAttentionPanel() {
   const attention = overdue + problems.data.length;
   return (
     <p className={attention ? 'error' : 'muted'}>
-      {overdue} overdue result(s), {problems.data.length} open result report(s). <NavLink to="/results">Results</NavLink>
+      {overdue} overdue result(s), {problems.data.length} open result report(s).{' '}
+      <NavLink to="/matches?needs=result">Matches needing a result</NavLink> · <NavLink to="/matches?needs=problem">Problems reported</NavLink>
     </p>
   );
 }
@@ -343,7 +343,7 @@ function AuditLog() {
 
 const NAV_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, string]>]> = [
   ['Overview', [['/', 'Dashboard'], ['/waiting-list', 'Waiting list']]],
-  ['Matches', [['/matches', 'Load matches'], ['/match-referees', 'Match referees'], ['/results', 'Results']]],
+  ['Matches', [['/matches', 'Matches']]],
   ['Venues', [['/venues', 'Venues & fields']]],
   ['Money', [['/finance', 'Finance'], ['/settlement', 'Venue settlement']]],
   ['People and safety', [['/support', 'Support inbox'], ['/moderation', 'Moderation'], ['/disputes', 'Disputes'], ['/referees', 'Referees'], ['/team-reviews', 'Team reviews'], ['/recruitment', 'Recruitment']]],
@@ -406,12 +406,14 @@ function AdminShell() {
           <Route path="test-data" element={<TestDataPage />} />
           <Route path="finance" element={<FinancePage />} />
           <Route path="settlement" element={<SettlementsPage />} />
-          <Route path="matches" element={<MatchLoadingPage />} />
+          <Route path="matches" element={<MatchesPage />} />
+          <Route path="matches/:matchId" element={<MatchPage />} />
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="disputes" element={<DisputesPage />} />
           <Route path="referees" element={<RefereesPage />} />
-          <Route path="match-referees" element={<MatchRefereesPage />} />
-          <Route path="results" element={<ResultsPage />} />
+          {/* CEO touch-up batch 3.5, item 5: the old pages now open the matching Matches filter. */}
+          <Route path="match-referees" element={<Navigate to="/matches?needs=referee" replace />} />
+          <Route path="results" element={<Navigate to="/matches?needs=result" replace />} />
           <Route path="team-reviews" element={<TeamReviewsPage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="audit" element={<AuditLog />} />

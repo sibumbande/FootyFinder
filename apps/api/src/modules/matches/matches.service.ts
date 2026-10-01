@@ -52,6 +52,7 @@ import { TeamMatchesService } from '../team-matches/team-matches.service.js';
 import { assertCanRunTeamMatchCommand, type TeamMatchCommand } from '../team-matches/team-side-authority.js';
 import { publicMatchUrl } from './public-match.js';
 import { PlayerOverlapError, playerOverlapAppError } from './player-overlap.js';
+import { playerHostId } from './host.js';
 
 /** Gate 7: stable API errors for taking the other side of a team match. */
 export const rethrowOtherSideError = (error: unknown) => {
@@ -105,7 +106,7 @@ export class MatchesService {
     const isParticipant = match.participants.some((item) => item.userId === userId);
     if (
       match.visibility === 'PRIVATE' &&
-      match.createdById !== userId &&
+      playerHostId(match) !== userId &&
       !isParticipant &&
       !sides?.member &&
       !(await this.matches.hasParticipation(id, userId))
@@ -117,13 +118,13 @@ export class MatchesService {
       );
     const viewerCanManage =
       match.mode === 'QUICK_GAME'
-        ? match.createdById === userId
+        ? playerHostId(match) === userId
         : Boolean(sides?.managed);
     return toMatch(match, {
       viewerCanManage,
       viewerTeamSide: sides?.member ?? null,
       viewerManagedTeamSide: sides?.managed ?? null,
-      viewerCanChat: match.createdById === userId || isParticipant || Boolean(sides?.member),
+      viewerCanChat: playerHostId(match) === userId || isParticipant || Boolean(sides?.member),
     });
   }
   async getByInvite(token: string) {
@@ -200,6 +201,7 @@ export class MatchesService {
       feeCents: match.feeCents,
       freeOnFootyFinder: match.freeOnFootyFinder,
       firstTimersOnly: match.firstTimersOnly,
+      hostedByFootyFinder: match.hostedByFootyFinder,
       currency: 'ZAR',
       rules: match.rules.map((code) => ({ code, label: MATCH_RULE_CONFIG[code].label })),
       status,
@@ -504,7 +506,7 @@ export class MatchesService {
         id,
         participantId,
         userId,
-        match.createdById === userId,
+        playerHostId(match) === userId,
         input.team,
       );
       const dto = toMatchParticipant(participant);
@@ -584,7 +586,8 @@ export class MatchesService {
   private async assertManager(id: string, userId: string, command: TeamMatchCommand = 'UPDATE_MATCH') {
     const match = await this.load(id);
     if (match.mode === 'QUICK_GAME') {
-      if (match.createdById !== userId)
+      // CEO touch-up batch 3.5, item 5: nobody is the host of a FootyFinder-hosted match in the player app.
+      if (playerHostId(match) !== userId)
         throw new AppError(403, 'Only the match organiser can do that.', 'HOST_REQUIRED');
       return match;
     }

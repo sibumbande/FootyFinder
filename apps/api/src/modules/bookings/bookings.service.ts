@@ -1,11 +1,14 @@
 import type {
+  AdminCreatedMatch,
   BookingContributionInput,
   AdminFieldBooking,
   FieldBooking,
   ManagedMatchBookingInput,
   PlayerFieldBookingInput,
   CreateMatchInput,
+  adminCreateMatchSchema,
 } from '@footy-finder/shared';
+import type { z } from 'zod';
 import { createDefaultFormation, getGoNoGoAt, MATCH_DURATION_MINUTES, MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
@@ -24,7 +27,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { toPublicUser } from '../users/user.mapper.js';
 import { FinancialInsufficientFundsError, FinancialRepository } from '../wallet/financial.repository.js';
 import { createMatchInviteToken, hashMatchInviteToken } from '../matches/invite-token.js';
-import { createPublicMatchSlug } from '../matches/public-match.js';
+import { createPublicMatchSlug, publicMatchUrl } from '../matches/public-match.js';
 import { activeClosures, overlapsClosure } from '../venues/field-closures.js';
 
 const bookingInclude = {
@@ -85,6 +88,9 @@ export const playerBookingDto = (reservation: any, viewerId?: string): FieldBook
     .map((item: any) => ({ id: item.id, status: item.status, createdAt: item.createdAt.toISOString(), user: toPublicUser(item.user) })),
   createdAt: reservation.createdAt.toISOString(),
 });
+
+/** CEO touch-up batch 3.5, item 5: the web page a private match's invite link opens. */
+export const matchInviteUrl = (token: string) => new URL(`/matches/invite/${token}`, env.CLIENT_URL).toString();
 
 /** A player-created managed slot must be two hours to 60 days away. */
 export const assertPlayerSlotWindow = (startsAt: Date, now: Date) => {
@@ -200,38 +206,70 @@ export class BookingsService {
     });
   }
 
-  private async createReservation(input: ManagedMatchBookingInput, actorUserId: string, source: 'ADMIN_LOADED' | 'PLAYER_BOOKING', requestId?: string) {
+  /**
+   * CEO touch-up batch 3.5, item 5 (D3, D4): an admin creates a Quick Match that FootyFinder hosts. It is booked
+   * exactly like a player-created match: 2 hours to 60 days ahead on the 30-minute grid, the field's availability,
+   * closures, price and policy, and the same reservation the venue payable is created from at kick-off. The admin
+   * does not join. It can be free "On FootyFinder" (optionally first-time players only) from the start.
+   */
+  async createAdminMatch(input: z.output<typeof adminCreateMatchSchema>, adminUserId: string, requestId?: string): Promise<AdminCreatedMatch> {
     const startsAt = new Date(input.startsAt);
     const now = new Date();
-    if (
-      source === 'PLAYER_BOOKING' &&
-      (startsAt.getTime() < now.getTime() + 2 * 60 * 60_000 ||
-        startsAt.getTime() > now.getTime() + 60 * 86_400_000)
-    )
-      throw new AppError(
-        400,
-        'Choose a calculated slot between two hours and 60 days from now.',
-        'MATCH_START_TIME_INVALID',
-      );
-    if (source === 'ADMIN_LOADED' && getGoNoGoAt(startsAt) <= now)
-      throw new AppError(
-        400,
-        'Kickoff must be more than 30 minutes away so players can fill every position before the go/no-go check.',
-        'MATCH_START_TIME_INVALID',
-      );
-    if (startsAt <= now)
-      throw new AppError(400, 'Choose a future booking time.', 'MATCH_START_TIME_INVALID');
+    assertPlayerSlotWindow(startsAt, now);
+    const inviteToken = input.visibility === 'PRIVATE' ? createMatchInviteToken() : undefined;
+    const free = input.freeOnFootyFinder;
+    const firstTimersOnly = free && input.firstTimersOnly;
+    try {
+      const match = await serializableTransaction(async (tx) => {
+        const slot = await this.playerSlot(tx, input.managedFieldId, input.format, startsAt);
+        const created = await tx.match.create({ data: {
+          name: input.name, description: input.description, createdBy: { connect: { id: adminUserId } }, mode: 'QUICK_GAME', format: input.format,
+          substituteCapacityPerTeam: input.substituteCapacityPerTeam, rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
+          visibility: input.visibility,
+          publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
+          inviteTokenHash: inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
+          startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: free ? 0 : MATCH_FEE_CENTS,
+          freeOnFootyFinder: free, firstTimersOnly, hostedByFootyFinder: true,
+          status: 'OPEN', goNoGoAt: getGoNoGoAt(startsAt),
+          venue: { create: slot.venue },
+          formationSlots: { create: createDefaultFormation(input.format) },
+        } });
+        const reservation = await tx.fieldReservation.create({ data: { ...slot.reservation(created.id, input.visibility, now), source: 'ADMIN_LOADED' } });
+        await enqueueGoNoGoJob(tx, created.id, startsAt);
+        await enqueueFillReminderJob(tx, created.id, startsAt, now);
+        await onRefereedMatchPublished(tx, created, now);
+        await appendAdminAudit(tx, {
+          actorUserId: adminUserId, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', entityId: reservation.id, requestId,
+          metadata: { matchId: created.id, fieldId: input.managedFieldId, priceCents: reservation.priceCentsSnapshot, visibility: input.visibility, freeOnFootyFinder: free, firstTimersOnly, hostedByFootyFinder: true },
+        });
+        return created;
+      });
+      return {
+        matchId: match.id, name: match.name, startsAt: match.startsAt.toISOString(), visibility: match.visibility,
+        freeOnFootyFinder: free, firstTimersOnly,
+        ...(match.publicSlug ? { publicUrl: publicMatchUrl(match.publicSlug) } : {}),
+        ...(inviteToken ? { inviteUrl: matchInviteUrl(inviteToken) } : {}),
+      };
+    } catch (error) {
+      return rethrowReservationConflict(error);
+    }
+  }
+
+  private async createReservation(input: ManagedMatchBookingInput, actorUserId: string) {
+    const startsAt = new Date(input.startsAt);
+    const now = new Date();
+    assertPlayerSlotWindow(startsAt, now);
     try {
       const reservation = await serializableTransaction(async (tx) => {
         const { field, price, cancellationPolicy, endsAt } = await this.fieldContext(tx, input.managedFieldId, input.format, startsAt);
         const local = localParts(startsAt, field.venue.timezone);
-        if (source === 'PLAYER_BOOKING' && local.minute % 30 !== 0)
+        if (local.minute % 30 !== 0)
           throw new AppError(
             409,
             'Choose a server-calculated 30-minute-grid slot.',
             'FIELD_SLOT_INVALID',
           );
-        const requiresFunding = source === 'PLAYER_BOOKING' && price.amountCents > 0;
+        const requiresFunding = price.amountCents > 0;
         const fundingDeadline = requiresFunding ? new Date(now.getTime() + env.BOOKING_FUNDING_MINUTES * 60_000) : null;
         if (fundingDeadline && fundingDeadline >= startsAt) throw new AppError(409, 'The booking starts before its funding window can complete.', 'BOOKING_FUNDING_WINDOW_INVALID');
         const address = [field.venue.addressLine1, field.venue.addressLine2].filter(Boolean).join(', ');
@@ -242,15 +280,14 @@ export class BookingsService {
           visibility: input.visibility,
           publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
           startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: MATCH_FEE_CENTS,
-          ...(source === 'ADMIN_LOADED' ? { goNoGoAt: getGoNoGoAt(startsAt) } : {}),
-          status: source === 'ADMIN_LOADED' ? 'OPEN' : 'DRAFT',
+          status: 'DRAFT',
           venue: { create: { name: `${field.venue.name} — ${field.name}`, addressLine1: field.venue.addressLine1, addressLine2: field.venue.addressLine2, city: field.venue.city, region: field.venue.region, postalCode: field.venue.postalCode, countryCode: field.venue.countryCode, latitude: field.venue.latitude, longitude: field.venue.longitude } },
           formationSlots: { create: createDefaultFormation(input.format) },
         } });
         const confirmed = !requiresFunding;
         const created = await tx.fieldReservation.create({
           data: {
-            fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId: match.id, source,
+            fieldId: field.id, fieldPriceId: price.id, cancellationPolicyId: cancellationPolicy.id, matchId: match.id, source: 'PLAYER_BOOKING',
             status: confirmed ? 'CONFIRMED' : 'FUNDING', startsAt, endsAt,
             fundingDeadline, priceCentsSnapshot: price.amountCents, currencySnapshot: price.currency,
             venueNameSnapshot: field.venue.name, fieldNameSnapshot: field.name, addressSnapshot: address,
@@ -267,13 +304,7 @@ export class BookingsService {
             obligations: { create: { obligationKey: confirmed ? 'PLATFORM' : 'PLAYER_POOL', requiredCents: price.amountCents, status: confirmed ? 'CAPTURED' : 'PENDING', capturedAt: confirmed ? now : null } },
           },
         });
-        if (source === 'ADMIN_LOADED') {
-          await enqueueGoNoGoJob(tx, match.id, startsAt);
-          await enqueueFillReminderJob(tx, match.id, startsAt, now);
-          await onRefereedMatchPublished(tx, match, now);
-        }
         if (fundingDeadline) await enqueueDurableJob(tx, { type: 'RESERVATION_FUNDING_EXPIRE', dedupeKey: `reservation-expire:${created.id}`, payload: { reservationId: created.id }, runAt: fundingDeadline });
-        if (source === 'ADMIN_LOADED') await appendAdminAudit(tx, { actorUserId, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', entityId: created.id, requestId, metadata: { matchId: match.id, fieldId: field.id, priceCents: price.amountCents } });
         return tx.fieldReservation.findUniqueOrThrow({ where: { id: created.id }, include: bookingInclude });
       });
       return adminBookingDto(reservation, actorUserId);
@@ -289,10 +320,8 @@ export class BookingsService {
     }
   }
 
-  createAdmin(input: ManagedMatchBookingInput, adminUserId: string, requestId?: string) { return this.createReservation(input, adminUserId, 'ADMIN_LOADED', requestId); }
-  createPlayer(input: PlayerFieldBookingInput, userId: string) { return this.createReservation(input, userId, 'PLAYER_BOOKING'); }
+  createPlayer(input: PlayerFieldBookingInput, userId: string) { return this.createReservation(input, userId); }
 
-  async listAdmin() { return (await prisma.fieldReservation.findMany({ include: bookingInclude, orderBy: { startsAt: 'asc' }, take: 200 })).map((item) => adminBookingDto(item)); }
   async listMine(userId: string) { return (await prisma.fieldReservation.findMany({ where: { OR: [{ match: { createdById: userId } }, { obligations: { some: { contributions: { some: { userId } } } } }] }, include: bookingInclude, orderBy: { startsAt: 'asc' }, take: 100 })).map((item) => playerBookingDto(item, userId)); }
   async get(id: string, userId: string) {
     const item = await prisma.fieldReservation.findUnique({ where: { id }, include: bookingInclude });

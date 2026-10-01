@@ -11,7 +11,7 @@ const THEMES = ['light', 'dark'] as const;
 type Theme = (typeof THEMES)[number];
 
 /** Every admin page checked for overflow and contrast. Collapsed panels are opened before measuring. */
-const PAGES = ['/', '/waiting-list', '/matches', '/match-referees', '/results', '/venues', '/finance', '/settlement', '/support', '/moderation', '/disputes', '/referees', '/team-reviews', '/recruitment', '/test-data', '/audit'];
+const PAGES = ['/', '/waiting-list', '/matches', '/matches?needs=referee', '/venues', '/finance', '/settlement', '/support', '/moderation', '/disputes', '/referees', '/team-reviews', '/recruitment', '/test-data', '/audit'];
 
 let adminEmail = '';
 let adminId = '';
@@ -123,6 +123,65 @@ test.describe('admin app layout and contrast (CEO batch 3.5, item 3)', () => {
     await context.close();
   });
 
+  // CEO touch-up batch 3.5, item 5 (CEO must-have): a free match created from the admin form is one players join for R0.
+  test('Create match: a free, first-time-players-only match from the form, which a new player joins for R0', async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { context, page } = await adminPage(browser, { width: 1366, height: 900 });
+    await open(page, '/matches');
+    await page.getByRole('button', { name: 'Create match' }).first().click();
+    const form = page.getByRole('form', { name: 'Create match' });
+    await form.getByRole('combobox', { name: 'Venue' }).selectOption({ label: `${f.marker} Park` });
+    await form.getByRole('combobox', { name: 'Field' }).selectOption({ label: 'Team Pitch' });
+    await form.getByRole('combobox', { name: 'Format' }).selectOption('FIVE_A_SIDE');
+    await form.getByLabel('Date').fill(new Date(Date.now() + 3 * 86_400_000 + 2 * 3_600_000).toISOString().slice(0, 10));
+    const slot = form.getByRole('combobox', { name: 'Slot' });
+    await expect(slot.locator('option').nth(1)).toBeAttached();
+    await slot.selectOption({ index: 1 });
+    await form.getByLabel('Match name').fill(`${f.marker} free launch night`);
+    const free = form.getByRole('checkbox', { name: /Free match \(On FootyFinder\)/ });
+    const firstTimers = form.getByRole('checkbox', { name: 'First-time players only' });
+    await expect(free).toBeVisible();
+    await expect(firstTimers).toBeVisible();
+    await expect(firstTimers).toBeDisabled();
+    await free.check();
+    await firstTimers.check();
+    await form.getByRole('button', { name: 'Create match' }).click();
+    const created = page.getByTestId('created-match');
+    await expect(created).toContainText('free, first-time players only');
+    const matchId = (await created.getByRole('link', { name: 'Open the match' }).getAttribute('href'))!.split('/').pop()!;
+    const match = await f.prisma.match.findUniqueOrThrow({ where: { id: matchId }, include: { fieldReservation: true, participants: true } });
+    expect(match).toMatchObject({ feeCents: 0, freeOnFootyFinder: true, firstTimersOnly: true, hostedByFootyFinder: true, createdById: adminId });
+    expect(match.fieldReservation).toMatchObject({ source: 'ADMIN_LOADED', status: 'CONFIRMED' });
+    expect(match.participants).toHaveLength(0);
+
+    // The match page: hosted by FootyFinder, and "Undo free" while nobody has joined.
+    await open(page, `/matches/${matchId}`);
+    await expect(page.getByText('Hosted by FootyFinder')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Undo free (back to R80)' })).toBeVisible();
+
+    // A new player (never played) joins in the web app for R0; FootyFinder's R80 cover is recorded.
+    const playerContext = await browser.newContext();
+    const player = await playerContext.newPage();
+    await player.goto('/');
+    const rookie = await f.register(player, 'rookie', 'Rookie');
+    await player.goto(`/matches/${matchId}`);
+    await expect(player.getByTestId('hosted-by-footyfinder')).toBeVisible();
+    await expect(player.getByTestId('free-match-badge')).toBeVisible();
+    await player.getByRole('button', { name: 'Join a team' }).click();
+    await player.getByRole('button', { name: /for free$/ }).click();
+    await expect.poll(() => f.prisma.matchParticipant.count({ where: { matchId, userId: rookie.id, status: 'JOINED' } })).toBe(1);
+    expect((await f.prisma.matchPayment.findFirstOrThrow({ where: { matchId, userId: rookie.id } })).amountCents).toBe(0);
+    expect((await f.prisma.walletAccount.findUnique({ where: { userId: rookie.id } }))?.balanceCents ?? 0).toBe(0);
+    expect(await f.prisma.promotionalCost.count({ where: { matchId, userId: rookie.id, status: 'ACTIVE' } })).toBe(1);
+
+    // Once someone has joined, the price can no longer change.
+    await open(page, `/matches/${matchId}`);
+    await expect(page.getByText('Players have joined, so this can no longer be changed.')).toBeVisible();
+    await expect(page.getByTestId('players-and-money')).toContainText('Rookie');
+    await playerContext.close();
+    await context.close();
+  });
+
   // CEO touch-up batch 3.5, item 4.
   test('waiting list: per-city counts, the list, and a CSV of subscribed people behind a fresh MFA check', async ({ browser }) => {
     const city = await f.prisma.city.findUniqueOrThrow({ where: { code: 'EAST_LONDON' } });
@@ -166,7 +225,10 @@ test.describe('admin app layout and contrast (CEO batch 3.5, item 3)', () => {
     test(`text meets WCAG AA contrast in the ${theme} theme`, async ({ browser }) => {
       test.setTimeout(240_000);
       const { context, page } = await adminPage(browser, { theme });
-      for (const path of PAGES) {
+      // CEO touch-up batch 3.5, item 5: plus one match page (the first upcoming match).
+      await open(page, '/matches');
+      const firstMatch = await page.locator('table a[href^="/matches/"]').first().getAttribute('href');
+      for (const path of [...PAGES, ...(firstMatch ? [firstMatch] : [])]) {
         await open(page, path);
         expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe(theme);
         const { violations, incomplete, passes } = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();

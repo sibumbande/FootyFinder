@@ -252,13 +252,22 @@ export interface MatchGoNoGoFacts {
   cancellationReason?: MatchCancellationReason;
 }
 
+/**
+ * CEO touch-up batch 3.5, item 5: the createdById players see on a match FootyFinder hosts. The admin who created
+ * it is never exposed, and nobody is "the host" in the player app (FootyFinder runs it from the admin app).
+ */
+export const FOOTYFINDER_HOST_ID = 'footyfinder';
+
 export interface Match extends MatchGoNoGoFacts {
   id: string;
   publicSlug?: string;
   canonicalUrl?: string;
   name: string;
   description?: string | null;
+  /** The host's user id, or FOOTYFINDER_HOST_ID when FootyFinder hosts the match. */
   createdById: string;
+  /** CEO touch-up batch 3.5, item 5: shown as "Hosted by FootyFinder". */
+  hostedByFootyFinder?: boolean;
   mode: MatchMode;
   format: MatchFormat;
   substituteCapacityPerTeam: number;
@@ -331,6 +340,8 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
   /** CEO touch-up batch 3, item 5: a free "On FootyFinder" match (R0), optionally for first-time players only. */
   freeOnFootyFinder: boolean;
   firstTimersOnly: boolean;
+  /** CEO touch-up batch 3.5, item 5. */
+  hostedByFootyFinder?: boolean;
   currency: 'ZAR';
   rules: Array<{ code: MatchRule; label: string }>;
   status: MatchStatus;

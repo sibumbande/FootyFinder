@@ -41,6 +41,7 @@ import {
 } from '../wallet/financial.repository.js';
 import { assertNoPlayerOverlap } from './player-overlap.js';
 import { hasPlayedAMatch, reversePromotionalCosts } from './free-matches.js';
+import { hostAudience } from './host.js';
 
 export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
@@ -124,6 +125,7 @@ export const publicPreviewSelect = {
   durationMinutes: true,
   feeCents: true,
   freeOnFootyFinder: true,
+  hostedByFootyFinder: true,
   firstTimersOnly: true,
   venue: { select: { name: true, city: true, region: true } },
   // CEO touch-up batch 3, item 1: the venue page and cover photo only (DEC-018: never prices or policies).
@@ -452,7 +454,7 @@ export class MatchesRepository {
         },
       ];
       const audience = new Set([
-        match.createdById,
+        ...hostAudience(match),
         ...match.participants.map(({ userId: participantUserId }) => participantUserId),
       ]);
       audience.delete(userId);
@@ -706,6 +708,7 @@ export class MatchesRepository {
           goNoGoAt: true,
           confirmedAt: true,
           createdById: true,
+          hostedByFootyFinder: true,
           formationSlots: { select: { participantId: true } },
           participants: { where: { status: 'JOINED' }, select: { userId: true } },
         },
@@ -726,7 +729,7 @@ export class MatchesRepository {
       if (positionsFilled && refereeReady) {
         await tx.match.update({ where: { id: matchId }, data: { confirmedAt: now } });
         const recipients = [
-          ...new Set([...match.participants.map(({ userId }) => userId), match.createdById]),
+          ...new Set([...match.participants.map(({ userId }) => userId), ...hostAudience(match)]),
         ];
         const notifications = await persistNotifications(
           tx,
@@ -772,6 +775,7 @@ export class MatchesRepository {
           goNoGoAt: true,
           confirmedAt: true,
           createdById: true,
+          hostedByFootyFinder: true,
           otherSideMode: true,
           otherSideTakenBy: true,
           formationSlots: { select: { participantId: true, team: true } },
@@ -792,7 +796,7 @@ export class MatchesRepository {
       if (open === 0) return none;
       const homeMembers = match.teamSides[0]?.team?.memberships.map(({ userId }) => userId) ?? [];
       const recipients = [
-        ...new Set([...match.participants.map(({ userId }) => userId), ...homeMembers, match.createdById]),
+        ...new Set([...match.participants.map(({ userId }) => userId), ...homeMembers, ...hostAudience(match)]),
       ];
       const notifications = await persistNotifications(
         tx,
@@ -889,7 +893,7 @@ export class MatchesRepository {
         ...match.participants.map(({ userId }) => userId),
         ...refundedCentsByUser.keys(),
         ...teamMemberIds,
-        match.createdById,
+        ...hostAudience(match),
       ]),
     ];
     const notificationDrafts: NotificationDraft[] = [];
@@ -1162,7 +1166,7 @@ export class MatchesRepository {
     return serializableTransaction(async (tx) => {
       const match = await tx.match.findUniqueOrThrow({
         where: { id: matchId },
-        select: { name: true, createdById: true },
+        select: { name: true, createdById: true, hostedByFootyFinder: true },
       });
       const participants = await tx.matchParticipant.findMany({ where: { matchId } });
       const participantMap = new Map(
@@ -1207,7 +1211,7 @@ export class MatchesRepository {
         },
       });
       await tx.match.update({ where: { id: matchId }, data: { status: 'COMPLETED' } });
-      const recipients = new Set([match.createdById, ...participants.map(({ userId }) => userId)]);
+      const recipients = new Set([...hostAudience(match), ...participants.map(({ userId }) => userId)]);
       const notifications = await persistNotifications(
         tx,
         [...recipients].map((recipientId) => ({

@@ -1,6 +1,7 @@
 import type { FieldClosure, FieldClosureClash, FieldClosureInput, ManagedField, ManagedVenue } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { adminClient } from './api.js';
 import { AdminActionError } from './FreshMfa.js';
 
@@ -90,42 +91,23 @@ export function FieldClosures({ field, venuesKey }: { field: ManagedField; venue
         <button disabled={add.isPending || reason.trim().length < 3}>Add closure</button>
       </form>
       <AdminActionError error={add.error} onVerified={() => add.reset()} />
-      <ClashList clashes={clashes.data ?? []} onCancelled={() => void cache.invalidateQueries({ queryKey: clashesKey })} />
+      <ClashList clashes={clashes.data ?? []} />
     </div>
   );
 }
 
-function ClashList({ clashes, onCancelled }: { clashes: FieldClosureClash[]; onCancelled: () => void }) {
+function ClashList({ clashes }: { clashes: FieldClosureClash[] }) {
   if (!clashes.length) return null;
   return (
     <div className="pending-change" data-testid="closure-clashes">
       <strong>{clashes.length === 1 ? '1 booked match clashes' : `${clashes.length} booked matches clash`} with a closure</strong>
-      <span className="muted">Nothing has been cancelled. Cancel a match below if it cannot go ahead (players are refunded in full).</span>
-      {clashes.map((clash) => <ClashRow key={clash.matchId} clash={clash} onCancelled={onCancelled} />)}
-    </div>
-  );
-}
-
-function ClashRow({ clash, onCancelled }: { clash: FieldClosureClash; onCancelled: () => void }) {
-  const [reason, setReason] = useState('');
-  const cancel = useMutation({ mutationFn: () => adminClient.cancelMatch(clash.matchId, { reason }), onSuccess: onCancelled });
-  return (
-    <div className="stack compact-gap">
-      <div className="row between">
-        <span>{clash.matchName} · {new Date(clash.startsAt).toLocaleString()} · {clash.status.toLowerCase()}</span>
-        <input aria-label={`Reason for cancelling ${clash.matchName}`} placeholder="Reason (for the audit log)" value={reason} onChange={(event) => setReason(event.target.value)} />
-        <button
-          type="button"
-          className="danger small"
-          disabled={reason.trim().length < 5 || cancel.isPending}
-          onClick={() => {
-            if (window.confirm(`Cancel ${clash.matchName} for everyone and refund every player?`)) cancel.mutate();
-          }}
-        >
-          Cancel match (weather/venue)
-        </button>
-      </div>
-      <AdminActionError error={cancel.error} onVerified={() => cancel.reset()} />
+      <span className="muted">Nothing has been cancelled. Open a match to cancel it (weather/venue) if it cannot go ahead; players are refunded in full.</span>
+      {clashes.map((clash) => (
+        <div className="row between" key={clash.matchId}>
+          <span>{clash.matchName} · {new Date(clash.startsAt).toLocaleString()} · {clash.status.toLowerCase()}</span>
+          <Link to={`/matches/${clash.matchId}`}>Open match</Link>
+        </div>
+      ))}
     </div>
   );
 }

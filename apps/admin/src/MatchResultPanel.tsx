@@ -10,10 +10,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { adminClient } from './api.js';
 import { AdminActionError } from './FreshMfa.js';
+import { matchesKey, when } from './MatchActions.js';
 
-const rootKey = ['admin', 'results'] as const;
-const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-type View = 'awaiting' | 'recent' | 'problems' | 'report';
+const rootKey = matchesKey;
 
 const scoreLine = (item: Pick<AdminResultQueueItem, 'sides'>, result: { outcomeType: string; homeScore: number; awayScore: number; forfeitWinner: 'HOME' | 'AWAY' | null }) =>
   result.outcomeType === 'FORFEIT'
@@ -23,68 +22,19 @@ const scoreLine = (item: Pick<AdminResultQueueItem, 'sides'>, result: { outcomeT
       : `${item.sides.HOME} ${result.homeScore} - ${result.awayScore} ${item.sides.AWAY}`;
 
 /**
- * Gate 8 / TKT-807 (DEC-020): results operations. The referee's result is final (D5). Admins enter
- * a result when the referee did not (D3, using the captains' versions as evidence), correct a clear
- * recording error with a reason (D5), work the problem-report queue (D6) and run the
- * matches-refereed report (D8, no money). Entering and correcting need a fresh authenticator check.
+ * Gate 8 / TKT-807 (DEC-020), on the match page since CEO touch-up batch 3.5, item 5: the final result, the captains' versions
+ * (evidence only), entering a result the referee did not record (D3) or correcting a clear recording error (D5), the
+ * history and the problem reports (D6). Entering and correcting need a fresh authenticator check (unchanged).
  */
-export function ResultsPage() {
-  const [view, setView] = useState<View>('awaiting');
-  const [selected, setSelected] = useState<string>();
-  return (
-    <section>
-      <p className="eyebrow">Match officials</p>
-      <h2>Results</h2>
-      <div className="row">
-        {([['awaiting', 'Awaiting result'], ['recent', 'Recent results'], ['problems', 'Problem reports'], ['report', 'Referee report']] as const).map(([key, label]) => (
-          <button key={key} className={view === key ? '' : 'ghost'} onClick={() => { setView(key); setSelected(undefined); }}>{label}</button>
-        ))}
-      </div>
-      {(view === 'awaiting' || view === 'recent') && (
-        <div className="support-layout">
-          <ResultQueue view={view} selected={selected} onSelect={setSelected} />
-          <div>{selected ? <ResultDetail matchId={selected} /> : <p className="muted">Choose a match.</p>}</div>
-        </div>
-      )}
-      {view === 'problems' && <ProblemQueue onOpenMatch={(matchId) => { setView('recent'); setSelected(matchId); }} />}
-      {view === 'report' && <RefereeReport />}
-    </section>
-  );
-}
-
-function ResultQueue({ view, selected, onSelect }: { view: 'awaiting' | 'recent'; selected?: string; onSelect: (id: string) => void }) {
-  const queue = useQuery({ queryKey: [...rootKey, view], queryFn: async () => (await adminClient.resultQueue(view)).data, refetchInterval: 30_000 });
-  return (
-    <div className="ticket-list">
-      {queue.error && <p className="error">{queue.error.message}</p>}
-      {queue.data?.length === 0 && <p className="muted">{view === 'awaiting' ? 'No match is waiting for a result.' : 'No results in the last 14 days.'}</p>}
-      {queue.data?.map((item) => (
-        <button key={item.matchId} className={selected === item.matchId ? 'ticket active-ticket' : 'ticket'} onClick={() => onSelect(item.matchId)}>
-          <strong>{item.sides.HOME} v {item.sides.AWAY}</strong>
-          <span>{item.name} · {when(item.startsAt)}</span>
-          <small>
-            {item.result ? scoreLine(item, item.result) : 'No result yet'}
-            {item.overdue && ' · OVERDUE'}
-            {item.mismatch && ' · Mismatch'}
-            {item.refereeAlsoPlayed && ' · Referee also played'}
-            {item.openProblemCount > 0 && ` · ${item.openProblemCount} open report(s)`}
-          </small>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ResultDetail({ matchId }: { matchId: string }) {
+export function MatchResultPanel({ matchId }: { matchId: string }) {
   const detail = useQuery({ queryKey: [...rootKey, 'detail', matchId], queryFn: async () => (await adminClient.resultDetail(matchId)).data });
   if (detail.error) return <p className="error">{detail.error.message}</p>;
   if (!detail.data) return <p className="muted">Loading…</p>;
   const item = detail.data;
   const canEnter = !item.result && ['IN_PROGRESS', 'AWAITING_RESULT'].includes(item.status);
   return (
-    <article className="venue-card">
-      <h3>{item.sides.HOME} v {item.sides.AWAY}</h3>
-      <p className="muted">{item.name} · {item.venueName} · {when(item.startsAt)}–{when(item.matchEndsAt)} · {item.status}</p>
+    <div className="stack" data-testid="result-panel">
+      <h3>Result: {item.sides.HOME} v {item.sides.AWAY}</h3>
       <p>
         Referee: {item.referee?.displayName ?? 'none'}
         {item.refereeAlsoPlayed && <strong> · Referee also played (for the record)</strong>}
@@ -128,7 +78,7 @@ function ResultDetail({ matchId }: { matchId: string }) {
           {item.problems.map((problem) => <ProblemCard key={problem.id} problem={problem} />)}
         </>
       )}
-    </article>
+    </div>
   );
 }
 
@@ -256,49 +206,3 @@ function ProblemCard({ problem }: { problem: AdminResultDetail['problems'][numbe
   );
 }
 
-function ProblemQueue({ onOpenMatch }: { onOpenMatch: (matchId: string) => void }) {
-  const [status, setStatus] = useState<'OPEN' | 'RESOLVED'>('OPEN');
-  const problems = useQuery({ queryKey: [...rootKey, 'problems', status], queryFn: async () => (await adminClient.resultProblems(status)).data });
-  return (
-    <div>
-      <div className="row">
-        <button className={status === 'OPEN' ? '' : 'ghost'} onClick={() => setStatus('OPEN')}>Open</button>
-        <button className={status === 'RESOLVED' ? '' : 'ghost'} onClick={() => setStatus('RESOLVED')}>Resolved</button>
-      </div>
-      {problems.error && <p className="error">{problems.error.message}</p>}
-      {problems.data?.length === 0 && <p className="muted">No {status.toLowerCase()} reports.</p>}
-      {problems.data?.map((problem) => (
-        <div key={problem.id}>
-          <ProblemCard problem={problem} />
-          <button type="button" className="ghost" onClick={() => onOpenMatch(problem.matchId)}>Open the match result</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function RefereeReport() {
-  const today = new Date().toISOString().slice(0, 10);
-  const [from, setFrom] = useState(`${today.slice(0, 8)}01`);
-  const [to, setTo] = useState(today);
-  const [range, setRange] = useState({ from, to });
-  const report = useQuery({ queryKey: [...rootKey, 'report', range.from, range.to], queryFn: async () => (await adminClient.refereeReport(range.from, range.to)).data });
-  return (
-    <div>
-      <p className="muted">Matches whose result each referee recorded, by kickoff date. FootyFinder pays referees outside the platform; no amounts are shown here.</p>
-      <form className="row" onSubmit={(event) => { event.preventDefault(); setRange({ from, to }); }}>
-        <label>From<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} required /></label>
-        <label>To<input type="date" value={to} onChange={(event) => setTo(event.target.value)} required /></label>
-        <button>Show</button>
-      </form>
-      {report.error && <p className="error">{report.error.message}</p>}
-      {report.data?.length === 0 && <p className="muted">No refereed matches in this period.</p>}
-      {report.data?.map((row) => (
-        <details key={row.referee.id} className="venue-card">
-          <summary><strong>{row.referee.displayName}</strong>: {row.matchCount} match(es)</summary>
-          <ul>{row.matches.map((match) => <li key={match.matchId}>{when(match.startsAt)} · {match.name} · {match.venueName}</li>)}</ul>
-        </details>
-      ))}
-    </div>
-  );
-}

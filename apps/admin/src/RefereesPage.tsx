@@ -161,6 +161,37 @@ export function RefereesPage() {
         </form>
       )}
       <AdminActionError error={grant.error} onVerified={() => grant.reset()} />
+      {/* CEO touch-up batch 3.5, item 5: moved here from the old Results page. */}
+      <h3>Matches refereed</h3>
+      <RefereeReport />
     </section>
+  );
+}
+
+const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+
+function RefereeReport() {
+  const today = new Date().toISOString().slice(0, 10);
+  const [from, setFrom] = useState(`${today.slice(0, 8)}01`);
+  const [to, setTo] = useState(today);
+  const [range, setRange] = useState({ from, to });
+  const report = useQuery({ queryKey: ['admin', 'referee-report', range.from, range.to], queryFn: async () => (await adminClient.refereeReport(range.from, range.to)).data });
+  return (
+    <div>
+      <p className="muted">Matches whose result each referee recorded, by kickoff date. FootyFinder pays referees outside the platform; no amounts are shown here.</p>
+      <form className="row" onSubmit={(event) => { event.preventDefault(); setRange({ from, to }); }}>
+        <label>From<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} required /></label>
+        <label>To<input type="date" value={to} onChange={(event) => setTo(event.target.value)} required /></label>
+        <button>Show</button>
+      </form>
+      {report.error && <p className="error">{report.error.message}</p>}
+      {report.data?.length === 0 && <p className="muted">No refereed matches in this period.</p>}
+      {report.data?.map((row) => (
+        <details key={row.referee.id} className="venue-card">
+          <summary><strong>{row.referee.displayName}</strong>: {row.matchCount} match(es)</summary>
+          <ul>{row.matches.map((match) => <li key={match.matchId}>{when(match.startsAt)} · {match.name} · {match.venueName}</li>)}</ul>
+        </details>
+      ))}
+    </div>
   );
 }

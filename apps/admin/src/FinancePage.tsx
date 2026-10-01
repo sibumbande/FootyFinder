@@ -1,6 +1,7 @@
 import type { AdminTopUp, AdminTopUpStatus } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { adminClient } from './api.js';
 import { AdminActionError } from './FreshMfa.js';
 
@@ -102,7 +103,7 @@ function FreeMatchCosts() {
     {totals && <p data-testid="free-match-totals"><strong>{totals.matchCount} free {totals.matchCount === 1 ? 'match' : 'matches'}</strong> · {totals.playersCovered} {totals.playersCovered === 1 ? 'player' : 'players'} covered · fees waived {rands(totals.feesWaivedCents)} · venue payables {rands(totals.venuePayableCents)} · expected venue cost (not yet played) {rands(totals.expectedVenueCostCents)}</p>}
     {report.data?.matches.length === 0 && <p className="muted">No free matches yet.</p>}
     <div className="audit-list">{report.data?.matches.map((row) => <article key={row.matchId}>
-      <strong>{row.name}{row.firstTimersOnly ? ' · first-time players only' : ''}</strong>
+      <strong><Link to={`/matches/${row.matchId}`}>{row.name}</Link>{row.firstTimersOnly ? ' · first-time players only' : ''}</strong>
       <span>{new Date(row.startsAt).toLocaleString()} · {row.status.toLowerCase()} · {row.playersCovered} covered · fees waived {rands(row.feesWaivedCents)} · venue cost {row.venueCostKind === 'NONE' ? 'none' : `${rands(row.venueCostCents)}${row.venueCostKind === 'EXPECTED' ? ' (expected)' : ''}`}</span>
     </article>)}</div>
   </>;

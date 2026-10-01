@@ -120,6 +120,7 @@ const financial = () =>
   }) as unknown as FinancialRepository & { createHold: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
+  tx.adminAuditLog.create.mockClear();
   captured.match.length = 0;
   captured.reservation.length = 0;
   captured.jobs.length = 0;
@@ -135,10 +136,28 @@ describe('Quick Match creation fee (DEC-018)', () => {
     expect(MATCH_FEE_CENTS).toBe(8_000);
   });
 
-  it('sets the platform-fixed R80 fee on an admin-loaded match (previously free)', async () => {
+  it('sets the platform-fixed R80 fee on an admin-created match, hosted by FootyFinder (CEO batch 3.5, item 5)', async () => {
     const service = new BookingsService(financial());
-    await expect(service.createAdmin(input, 'admin-1', 'request-1')).rejects.toBe(STOP);
-    expect(captured.match[0]).toMatchObject({ feeCents: MATCH_FEE_CENTS });
+    await service.createAdminMatch({ ...input, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1', 'request-1');
+    expect(captured.match[0]).toMatchObject({ feeCents: MATCH_FEE_CENTS, hostedByFootyFinder: true, freeOnFootyFinder: false, status: 'OPEN' });
+    expect(captured.reservation[0]).toMatchObject({ source: 'ADMIN_LOADED', status: 'CONFIRMED', priceCentsSnapshot: 50_000 });
+  });
+
+  it('creates an admin match free "On FootyFinder" (R0) and for first-time players only, booked as normal', async () => {
+    const service = new BookingsService(financial());
+    const created = await service.createAdminMatch({ ...input, freeOnFootyFinder: true, firstTimersOnly: true }, 'admin-1', 'request-1');
+    expect(captured.match[0]).toMatchObject({ feeCents: 0, freeOnFootyFinder: true, firstTimersOnly: true, hostedByFootyFinder: true });
+    expect(captured.reservation[0]).toMatchObject({ source: 'ADMIN_LOADED', priceCentsSnapshot: 50_000 });
+    expect(created).toMatchObject({ freeOnFootyFinder: true, firstTimersOnly: true });
+    expect(tx.adminAuditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'MATCH_LOADED', metadata: expect.objectContaining({ freeOnFootyFinder: true, firstTimersOnly: true, hostedByFootyFinder: true }) }),
+    }));
+  });
+
+  it('gives a private admin match an invite link, shown once', async () => {
+    const created = await new BookingsService(financial()).createAdminMatch({ ...input, visibility: 'PRIVATE', freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1');
+    expect(created.inviteUrl).toMatch(/\/matches\/invite\/[A-Za-z0-9_-]{40,}$/);
+    expect(captured.match[0]).toMatchObject({ inviteTokenHash: expect.any(String), publicSlug: undefined });
   });
 
   it('places no host wallet hold and queues no guarantee settlement (DEC-018)', async () => {
@@ -155,11 +174,8 @@ describe('Quick Match creation fee (DEC-018)', () => {
     'schedules the T-30 go/no-go check in the same transaction (%s-created match)',
     async (creator) => {
       const service = new BookingsService(financial());
-      const created =
-        creator === 'host'
-          ? service.createQuickMatch(input, 'host-1')
-          : service.createAdmin(input, 'admin-1', 'request-1');
-      await expect(created).rejects.toBe(STOP);
+      if (creator === 'host') await expect(service.createQuickMatch(input, 'host-1')).rejects.toBe(STOP);
+      else await service.createAdminMatch({ ...input, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1', 'request-1');
       const goNoGoAt = new Date(kickoff.getTime() - 30 * 60_000);
       expect(captured.match[0]).toMatchObject({ goNoGoAt });
       expect(captured.jobs).toContainEqual(
@@ -184,10 +200,10 @@ describe('Quick Match creation fee (DEC-018)', () => {
     },
   );
 
-  it('rejects an admin-loaded kickoff whose go/no-go instant has already passed', async () => {
-    const soon = new Date(Date.now() + 20 * 60_000).toISOString();
+  it.each([20, 90])('applies the players\' booking window to admin matches: %i minutes ahead is refused (D4)', async (minutes) => {
+    const soon = new Date(Date.now() + minutes * 60_000).toISOString();
     await expect(
-      new BookingsService(financial()).createAdmin({ ...input, startsAt: soon }, 'admin-1'),
+      new BookingsService(financial()).createAdminMatch({ ...input, startsAt: soon, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1'),
     ).rejects.toMatchObject({ statusCode: 400, code: 'MATCH_START_TIME_INVALID' });
     expect(captured.match).toHaveLength(0);
   });

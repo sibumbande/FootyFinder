@@ -5,6 +5,7 @@ import { AppError } from '../../errors/app-error.js';
 import { domainEvents } from '../../events/domain-events.js';
 import { toPublicUser } from '../users/user.mapper.js';
 import { ChatRepository } from './chat.repository.js';
+import { playerHostId } from '../matches/host.js';
 const mapMessage = (message: any): LobbyMessage => ({
   id: message.id,
   matchId: message.matchId,
@@ -31,7 +32,7 @@ export class ChatService {
     const match = await this.chat.findMatch(matchId, userId);
     if (!match) throw new AppError(404, 'Match not found.', 'MATCH_NOT_FOUND');
     if (
-      match.createdById !== userId &&
+      playerHostId(match) !== userId &&
       !match.participants.some((participant) => participant.userId === userId) &&
       !match.teamSides.some((side) => Boolean(side.team?.memberships.length))
     )

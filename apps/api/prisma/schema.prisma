@@ -1549,6 +1549,8 @@ model Match {
   /// CEO touch-up batch 3, item 5: a free "On FootyFinder" Quick Match (players join for R0).
   freeOnFootyFinder         Boolean                    @default(false)
   firstTimersOnly           Boolean                    @default(false)
+  /// CEO touch-up batch 3.5, item 5: created by an admin for FootyFinder; players see "Hosted by FootyFinder".
+  hostedByFootyFinder       Boolean                    @default(false)
   promotionalCosts          PromotionalCost[]
   status                    MatchStatus                @default(OPEN)
   formationVersion          Int                        @default(0)

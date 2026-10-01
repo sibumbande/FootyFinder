@@ -12,3 +12,15 @@ export function FreeMatchBadge({ firstTimersOnly = false, onDark = false }: { fi
     </>
   );
 }
+
+/** CEO touch-up batch 3.5, item 5: a match FootyFinder created and runs (no player host). */
+export function HostedByFootyFinderBadge({ onDark = false }: { onDark?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black ${onDark ? 'bg-content-inverse/10 text-content-inverse' : 'bg-brand-50 text-brand-700 ring-1 ring-brand-200'}`}
+      data-testid="hosted-by-footyfinder"
+    >
+      Hosted by FootyFinder
+    </span>
+  );
+}

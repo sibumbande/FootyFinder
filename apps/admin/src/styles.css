@@ -937,3 +937,10 @@ th {
   outline: 3px solid var(--cover-outline);
   outline-offset: 2px;
 }
+.account-grid dt,
+.account-grid dd {
+  margin: 0;
+}
+.account-grid dd {
+  font-weight: 800;
+}
