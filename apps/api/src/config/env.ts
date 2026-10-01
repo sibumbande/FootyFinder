@@ -40,6 +40,8 @@ export const envSchema = z
     PUBLIC_API_URL: z.string().url().default('http://localhost:3000'),
     TEAM_UPLOAD_DIR: z.string().min(1).default('uploads/teams'),
     PLAYER_UPLOAD_DIR: z.string().min(1).default('uploads/players'),
+    // CEO touch-up batch 3, item 1: public venue photos (local disk today; R2 before launch, see D2).
+    VENUE_UPLOAD_DIR: z.string().min(1).default('uploads/venues'),
     EMAIL_PROVIDER: z.enum(['console', 'test', 'postmark']).default('console'),
     EMAIL_FROM: z.string().email().default('no-reply@footyfinder.test'),
     POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
@@ -68,6 +70,12 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['PLAYER_UPLOAD_DIR'],
         message: 'PLAYER_UPLOAD_DIR must be separate from the public Team upload directory',
+      });
+    if (resolve(value.PLAYER_UPLOAD_DIR) === resolve(value.VENUE_UPLOAD_DIR))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PLAYER_UPLOAD_DIR'],
+        message: 'PLAYER_UPLOAD_DIR must be separate from the public venue upload directory',
       });
     if (value.ADMIN_TEST_DATA_ENABLED) {
       try {

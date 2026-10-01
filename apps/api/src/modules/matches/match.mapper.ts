@@ -10,6 +10,12 @@ import { toPublicUser } from '../users/user.mapper.js';
 import type { MatchRecord, ParticipantRecord } from './match.query.js';
 import { publicMatchUrl } from './public-match.js';
 
+/** CEO touch-up batch 3, item 1: the managed venue's cover photo and page slug, when the match has a field. */
+export const venuePhotoFacts = (venue?: { slug: string; coverImageUrl: string | null; coverImageAlt: string | null } | null) =>
+  venue
+    ? { venueSlug: venue.slug, ...(venue.coverImageUrl ? { coverImage: { url: venue.coverImageUrl, altText: venue.coverImageAlt ?? '' } } : {}) }
+    : {};
+
 export function toMatchParticipant(participant: ParticipantRecord): MatchParticipant {
   return {
     id: participant.id,
@@ -107,6 +113,7 @@ export function toMatch(
       ...match.venue,
       latitude: match.venue.latitude === null ? null : Number(match.venue.latitude),
       longitude: match.venue.longitude === null ? null : Number(match.venue.longitude),
+      ...venuePhotoFacts(match.fieldReservation?.field?.venue),
     },
     createdBy: toPublicUser(match.createdBy),
     participants: match.participants.map(toMatchParticipant),

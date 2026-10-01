@@ -58,6 +58,9 @@ export interface Venue {
   countryCode: string;
   latitude?: number | null;
   longitude?: number | null;
+  /** CEO touch-up batch 3, item 1: the FootyFinder venue's page and cover photo. */
+  venueSlug?: string;
+  coverImage?: { url: string; altText: string };
 }
 
 export interface MatchParticipant {
@@ -314,6 +317,9 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
     name: string;
     city: string;
     region: string;
+    /** CEO touch-up batch 3, item 1: the venue's page and cover photo (public facts only). */
+    venueSlug?: string;
+    coverImage?: { url: string; altText: string };
   };
   startsAt: string;
   durationMinutes: number;

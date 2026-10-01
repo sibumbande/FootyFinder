@@ -12,6 +12,8 @@ import type {
   ManagedVenueInput,
   ManagedVenueMediaInput,
   VenueCancellationPolicyInput,
+  VenueContentInput,
+  VenuePhotoUpload,
   AdminSupportListQuery,
   AdminSupportReplyInput,
   UpdateSupportTicketInput,
@@ -185,6 +187,18 @@ export const adminApi = (client: ApiClient) => ({
     }),
   replaceVenueMedia: (venueId: string, input: ManagedVenueMediaInput) =>
     client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/media`, { method: 'PUT', body: JSON.stringify(input) }),
+  /** CEO touch-up batch 3, item 1: uploaded photos; on a live venue the save waits for a second admin (D1). */
+  uploadVenuePhoto: (venueId: string, image: File) => {
+    const body = new FormData();
+    body.append('image', image);
+    return client.request<{ data: VenuePhotoUpload }>(`/admin/venues/${venueId}/photos`, { method: 'POST', body });
+  },
+  saveVenueContent: (venueId: string, input: VenueContentInput) =>
+    client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/content`, { method: 'PUT', body: JSON.stringify(input) }),
+  approveVenueContentChange: (changeId: string) =>
+    client.request<{ data: ManagedVenue }>(`/admin/venue-content-changes/${changeId}/approve`, { method: 'POST' }),
+  rejectVenueContentChange: (changeId: string, reason: string) =>
+    client.request<{ data: ManagedVenue }>(`/admin/venue-content-changes/${changeId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
   addVenueCancellationPolicy: (venueId: string, input: VenueCancellationPolicyInput) =>
     client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/cancellation-policies`, { method: 'POST', body: JSON.stringify(input) }),
   submitVenue: (venueId: string) => client.request<{ data: ManagedVenue }>(`/admin/venues/${venueId}/submit`, { method: 'POST' }),

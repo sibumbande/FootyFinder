@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LocalTeamImageStorage } from './team-image.storage.js';
 
@@ -19,16 +20,18 @@ async function storage() {
 const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 
 describe('LocalTeamImageStorage', () => {
-  it('stores valid images under a generated safe filename', async () => {
+  // CEO touch-up batch 3 (D2): crests are re-encoded to WebP without camera metadata or location.
+  it('stores valid images re-encoded under a generated safe filename, without metadata', async () => {
     const { folder, storage: provider } = await storage();
-    const url = await provider.save({
-      buffer: png,
-      size: png.length,
-      mimetype: 'image/png',
-      originalname: '../../escape.png',
-    });
-    expect(url).toMatch(/\/uploads\/teams\/[0-9a-f-]{36}\.png$/);
-    await expect(readFile(join(folder, url.split('/').at(-1)!))).resolves.toEqual(png);
+    const image = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#123456' } })
+      .png()
+      .withExif({ IFD0: { Copyright: 'GPS secret' } })
+      .toBuffer();
+    const url = await provider.save({ buffer: image, size: image.length, mimetype: 'image/png', originalname: '../../escape.png' });
+    expect(url).toMatch(/\/uploads\/teams\/[0-9a-f-]{36}\.webp$/);
+    const meta = await sharp(await readFile(join(folder, url.split('/').at(-1)!))).metadata();
+    expect(meta).toMatchObject({ format: 'webp', width: 512 });
+    expect(meta.exif).toBeUndefined();
   });
   it.each([
     [

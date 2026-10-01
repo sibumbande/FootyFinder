@@ -28,7 +28,7 @@ import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { logInfo } from '../../observability/logger.js';
-import { goNoGoFacts, toFormationSlot, toMatch, toMatchParticipant } from './match.mapper.js';
+import { goNoGoFacts, toFormationSlot, toMatch, toMatchParticipant, venuePhotoFacts } from './match.mapper.js';
 import { createMatchInviteToken, hashMatchInviteToken } from './invite-token.js';
 import {
   AlreadyJoinedError,
@@ -189,7 +189,7 @@ export class MatchesService {
       canonicalUrl: publicMatchUrl(slug),
       name: match.name,
       ...(match.description ? { description: match.description } : {}),
-      venue: { name: match.venue.name, city: match.venue.city, region: match.venue.region },
+      venue: { name: match.venue.name, city: match.venue.city, region: match.venue.region, ...venuePhotoFacts(match.fieldReservation?.field?.venue) },
       startsAt: match.startsAt.toISOString(),
       durationMinutes: match.durationMinutes,
       format: match.format,

@@ -108,6 +108,27 @@ export const managedVenueMediaInputSchema = z.object({
 });
 export type ManagedVenueMediaInput = z.infer<typeof managedVenueMediaInputSchema>;
 
+/**
+ * CEO touch-up batch 3, item 1 (D4): the venue's photos, saved in one go. Each photo is either one already in
+ * the venue (mediaId) or a fresh upload (fileId); 3 to 12 photos, and the cover is one of them.
+ */
+export const VENUE_PHOTOS_MIN = 3;
+export const VENUE_PHOTOS_MAX = 12;
+export const venueContentInputSchema = z.object({
+  photos: z.array(z.object({
+    mediaId: z.string().uuid().optional(),
+    fileId: z.string().uuid().optional(),
+    altText: z.string().trim().min(3).max(240),
+    attribution: z.string().trim().min(2).max(500),
+  }).refine((photo) => Boolean(photo.mediaId) !== Boolean(photo.fileId), 'Each photo is either an existing photo or a new upload.'))
+    .min(VENUE_PHOTOS_MIN, `Add at least ${VENUE_PHOTOS_MIN} photos.`)
+    .max(VENUE_PHOTOS_MAX, `Use at most ${VENUE_PHOTOS_MAX} photos.`),
+  coverIndex: z.number().int().min(0),
+}).refine((value) => value.coverIndex < value.photos.length, { path: ['coverIndex'], message: 'Choose one of the photos as the cover.' });
+export type VenueContentInput = z.infer<typeof venueContentInputSchema>;
+
+export const venueContentDecisionSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+
 export const venueCancellationPolicyInputSchema = z.object({
   effectiveFrom: z.string().datetime(),
   effectiveTo: z.string().datetime().optional(),

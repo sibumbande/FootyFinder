@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
+import sharp from 'sharp';
 import { AppError } from '../../errors/app-error.js';
+import { LocalFileStorage } from '../../storage/file-storage.js';
 
 export interface TeamImageInput {
   buffer: Buffer;
@@ -16,53 +16,39 @@ export interface TeamImageStorage {
 }
 
 export const TEAM_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-const extensions: Record<string, string> = {
-  'image/png': '.png',
-  'image/jpeg': '.jpg',
-  'image/webp': '.webp',
+const formats: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
+  'image/webp': 'webp',
 };
 
-const hasValidSignature = (file: TeamImageInput) => {
-  const bytes = file.buffer;
-  if (file.mimetype === 'image/png')
-    return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  if (file.mimetype === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8;
-  if (file.mimetype === 'image/webp')
-    return (
-      bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP'
-    );
-  return false;
-};
+const invalid = () =>
+  new AppError(400, 'Upload a valid PNG, JPEG, or WEBP image up to 5 MB.', 'TEAM_IMAGE_INVALID');
 
 export class LocalTeamImageStorage implements TeamImageStorage {
-  private readonly directory: string;
-  constructor(
-    directory: string,
-    private readonly publicBaseUrl: string,
-  ) {
-    this.directory = resolve(directory);
+  private readonly files: LocalFileStorage;
+  constructor(directory: string, publicBaseUrl: string) {
+    this.files = new LocalFileStorage(directory, `${publicBaseUrl.replace(/\/$/, '')}/uploads/teams`);
   }
+  // CEO touch-up batch 3 (D2): crests are decoded and re-encoded like player and venue photos, so the
+  // stored file is a clean WebP (at most 512 px) without camera metadata or location.
   async save(file: TeamImageInput) {
-    const extension = extensions[file.mimetype];
-    if (!extension || file.size > TEAM_IMAGE_MAX_BYTES || !hasValidSignature(file))
-      throw new AppError(
-        400,
-        'Upload a valid PNG, JPEG, or WEBP image up to 5 MB.',
-        'TEAM_IMAGE_INVALID',
-      );
-    await mkdir(this.directory, { recursive: true });
-    const filename = `${randomUUID()}${extension}`;
-    await writeFile(resolve(this.directory, filename), file.buffer, { flag: 'wx' });
-    return `${this.publicBaseUrl.replace(/\/$/, '')}/uploads/teams/${filename}`;
+    const expected = formats[file.mimetype];
+    if (!expected || file.size > TEAM_IMAGE_MAX_BYTES) throw invalid();
+    let image: Buffer;
+    try {
+      const decoded = await sharp(file.buffer, { failOn: 'warning' }).rotate().toBuffer({ resolveWithObject: true });
+      if (decoded.info.format !== expected) throw invalid();
+      image = await sharp(decoded.data).resize(512, 512, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 }).toBuffer();
+    } catch {
+      throw invalid();
+    }
+    const key = `${randomUUID()}.webp`;
+    await this.files.put(key, image);
+    return this.files.publicUrl(key);
   }
   async delete(url: string) {
-    const filename = basename(new URL(url).pathname);
-    if (!/^[0-9a-f-]{36}\.(png|jpg|webp)$/i.test(filename) || !extname(filename)) return;
-    const target = resolve(this.directory, filename);
-    const relativeTarget = relative(this.directory, target);
-    if (!relativeTarget || relativeTarget.startsWith('..') || isAbsolute(relativeTarget)) return;
-    await unlink(target).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-    });
+    const key = this.files.keyFromPublicUrl(url);
+    if (key) await this.files.delete(key);
   }
 }

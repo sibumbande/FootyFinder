@@ -275,6 +275,13 @@ enum VenuePublicationStatus {
   DEACTIVATED
 }
 
+enum VenueContentChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
 enum SupportTicketCategory {
   GENERAL
   ACCOUNT
@@ -579,6 +586,9 @@ model User {
   submittedVenues           ManagedVenue[]            @relation("VenueSubmitter")
   approvedVenues            ManagedVenue[]            @relation("VenueApprover")
   deactivatedVenues         ManagedVenue[]            @relation("VenueDeactivator")
+  venuePhotoUploads         VenuePhotoFile[]
+  venueContentSubmitted     VenueContentChange[]      @relation("VenueContentSubmitter")
+  venueContentDecided       VenueContentChange[]      @relation("VenueContentDecider")
   providerPayments          ProviderPayment[]
   initiatedRefunds          ProviderRefund[]          @relation("RefundInitiator")
   linkedBeneficiaries       VenueBeneficiary[]        @relation("BeneficiaryLinkedUser")
@@ -842,6 +852,8 @@ model ManagedVenue {
   updatedAt             DateTime                  @updatedAt
   fields                ManagedField[]
   media                 ManagedVenueMedia[]
+  photoFiles            VenuePhotoFile[]
+  contentChanges        VenueContentChange[]
   slugAliases           ManagedVenueSlugAlias[]
   cancellationPolicies  VenueCancellationPolicy[]
   beneficiaries         VenueBeneficiary[]
@@ -861,10 +873,48 @@ model ManagedVenueMedia {
   altText     String
   attribution String
   sortOrder   Int
+  // CEO touch-up batch 3, item 1: uploaded photos carry a thumbnail and their storage key.
+  thumbUrl    String?
+  storageKey  String?
   createdAt   DateTime     @default(now())
   venue       ManagedVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
   @@unique([venueId, sortOrder])
+  @@index([venueId])
+}
+
+/// CEO touch-up batch 3, item 1: a processed venue photo upload (1600 px WebP + 400 px thumbnail).
+model VenuePhotoFile {
+  id               String       @id @default(uuid()) @db.Uuid
+  venueId          String       @db.Uuid
+  storageKey       String       @unique
+  thumbKey         String
+  width            Int
+  height           Int
+  byteSize         Int
+  uploadedByUserId String       @db.Uuid
+  createdAt        DateTime     @default(now())
+  venue            ManagedVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  uploadedBy       User         @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([venueId])
+}
+
+/// CEO touch-up batch 3 (D1): a pending photo/bio/link change on a live venue, applied by a second admin.
+model VenueContentChange {
+  id                String                   @id @default(uuid()) @db.Uuid
+  venueId           String                   @db.Uuid
+  status            VenueContentChangeStatus @default(PENDING)
+  payload           Json
+  submittedByUserId String                   @db.Uuid
+  submittedAt       DateTime                 @default(now())
+  decidedByUserId   String?                  @db.Uuid
+  decidedAt         DateTime?
+  decisionReason    String?
+  venue             ManagedVenue             @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  submittedBy       User                     @relation("VenueContentSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  decidedBy         User?                    @relation("VenueContentDecider", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+
   @@index([venueId])
 }
 

@@ -31,6 +31,8 @@ export const matchInclude = {
     },
   },
   teamSides: { orderBy: { side: 'asc' } },
+  // CEO touch-up batch 3, item 1: the venue's cover photo and page (never its prices or policies).
+  fieldReservation: { select: { field: { select: { venue: { select: { slug: true, coverImageUrl: true, coverImageAlt: true } } } } } },
   // Gate 8 / D18: players see the referee's display name only.
   referee: { select: { id: true, username: true, profile: { select: { displayName: true, avatarUrl: true } } } },
 } satisfies Prisma.MatchInclude;

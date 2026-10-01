@@ -57,6 +57,11 @@ app.use(
   '/uploads/teams',
   express.static(resolve(env.TEAM_UPLOAD_DIR), { fallthrough: false, maxAge: '1h' }),
 );
+// CEO touch-up batch 3, item 1: processed venue photos (file names are random and never reused).
+app.use(
+  '/uploads/venues',
+  express.static(resolve(env.VENUE_UPLOAD_DIR), { fallthrough: false, maxAge: '7d', immutable: true }),
+);
 app.get('/health', (_req, res) => res.json({ data: { status: 'ok' } }));
 app.get('/ready', async (_req, res) => {
   try {

@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
 import sharp from 'sharp';
 import type { PhotoCropInput } from '@footy-finder/shared';
 import { AppError } from '../../errors/app-error.js';
+import { LocalFileStorage } from '../../storage/file-storage.js';
 
 export const PLAYER_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const supportedFormats = new Map([
@@ -11,6 +10,7 @@ const supportedFormats = new Map([
   ['image/png', 'png'],
   ['image/webp', 'webp'],
 ]);
+const FILE_KEY = /^[0-9a-f-]{36}\.webp$/i;
 
 export interface PlayerPhotoInput {
   buffer: Buffer;
@@ -27,8 +27,9 @@ export interface StoredPlayerPhoto {
 }
 
 export class PlayerPhotoStorage {
-  private readonly directory: string;
-  constructor(directory: string) { this.directory = resolve(directory); }
+  // CEO touch-up batch 3 (D2): files go through the shared storage (local disk today, R2 before launch).
+  private readonly files: LocalFileStorage;
+  constructor(directory: string) { this.files = new LocalFileStorage(directory); }
 
   async save(file: PlayerPhotoInput, crop: PhotoCropInput): Promise<StoredPlayerPhoto> {
     const expectedFormat = supportedFormats.get(file.mimetype);
@@ -60,27 +61,19 @@ export class PlayerPhotoStorage {
       .resize(512, 512, { fit: 'cover' })
       .webp({ quality: 82 })
       .toBuffer();
-    await mkdir(this.directory, { recursive: true });
     const fileKey = `${randomUUID()}.webp`;
-    await writeFile(resolve(this.directory, fileKey), normalized, { flag: 'wx' });
+    await this.files.put(fileKey, normalized);
     return { fileKey, mimeType: 'image/webp', byteSize: normalized.byteLength, width: 512, height: 512 };
   }
 
   path(fileKey: string) {
-    if (!/^[0-9a-f-]{36}\.webp$/i.test(fileKey))
+    if (!FILE_KEY.test(fileKey))
       throw new AppError(404, 'Player photo not found.', 'PLAYER_PHOTO_NOT_FOUND');
-    const target = resolve(this.directory, fileKey);
-    const relativeTarget = relative(this.directory, target);
-    if (!relativeTarget || relativeTarget.startsWith('..') || isAbsolute(relativeTarget))
-      throw new AppError(404, 'Player photo not found.', 'PLAYER_PHOTO_NOT_FOUND');
-    return target;
+    return this.files.path(fileKey);
   }
 
   async delete(fileKey: string) {
-    let target: string;
-    try { target = this.path(fileKey); } catch { return; }
-    await unlink(target).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-    });
+    if (!FILE_KEY.test(fileKey)) return;
+    await this.files.delete(fileKey);
   }
 }

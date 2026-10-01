@@ -28,6 +28,7 @@ import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
 import { ResultForm } from '../components/ResultForm.js';
+import { MatchVenuePhoto } from '../components/MatchVenuePhoto.js';
 import { ShareMatchActions } from '../components/ShareMatchActions.js';
 import {
   useCancellationQuote,
@@ -187,6 +188,7 @@ export function MatchLobbyPage() {
   return (
     <section className="grid gap-6">
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
+        <MatchVenuePhoto venue={match.venue} />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex flex-wrap gap-2">

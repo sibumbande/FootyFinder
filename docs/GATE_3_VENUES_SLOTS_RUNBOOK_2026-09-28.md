@@ -20,6 +20,7 @@ Status: implementation complete in code; production venue data and database/brow
 3. The submitting administrator submits the draft.
 4. A different MFA-verified administrator approves and publishes it.
 5. Any catalogue change returns the venue to draft. Emergency deactivation records actor, time, and reason and immediately removes the venue from public reads.
+6. CEO touch-up batch 3 (D1): photo edits on a **live** venue no longer return it to draft. Photos are uploaded (JPG/PNG/WebP, resized to 1600 px WebP plus a 400 px thumbnail, metadata stripped) and saved as a pending change; the venue stays live with its current photos until a different MFA-verified admin approves the change (or anyone rejects it). Draft venues apply photo edits directly. Smoke: `npm run smoke:venue-photos`. File storage for launch: `docs/LAUNCH_FILE_STORAGE.md`.
 
 Canonical slugs are not changed by ordinary updates. Alias lookup is supported for explicitly migrated historical slugs.
 

@@ -85,7 +85,7 @@ export const toPublicVenueDetail = (venue: NonNullable<VenueRow>): PublicVenueDe
     ...toPublicVenueCard(venue), description: venue.publicDescription!, addressLine1: venue.addressLine1,
     ...(venue.addressLine2 ? { addressLine2: venue.addressLine2 } : {}), ...(venue.postalCode ? { postalCode: venue.postalCode } : {}),
     countryCode: venue.countryCode, latitude: Number(venue.latitude), longitude: Number(venue.longitude), timezone: venue.timezone,
-    amenities: venue.amenities, gallery: venue.media.map(({ url, altText, attribution }) => ({ url, altText, attribution })),
+    amenities: venue.amenities, gallery: venue.media.map(({ url, thumbUrl, altText, attribution }) => ({ url, ...(thumbUrl ? { thumbUrl } : {}), altText, attribution })),
     fields: venue.fields.map((field) => ({
       id: field.id, name: field.name, ...(field.description ? { description: field.description } : {}),
       supportedFormats: field.supportedFormats.map(({ format }) => format), turnaroundBufferMinutes: field.turnaroundBufferMinutes,

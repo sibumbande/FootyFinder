@@ -4,6 +4,8 @@ import type { MatchFormat } from '../config/match-formats.js';
 // Prices are admin-only data; see ManagedVenue/ManagedField types used by the admin app.
 export interface PublicVenueMedia {
   url: string;
+  /** CEO touch-up batch 3, item 1: a 400 px thumbnail for uploaded photos. */
+  thumbUrl?: string;
   altText: string;
   attribution: string;
 }

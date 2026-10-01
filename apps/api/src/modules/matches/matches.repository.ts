@@ -120,6 +120,8 @@ export const publicPreviewSelect = {
   durationMinutes: true,
   feeCents: true,
   venue: { select: { name: true, city: true, region: true } },
+  // CEO touch-up batch 3, item 1: the venue page and cover photo only (DEC-018: never prices or policies).
+  fieldReservation: { select: { field: { select: { venue: { select: { slug: true, coverImageUrl: true, coverImageAlt: true } } } } } },
   participants: { where: { status: 'JOINED' }, select: { id: true } },
   goNoGoAt: true,
   confirmedAt: true,

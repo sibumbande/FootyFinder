@@ -623,3 +623,58 @@ nav a.active::before {
   display: grid;
   gap: 0.2rem;
 }
+
+/* CEO touch-up batch 3, item 1: venue photo manager. */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+.photo-tile {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem;
+  border: 1px solid #d6dbe4;
+  border-radius: 0.6rem;
+}
+.photo-tile img,
+.photo-strip img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.4rem;
+}
+.photo-tile.is-cover,
+.photo-strip img.is-cover {
+  outline: 3px solid #1b58cc;
+}
+.photo-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: 0.5rem;
+}
+.pending-change {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 2px solid #dc8900;
+  border-radius: 0.6rem;
+  background: #fff8d3;
+}
+.upload-button {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  cursor: pointer;
+  padding: 0.6rem 1rem;
+  border: 2px dashed #1b58cc;
+  border-radius: 0.6rem;
+  font-weight: 700;
+}
+.upload-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}

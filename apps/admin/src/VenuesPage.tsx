@@ -9,6 +9,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { adminClient } from './api.js';
+import { VenuePhotos } from './VenuePhotos.js';
 
 const venuesKey = ['admin', 'venues'] as const;
 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -197,10 +198,6 @@ function VenueCard({ venue }: { venue: ManagedVenue }) {
   const [latitude, setLatitude] = useState(venue.latitude?.toString() ?? '');
   const [longitude, setLongitude] = useState(venue.longitude?.toString() ?? '');
   const [amenities, setAmenities] = useState(venue.amenities.join(', '));
-  const [coverUrl, setCoverUrl] = useState(venue.coverImageUrl ?? '');
-  const [coverAlt, setCoverAlt] = useState(venue.coverImageAlt ?? '');
-  const [coverAttribution, setCoverAttribution] = useState(venue.coverImageAttribution ?? '');
-  const [gallery, setGallery] = useState(venue.media.map((item) => `${item.url} | ${item.altText} | ${item.attribution}`).join('\n'));
   const [policyFrom, setPolicyFrom] = useState('');
   const [policyTo, setPolicyTo] = useState('');
   const [policyText, setPolicyText] = useState('Full credit more than 24 hours before kickoff; no credit within 24 hours. Venue or platform cancellation receives full credit.');
@@ -215,20 +212,16 @@ function VenueCard({ venue }: { venue: ManagedVenue }) {
         <strong>{venue.publicationStatus.replaceAll('_', ' ')}</strong>
       </header>
       <details>
-        <summary>Public listing, media, and cancellation policy</summary>
+        <summary>Public listing, photos, and cancellation policy</summary>
         <div className="stack inset">
           <label>Public description<textarea minLength={20} value={publicDescription} onChange={(event) => setPublicDescription(event.target.value)} /></label>
           <div className="form-grid two">
             <label>Latitude<input type="number" step="any" value={latitude} onChange={(event) => setLatitude(event.target.value)} /></label>
             <label>Longitude<input type="number" step="any" value={longitude} onChange={(event) => setLongitude(event.target.value)} /></label>
             <label>Amenities (comma separated)<input value={amenities} onChange={(event) => setAmenities(event.target.value)} /></label>
-            <label>Cover HTTPS URL<input type="url" value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} /></label>
-            <label>Cover alt text<input value={coverAlt} onChange={(event) => setCoverAlt(event.target.value)} /></label>
-            <label>Cover attribution<input value={coverAttribution} onChange={(event) => setCoverAttribution(event.target.value)} /></label>
           </div>
-          <button disabled={mutation.isPending || !latitude || !longitude} onClick={() => mutation.mutate(() => adminClient.updateVenue(venue.id, { ...venueInput(venue), publicDescription, latitude: Number(latitude), longitude: Number(longitude), amenities: amenities.split(',').map((item) => item.trim()).filter(Boolean), coverImageUrl: coverUrl, coverImageAlt: coverAlt, coverImageAttribution: coverAttribution }))}>Save public listing</button>
-          <label>Gallery (one per line: HTTPS URL | alt text | attribution)<textarea value={gallery} onChange={(event) => setGallery(event.target.value)} /></label>
-          <button disabled={mutation.isPending} onClick={() => mutation.mutate(() => adminClient.replaceVenueMedia(venue.id, { items: gallery.split('\n').filter((line) => line.trim()).map((line) => { const [url = '', altText = '', attribution = ''] = line.split('|').map((part) => part.trim()); return { url, altText, attribution }; }) }))}>Save gallery</button>
+          <button disabled={mutation.isPending || !latitude || !longitude} onClick={() => mutation.mutate(() => adminClient.updateVenue(venue.id, { ...venueInput(venue), publicDescription, latitude: Number(latitude), longitude: Number(longitude), amenities: amenities.split(',').map((item) => item.trim()).filter(Boolean) }))}>Save public listing</button>
+          <VenuePhotos venue={venue} venuesKey={venuesKey} />
           <div className="form-grid two">
             <label>Policy effective from<input type="datetime-local" value={policyFrom} onChange={(event) => setPolicyFrom(event.target.value)} /></label>
             <label>Policy effective to (optional)<input type="datetime-local" value={policyTo} onChange={(event) => setPolicyTo(event.target.value)} /></label>

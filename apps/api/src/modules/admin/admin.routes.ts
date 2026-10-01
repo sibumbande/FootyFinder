@@ -11,6 +11,7 @@ import * as referees from '../referees/referees.admin.controller.js';
 import * as teamReviews from '../team-reviews/team-reviews.controller.js';
 import * as social from '../social/social.controller.js';
 import * as matchCancel from '../matches/admin-match-cancel.controller.js';
+import * as venueContent from './venue-content.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -37,6 +38,7 @@ registerUuidRouteParams(adminRouter, [
   'reviewId',
   'postId',
   'cardId',
+  'changeId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -44,6 +46,11 @@ adminRouter.get('/venues', controller.listVenues);
 adminRouter.post('/venues', costlyMutationRateLimit, controller.createVenue);
 adminRouter.put('/venues/:venueId', costlyMutationRateLimit, controller.updateVenue);
 adminRouter.put('/venues/:venueId/media', costlyMutationRateLimit, controller.replaceVenueMedia);
+// CEO touch-up batch 3, item 1: uploaded venue photos; on a live venue the save waits for a second admin (D1).
+adminRouter.post('/venues/:venueId/photos', costlyMutationRateLimit, venueContent.venuePhotoUpload.single('image'), venueContent.uploadVenuePhoto);
+adminRouter.put('/venues/:venueId/content', costlyMutationRateLimit, venueContent.saveVenueContent);
+adminRouter.post('/venue-content-changes/:changeId/approve', costlyMutationRateLimit, venueContent.approveVenueContentChange);
+adminRouter.post('/venue-content-changes/:changeId/reject', costlyMutationRateLimit, venueContent.rejectVenueContentChange);
 adminRouter.post('/venues/:venueId/cancellation-policies', costlyMutationRateLimit, controller.addVenueCancellationPolicy);
 adminRouter.post('/venues/:venueId/submit', costlyMutationRateLimit, controller.submitVenue);
 adminRouter.post('/venues/:venueId/approve', costlyMutationRateLimit, controller.approveVenue);

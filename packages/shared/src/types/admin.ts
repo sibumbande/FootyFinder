@@ -91,7 +91,9 @@ export interface ManagedVenue {
   deactivatedAt?: string;
   deactivationReason?: string;
   isActive: boolean;
-  media: Array<{ id: string; url: string; altText: string; attribution: string; sortOrder: number }>;
+  media: Array<{ id: string; url: string; thumbUrl?: string; altText: string; attribution: string; sortOrder: number }>;
+  /** CEO touch-up batch 3 (D1): photo/bio/link changes on a live venue waiting for a second admin. */
+  pendingContentChange?: VenueContentChangeView;
   cancellationPolicies: Array<{
     id: string;
     effectiveFrom: string;
@@ -123,4 +125,26 @@ export interface AdminTestDataBatch {
   accountCount: number;
   accounts?: AdminTestAccount[];
   temporaryPassword?: string;
+}
+
+/** CEO touch-up batch 3, item 1: a processed venue photo upload, staged until it is saved into the venue. */
+export interface VenuePhotoUpload {
+  fileId: string;
+  url: string;
+  thumbUrl: string;
+  width: number;
+  height: number;
+}
+
+/** CEO touch-up batch 3 (D1): the content a pending change would publish. */
+export interface VenueContentPayload {
+  photos: Array<{ url: string; thumbUrl?: string; altText: string; attribution: string; storageKey?: string; thumbKey?: string }>;
+  coverIndex: number;
+}
+
+export interface VenueContentChangeView {
+  id: string;
+  submittedByUserId: string;
+  submittedAt: string;
+  payload: VenueContentPayload;
 }

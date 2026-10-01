@@ -7,7 +7,7 @@ import type {
   ManagedVenueMediaInput,
   VenueCancellationPolicyInput,
 } from '@footy-finder/shared';
-import type { ManagedVenue } from '@footy-finder/shared';
+import type { ManagedVenue, VenueContentChangeView, VenueContentPayload } from '@footy-finder/shared';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
@@ -15,7 +15,7 @@ import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';
 import { appendAdminAudit } from './admin-audit.js';
 
-const include = {
+export const include = {
   fields: {
     include: {
       supportedFormats: true,
@@ -27,11 +27,12 @@ const include = {
   },
   media: { orderBy: { sortOrder: 'asc' as const } },
   cancellationPolicies: { orderBy: { effectiveFrom: 'desc' as const } },
+  contentChanges: { where: { status: 'PENDING' as const }, take: 1 },
 } satisfies Prisma.ManagedVenueInclude;
 
-type CatalogVenue = Prisma.ManagedVenueGetPayload<{ include: typeof include }>;
+export type CatalogVenue = Prisma.ManagedVenueGetPayload<{ include: typeof include }>;
 
-const venueDto = (venue: CatalogVenue): ManagedVenue => ({
+export const venueDto = (venue: CatalogVenue): ManagedVenue => ({
   id: venue.id,
   slug: venue.slug,
   name: venue.name,
@@ -57,7 +58,8 @@ const venueDto = (venue: CatalogVenue): ManagedVenue => ({
   ...(venue.deactivatedAt ? { deactivatedAt: venue.deactivatedAt.toISOString() } : {}),
   ...(venue.deactivationReason ? { deactivationReason: venue.deactivationReason } : {}),
   isActive: venue.isActive,
-  media: venue.media.map(({ id, url, altText, attribution, sortOrder }) => ({ id, url, altText, attribution, sortOrder })),
+  media: venue.media.map(({ id, url, thumbUrl, altText, attribution, sortOrder }) => ({ id, url, ...(thumbUrl ? { thumbUrl } : {}), altText, attribution, sortOrder })),
+  ...(venue.contentChanges[0] ? { pendingContentChange: contentChangeView(venue.contentChanges[0]) } : {}),
   cancellationPolicies: venue.cancellationPolicies.map((policy) => ({
     id: policy.id, effectiveFrom: policy.effectiveFrom.toISOString(), ...(policy.effectiveTo ? { effectiveTo: policy.effectiveTo.toISOString() } : {}),
     fullCreditBeforeHours: policy.fullCreditBeforeHours, lateCreditPercent: policy.lateCreditPercent,
@@ -100,6 +102,13 @@ const venueDto = (venue: CatalogVenue): ManagedVenue => ({
     createdAt: field.createdAt.toISOString(),
     updatedAt: field.updatedAt.toISOString(),
   })),
+});
+
+const contentChangeView = (change: CatalogVenue['contentChanges'][number]): VenueContentChangeView => ({
+  id: change.id,
+  submittedByUserId: change.submittedByUserId,
+  submittedAt: change.submittedAt.toISOString(),
+  payload: change.payload as unknown as VenueContentPayload,
 });
 
 export const assertNonOverlappingAvailability = (input: ManagedFieldAvailabilityInput) => {
@@ -319,7 +328,7 @@ export const assertIndependentVenueApprover = (
     );
 };
 
-const markVenueDraft = (tx: Prisma.TransactionClient, venueId: string) => tx.managedVenue.update({
+export const markVenueDraft = (tx: Prisma.TransactionClient, venueId: string) => tx.managedVenue.update({
   where: { id: venueId },
   data: { publicationStatus: 'DRAFT', submittedByUserId: null, submittedAt: null, approvedByUserId: null, approvedAt: null },
 });

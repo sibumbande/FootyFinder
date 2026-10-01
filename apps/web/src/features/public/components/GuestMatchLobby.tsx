@@ -2,6 +2,7 @@ import { MATCH_FORMAT_CONFIG, type PublicMatchPreview } from '@footy-finder/shar
 import { Link, useLocation } from 'react-router-dom';
 import { GoNoGoBanner } from '@/features/matches/components/GoNoGoBanner.js';
 import { MatchTimer } from '@/features/matches/components/MatchTimer.js';
+import { MatchVenuePhoto } from '@/features/matches/components/MatchVenuePhoto.js';
 import { ShareMatchActions } from '@/features/matches/components/ShareMatchActions.js';
 import { QUICK_MATCH_SIDE_BADGES, QUICK_MATCH_SIDE_LABELS } from '@/features/matches/constants/quick-match-sides.js';
 import { formatCurrency } from '@/utils/format-currency.js';
@@ -48,6 +49,7 @@ export function GuestMatchLobby({ preview }: { preview: PublicMatchPreview }) {
   return (
     <section className="grid gap-6" data-testid="guest-match">
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
+        <MatchVenuePhoto venue={preview.venue} />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap gap-2">
