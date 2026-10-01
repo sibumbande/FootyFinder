@@ -34,7 +34,7 @@ export function TeamInvitePage() {
   return (
     <div className="min-h-screen bg-canvas">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+        <div className="mx-auto flex h-[4.5rem] max-w-5xl items-center justify-between px-4">
           <Logo />
           <ThemeToggle />
         </div>

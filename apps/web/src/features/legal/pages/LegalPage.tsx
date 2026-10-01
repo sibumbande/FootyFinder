@@ -43,7 +43,7 @@ function TermsPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4"><Logo /><ThemeToggle /></div>
+        <div className="mx-auto flex h-[4.5rem] max-w-5xl items-center justify-between px-4"><Logo /><ThemeToggle /></div>
       </header>
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 md:grid-cols-[15rem_1fr]">
         <nav className="hidden content-start gap-1 md:sticky md:top-4 md:grid md:max-h-[calc(100vh-2rem)] md:overflow-y-auto" aria-label="Terms contents">

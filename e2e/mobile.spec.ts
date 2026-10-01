@@ -42,6 +42,28 @@ async function expectFits(page: Page, path: string, label = path) {
   expect.soft(await offscreen(page), `${label} is cut off at the screen edge`).toEqual([]);
 }
 
+// CEO touch-up batch 3, item 7: on every auth screen the logo and the theme toggle share one header row, and there
+// is no decorative ring over the heading.
+test.describe('auth screen header (CEO batch 3, item 7)', () => {
+  for (const path of ['/login', '/register', '/forgot-password', '/reset-password?token=x', '/verify-email', '/waiting-list']) {
+    test(`logo and theme toggle on one row at 390px: ${path}`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
+      const page = await context.newPage();
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+      const header = page.getByTestId('auth-header');
+      const logo = (await header.getByRole('link', { name: 'FootyFinder home' }).boundingBox())!;
+      const toggle = (await header.getByRole('button', { name: /Switch to (dark|light) mode/ }).boundingBox())!;
+      expect(Math.abs(logo.y + logo.height / 2 - (toggle.y + toggle.height / 2))).toBeLessThanOrEqual(4);
+      expect(logo.x).toBeLessThan(toggle.x);
+      expect(toggle.x + toggle.width).toBeLessThanOrEqual(390);
+      expect(await page.locator('.rounded-full.border-\\[2\\.5rem\\]').count()).toBe(0);
+      expect(await offscreen(page)).toEqual([]);
+      await context.close();
+    });
+  }
+});
+
 test.describe('phone widths (CEO batch 1, item 4)', () => {
   let matchId = '';
   let publicSlug = '';

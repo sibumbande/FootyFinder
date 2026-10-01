@@ -36,15 +36,19 @@ export function AuthLayout({
           Built for football communities, everywhere.
         </p>
       </aside>
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-5 sm:p-8">
-        <div className="pointer-events-none absolute -right-28 top-20 size-72 rounded-full border-[2.5rem] border-warning-200/30" />
-        <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
-          <ThemeToggle />
-        </div>
-        <div className="w-full max-w-xl">
-          <div className="mb-8 pr-14 lg:hidden">
+      {/* CEO touch-up batch 3, item 7: one header row (logo left, theme toggle right), like the main site header;
+          no decorative ring over the heading. On large screens the logo sits in the hero panel instead. */}
+      <main className="flex min-h-screen min-w-0 flex-col">
+        <header className="flex h-[4.5rem] shrink-0 items-center gap-2 px-4 sm:px-6 lg:px-8" data-testid="auth-header">
+          <div className="lg:hidden">
             <Logo />
           </div>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
+        </header>
+        <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-2 sm:px-8">
+        <div className="w-full max-w-xl">
           <div className="mb-7">
             <p className="anime-kicker">{eyebrow}</p>
             <h1 className="mt-3 text-4xl font-black uppercase leading-none tracking-tight text-content-strong sm:text-5xl">
@@ -53,9 +57,10 @@ export function AuthLayout({
             <p className="mt-3 leading-7 text-content-muted">{description}</p>
           </div>
           {children}
-          <nav className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-semibold text-content-muted" aria-label="Legal">
+          <nav className="mt-4 flex flex-wrap justify-center gap-x-4 text-sm font-semibold text-content-muted [&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center" aria-label="Legal">
             <Link to="/legal/terms">Terms</Link><Link to={`/legal/terms#${TERMS_ANCHORS.privacy}`}>Privacy</Link><Link to={`/legal/terms#${TERMS_ANCHORS.riskWaiver}`}>Risk waiver</Link><Link to="/waiting-list">Other cities</Link>
           </nav>
+        </div>
         </div>
       </main>
     </div>
