@@ -81,7 +81,7 @@ export function QuickMatchPitches({
           >
             <span
               aria-hidden="true"
-              className={`grid size-5 place-items-center rounded-full text-[10px] font-black text-content-inverse ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+              className={`grid size-5 place-items-center rounded-full text-[10px] font-black text-on-team ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
             >
               {QUICK_MATCH_SIDE_BADGES[team]}
             </span>

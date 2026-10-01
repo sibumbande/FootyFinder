@@ -77,7 +77,7 @@ export function Layout() {
                 title="Wallet balance"
                 aria-label={`Wallet balance ${formatRands(user.balanceCents)}`}
               >
-                <span className="hidden text-[9px] font-black uppercase tracking-[0.14em] text-warning-200 sm:block">
+                <span className="hidden text-[9px] font-black uppercase tracking-[0.14em] text-hero-accent sm:block">
                   Balance
                 </span>
                 <span className="block whitespace-nowrap text-sm font-black text-content-inverse">

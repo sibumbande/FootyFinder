@@ -87,7 +87,7 @@ export function WalletPage() {
       {summary.data && (
         <div className="grid gap-4 sm:grid-cols-3">
           <article className="rounded-2xl border-2 border-line-strong bg-brand-900 p-5 text-content-inverse">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-warning-200">Balance</p>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-hero-accent">Balance</p>
             <p className="mt-2 text-3xl font-black">{formatRands(summary.data.balanceCents)}</p>
           </article>
           <article className="rounded-2xl border border-line bg-surface p-5">

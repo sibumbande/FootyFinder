@@ -427,7 +427,7 @@ export function CreateMatchPage() {
               onChange={(event) => setTeamSubs(Math.max(0, Math.min(MAX_SUBSTITUTES_PER_TEAM, Math.trunc(Number(event.target.value) || 0))))}
               hint={`Choose 0–${MAX_SUBSTITUTES_PER_TEAM}. You can change this until 30 minutes before kickoff.`}
             />
-            <p data-testid="team-fee-breakdown" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-lg font-black text-brand-800">
+            <p data-testid="team-fee-breakdown" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-lg font-black text-brand-700">
               {formatTeamFeeBreakdown(teamFee)}
             </p>
             <p className="text-sm text-content-muted">

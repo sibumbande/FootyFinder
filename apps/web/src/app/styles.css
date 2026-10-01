@@ -10,7 +10,9 @@
     @apply m-0 min-w-0 overflow-x-hidden bg-canvas;
     min-width: 320px;
     min-height: 100vh;
-    font-family: 'Trebuchet MS', 'Arial Narrow', Arial, ui-sans-serif, system-ui, sans-serif;
+    /* CEO touch-up batch 2, item 1: a cleaner, more readable body face; display headings stay bold below. */
+    font-family: 'Inter Variable', system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+    line-height: 1.6;
     background-image:
       radial-gradient(circle at 8% 12%, rgb(var(--theme-accent-gold) / 0.18), transparent 22rem),
       radial-gradient(circle at 92% 28%, rgb(var(--theme-accent-sky) / 0.13), transparent 26rem),
@@ -61,7 +63,7 @@
       0 18px 50px -30px rgb(var(--theme-shadow) / 0.55);
   }
   .button {
-    @apply inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 font-bold uppercase tracking-wide text-content-inverse transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-100;
+    @apply inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 font-bold uppercase tracking-wide text-content-inverse transition hover:bg-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100;
     box-shadow: 3px 4px 0 rgb(var(--theme-ink) / 0.24);
   }
   .button:hover {

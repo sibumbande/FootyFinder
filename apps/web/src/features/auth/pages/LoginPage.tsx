@@ -62,7 +62,7 @@ export function LoginPage() {
         <p className="text-center text-sm text-content-muted">
           New to Footy Finder?{' '}
           <Link
-            className="font-bold text-brand-700 hover:text-brand-600 hover:underline"
+            className="font-bold text-brand-700 hover:underline"
             to={`/register?returnTo=${encodeURIComponent(returnTo)}`}
           >
             Create an account

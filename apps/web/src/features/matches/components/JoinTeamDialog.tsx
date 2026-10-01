@@ -74,7 +74,7 @@ export function JoinTeamDialog({
                 <strong className="flex items-center gap-2">
                   <span
                     aria-hidden="true"
-                    className={`grid size-6 place-items-center rounded-full text-xs font-black text-content-inverse ${side === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+                    className={`grid size-6 place-items-center rounded-full text-xs font-black text-on-team ${side === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
                   >
                     {QUICK_MATCH_SIDE_BADGES[side]}
                   </span>

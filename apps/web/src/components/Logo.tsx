@@ -22,7 +22,7 @@ export function Logo({ light = false }: { light?: boolean }) {
       <span className="hidden -skew-x-6 font-black uppercase leading-none tracking-[-0.035em] xs:block sm:block">
         <span className="block text-[0.95rem]">Footy</span>
         <span
-          className={`block text-[0.72rem] tracking-[0.16em] ${light ? 'text-warning-200' : 'text-brand-600'}`}
+          className={`block text-[0.72rem] tracking-[0.16em] ${light ? 'text-hero-accent' : 'text-brand-700'}`}
         >
           Finder
         </span>

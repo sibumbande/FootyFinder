@@ -5,7 +5,7 @@ import { useFriendAction, useRelationship } from '../hooks/useSocial.js';
 const base =
   'inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.06em] transition disabled:cursor-not-allowed disabled:opacity-60';
 const styles = {
-  primary: `${base} border-2 border-brand-900 bg-brand-600 text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] hover:bg-brand-700`,
+  primary: `${base} border-2 border-brand-900 bg-brand-600 text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] hover:bg-brand-500`,
   secondary: `${base} border-2 border-line-strong bg-surface text-content hover:bg-surface-hover`,
   quiet: `${base} border border-line bg-surface-muted text-content-muted`,
 };

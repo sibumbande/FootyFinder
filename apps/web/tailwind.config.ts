@@ -64,6 +64,13 @@ export default {
           line: 'rgb(var(--theme-pitch-line) / <alpha-value>)',
           border: 'rgb(var(--theme-pitch-border) / <alpha-value>)',
         },
+        // CEO touch-up batch 2, item 1: fixed colours for text on the always-navy panels and team badges.
+        hero: {
+          muted: 'rgb(var(--theme-hero-muted) / <alpha-value>)',
+          accent: 'rgb(var(--theme-hero-accent) / <alpha-value>)',
+        },
+        'on-team': 'rgb(var(--theme-on-team) / <alpha-value>)',
+        ink: 'rgb(var(--theme-ink) / <alpha-value>)',
       },
       boxShadow: {
         soft: '5px 6px 0 rgb(var(--theme-ink) / 0.13), 0 18px 48px -28px rgb(var(--theme-shadow) / 0.52)',

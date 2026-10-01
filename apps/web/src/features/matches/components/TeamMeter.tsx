@@ -63,7 +63,7 @@ function MeterCard({ match, meter }: { match: Match; meter: TeamMeterView }) {
             {formatRandAmount(paid)} / {formatRandAmount(meter.feeCents)}
           </p>
           <div className="h-3 overflow-hidden rounded-full bg-surface-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label="Team meter">
-            <div className={`h-full ${meter.full ? 'bg-brand-600' : 'bg-warning-500'}`} style={{ width: `${percent}%` }} />
+            <div className={`h-full ${meter.full ? 'bg-brand-600' : 'bg-warning-600'}`} style={{ width: `${percent}%` }} />
           </div>
           <p className="text-sm text-content-muted">
             {meter.capturedCents > 0

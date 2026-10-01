@@ -24,7 +24,7 @@ export function BookingsPage() {
     <div className="grid gap-6 lg:grid-cols-[19rem_1fr]">
       <aside className="space-y-3 rounded-2xl border border-line bg-surface p-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
+          <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
             Managed fields
           </p>
           <h1 className="text-2xl font-bold text-content-strong">Field bookings</h1>
@@ -68,7 +68,7 @@ export function BookingsPage() {
       ) : (
         <section className="space-y-5 rounded-2xl border border-line bg-surface p-6">
           {detail.isPending && <p>Loading booking…</p>}
-          {detail.error && <p className="text-danger-600">{detail.error.message}</p>}
+          {detail.error && <p className="text-danger-700">{detail.error.message}</p>}
           {detail.data && (
             <>
               <div>

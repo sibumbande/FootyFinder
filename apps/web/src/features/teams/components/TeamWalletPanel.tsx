@@ -128,7 +128,7 @@ function ContributeForm({ teamId }: { teamId: string }) {
         </span>
       </label>
       {confirming && amountCents !== null && (
-        <p className="mt-3 rounded-xl bg-brand-50 p-3 text-sm font-semibold text-brand-800">
+        <p className="mt-3 rounded-xl bg-brand-50 p-3 text-sm font-semibold text-brand-700">
           Move {formatRands(amountCents)} from your wallet to the team wallet? You can take back money the team hasn&apos;t spent.
         </p>
       )}

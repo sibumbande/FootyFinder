@@ -15,7 +15,7 @@ export function InviteMatchPage() {
   if (!match.data) return <FormError message={match.error?.message ?? 'Invitation not found.'} />;
   return (
     <section className="mx-auto max-w-xl rounded-3xl border border-line bg-surface p-8 text-center shadow-soft">
-      <p className="text-sm font-bold uppercase text-brand-600">Private invitation</p>
+      <p className="text-sm font-bold uppercase text-brand-700">Private invitation</p>
       <h1 className="mt-3 text-3xl font-bold text-content-strong">{match.data.name}</h1>
       <p className="mt-2 text-content-muted">
         {match.data.venue.name} · {match.data.venue.city}

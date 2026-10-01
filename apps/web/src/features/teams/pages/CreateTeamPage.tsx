@@ -60,7 +60,7 @@ export function CreateTeamPage() {
   return (
     <section className="mx-auto grid max-w-5xl gap-7">
       <header>
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-600">Create Team</p>
+        <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand-700">Create Team</p>
         <h1 className="mt-2 text-3xl font-black text-content-strong">Build your club identity.</h1>
         <p className="mt-2 text-content-muted">
           Team creation is free and will not affect your wallet.

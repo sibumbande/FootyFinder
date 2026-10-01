@@ -129,7 +129,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
                   onChange={(event) => setSubs(Math.max(0, Math.min(MAX_SUBSTITUTES_PER_TEAM, Math.trunc(Number(event.target.value) || 0))))}
                 />
               </label>
-              <p data-testid="load-team-fee" className="rounded-xl bg-brand-50 p-3 text-sm font-black text-brand-800">{formatTeamFeeBreakdown(fee)}</p>
+              <p data-testid="load-team-fee" className="rounded-xl bg-brand-50 p-3 text-sm font-black text-brand-700">{formatTeamFeeBreakdown(fee)}</p>
               <p className="text-xs text-content-muted">
                 Your team takes the side straight away. Nothing is taken now: a captain fills your team meter from the team wallet, and it is taken only if the match goes ahead.
               </p>

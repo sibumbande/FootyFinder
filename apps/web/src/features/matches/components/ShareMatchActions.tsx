@@ -66,12 +66,12 @@ export function ShareMatchActions({ facts }: { facts: MatchShareFacts }) {
       </a>
       <button
         type="button"
-        className="min-h-11 rounded-xl px-4 text-sm font-bold text-brand-100 underline hover:text-content-inverse"
+        className="min-h-11 rounded-xl px-4 text-sm font-bold text-hero-muted underline hover:text-content-inverse"
         onClick={copy}
       >
         Copy link
       </button>
-      <span className="text-sm font-semibold text-brand-100" aria-live="polite">
+      <span className="text-sm font-semibold text-hero-muted" aria-live="polite">
         {message}
       </span>
     </div>

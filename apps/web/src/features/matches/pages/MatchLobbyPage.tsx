@@ -206,23 +206,23 @@ export function MatchLobbyPage() {
               )}
             </div>
             <h1 className="mt-4 text-3xl font-black sm:text-4xl">{match.name}</h1>
-            <p className="mt-2 font-semibold text-brand-100">
+            <p className="mt-2 font-semibold text-hero-muted">
               {match.venue.name} · {match.venue.addressLine1}, {match.venue.city}
             </p>
-            <p className="mt-2 text-sm text-brand-100">
+            <p className="mt-2 text-sm text-hero-muted">
               {formatDate(match.startsAt)} · {match.durationMinutes} minutes ·{' '}
               {match.feeCents ? formatCurrency(match.feeCents) : 'Free'}
             </p>
             {match.description && (
-              <p className="mt-4 max-w-2xl text-brand-100">{match.description}</p>
+              <p className="mt-4 max-w-2xl text-hero-muted">{match.description}</p>
             )}
-            <p className="mt-3 text-sm text-brand-100">
+            <p className="mt-3 text-sm text-hero-muted">
               {MATCH_FORMAT_CONFIG[match.format].startersPerTeam} starters +{' '}
               {match.substituteCapacityPerTeam} substitutes per team ·{' '}
               {match.rollingSubstitutes ? 'Rolling substitutions' : 'Standard substitutions'}
             </p>
             {match.rules.length > 0 && (
-              <p className="mt-1 text-sm text-brand-100">
+              <p className="mt-1 text-sm text-hero-muted">
                 Rules: {match.rules.map((rule) => MATCH_RULE_CONFIG[rule].label).join(', ')}
               </p>
             )}
@@ -233,7 +233,7 @@ export function MatchLobbyPage() {
               <span className="block text-xl font-black">
                 {match.participantCount}/{capacity}
               </span>
-              <span className="text-[10px] font-bold uppercase text-brand-100">Players</span>
+              <span className="text-[10px] font-bold uppercase text-hero-muted">Players</span>
             </div>
           </div>
         </div>
@@ -372,7 +372,7 @@ export function MatchLobbyPage() {
             >
               <span
                 aria-hidden="true"
-                className={`grid size-6 place-items-center rounded-full text-xs font-black text-content-inverse ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+                className={`grid size-6 place-items-center rounded-full text-xs font-black text-on-team ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
               >
                 {QUICK_MATCH_SIDE_BADGES[team]}
               </span>

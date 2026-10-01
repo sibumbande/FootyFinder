@@ -534,7 +534,7 @@ export function FormationBoard({
                 <span
                   aria-hidden="true"
                   data-testid="formation-side-badge"
-                  className={`pointer-events-none absolute -left-1.5 -top-1.5 grid size-5 place-items-center rounded-full border-2 border-surface text-[10px] font-black text-content-inverse ${slot.team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+                  className={`pointer-events-none absolute -left-1.5 -top-1.5 grid size-5 place-items-center rounded-full border-2 border-surface text-[10px] font-black text-on-team ${slot.team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
                 >
                   {badge}
                 </span>
@@ -672,7 +672,7 @@ function ReserveBench({
           {badge && (
             <span
               aria-hidden="true"
-              className={`grid size-5 place-items-center rounded-full text-[10px] font-black text-content-inverse ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
+              className={`grid size-5 place-items-center rounded-full text-[10px] font-black text-on-team ${team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
             >
               {badge}
             </span>

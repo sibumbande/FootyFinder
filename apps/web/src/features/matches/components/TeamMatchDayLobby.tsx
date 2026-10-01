@@ -74,17 +74,17 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
               )}
             </div>
             <h1 className="mt-4 text-3xl font-black sm:text-4xl">{match.name}</h1>
-            <p className="mt-2 font-semibold text-brand-100">
+            <p className="mt-2 font-semibold text-hero-muted">
               {home.teamNameSnapshot}
               {publicTeamMatch && ` vs ${match.teamSides.find(({ side }) => side === 'AWAY')?.teamNameSnapshot ?? (match.otherSideTakenBy === 'INDIVIDUALS' ? 'Players' : 'Opponent wanted')}`}
               {' · '}
               {match.venue.name}
             </p>
-            <p className="mt-2 text-sm text-brand-100">
+            <p className="mt-2 text-sm text-hero-muted">
               {formatDate(match.startsAt)} · {match.durationMinutes} minutes · {publicTeamMatch ? 'Public team match' : 'Private and free'}
             </p>
             {match.description && (
-              <p className="mt-4 max-w-2xl text-brand-100">{match.description}</p>
+              <p className="mt-4 max-w-2xl text-hero-muted">{match.description}</p>
             )}
           </div>
           <div className="rounded-2xl bg-content-inverse/10 px-4 py-3 text-center">
@@ -92,12 +92,12 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
               {MATCH_FORMAT_CONFIG[match.format].startersPerTeam} +{' '}
               {match.substituteCapacityPerTeam}
             </span>
-            <span className="text-[10px] font-bold uppercase text-brand-100">
+            <span className="text-[10px] font-bold uppercase text-hero-muted">
               Starters + substitutes
             </span>
           </div>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-brand-100">
+        <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-hero-muted">
           <span>
             {match.rollingSubstitutes ? 'Rolling substitutions' : 'Standard substitutions'}
           </span>

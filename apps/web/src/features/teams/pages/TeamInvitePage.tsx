@@ -49,7 +49,7 @@ export function TeamInvitePage() {
               <div className="flex justify-center">
                 <TeamAvatar team={invite.data.team} size="lg" />
               </div>
-              <p className="mt-5 text-sm font-bold uppercase tracking-wider text-brand-600">
+              <p className="mt-5 text-sm font-bold uppercase tracking-wider text-brand-700">
                 Team invitation
               </p>
               <h1 className="mt-2 text-3xl font-black text-content-strong">

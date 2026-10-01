@@ -15,7 +15,7 @@ export function Button({
 }: Props) {
   const styles =
     variant === 'primary'
-      ? 'border-2 border-brand-900 bg-brand-600 text-content-inverse shadow-[3px_4px_0_rgb(var(--theme-accent-gold))] hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-[4px_5px_0_rgb(var(--theme-accent-scarlet))] focus:ring-brand-100'
+      ? 'border-2 border-brand-900 bg-brand-600 text-content-inverse shadow-[3px_4px_0_rgb(var(--theme-accent-gold))] hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-[4px_5px_0_rgb(var(--theme-accent-scarlet))] focus:ring-brand-100'
       : variant === 'secondary'
         ? 'border-2 border-line-strong bg-surface text-content shadow-[2px_3px_0_rgb(var(--theme-ink)/0.16)] hover:-translate-y-0.5 hover:bg-surface-hover focus:ring-line'
         : 'border border-transparent text-content-muted hover:bg-surface-hover hover:text-content-strong focus:ring-line';

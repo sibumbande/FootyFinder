@@ -14,7 +14,7 @@ export function MatchTimer({ startsAt, endsAt }: { startsAt: string; endsAt: str
   const seconds = Math.floor((remaining / 1000) % 60);
   return (
     <div className="rounded-2xl bg-content-inverse/10 px-4 py-3 text-center">
-      <span className="block text-[10px] font-bold uppercase tracking-wide text-brand-100">
+      <span className="block text-[10px] font-bold uppercase tracking-wide text-hero-muted">
         {now < start ? 'Kickoff in' : remaining ? 'Time remaining' : 'Full time'}
       </span>
       <span className="font-mono text-xl font-black">

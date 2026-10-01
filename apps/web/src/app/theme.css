@@ -13,7 +13,7 @@
   --theme-content: 33 49 77;
   --theme-content-strong: 12 28 57;
   --theme-content-muted: 76 87 105;
-  --theme-content-subtle: 130 126 114;
+  --theme-content-subtle: 102 98 87;
   --theme-content-inverse: 255 251 230;
   --theme-line: 211 194 151;
   --theme-line-strong: 22 48 89;
@@ -27,11 +27,11 @@
   --theme-danger-50: 255 235 218;
   --theme-danger-200: 255 179 147;
   --theme-danger-400: 239 91 56;
-  --theme-danger-600: 202 48 33;
+  --theme-danger-600: 184 40 27;
   --theme-danger-700: 151 35 28;
   --theme-info-50: 228 246 249;
   --theme-info-200: 144 221 226;
-  --theme-info-600: 0 128 145;
+  --theme-info-600: 0 110 125;
   --theme-info-700: 0 91 107;
   --theme-warning-50: 255 248 211;
   --theme-warning-200: 255 218 102;
@@ -40,7 +40,7 @@
   --theme-team-home: 25 78 190;
   --theme-team-home-muted: 222 234 255;
   --theme-team-home-border: 64 117 216;
-  --theme-team-away: 204 48 33;
+  --theme-team-away: 184 42 28;
   --theme-team-away-muted: 255 225 210;
   --theme-team-away-border: 237 102 68;
   --theme-pitch: 30 125 76;
@@ -53,6 +53,10 @@
   --theme-paper: 255 247 218;
   --theme-ink: 10 31 70;
   --theme-shadow: 10 31 70;
+  /* CEO touch-up batch 2, item 1: text on the always-navy hero panels and photos never flips with the theme. */
+  --theme-hero-muted: 206 222 255;
+  --theme-hero-accent: 255 206 84;
+  --theme-on-team: 255 251 230;
 }
 
 .dark {
@@ -64,29 +68,29 @@
   --theme-content: 222 226 214;
   --theme-content-strong: 255 247 218;
   --theme-content-muted: 170 181 190;
-  --theme-content-subtle: 111 129 147;
+  --theme-content-subtle: 150 164 178;
   --theme-content-inverse: 255 251 230;
   --theme-line: 43 67 94;
   --theme-line-strong: 112 145 181;
   --theme-brand-50: 17 43 85;
   --theme-brand-100: 24 59 112;
   --theme-brand-200: 45 90 163;
-  --theme-brand-500: 76 139 238;
-  --theme-brand-600: 55 113 216;
+  --theme-brand-500: 50 108 205;
+  --theme-brand-600: 38 92 186;
   --theme-brand-700: 150 188 255;
   --theme-brand-900: 5 23 54;
   --theme-danger-50: 66 30 29;
   --theme-danger-200: 115 47 39;
   --theme-danger-400: 255 113 77;
-  --theme-danger-600: 255 121 84;
+  --theme-danger-600: 196 52 36;
   --theme-danger-700: 255 173 138;
   --theme-info-50: 10 49 64;
   --theme-info-200: 20 92 106;
-  --theme-info-600: 67 202 211;
+  --theme-info-600: 0 118 132;
   --theme-info-700: 141 230 233;
   --theme-warning-50: 67 50 16;
   --theme-warning-200: 125 87 16;
-  --theme-warning-600: 255 190 46;
+  --theme-warning-600: 176 104 0;
   --theme-warning-700: 255 221 118;
   --theme-team-home: 115 168 255;
   --theme-team-home-muted: 16 47 94;
@@ -104,4 +108,5 @@
   --theme-paper: 255 247 218;
   --theme-ink: 5 17 39;
   --theme-shadow: 0 0 0;
+  --theme-on-team: 5 17 39;
 }

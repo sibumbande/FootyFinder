@@ -65,7 +65,7 @@ export function PublicMatchPreviewPage() {
             </span>
           </div>
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">{preview.name}</h1>
-          {preview.description && <p className="mt-3 max-w-2xl text-brand-100">{preview.description}</p>}
+          {preview.description && <p className="mt-3 max-w-2xl text-hero-muted">{preview.description}</p>}
           <dl className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Fact label="Venue" value={`${preview.venue.name}, ${preview.venue.city}`} />
             <Fact label="Kickoff" value={formatDate(preview.startsAt)} />
@@ -154,7 +154,7 @@ function PublicShell({ children }: { children: ReactNode }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-content-inverse/10 p-4">
-      <dt className="text-xs font-bold uppercase text-brand-100">{label}</dt>
+      <dt className="text-xs font-bold uppercase text-hero-muted">{label}</dt>
       <dd className="mt-1 font-black">{value}</dd>
     </div>
   );

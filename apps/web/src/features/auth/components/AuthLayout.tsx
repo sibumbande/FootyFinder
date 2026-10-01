@@ -27,12 +27,12 @@ export function AuthLayout({
           <h2 className="text-5xl font-black uppercase leading-[0.94] drop-shadow-[3px_3px_0_rgb(var(--theme-brand-900))]">
             Find players. Build a squad. Get on the pitch.
           </h2>
-          <p className="mt-5 text-lg leading-8 text-brand-100">
+          <p className="mt-5 text-lg leading-8 text-hero-muted">
             A simpler way to connect with local football players and organise the matches that bring
             everyone together.
           </p>
         </div>
-        <p className="relative text-sm text-brand-100">
+        <p className="relative text-sm text-hero-muted">
           Built for football communities, everywhere.
         </p>
       </aside>
