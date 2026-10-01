@@ -92,6 +92,9 @@ export interface ManagedVenue {
   deactivationReason?: string;
   isActive: boolean;
   media: Array<{ id: string; url: string; thumbUrl?: string; altText: string; attribution: string; sortOrder: number }>;
+  /** CEO touch-up batch 3, item 2. */
+  aboutText?: string;
+  links: VenueLink[];
   /** CEO touch-up batch 3 (D1): photo/bio/link changes on a live venue waiting for a second admin. */
   pendingContentChange?: VenueContentChangeView;
   cancellationPolicies: Array<{
@@ -140,6 +143,16 @@ export interface VenuePhotoUpload {
 export interface VenueContentPayload {
   photos: Array<{ url: string; thumbUrl?: string; altText: string; attribution: string; storageKey?: string; thumbKey?: string }>;
   coverIndex: number;
+  /** CEO touch-up batch 3, item 2. Older pending changes (photos only) have neither field. */
+  aboutText?: string;
+  links?: VenueLink[];
+}
+
+export type VenueLinkType = 'WEBSITE' | 'INSTAGRAM' | 'FACEBOOK' | 'X' | 'TIKTOK' | 'OTHER';
+export interface VenueLink {
+  type: VenueLinkType;
+  label: string;
+  url: string;
 }
 
 export interface VenueContentChangeView {

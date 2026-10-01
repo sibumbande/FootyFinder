@@ -66,6 +66,9 @@ const venueRow = {
   coverImageAlt: 'Cover',
   coverImageAttribution: 'Test',
   media: [{ url: 'https://example.invalid/1.webp', altText: 'One', attribution: 'Test' }],
+  // CEO touch-up batch 3, item 2: public bio and links are fine to show.
+  aboutText: 'A friendly community venue.',
+  links: [{ type: 'WEBSITE', label: 'Website', url: 'https://example.invalid' }],
   cancellationPolicies: [
     {
       effectiveFrom: new Date(now.getTime() - 86_400_000),

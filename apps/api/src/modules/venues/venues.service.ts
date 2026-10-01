@@ -4,6 +4,7 @@ import { AppError } from '../../errors/app-error.js';
 
 const venueInclude = {
   media: { orderBy: { sortOrder: 'asc' as const } },
+  links: { orderBy: { sortOrder: 'asc' as const } },
   fields: {
     where: { status: 'ACTIVE' as const },
     include: {
@@ -90,6 +91,9 @@ export const toPublicVenueDetail = (venue: NonNullable<VenueRow>): PublicVenueDe
       id: field.id, name: field.name, ...(field.description ? { description: field.description } : {}),
       supportedFormats: field.supportedFormats.map(({ format }) => format), turnaroundBufferMinutes: field.turnaroundBufferMinutes,
     })),
+    // CEO touch-up batch 3, item 2: plain text and https links only.
+    ...(venue.aboutText ? { aboutText: venue.aboutText } : {}),
+    links: venue.links.map(({ type, label, url }) => ({ type, label, url })),
   };
 };
 

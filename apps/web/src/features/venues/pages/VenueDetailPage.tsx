@@ -4,6 +4,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { GuestAction } from '@/features/public/components/SignUpPrompt.js';
+import { VenueAbout } from '../components/VenueAbout.js';
 import { useVenue, useVenueSlots } from '../hooks/useVenues.js';
 
 const localToday = () => new Date().toISOString().slice(0, 10);
@@ -28,6 +29,7 @@ export function VenueDetailPage() {
     </div>
     {/* CEO touch-up batch 3, item 1: uploaded photos show as thumbnails that open the full photo. */}
     {venue.gallery.length > 0 && <section aria-label="Venue photos" className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="venue-gallery">{venue.gallery.map((image) => <figure key={image.url}><a href={image.url} target="_blank" rel="noopener noreferrer"><img className="aspect-[4/3] w-full rounded-2xl object-cover" src={image.thumbUrl ?? image.url} alt={image.altText} loading="lazy" /></a><figcaption className="mt-1 text-xs text-content-subtle">{image.attribution}</figcaption></figure>)}</section>}
+    {(venue.aboutText || venue.links.length > 0) && <VenueAbout aboutText={venue.aboutText} links={venue.links} />}
     <p className="rounded-xl bg-surface-muted p-4 text-sm text-content-muted">Cancellations and refunds follow the FootyFinder match rules in <Link className="font-bold text-brand-700 underline" to={`/legal/terms#${TERMS_ANCHORS.cancellations}`}>Terms clause 14</Link>.</p>
   </section>;
 }

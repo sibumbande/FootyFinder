@@ -28,6 +28,7 @@ export const include = {
   media: { orderBy: { sortOrder: 'asc' as const } },
   cancellationPolicies: { orderBy: { effectiveFrom: 'desc' as const } },
   contentChanges: { where: { status: 'PENDING' as const }, take: 1 },
+  links: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.ManagedVenueInclude;
 
 export type CatalogVenue = Prisma.ManagedVenueGetPayload<{ include: typeof include }>;
@@ -59,6 +60,8 @@ export const venueDto = (venue: CatalogVenue): ManagedVenue => ({
   ...(venue.deactivationReason ? { deactivationReason: venue.deactivationReason } : {}),
   isActive: venue.isActive,
   media: venue.media.map(({ id, url, thumbUrl, altText, attribution, sortOrder }) => ({ id, url, ...(thumbUrl ? { thumbUrl } : {}), altText, attribution, sortOrder })),
+  ...(venue.aboutText ? { aboutText: venue.aboutText } : {}),
+  links: venue.links.map(({ type, label, url }) => ({ type, label, url })),
   ...(venue.contentChanges[0] ? { pendingContentChange: contentChangeView(venue.contentChanges[0]) } : {}),
   cancellationPolicies: venue.cancellationPolicies.map((policy) => ({
     id: policy.id, effectiveFrom: policy.effectiveFrom.toISOString(), ...(policy.effectiveTo ? { effectiveTo: policy.effectiveTo.toISOString() } : {}),

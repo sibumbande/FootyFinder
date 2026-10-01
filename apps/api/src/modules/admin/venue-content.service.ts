@@ -1,4 +1,4 @@
-import type { VenueContentInput, VenueContentPayload, VenuePhotoUpload } from '@footy-finder/shared';
+import { VENUE_PHOTOS_MIN, type VenueContentData, type VenueContentPayload, type VenuePhotoUpload } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
 import { serializableTransaction } from '../../database/transaction.js';
@@ -43,12 +43,14 @@ export class VenueContentService {
     }
   }
 
-  async saveContent(venueId: string, input: VenueContentInput, actorUserId: string, requestId?: string) {
+  async saveContent(venueId: string, input: VenueContentData, actorUserId: string, requestId?: string) {
     const { venue, removed } = await serializableTransaction(async (tx) => {
       const current = await tx.managedVenue.findUniqueOrThrow({ where: { id: venueId }, include: { media: true } });
       const payload = await this.resolve(tx, venueId, current.media, input);
       let removed: string[] = [];
       if (current.publicationStatus === 'PUBLISHED') {
+        if (payload.photos.length < VENUE_PHOTOS_MIN)
+          throw new AppError(400, `A live venue needs at least ${VENUE_PHOTOS_MIN} photos.`, 'VENUE_PHOTOS_TOO_FEW');
         await tx.venueContentChange.updateMany({
           where: { venueId, status: 'PENDING' },
           data: { status: 'SUPERSEDED', decidedByUserId: actorUserId, decidedAt: new Date(), decisionReason: 'Replaced by a newer change.' },
@@ -96,7 +98,7 @@ export class VenueContentService {
     return venueDto(venue);
   }
 
-  private async resolve(tx: Tx, venueId: string, media: Array<{ id: string; url: string; thumbUrl: string | null; storageKey: string | null }>, input: VenueContentInput): Promise<VenueContentPayload> {
+  private async resolve(tx: Tx, venueId: string, media: Array<{ id: string; url: string; thumbUrl: string | null; storageKey: string | null }>, input: VenueContentData): Promise<VenueContentPayload> {
     const fileIds = input.photos.flatMap(({ fileId }) => (fileId ? [fileId] : []));
     const files = fileIds.length ? await tx.venuePhotoFile.findMany({ where: { venueId, id: { in: fileIds } } }) : [];
     const photos = input.photos.map((photo) => {
@@ -110,7 +112,7 @@ export class VenueContentService {
       return { url: this.photos.url(file.storageKey), thumbUrl: this.photos.url(file.thumbKey), altText: photo.altText, attribution: photo.attribution, storageKey: file.storageKey };
     });
     if (new Set(photos.map(({ url }) => url)).size !== photos.length) throw new AppError(400, 'The same photo appears twice.', 'VENUE_PHOTO_DUPLICATE');
-    return { photos, coverIndex: input.coverIndex };
+    return { photos, coverIndex: input.coverIndex, aboutText: input.aboutText, links: input.links };
   }
 
   /**
@@ -145,8 +147,19 @@ async function applyContent(tx: Tx, venueId: string, payload: VenueContentPayloa
       venueId, sortOrder, url: photo.url, thumbUrl: photo.thumbUrl ?? null, altText: photo.altText, attribution: photo.attribution, storageKey: photo.storageKey ?? null,
     })),
   });
-  const cover = payload.photos[payload.coverIndex]!;
-  await tx.managedVenue.update({ where: { id: venueId }, data: { coverImageUrl: cover.url, coverImageAlt: cover.altText, coverImageAttribution: cover.attribution } });
+  const cover = payload.photos[payload.coverIndex];
+  await tx.managedVenue.update({
+    where: { id: venueId },
+    data: {
+      coverImageUrl: cover?.url ?? null, coverImageAlt: cover?.altText ?? null, coverImageAttribution: cover?.attribution ?? null,
+      // CEO touch-up batch 3, item 2 (changes saved before item 2 carry neither field and leave them as they are).
+      ...(payload.aboutText !== undefined ? { aboutText: payload.aboutText || null } : {}),
+    },
+  });
+  if (payload.links) {
+    await tx.managedVenueLink.deleteMany({ where: { venueId } });
+    await tx.managedVenueLink.createMany({ data: payload.links.map((link, sortOrder) => ({ venueId, sortOrder, ...link })) });
+  }
   const kept = new Set(payload.photos.flatMap(({ storageKey }) => (storageKey ? [storageKey] : [])));
   return before.flatMap(({ storageKey }) => (storageKey && !kept.has(storageKey) ? [storageKey] : []));
 }

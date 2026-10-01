@@ -39,6 +39,9 @@ export interface PublicVenueDetail extends PublicVenueCard {
   amenities: string[];
   gallery: PublicVenueMedia[];
   fields: PublicVenueField[];
+  /** CEO touch-up batch 3, item 2: "About this venue" and up to five links. */
+  aboutText?: string;
+  links: Array<{ type: 'WEBSITE' | 'INSTAGRAM' | 'FACEBOOK' | 'X' | 'TIKTOK' | 'OTHER'; label: string; url: string }>;
 }
 
 export interface VenueAvailabilitySlot {

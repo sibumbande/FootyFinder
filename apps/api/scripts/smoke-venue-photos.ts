@@ -4,6 +4,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { venueContentInputSchema } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
 import { VenueContentService } from '../src/modules/admin/venue-content.service.js';
 import { VenuesService } from '../src/modules/venues/venues.service.js';
@@ -58,10 +59,13 @@ try {
   // On a live venue, saving photos creates a pending change; the venue stays live and unchanged.
   const second = await upload(alice, '#a72');
   const third = await upload(alice, '#27a');
-  const saved = await service.saveContent(venueId(), {
+  const saved = await service.saveContent(venueId(), venueContentInputSchema.parse({
     photos: [first, second, third].map((item, index) => ({ fileId: item.fileId, altText: `Pitch view ${index + 1}`, attribution: 'Photo: smoke venue' })),
     coverIndex: 1,
-  }, alice, marker);
+    // CEO touch-up batch 3, item 2: the bio and links travel with the photos.
+    aboutText: 'Floodlit 5-a-side pitches next to the station.',
+    links: [{ type: 'INSTAGRAM', label: 'Instagram', url: 'https://instagram.com/smokevenue' }],
+  }), alice, marker);
   assert(saved.publicationStatus === 'PUBLISHED' && saved.media.length === 0, 'Saving photos took the live venue offline or applied them without approval.');
   assert(saved.pendingContentChange?.payload.photos.length === 3, 'The pending change was not recorded.');
   const publicBefore = await new VenuesService().get(`${marker}-venue`);
@@ -77,18 +81,20 @@ try {
   const publicAfter = await new VenuesService().get(`${marker}-venue`);
   assert(publicAfter.venue.gallery.length === 3 && publicAfter.venue.gallery[0]?.thumbUrl === first.thumbUrl, 'Players do not see the approved photos with thumbnails.');
   assert(publicAfter.venue.coverImage.url === second.url, 'Players do not see the chosen cover.');
+  assert(publicAfter.venue.aboutText === 'Floodlit 5-a-side pitches next to the station.' && publicAfter.venue.links[0]?.url === 'https://instagram.com/smokevenue', 'Players do not see the approved bio and links.');
+  assert(!publicBefore.venue.aboutText && publicBefore.venue.links.length === 0, 'Players saw an unapproved bio or links.');
 
   // A rejected change (reordered, one photo replaced) leaves the live gallery and deletes the staged upload.
   const fourth = await upload(bongi, '#777');
   const media = approved.media;
-  const pending = await service.saveContent(venueId(), {
+  const pending = await service.saveContent(venueId(), venueContentInputSchema.parse({
     photos: [
       { mediaId: media[2]!.id, altText: 'Pitch view 3', attribution: 'Photo: smoke venue' },
       { mediaId: media[0]!.id, altText: 'Pitch view 1', attribution: 'Photo: smoke venue' },
       { fileId: fourth.fileId, altText: 'Clubhouse', attribution: 'Photo: smoke venue' },
     ],
     coverIndex: 0,
-  }, bongi, marker);
+  }), bongi, marker);
   const rejected = await service.rejectChange(pending.pendingContentChange!.id, 'Wrong clubhouse photo', alice, marker);
   assert(rejected.media.map(({ url }) => url).join() === [first, second, third].map(({ url }) => url).join(), 'Rejecting changed the live gallery.');
   const files = await readdir(folder);
@@ -96,7 +102,7 @@ try {
   assert(files.length === 6, `Expected the 3 live photos and thumbnails on disk, found ${files.length} files.`);
   const audit = await prisma.adminAuditLog.count({ where: { requestId: marker, action: { in: ['VENUE_CONTENT_CHANGE_SUBMITTED', 'VENUE_CONTENT_CHANGE_APPROVED', 'VENUE_CONTENT_CHANGE_REJECTED'] } } });
   assert(audit === 4, `Expected 4 audited content decisions, found ${audit}.`);
-  console.log('Venue photos smoke passed: uploads are processed (1600 px WebP + 400 px thumbnail, no metadata), a live venue stays live while a photo change waits, only a second admin can approve it, approval applies the photos and cover for players, and rejection keeps the live gallery and deletes the staged upload.');
+  console.log('Venue photos smoke passed: uploads are processed (1600 px WebP + 400 px thumbnail, no metadata), a live venue stays live while a photo change waits, only a second admin can approve it, approval applies the photos, cover, bio and links for players, and rejection keeps the live gallery and deletes the staged upload.');
 } finally {
   await venue.cleanupVenue().catch(() => undefined);
   // The two admins stay in the disposable test database: their audit entries are append-only.

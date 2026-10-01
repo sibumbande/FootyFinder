@@ -114,6 +114,10 @@ export type ManagedVenueMediaInput = z.infer<typeof managedVenueMediaInputSchema
  */
 export const VENUE_PHOTOS_MIN = 3;
 export const VENUE_PHOTOS_MAX = 12;
+/** CEO touch-up batch 3, item 2: "About this venue" and up to five links. */
+export const VENUE_ABOUT_MAX = 1000;
+export const VENUE_LINKS_MAX = 5;
+export const VENUE_LINK_TYPES = ['WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'X', 'TIKTOK', 'OTHER'] as const;
 export const venueContentInputSchema = z.object({
   photos: z.array(z.object({
     mediaId: z.string().uuid().optional(),
@@ -121,11 +125,17 @@ export const venueContentInputSchema = z.object({
     altText: z.string().trim().min(3).max(240),
     attribution: z.string().trim().min(2).max(500),
   }).refine((photo) => Boolean(photo.mediaId) !== Boolean(photo.fileId), 'Each photo is either an existing photo or a new upload.'))
-    .min(VENUE_PHOTOS_MIN, `Add at least ${VENUE_PHOTOS_MIN} photos.`)
     .max(VENUE_PHOTOS_MAX, `Use at most ${VENUE_PHOTOS_MAX} photos.`),
-  coverIndex: z.number().int().min(0),
-}).refine((value) => value.coverIndex < value.photos.length, { path: ['coverIndex'], message: 'Choose one of the photos as the cover.' });
-export type VenueContentInput = z.infer<typeof venueContentInputSchema>;
+  coverIndex: z.number().int().min(0).default(0),
+  aboutText: z.string().trim().max(VENUE_ABOUT_MAX, `Keep "About this venue" to ${VENUE_ABOUT_MAX} characters.`).default(''),
+  links: z.array(z.object({
+    type: z.enum(VENUE_LINK_TYPES),
+    label: z.string().trim().min(1).max(40),
+    url: z.string().trim().url('Enter a full web address.').refine((value) => value.startsWith('https://'), 'Use an https:// link.'),
+  })).max(VENUE_LINKS_MAX, `Add at most ${VENUE_LINKS_MAX} links.`).default([]),
+}).refine((value) => value.photos.length === 0 || value.coverIndex < value.photos.length, { path: ['coverIndex'], message: 'Choose one of the photos as the cover.' });
+export type VenueContentInput = z.input<typeof venueContentInputSchema>;
+export type VenueContentData = z.infer<typeof venueContentInputSchema>;
 
 export const venueContentDecisionSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 

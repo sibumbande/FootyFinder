@@ -275,6 +275,15 @@ enum VenuePublicationStatus {
   DEACTIVATED
 }
 
+enum VenueLinkType {
+  WEBSITE
+  INSTAGRAM
+  FACEBOOK
+  X
+  TIKTOK
+  OTHER
+}
+
 enum VenueContentChangeStatus {
   PENDING
   APPROVED
@@ -851,7 +860,10 @@ model ManagedVenue {
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   fields                ManagedField[]
+  /// CEO touch-up batch 3, item 2: "About this venue" (plain text, up to 1,000 characters).
+  aboutText             String?
   media                 ManagedVenueMedia[]
+  links                 ManagedVenueLink[]
   photoFiles            VenuePhotoFile[]
   contentChanges        VenueContentChange[]
   slugAliases           ManagedVenueSlugAlias[]
@@ -881,6 +893,20 @@ model ManagedVenueMedia {
 
   @@unique([venueId, sortOrder])
   @@index([venueId])
+}
+
+/// CEO touch-up batch 3, item 2: up to five https links per venue.
+model ManagedVenueLink {
+  id        String        @id @default(uuid()) @db.Uuid
+  venueId   String        @db.Uuid
+  type      VenueLinkType
+  label     String
+  url       String
+  sortOrder Int
+  createdAt DateTime      @default(now())
+  venue     ManagedVenue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, sortOrder])
 }
 
 /// CEO touch-up batch 3, item 1: a processed venue photo upload (1600 px WebP + 400 px thumbnail).
