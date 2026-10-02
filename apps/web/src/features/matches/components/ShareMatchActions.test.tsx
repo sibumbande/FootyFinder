@@ -63,16 +63,15 @@ describe('ShareMatchActions', () => {
   });
 
   it('exposes the canonical URL when the Clipboard API is unavailable', async () => {
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null);
     setNavigator('share', undefined);
     setNavigator('clipboard', undefined);
     render(<ShareMatchActions facts={facts} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
 
-    await waitFor(() =>
-      expect(prompt).toHaveBeenCalledWith('Copy this canonical match link', facts.canonicalUrl),
-    );
+    // Batch 5 brief, B2: shown in an in-app dialog, never a browser prompt.
+    await waitFor(() => expect(screen.getByTestId('share-link')).toHaveTextContent(facts.canonicalUrl));
+    expect(screen.getByRole('dialog', { name: 'Copy this match link' })).toBeInTheDocument();
     expect(screen.getByText('Canonical match link ready to copy.')).toBeInTheDocument();
   });
 });

@@ -293,9 +293,9 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     const openMatchId = new URL(homePage.url()).pathname.split('/').pop()!;
 
     // A player takes the other side first and pays R80 from their own wallet.
-    playerPage.on('dialog', (dialog) => void dialog.accept());
     await playerPage.goto(`/matches/${openMatchId}`);
     await playerPage.getByRole('button', { name: /Join as a player/ }).click();
+    await playerPage.getByTestId('confirm-dialog').getByRole('button', { name: 'Join' }).click();
     await expect.poll(() => prisma.matchPayment.count({ where: { matchId: openMatchId, status: 'SUCCEEDED', amountCents: 8_000 } })).toBe(1);
     // ...so a team can no longer load into that side.
     await awayPage.goto(`/matches/${openMatchId}`);

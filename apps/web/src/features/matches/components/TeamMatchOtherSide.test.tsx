@@ -1,11 +1,13 @@
 import type { Match } from '@footy-finder/shared';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamMatchOtherSide } from './TeamMatchOtherSide.js';
 
 const mocks = vi.hoisted(() => ({ load: vi.fn(), withdraw: vi.fn(), join: vi.fn(), teams: [] as unknown[] }));
-const mutation = (mutate: ReturnType<typeof vi.fn>) => ({ mutate, isPending: false, error: null });
+const mutation = (mutate: ReturnType<typeof vi.fn>) => ({ mutate, mutateAsync: mutate, isPending: false, error: null });
+/** Batch 5 brief, B2: confirmations are in-app dialogs, not window.confirm. */
+const confirmInDialog = async (name: string) => fireEvent.click(within(await screen.findByTestId('confirm-dialog')).getByRole('button', { name }));
 vi.mock('../hooks/useMatches.js', () => ({
   useLoadTeamIntoMatch: () => mutation(mocks.load),
   useWithdrawTeamFromMatch: () => mutation(mocks.withdraw),
@@ -31,7 +33,6 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.teams = [{ id: 'away-team', name: 'Claremont United', viewerRole: 'CAPTAIN', archivedAt: null }];
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
 describe('TeamMatchOtherSide (Gate 7 / TKT-707)', () => {
@@ -58,24 +59,27 @@ describe('TeamMatchOtherSide (Gate 7 / TKT-707)', () => {
     expect(screen.queryByRole('button', { name: /Join as a player/ })).not.toBeInTheDocument();
   });
 
-  it('lets a player join an open "Open to both" side for R80, but not a home team member', () => {
+  it('lets a player join an open "Open to both" side for R80, but not a home team member', async () => {
     mocks.teams = [];
     renderSide({ otherSideMode: 'OPEN' });
     fireEvent.click(screen.getByRole('button', { name: /Join as a player/ }));
-    expect(mocks.join).toHaveBeenCalledWith({ team: 'AWAY' });
+    expect(mocks.join).not.toHaveBeenCalled();
+    await confirmInDialog('Join');
+    await vi.waitFor(() => expect(mocks.join).toHaveBeenCalledWith({ team: 'AWAY' }));
     cleanup();
     renderSide({ otherSideMode: 'OPEN', viewerTeamSide: 'HOME' });
     expect(screen.queryByRole('button', { name: /Join as a player/ })).not.toBeInTheDocument();
   });
 
-  it('lets only the loading team withdraw itself before the lock', () => {
+  it('lets only the loading team withdraw itself before the lock', async () => {
     const taken = {
       otherSideTakenBy: 'TEAM' as const,
       teamSides: [...base.teamSides, { side: 'AWAY', teamId: 'away-team', teamNameSnapshot: 'Claremont United' }] as Match['teamSides'],
     };
     renderSide({ ...taken, viewerManagedTeamSide: 'AWAY' });
     fireEvent.click(screen.getByRole('button', { name: 'Withdraw my team' }));
-    expect(mocks.withdraw).toHaveBeenCalled();
+    await confirmInDialog('Withdraw my team');
+    await vi.waitFor(() => expect(mocks.withdraw).toHaveBeenCalled());
     cleanup();
     renderSide({ ...taken, viewerManagedTeamSide: 'HOME' });
     expect(screen.queryByRole('button', { name: 'Withdraw my team' })).not.toBeInTheDocument();

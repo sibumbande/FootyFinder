@@ -191,6 +191,37 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
     await context.close();
   });
 
+  // Batch 5 brief, B2: cancelling a match asks in the app's own bottom sheet, never a browser pop-up.
+  test('cancel match opens an in-app bottom sheet on a phone (batch 5 brief, B2)', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const page = await context.newPage();
+    let browserDialogs = 0;
+    page.on('dialog', (dialog) => {
+      browserDialogs += 1;
+      void dialog.dismiss();
+    });
+    await page.goto('/');
+    const login = await f.api(page, '/auth/login', { method: 'POST', body: { identifier: `${f.marker}-player@test.invalid`, password: f.PASSWORD } });
+    expect(login.status, JSON.stringify(login.body)).toBe(200);
+    await page.goto(`/matches/${matchId}`);
+    await page.getByRole('button', { name: 'Cancel match' }).first().tap();
+    const sheet = page.getByTestId('confirm-dialog');
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Cancel this match?' })).toBeVisible();
+    const box = (await sheet.boundingBox())!;
+    expect(Math.round(box.y + box.height)).toBeGreaterThanOrEqual(843); // sits on the bottom edge
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await expect(sheet.getByRole('button', { name: 'Keep match' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await page.getByRole('button', { name: 'Cancel match' }).first().tap();
+    await sheet.getByRole('button', { name: 'Keep match' }).tap();
+    await expect(sheet).toBeHidden();
+    expect(browserDialogs).toBe(0);
+    await context.close();
+  });
+
   test('the signed-in header lines up on desktop (CEO batch 3.5, item 2)', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();

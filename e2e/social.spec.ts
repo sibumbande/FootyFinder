@@ -144,9 +144,10 @@ test.describe('Social: friends, team invites, recruitment, blocking and guest br
     await expect(guestPage.getByTestId('guest-team')).toContainText(friend.name);
 
     // Blocking: the recruit blocks the captain; they disappear from each other's search.
-    recruitPage.on('dialog', (dialog) => void dialog.accept());
     await recruitPage.goto(`/players/${captain.id}`);
     await recruitPage.getByRole('button', { name: 'Block' }).click();
+    // Batch 5 brief, B2: confirmed in the app's own dialog, never a browser pop-up.
+    await recruitPage.getByTestId('confirm-dialog').getByRole('button', { name: 'Block' }).click();
     await expect(recruitPage.getByRole('button', { name: 'Unblock' })).toBeVisible();
     await captainPage.goto('/social');
     await captainPage.getByTestId('social-search').fill('Recruit');

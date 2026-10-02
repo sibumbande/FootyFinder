@@ -1,5 +1,5 @@
 import type { TeamDetail } from '@footy-finder/shared';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamInvitePanel } from './TeamInvitePanel.js';
 
@@ -8,7 +8,7 @@ vi.mock('../hooks/useTeams.js', () => ({
   useTeamInvites: () => ({ data: [], error: null }),
   useTeamInviteMutations: () => ({
     create: { mutate: mocks.create, isPending: false, error: null },
-    revoke: { mutate: mocks.revoke, isPending: false, error: null },
+    revoke: { mutate: mocks.revoke, mutateAsync: mocks.revoke, isPending: false, error: null },
   }),
 }));
 vi.mock('@/features/notifications/NotificationProvider.js', () => ({ useNotifications: () => ({ notify: vi.fn() }) }));
@@ -24,7 +24,7 @@ beforeEach(() => {
     linkNumber += 1;
     options.onSuccess({ data: { id: `invite-${linkNumber}`, inviteUrl: `https://footyfinder.test/teams/invite/token-${linkNumber}` } });
   });
-  mocks.revoke.mockImplementation((_: string, options: { onSuccess: () => void }) => options.onSuccess());
+  mocks.revoke.mockResolvedValue(undefined);
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 afterEach(() => {
@@ -56,12 +56,14 @@ describe('TeamInvitePanel (CEO batch 2, item 6)', () => {
     expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://footyfinder.test/teams/invite/token-2' }));
   });
 
-  it('replaces the link: the old one is revoked and a new one shown', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('replaces the link after an in-app confirmation: the old one is revoked and a new one shown', async () => {
     render(<TeamInvitePanel team={team} />);
     fireEvent.click(screen.getByRole('button', { name: 'Invite Player' }));
     fireEvent.click(screen.getByRole('button', { name: 'Replace link' }));
-    expect(mocks.revoke).toHaveBeenCalledWith('invite-1', expect.anything());
+    const dialog = await screen.findByTestId('confirm-dialog');
+    expect(dialog).toHaveTextContent('The current link will stop working.');
+    await act(async () => fireEvent.click(within(dialog).getByRole('button', { name: 'Replace link' })));
+    expect(mocks.revoke).toHaveBeenCalledWith('invite-1');
     expect(screen.getByLabelText('Invite link')).toHaveValue('https://footyfinder.test/teams/invite/token-2');
   });
 });

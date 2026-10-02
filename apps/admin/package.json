@@ -7,7 +7,7 @@
     "dev": "vite --configLoader runner --port 5174",
     "build": "tsc -b && vite build --configLoader runner",
     "test": "vitest run --configLoader runner --passWithNoTests",
-    "lint": "tsc -b --pretty false"
+    "lint": "tsc -b --pretty false && eslint src"
   },
   "dependencies": {
     "@footy-finder/api-client": "*",

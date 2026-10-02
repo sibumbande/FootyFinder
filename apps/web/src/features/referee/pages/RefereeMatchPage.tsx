@@ -5,12 +5,14 @@ import { RefereeResultForm } from '../components/RefereeResultForm.js';
 import { useDeclineRefereeMatch, useRefereeMatch } from '../hooks/useReferee.js';
 import { formatKickoff } from '../utils.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 /** Gate 8 / TKT-805 (DEC-020): one match the referee is assigned to: lineups, decline, result. */
 export function RefereeMatchPage() {
   const { matchId = '' } = useParams();
   const match = useRefereeMatch(matchId);
   const decline = useDeclineRefereeMatch(matchId);
+  const { confirm, confirmDialog } = useConfirm();
   if (match.isPending) return <div className="h-40 animate-pulse rounded-2xl bg-surface" />;
   if (!match.data) return <FormError message={match.error?.message ?? 'Match not found.'} />;
   const data = match.data;
@@ -23,6 +25,7 @@ export function RefereeMatchPage() {
     );
   return (
     <section className="grid gap-5">
+      {confirmDialog}
       <Link className="text-sm font-bold text-brand-700" to="/referee">Back to your matches</Link>
       <header className="grid gap-1">
         <p className="anime-kicker">Referee</p>
@@ -56,11 +59,15 @@ export function RefereeMatchPage() {
           type="button"
           className="justify-self-start text-sm font-bold text-danger-700"
           disabled={decline.isPending}
-          onClick={() => {
-            const reason = window.prompt('Why can you not referee this match? (optional)') ?? undefined;
-            if (window.confirm('Decline this match? FootyFinder will assign another referee.'))
-              decline.mutate(reason ? { reason } : {});
-          }}
+          onClick={() => void confirm({
+            title: 'Decline this match?',
+            message: <p>FootyFinder will assign another referee.</p>,
+            reason: { label: 'Why can you not referee this match? (optional)', maxLength: 500 },
+            confirmLabel: 'Decline match',
+            cancelLabel: 'Keep match',
+            destructive: true,
+            action: (reason) => decline.mutateAsync(reason ? { reason } : {}),
+          })}
         >
           I can't referee this match
         </button>

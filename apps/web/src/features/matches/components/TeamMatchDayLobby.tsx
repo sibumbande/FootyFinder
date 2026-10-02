@@ -37,6 +37,7 @@ import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReview
 import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -54,10 +55,12 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
   const navigate = useNavigate();
   const { notify } = useNotifications();
   const deletion = useDeleteMatch(match.id, home?.teamId ?? undefined);
+  const { confirm, confirmDialog } = useConfirm();
   if (!attached || !home)
     return <FormError message="This Team fixture does not have an attached Team side." />;
   return (
     <section className="grid gap-6">
+      {confirmDialog}
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -109,14 +112,20 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
             <button
               type="button"
               className="ml-auto min-h-10 rounded-xl border border-danger-400 px-3 text-xs font-bold text-danger-400"
-              onClick={() => {
-                if (window.confirm(publicTeamMatch ? 'Cancel this team match for both sides? Held team money goes back to each team wallet and every player is refunded.' : 'Cancel this private Team fixture?'))
-                  deletion.mutate(undefined, {
-                    onSuccess: () => {
-                      notify({ variant: 'info', title: 'Team fixture cancelled' });
-                      navigate(`/teams/${home.teamId}`, { replace: true });
-                    },
-                  });
+              onClick={async () => {
+                const { confirmed } = await confirm({
+                  title: publicTeamMatch ? 'Cancel this team match for both sides?' : 'Cancel this private Team fixture?',
+                  message: publicTeamMatch
+                    ? <p>Held team money goes back to each team wallet and every player is refunded. Everyone is notified by email.</p>
+                    : <p>The fixture is cancelled for your team.</p>,
+                  confirmLabel: 'Cancel match',
+                  cancelLabel: 'Keep match',
+                  destructive: true,
+                  action: () => deletion.mutateAsync(undefined),
+                });
+                if (!confirmed) return;
+                notify({ variant: 'info', title: 'Team fixture cancelled' });
+                navigate(`/teams/${home.teamId}`, { replace: true });
               }}
             >
               Cancel fixture
@@ -290,6 +299,7 @@ function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSid
   const team = useTeam(attached.teamId ?? '');
   const mutations = useTeamMatchLineupMutations(match.id, attached.side);
   const { notify } = useNotifications();
+  const { confirm, confirmDialog } = useConfirm();
   if (lineup.isPending || team.isPending)
     return <div className="h-[38rem] animate-pulse rounded-3xl bg-surface" />;
   if (!lineup.data || lineup.error || !team.data)
@@ -337,6 +347,7 @@ function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSid
     notify({ variant: 'success', title, message });
   return (
     <section className="grid gap-6">
+      {confirmDialog}
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label={starterLabel} value={`${occupied}/${lineup.data.starterCapacity}`} />
         <Stat label="Open positions" value={String(open)} />
@@ -469,19 +480,14 @@ function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSid
               <Button
                 variant="secondary"
                 loading={mutations.saveDefault.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      'Save this Match-Day formation as the Team default? Open and empty slots will be unassigned; substitutes are ignored.',
-                    )
-                  )
-                    mutations.saveDefault.mutate(undefined, {
-                      onSuccess: () =>
-                        success(
-                          'Default formation saved',
-                          'The Match lineup itself was not changed.',
-                        ),
-                    });
+                onClick={async () => {
+                  const { confirmed } = await confirm({
+                    title: 'Save as the Team default?',
+                    message: <p>This Match-Day formation becomes your Team's default. Open and empty slots will be unassigned; substitutes are ignored.</p>,
+                    confirmLabel: 'Save as default',
+                    action: () => mutations.saveDefault.mutateAsync(undefined),
+                  });
+                  if (confirmed) success('Default formation saved', 'The Match lineup itself was not changed.');
                 }}
               >
                 Save as Team default

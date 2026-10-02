@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
 
@@ -25,14 +26,21 @@ export const whatsAppShareUrl = (facts: MatchShareFacts) =>
 
 export function ShareMatchActions({ facts }: { facts: MatchShareFacts }) {
   const [message, setMessage] = useState('');
+  const { confirm, confirmDialog } = useConfirm();
   const copy = async () => {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(facts.canonicalUrl);
       setMessage('Canonical match link copied.');
       return;
     }
-    window.prompt('Copy this canonical match link', facts.canonicalUrl);
+    // No clipboard access (an older browser): show the link to copy by hand, in the app (batch 5 brief, B2).
     setMessage('Canonical match link ready to copy.');
+    await confirm({
+      title: 'Copy this match link',
+      message: <p className="select-all break-all rounded-xl bg-surface-muted p-3 font-mono text-content-strong" data-testid="share-link">{facts.canonicalUrl}</p>,
+      confirmLabel: 'Done',
+      hideCancel: true,
+    });
   };
   const share = async () => {
     if (navigator.share) {
@@ -53,6 +61,7 @@ export function ShareMatchActions({ facts }: { facts: MatchShareFacts }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {confirmDialog}
       <Button type="button" variant="secondary" onClick={share}>
         Share match
       </Button>

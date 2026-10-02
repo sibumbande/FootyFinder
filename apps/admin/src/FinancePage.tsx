@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminClient } from './api.js';
+import { useConfirm } from './ConfirmDialog.js';
 import { AdminActionError } from './FreshMfa.js';
 
 const rands = (cents: number) => `R${(cents / 100).toFixed(2)}`;
@@ -10,6 +11,7 @@ const financeKey = ['admin', 'finance'] as const;
 
 function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
   const cache = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [restoreReason, setRestoreReason] = useState('');
@@ -26,6 +28,7 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
   });
   const error = refund.error ?? retry.error ?? restore.error;
   return <article>
+    {confirmDialog}
     <strong>{rands(topUp.amountCents)} · {topUp.status}{topUp.paymentMethod ? ` · ${topUp.paymentMethod}` : ''}{topUp.creditedBy ? ` (credited by ${topUp.creditedBy})` : ''}</strong>
     <code>{topUp.reference}</code>
     <span>{topUp.player.username} · {topUp.player.email} · {new Date(topUp.createdAt).toLocaleString()}</span>
@@ -41,7 +44,15 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
         <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
       </>}
       {item.state === 'FAILED' && !item.reviewReason && <>
-        <button type="button" disabled={retry.isPending} onClick={() => { if (item.failureReason !== 'PAYSTACK_UNAVAILABLE' || window.confirm('The last attempt timed out. Confirm in the Paystack dashboard that this refund was NOT processed before retrying.')) retry.mutate(item.id); }}>Retry refund</button>
+        <button type="button" disabled={retry.isPending} onClick={async () => {
+          if (item.failureReason === 'PAYSTACK_UNAVAILABLE' && !(await confirm({
+            title: 'Retry this refund?',
+            message: <p>The last attempt timed out. Confirm in the Paystack dashboard that this refund was NOT processed before retrying.</p>,
+            confirmLabel: 'It was not processed: retry',
+            cancelLabel: 'Not now',
+          }))) return;
+          retry.mutate(item.id);
+        }}>Retry refund</button>
         <input aria-label="Reason for returning to wallet" placeholder="Reason (required)" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
         <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
       </>}

@@ -2,6 +2,7 @@ import type { RetentionCategorySummary } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminClient } from './api.js';
 import { AdminActionError } from './FreshMfa.js';
+import { useConfirm } from './ConfirmDialog.js';
 
 const retentionKey = ['admin', 'retention'] as const;
 const COUNT_LABELS: Record<string, string> = {
@@ -37,8 +38,10 @@ function Category({ item }: { item: RetentionCategorySummary }) {
     onSuccess: ({ data }) => cache.setQueryData(retentionKey, data),
   });
   const next = item.mode === 'REPORT' ? 'APPLY' : 'REPORT';
+  const { confirm, confirmDialog } = useConfirm();
   return (
     <article className="venue-card">
+      {confirmDialog}
       <h3>{item.label}</h3>
       <p className="muted">{item.rule}</p>
       <p>
@@ -50,8 +53,14 @@ function Category({ item }: { item: RetentionCategorySummary }) {
           type="button"
           className={next === 'APPLY' ? undefined : 'ghost'}
           disabled={setMode.isPending}
-          onClick={() => {
-            if (next === 'REPORT' || window.confirm(`Purge ${item.label.toLowerCase()} automatically every night? Purged records cannot be recovered.`))
+          onClick={async () => {
+            if (next === 'REPORT' || await confirm({
+              title: `Purge ${item.label.toLowerCase()} every night?`,
+              message: <p>Purged records cannot be recovered.</p>,
+              confirmLabel: 'Switch to purge',
+              cancelLabel: 'Keep report only',
+              destructive: true,
+            }))
               setMode.mutate(next);
           }}
         >

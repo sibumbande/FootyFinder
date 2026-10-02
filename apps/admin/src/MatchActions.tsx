@@ -3,6 +3,7 @@ import { ApiError } from '@footy-finder/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { adminClient } from './api.js';
+import { useConfirm } from './ConfirmDialog.js';
 import { AdminActionError } from './FreshMfa.js';
 
 export const matchesKey = ['admin', 'matches'] as const;
@@ -118,6 +119,7 @@ export function RefereePanel({ match }: { match: AdminMatchDetail }) {
  */
 export function CancelPanel({ match }: { match: AdminMatchDetail }) {
   const cache = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
   const [reason, setReason] = useState('');
   const cancel = useMutation({
     mutationFn: () => adminClient.cancelMatch(match.matchId, { reason }),
@@ -129,6 +131,7 @@ export function CancelPanel({ match }: { match: AdminMatchDetail }) {
   if (match.status === 'CANCELLED') return null;
   return (
     <div className="stack compact-gap" data-testid="cancel-panel">
+      {confirmDialog}
       <h3>Cancel match (weather/venue)</h3>
       <p className="muted">
         Before kick-off only. Every player gets a full refund to their wallet, held team money goes back to each team wallet, and
@@ -147,8 +150,14 @@ export function CancelPanel({ match }: { match: AdminMatchDetail }) {
             type="button"
             className="danger"
             disabled={reason.trim().length < 5 || cancel.isPending}
-            onClick={() => {
-              if (window.confirm(`Cancel ${match.name} for everyone and refund every player?`)) cancel.mutate();
+            onClick={async () => {
+              if (await confirm({
+                title: `Cancel ${match.name}?`,
+                message: <p>Every player is refunded and notified by email.</p>,
+                confirmLabel: 'Cancel match',
+                cancelLabel: 'Keep match',
+                destructive: true,
+              })) cancel.mutate();
             }}
           >
             Cancel match

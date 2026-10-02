@@ -944,3 +944,52 @@ th {
 .account-grid dd {
   font-weight: 800;
 }
+
+/* Batch 5 brief, B2: the in-app confirmation (replaces browser pop-ups). A bottom sheet on phones, centred above. */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: end center;
+  background: #0006;
+}
+.confirm-dialog {
+  width: 100%;
+  max-width: 32rem;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 1.4rem 1.4rem 0 0;
+  background: var(--panel-solid);
+  color: var(--text);
+}
+.confirm-dialog h2 {
+  margin: 0;
+  color: var(--text-strong);
+}
+.confirm-message {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.confirm-actions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+}
+@media (min-width: 640px) {
+  .confirm-backdrop {
+    place-items: center;
+    padding: 1rem;
+  }
+  .confirm-dialog {
+    border-radius: 1.4rem;
+  }
+  .confirm-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}

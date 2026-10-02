@@ -25,6 +25,7 @@ import { useTeamSocket } from '../hooks/useTeamSocket.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { TeamStatsPanel } from '@/features/teams/components/TeamStatsPanel.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'chat' | 'invites' | 'settings';
 export function TeamPage() {
@@ -170,6 +171,7 @@ function Squad({ team }: { team: TeamDetail }) {
   const management = useTeamMemberMutation(team.id);
   const { notify } = useNotifications();
   const owner = team.viewerRole === 'OWNER';
+  const { confirm, confirmDialog } = useConfirm();
   const change = (userId: string, role: Exclude<TeamRole, 'OWNER'>) =>
     management.role.mutate(
       { userId, role },
@@ -184,6 +186,7 @@ function Squad({ team }: { team: TeamDetail }) {
     );
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      {confirmDialog}
       {team.members.map((member) => (
         <article key={member.id} className="rounded-2xl border border-line p-4">
           <div className="flex items-start gap-3">
@@ -228,19 +231,18 @@ function Squad({ team }: { team: TeamDetail }) {
               {member.role === 'CAPTAIN' && (
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Make ${member.user.displayName} the Owner? You will stay on as a Captain.`,
-                      )
-                    )
-                      management.transfer.mutate(member.userId, {
-                        onSuccess: () =>
-                          notify({
-                            variant: 'success',
-                            title: 'Ownership transferred',
-                            message: `${member.user.displayName} is now the Owner. You are a Captain.`,
-                          }),
+                  onClick={async () => {
+                    const { confirmed } = await confirm({
+                      title: `Make ${member.user.displayName} the Owner?`,
+                      message: <p>You will stay on as a Captain.</p>,
+                      confirmLabel: 'Make Owner',
+                      action: () => management.transfer.mutateAsync(member.userId),
+                    });
+                    if (confirmed)
+                      notify({
+                        variant: 'success',
+                        title: 'Ownership transferred',
+                        message: `${member.user.displayName} is now the Owner. You are a Captain.`,
                       });
                   }}
                 >
@@ -249,10 +251,14 @@ function Squad({ team }: { team: TeamDetail }) {
               )}
               <Button
                 variant="ghost"
-                onClick={() => {
-                  if (window.confirm(`Remove ${member.user.displayName} from the Team?`))
-                    management.remove.mutate(member.userId);
-                }}
+                onClick={() => void confirm({
+                  title: `Remove ${member.user.displayName} from the Team?`,
+                  message: <p>They leave the Team's squad and Team chat. They can be invited again later.</p>,
+                  confirmLabel: 'Remove',
+                  cancelLabel: 'Keep in Team',
+                  destructive: true,
+                  action: () => management.remove.mutateAsync(member.userId),
+                })}
               >
                 Remove
               </Button>
@@ -280,9 +286,11 @@ function TeamSettings({ team }: { team: TeamDetail }) {
   const deletion = useDeleteTeam(team.id);
   const navigate = useNavigate();
   const { notify } = useNotifications();
+  const { confirm, confirmDialog } = useConfirm();
   const shortNameValid = !shortName || /^[A-Z0-9]{1,4}$/.test(shortName);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-7">
+      {confirmDialog}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
         <h2 className="text-xl font-bold text-content-strong">Team settings</h2>
         <Input label="Team name" value={name} onChange={(event) => setName(event.target.value)} />
@@ -353,11 +361,16 @@ function TeamSettings({ team }: { team: TeamDetail }) {
           variant="secondary"
           className="mt-4"
           loading={deletion.isPending}
-          onClick={() => {
-            if (window.confirm(`Close ${team.name}? Unspent contributions will be returned to each member's wallet.`))
-              deletion.mutate(undefined, {
-                onSuccess: () => navigate('/teams', { replace: true }),
-              });
+          onClick={async () => {
+            const { confirmed } = await confirm({
+              title: `Close ${team.name}?`,
+              message: <p>Unspent contributions will be returned to each member's wallet. The Team is archived and its history is kept.</p>,
+              confirmLabel: 'Close Team',
+              cancelLabel: 'Keep Team',
+              destructive: true,
+              action: () => deletion.mutateAsync(undefined),
+            });
+            if (confirmed) navigate('/teams', { replace: true });
           }}
         >
           Close Team

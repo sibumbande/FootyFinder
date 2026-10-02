@@ -7,6 +7,7 @@ import { formatDate } from '@/utils/format-date.js';
 import { useTeamInviteMutations, useTeamInvites } from '../hooks/useTeams.js';
 import { InviteFriendsPanel } from '@/features/social/components/InviteFriendsPanel.js';
 import { TeamRecruitmentPanel } from '@/features/social/components/TeamRecruitmentPanel.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 export function TeamInvitePanel({ team }: { team: TeamDetail }) {
   const allowed = team.viewerRole === 'OWNER' || team.viewerRole === 'CAPTAIN';
@@ -16,6 +17,7 @@ export function TeamInvitePanel({ team }: { team: TeamDetail }) {
   // CEO touch-up batch 2, item 6: the new link is shown on screen (only the hash is stored, so it can
   // only be shown right after it is created) with Copy, Share and Replace.
   const [shown, setShown] = useState<{ id: string; url: string }>();
+  const { confirm, confirmDialog } = useConfirm();
   if (!allowed) return null;
   const create = () =>
     actions.create.mutate(undefined, {
@@ -23,12 +25,20 @@ export function TeamInvitePanel({ team }: { team: TeamDetail }) {
         if (data.inviteUrl) setShown({ id: data.id, url: data.inviteUrl });
       },
     });
-  const replace = () => {
-    if (!shown || !window.confirm('Replace this link? The current link will stop working.')) return;
-    actions.revoke.mutate(shown.id, { onSuccess: create });
+  const replace = async () => {
+    if (!shown) return;
+    const { confirmed } = await confirm({
+      title: 'Replace this link?',
+      message: <p>The current link will stop working.</p>,
+      confirmLabel: 'Replace link',
+      cancelLabel: 'Keep link',
+      action: () => actions.revoke.mutateAsync(shown.id),
+    });
+    if (confirmed) create();
   };
   return (
     <section className="grid gap-5">
+      {confirmDialog}
       <InviteFriendsPanel teamId={team.id} />
       <TeamRecruitmentPanel team={team} />
       <div className="flex items-center justify-between gap-4">

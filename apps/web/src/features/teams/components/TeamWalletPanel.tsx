@@ -9,6 +9,7 @@ import { type FormEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { formatDate } from '@/utils/format-date.js';
 import { formatRands } from '@/utils/format-currency.js';
@@ -148,10 +149,12 @@ function YourMoney({ teamId, wallet }: { teamId: string; wallet: TeamWalletSumma
   const refund = useRefundTeamContribution(teamId);
   const attemptKey = useRef<string>();
   const { notify } = useNotifications();
+  const { confirm, confirmDialog } = useConfirm();
   if (!wallet.viewerUnspentCents) return null;
   const amountCents = wallet.viewerRefundableCents;
   return (
     <div className="rounded-2xl border border-line p-4">
+      {confirmDialog}
       <h3 className="font-bold text-content-strong">Your unspent contributions</h3>
       <p className="mt-1 text-sm text-content-muted">
         {formatRands(wallet.viewerUnspentCents)} of what you put in hasn&apos;t been spent yet. The team spends the oldest contributions first.
@@ -162,8 +165,9 @@ function YourMoney({ teamId, wallet }: { teamId: string; wallet: TeamWalletSumma
           className="mt-3"
           variant="secondary"
           loading={refund.isPending}
-          onClick={() => {
-            if (!window.confirm(`Move ${formatRands(amountCents)} back to your own wallet?`)) return;
+          onClick={async () => {
+            const { confirmed } = await confirm({ title: `Move ${formatRands(amountCents)} back to your own wallet?`, message: <p>It leaves the team wallet straight away.</p>, confirmLabel: 'Take it back' });
+            if (!confirmed) return;
             attemptKey.current ??= crypto.randomUUID();
             refund.mutate(
               { amountCents, idempotencyKey: attemptKey.current },

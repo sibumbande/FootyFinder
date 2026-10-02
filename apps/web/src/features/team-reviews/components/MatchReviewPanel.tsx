@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { teamReviewsClient } from '@/api/client.js';
 import { FormError } from '@/components/ui/FormError.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 const reviewKey = (matchId: string) => ['matches', matchId, 'review'] as const;
 const at = (iso: string) =>
@@ -49,6 +50,7 @@ export function MatchReviewPanel({ match }: { match: Match }) {
     },
   });
   const remove = useMutation({ mutationFn: () => teamReviewsClient.remove(match.id), onSuccess: refresh });
+  const { confirm, confirmDialog } = useConfirm();
   const data = context.data;
   if (!final || !data || !data.team || (!data.eligible && !data.review)) return null;
   const review = data.review;
@@ -61,6 +63,7 @@ export function MatchReviewPanel({ match }: { match: Match }) {
   if (review && !editing)
     return (
       <section className="grid gap-2 rounded-2xl border border-line bg-surface p-4" aria-label="Your team review" data-testid="my-team-review">
+        {confirmDialog}
         <h2 className="font-black text-content-strong">Your review of {data.team.name}</h2>
         <p className="text-sm text-content">
           {review.rating} out of 5{review.text ? `: “${review.text}”` : ''}
@@ -73,7 +76,14 @@ export function MatchReviewPanel({ match }: { match: Match }) {
               Edit (until {at(data.editableUntil!)})
             </button>
           )}
-          <button type="button" className="text-danger-700" disabled={remove.isPending} onClick={() => { if (window.confirm('Delete your review?')) remove.mutate(); }}>
+          <button type="button" className="text-danger-700" disabled={remove.isPending} onClick={() => void confirm({
+            title: 'Delete your review?',
+            message: <p>Your rating and comment stop counting straight away.</p>,
+            confirmLabel: 'Delete review',
+            cancelLabel: 'Keep review',
+            destructive: true,
+            action: () => remove.mutateAsync(),
+          })}>
             Delete
           </button>
         </div>

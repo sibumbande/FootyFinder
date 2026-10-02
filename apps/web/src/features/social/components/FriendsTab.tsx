@@ -9,6 +9,7 @@ import { SocialPlayerCardView } from './SocialPlayerCardView.js';
 import { InviteToTeamItems } from './InviteToTeamItems.js';
 import { ActionMenu, menuItemClass } from '@/components/ui/ActionMenu.js';
 import { TeamInvitesSection } from './TeamInvitesSection.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 const matches = (player: SocialPlayerCard, needle: string) =>
   !needle || player.displayName.toLowerCase().includes(needle) || player.username.toLowerCase().includes(needle);
@@ -31,11 +32,13 @@ export function FriendsTab({ query, extraActions }: { query: string; extraAction
   const requests = useFriendRequests();
   const blocks = useBlocks();
   const action = useFriendAction();
+  const { confirm, confirmDialog } = useConfirm();
   const incoming = (requests.data?.incoming ?? []).filter(({ player }) => matches(player, needle));
   const outgoing = (requests.data?.outgoing ?? []).filter(({ player }) => matches(player, needle));
   const visible = (friends.data ?? []).filter((friend) => matches(friend, needle));
   return (
     <div className="grid gap-8">
+      {confirmDialog}
       <FormError message={friends.error?.message ?? requests.error?.message ?? action.error?.message} />
       <TeamInvitesSection />
       {incoming.length > 0 && (
@@ -74,7 +77,14 @@ export function FriendsTab({ query, extraActions }: { query: string; extraAction
                           className={`${menuItemClass} text-danger-700`}
                           onClick={() => {
                             close();
-                            if (window.confirm(`Remove ${friend.displayName} from your friends?`)) action.mutate({ kind: 'remove', userId: friend.id });
+                            void confirm({
+                              title: `Remove ${friend.displayName} from your friends?`,
+                              message: <p>They won't be told.</p>,
+                              confirmLabel: 'Remove friend',
+                              cancelLabel: 'Keep friend',
+                              destructive: true,
+                              action: () => action.mutateAsync({ kind: 'remove', userId: friend.id }),
+                            });
                           }}
                         >
                           Remove friend

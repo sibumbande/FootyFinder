@@ -46,6 +46,7 @@ import {
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { useScrollToFormation } from '../hooks/useScrollToFormation.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -101,6 +102,7 @@ export function MatchLobbyPage() {
     matchId,
     Boolean(match) && match?.mode !== 'TEAM_MATCH',
   );
+  const { confirm, confirmDialog } = useConfirm();
   if (matchQuery.isPending)
     return <div className="h-[42rem] animate-pulse rounded-3xl bg-surface" />;
   if (!match || matchQuery.error)
@@ -116,23 +118,22 @@ export function MatchLobbyPage() {
   const mutable = ['OPEN', 'READY'].includes(match.status);
   const capacity = getMaxMatchParticipants(match.format, match.substituteCapacityPerTeam);
   const canChat = isHost || Boolean(currentParticipant);
-  const cancelMatch = () => {
-    if (
-      !window.confirm(
-        `Cancel this match? Every player gets their ${rands(match.feeCents)} refunded to their wallet and is notified by email.`,
-      )
-    )
-      return;
-    deletion.mutate(undefined, {
-      onSuccess: () => {
-        notify({
-          variant: 'info',
-          title: 'Match cancelled',
-          message: 'Every player was refunded and notified.',
-        });
-        navigate('/matches', { replace: true });
-      },
+  const cancelMatch = async () => {
+    const { confirmed } = await confirm({
+      title: 'Cancel this match?',
+      message: <p>Every player gets their {rands(match.feeCents)} refunded to their wallet and is notified by email.</p>,
+      confirmLabel: 'Cancel match',
+      cancelLabel: 'Keep match',
+      destructive: true,
+      action: () => deletion.mutateAsync(undefined),
     });
+    if (!confirmed) return;
+    notify({
+      variant: 'info',
+      title: 'Match cancelled',
+      message: 'Every player was refunded and notified.',
+    });
+    navigate('/matches', { replace: true });
   };
   const leaveMatch = () => {
     const initial = quote.data?.initialCreditCents ?? 0;
@@ -143,10 +144,16 @@ export function MatchLobbyPage() {
         : replacement > 0
           ? `${formatCurrency(initial)} now, and ${formatCurrency(replacement)} if a replacement joins.`
           : `${formatCurrency(initial)} will be credited.`;
-    if (window.confirm(`Leave this match? ${detail}`))
-      leave.mutate(undefined, {
-        onSuccess: () => notify({ variant: 'info', title: 'Place cancelled', message: detail }),
-      });
+    void confirm({
+      title: 'Leave this match?',
+      message: <p>{detail}</p>,
+      confirmLabel: 'Leave match',
+      cancelLabel: 'Stay in match',
+      destructive: true,
+      action: () => leave.mutateAsync(undefined),
+    }).then(({ confirmed }) => {
+      if (confirmed) notify({ variant: 'info', title: 'Place cancelled', message: detail });
+    });
   };
   const canClaim = mutable && Boolean(currentParticipant) && !isHost;
   const claimableSlotIds = canClaim
@@ -189,6 +196,7 @@ export function MatchLobbyPage() {
   };
   return (
     <section className="grid gap-6">
+      {confirmDialog}
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
         <MatchVenuePhoto venue={match.venue} />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

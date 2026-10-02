@@ -26,6 +26,7 @@ import {
 } from '../hooks/useMatches.js';
 import { formatClock } from '../utils/go-no-go-format.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
+import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
 /**
  * Gate 7 / DEC-019 decisions B, C, N1, N5: the other side of a public team match. The first team
@@ -44,6 +45,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
   const [loading, setLoading] = useState(false);
   const [teamId, setTeamId] = useState('');
   const [subs, setSubs] = useState(3);
+  const { confirm, confirmDialog } = useConfirm();
   if (!match.otherSideMode) return null;
   const home = match.teamSides.find(({ side }) => side === 'HOME');
   const away = match.teamSides.find(({ side }) => side === 'AWAY');
@@ -63,6 +65,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
 
   return (
     <section className="grid gap-4 rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="other-side-heading">
+      {confirmDialog}
       <div>
         <h2 id="other-side-heading" className="text-xl font-bold text-content-strong">The other side</h2>
         <p className="mt-1 text-sm text-content-muted">
@@ -81,9 +84,16 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
               className="mt-3"
               variant="secondary"
               loading={withdraw.isPending}
-              onClick={() => {
-                if (!window.confirm(`Withdraw ${away.teamNameSnapshot} from this match? Any money held from your team wallet is released, and the other side opens again.`)) return;
-                withdraw.mutate(undefined, { onSuccess: () => notify({ variant: 'info', title: 'Team withdrawn', message: 'Your team left the match. Held money went back to your team wallet.' }) });
+              onClick={async () => {
+                const { confirmed } = await confirm({
+                  title: `Withdraw ${away.teamNameSnapshot}?`,
+                  message: <p>Any money held from your team wallet is released, and the other side opens again.</p>,
+                  confirmLabel: 'Withdraw my team',
+                  cancelLabel: 'Stay in match',
+                  destructive: true,
+                  action: () => withdraw.mutateAsync(undefined),
+                });
+                if (confirmed) notify({ variant: 'info', title: 'Team withdrawn', message: 'Your team left the match. Held money went back to your team wallet.' });
               }}
             >
               Withdraw my team
@@ -155,9 +165,13 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
               className="mt-3"
               variant="secondary"
               loading={join.isPending}
-              onClick={() => {
-                if (!window.confirm(`Join the other side for ${formatRands(match.feeCents)} from your wallet? The match goes ahead only if it's ready by ${lockAt}; otherwise your ${formatRands(match.feeCents)} is refunded.`)) return;
-                join.mutate({ team: 'AWAY' });
+              onClick={async () => {
+                const { confirmed } = await confirm({
+                  title: `Join the other side for ${formatRands(match.feeCents)}?`,
+                  message: <p>{formatRands(match.feeCents)} comes from your wallet. The match goes ahead only if it's ready by {lockAt}; otherwise your {formatRands(match.feeCents)} is refunded.</p>,
+                  confirmLabel: 'Join',
+                });
+                if (confirmed) join.mutate({ team: 'AWAY' });
               }}
             >
               Join as a player ({formatRands(match.feeCents)})
@@ -185,7 +199,14 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
                 ))}
               </ul>
               {!locked && (
-                <Button variant="ghost" loading={leave.isPending} onClick={() => { if (window.confirm('Leave this match? More than 12 hours before kickoff your R80 comes back to your wallet; after that, only if a paid player takes your place.')) leave.mutate(); }}>
+                <Button variant="ghost" loading={leave.isPending} onClick={() => void confirm({
+                  title: 'Leave this match?',
+                  message: <p>More than 12 hours before kickoff your R80 comes back to your wallet; after that, only if a paid player takes your place.</p>,
+                  confirmLabel: 'Leave match',
+                  cancelLabel: 'Stay in match',
+                  destructive: true,
+                  action: () => leave.mutateAsync(undefined),
+                })}>
                   Leave the match
                 </Button>
               )}
