@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { MATCH_FORMATS } from '../config/match-formats.js';
 import { TEAM_ROLES } from '../types/team.js';
+import { isKitColour } from '../config/kit-colours.js';
 
 const optionalText = (max: number) =>
   z
@@ -16,9 +17,12 @@ export const teamShortNameSchema = z
   .max(4)
   .regex(/^[A-Za-z0-9]+$/, 'Use letters and numbers only')
   .transform((value) => value.toUpperCase());
+/** Batch 5 brief, B1 (CEO D17): a kit colour from the list, stored as its hex in capitals. */
 const color = z
   .string()
-  .regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex color')
+  .regex(/^#[0-9A-Fa-f]{6}$/, 'Pick one of the kit colours')
+  .transform((value) => value.toUpperCase())
+  .refine(isKitColour, 'Pick one of the kit colours')
   .optional();
 
 export const createTeamSchema = z.object({

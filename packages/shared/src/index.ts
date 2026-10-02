@@ -26,6 +26,7 @@ export * from './config/match-formats.js';
 export * from './config/match-rules.js';
 export * from './config/formations.js';
 export * from './config/team-match-fees.js';
+export * from './config/kit-colours.js';
 export * from './schemas/auth.js';
 export * from './schemas/match.js';
 export * from './schemas/profile.js';

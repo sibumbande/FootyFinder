@@ -1,4 +1,4 @@
-import { MATCH_FORMAT_CONFIG, type MatchFormat } from '@footy-finder/shared';
+import { MATCH_FORMAT_CONFIG, nearestKitColour, type MatchFormat } from '@footy-finder/shared';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { TeamAvatar } from './TeamAvatar.js';
 import { plural } from '@/utils/plural.js';
@@ -20,7 +20,8 @@ export function TeamHeroView({ team, memberCount, badge, action }: { team: HeroT
       <div
         className="h-24 sm:h-32"
         style={{
-          background: `linear-gradient(120deg, ${team.primaryColor ?? 'rgb(var(--theme-brand-600))'}, ${team.secondaryColor ?? 'rgb(var(--theme-brand-900))'})`,
+          // Batch 5 brief, B1 (CEO D17): a colour saved before the kit colour list shows as its nearest kit colour.
+          background: `linear-gradient(120deg, ${team.primaryColor ? nearestKitColour(team.primaryColor).hex : 'rgb(var(--theme-brand-600))'}, ${team.secondaryColor ? nearestKitColour(team.secondaryColor).hex : 'rgb(var(--theme-brand-900))'})`,
         }}
       />
       <div className="flex flex-col gap-4 p-6 sm:-mt-12 sm:flex-row sm:items-end">

@@ -92,7 +92,7 @@ const topUp = async (userId: string, amountCents: number, channel: string) => {
   return prisma.providerPayment.findUniqueOrThrow({ where: { reference: started.reference } });
 };
 const createTeam = async (ownerId: string, name: string) => {
-  const created = await teams.create({ name: `${name} ${marker}`, primaryFormat: 'FIVE_A_SIDE', formationKey: getDefaultFormationKey('FIVE_A_SIDE'), primaryColor: '#114422', secondaryColor: '#ffffff' }, ownerId);
+  const created = await teams.create({ name: `${name} ${marker}`, primaryFormat: 'FIVE_A_SIDE', formationKey: getDefaultFormationKey('FIVE_A_SIDE'), primaryColor: '#0B5D2A', secondaryColor: '#FFFFFF' }, ownerId);
   teamIds.push(created.id);
   return created;
 };

@@ -158,6 +158,39 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
     await context.close();
   });
 
+  // Batch 5 brief, B1: the kit colour picker is a bottom sheet of named swatches, no taller than half the screen,
+  // with a live mini preview inside it, and nothing in it opens the keyboard.
+  test('kit colours are picked from a half-height sheet on a phone (batch 5 brief, B1)', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const page = await context.newPage();
+    await page.goto('/');
+    const login = await f.api(page, '/auth/login', { method: 'POST', body: { identifier: `${f.marker}-player@test.invalid`, password: f.PASSWORD } });
+    expect(login.status, JSON.stringify(login.body)).toBe(200);
+    await page.goto('/teams/create');
+    await page.getByRole('button', { name: 'Main kit colour: Green. Change' }).click();
+    const sheet = page.getByTestId('kit-colour-sheet');
+    await expect(sheet).toBeVisible();
+    const box = (await sheet.boundingBox())!;
+    expect(box.height).toBeLessThanOrEqual(844 / 2 + 1);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await expect(sheet.locator('input, textarea, [contenteditable="true"]')).toHaveCount(0);
+    await expect(sheet.getByTestId('kit-colour-mini-preview')).toBeVisible();
+    const swatch = sheet.getByRole('radio', { name: 'Navy' });
+    const swatchBox = (await swatch.locator('span').first().boundingBox())!;
+    expect(swatchBox.width).toBeGreaterThanOrEqual(44);
+    expect(swatchBox.height).toBeGreaterThanOrEqual(44);
+    await swatch.tap();
+    await expect(swatch).toHaveAttribute('aria-checked', 'true');
+    await expect(sheet.getByTestId('kit-band')).toHaveAttribute('style', /rgb(20, 33, 61)|#14213D/i);
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('INPUT');
+    expect(await offscreen(page)).toEqual([]);
+    await sheet.getByRole('button', { name: 'Done' }).tap();
+    await expect(sheet).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Main kit colour: Navy. Change' })).toBeVisible();
+    await context.close();
+  });
+
   test('the signed-in header lines up on desktop (CEO batch 3.5, item 2)', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();

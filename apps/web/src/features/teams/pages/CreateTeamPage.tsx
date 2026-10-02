@@ -1,9 +1,13 @@
 import {
+  DEFAULT_KIT_PRIMARY,
+  DEFAULT_KIT_SECONDARY,
   FORMATION_PRESETS,
   MATCH_FORMAT_CONFIG,
   MATCH_FORMATS,
   createTeamSchema,
   getDefaultFormationKey,
+  kitColoursTooSimilar,
+  readableTextOn,
   type MatchFormat,
 } from '@footy-finder/shared';
 import { useEffect, useMemo, useState } from 'react';
@@ -11,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
+import { KitColourPicker } from '../components/KitColourPicker.js';
 import { TeamAvatar } from '../components/TeamAvatar.js';
 import { useCreateTeam } from '../hooks/useTeams.js';
 
@@ -24,8 +29,8 @@ export function CreateTeamPage() {
   const [shortName, setShortName] = useState('');
   const [description, setDescription] = useState('');
   const [locationText, setLocationText] = useState('');
-  const [primaryColor, setPrimaryColor] = useState('#278A4B');
-  const [secondaryColor, setSecondaryColor] = useState('#123522');
+  const [primaryColor, setPrimaryColor] = useState<string>(DEFAULT_KIT_PRIMARY);
+  const [secondaryColor, setSecondaryColor] = useState<string>(DEFAULT_KIT_SECONDARY);
   const [format, setFormat] = useState<MatchFormat>('FIVE_A_SIDE');
   const [formationKey, setFormationKey] = useState(getDefaultFormationKey('FIVE_A_SIDE'));
   const [image, setImage] = useState<File>();
@@ -129,28 +134,25 @@ export function CreateTeamPage() {
                   PNG, JPEG or WEBP, up to 5 MB.
                 </span>
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="grid gap-2 text-sm font-semibold text-content">
-                  Primary color
-                  <input
-                    aria-label="Primary team color"
-                    type="color"
-                    value={primaryColor}
-                    onChange={(event) => setPrimaryColor(event.target.value)}
-                    className="h-12 w-full rounded-xl border border-line-strong bg-surface p-1"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-semibold text-content">
-                  Secondary color
-                  <input
-                    aria-label="Secondary team color"
-                    type="color"
-                    value={secondaryColor}
-                    onChange={(event) => setSecondaryColor(event.target.value)}
-                    className="h-12 w-full rounded-xl border border-line-strong bg-surface p-1"
-                  />
-                </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <KitColourPicker
+                  label="Main kit colour"
+                  value={primaryColor}
+                  onChange={setPrimaryColor}
+                  preview={<KitBand name={name || 'Your Team'} primaryColor={primaryColor} secondaryColor={secondaryColor} compact />}
+                />
+                <KitColourPicker
+                  label="Second kit colour"
+                  value={secondaryColor}
+                  onChange={setSecondaryColor}
+                  preview={<KitBand name={name || 'Your Team'} primaryColor={primaryColor} secondaryColor={secondaryColor} compact />}
+                />
               </div>
+              {kitColoursTooSimilar(primaryColor, secondaryColor) && (
+                <p role="status" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm font-semibold text-warning-700" data-testid="kit-colours-similar">
+                  Your two kit colours are very alike, so they may be hard to tell apart. Try a lighter or darker second colour.
+                </p>
+              )}
             </div>
             <TeamPreview
               name={name || 'Your Team'}
@@ -261,6 +263,19 @@ export function CreateTeamPage() {
   );
 }
 
+/** The kit colours as a band, with the team name in whichever of black or white reads best on the main colour. */
+function KitBand({ name, primaryColor, secondaryColor, compact = false }: { name: string; primaryColor: string; secondaryColor: string; compact?: boolean }) {
+  return (
+    <div
+      className={`flex items-end px-4 ${compact ? 'h-12 rounded-xl pb-2' : 'h-24 pb-10'}`}
+      style={{ background: `linear-gradient(135deg, ${primaryColor} 55%, ${secondaryColor} 55%)`, color: readableTextOn(primaryColor) }}
+      data-testid="kit-band"
+    >
+      <span className="min-w-0 truncate text-sm font-black uppercase">{name}</span>
+    </div>
+  );
+}
+
 function TeamPreview(props: {
   name: string;
   shortName: string;
@@ -269,13 +284,8 @@ function TeamPreview(props: {
   secondaryColor: string;
 }) {
   return (
-    <aside className="h-fit overflow-hidden rounded-3xl border border-line bg-surface shadow-soft">
-      <div
-        className="h-24"
-        style={{
-          background: `linear-gradient(135deg, ${props.primaryColor}, ${props.secondaryColor})`,
-        }}
-      />
+    <aside className="h-fit overflow-hidden rounded-3xl border border-line bg-surface shadow-soft" data-testid="team-preview">
+      <KitBand name={props.name} primaryColor={props.primaryColor} secondaryColor={props.secondaryColor} />
       <div className="-mt-9 p-5">
         <TeamAvatar team={props} size="lg" />
         <h2 className="mt-4 text-xl font-black text-content-strong">{props.name}</h2>

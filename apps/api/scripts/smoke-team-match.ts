@@ -66,8 +66,8 @@ async function main() {
       shortName: 'P1B',
       primaryFormat: 'FIVE_A_SIDE',
       formationKey: getDefaultFormationKey('FIVE_A_SIDE'),
-      primaryColor: '#123456',
-      secondaryColor: '#ABCDEF',
+      primaryColor: '#14213D',
+      secondaryColor: '#6CB4EE',
     },
     owner.id,
   );
@@ -120,7 +120,7 @@ async function main() {
     'Team name snapshot was not persisted.',
   );
   assert(
-    ownerFixture.teamSides[0]?.primaryColorSnapshot === '#123456',
+    ownerFixture.teamSides[0]?.primaryColorSnapshot === '#14213D',
     'Team color snapshot was not persisted.',
   );
   assert((await balances(userIds)) === balancesBefore, 'Fixture creation mutated a wallet.');

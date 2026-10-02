@@ -39,8 +39,8 @@ export function mockPlayer(n: number) {
 }
 
 export const TEAMS = [
-  { key: 'WANDERERS', name: 'Woodstock Wanderers', members: range(1, 14), owner: 1, captain: 2, contributors: [1, 2, 3, 4, 5], locationText: 'Woodstock, Cape Town', primaryColor: '#1D4ED8', secondaryColor: '#FACC15' },
-  { key: 'OBSERVATORY', name: 'Observatory United', members: range(15, 28), owner: 15, captain: 16, contributors: [15, 16, 17, 18, 19], locationText: 'Observatory, Cape Town', primaryColor: '#B91C1C', secondaryColor: '#FFFFFF' },
+  { key: 'WANDERERS', name: 'Woodstock Wanderers', members: range(1, 14), owner: 1, captain: 2, contributors: [1, 2, 3, 4, 5], locationText: 'Woodstock, Cape Town', primaryColor: '#1F4EB4', secondaryColor: '#FFD400' },
+  { key: 'OBSERVATORY', name: 'Observatory United', members: range(15, 28), owner: 15, captain: 16, contributors: [15, 16, 17, 18, 19], locationText: 'Observatory, Cape Town', primaryColor: '#D7262E', secondaryColor: '#FFFFFF' },
 ] as const;
 
 export function range(from: number, to: number) {
