@@ -127,6 +127,16 @@ export class CardRefundsService {
     return created ? this.submit(refund.id) : refund;
   }
 
+  /**
+   * DEC-021: submits a ticket refund queued in another transaction (TICKET_REFUND_SUBMIT). Only a refund still PENDING
+   * with no Paystack id is sent, so a replayed job never refunds twice.
+   */
+  async submitQueued(refundId: string) {
+    const refund = await prisma.providerRefund.findUnique({ where: { id: refundId } });
+    if (!refund || refund.status !== 'PENDING' || refund.providerRefundId) return refund;
+    return this.submit(refundId);
+  }
+
   /** Sends one refund to Paystack. Any provider error leaves it FAILED for finance review. */
   private async submit(refundId: string) {
     const refund = await prisma.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true } });
@@ -134,7 +144,7 @@ export class CardRefundsService {
       const result = await this.gateway.refund({
         reference: refund.providerPayment.reference,
         amountCents: refund.amountCents,
-        merchantNote: 'FootyFinder wallet top-up refund',
+        merchantNote: refund.ticketId ? 'FootyFinder match ticket refund' : 'FootyFinder wallet top-up refund',
       });
       return prisma.providerRefund.update({
         where: { id: refund.id },

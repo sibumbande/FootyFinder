@@ -6,6 +6,12 @@ import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
 import { expireTicketHold, TicketCheckoutService } from '../src/modules/tickets/ticket-checkout.service.js';
+import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
+import { CardRefundsService } from '../src/modules/payments/card-refunds.service.js';
+import { PaystackWebhookProcessor } from '../src/modules/payments/paystack-webhook.jobs.js';
+import { sendTicketEmail } from '../src/modules/tickets/ticket-emails.js';
+import { runTicketHoldExpiry } from '../src/modules/tickets/ticket.jobs.js';
+import { TicketSettlementService } from '../src/modules/tickets/ticket-settlement.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-server.js';
 
@@ -33,10 +39,24 @@ const bookings = new BookingsService();
 const matches = new MatchesService();
 const fake = await new FakePaystack().start();
 const termsVersion = async () => '2.4';
-const paystack = new TicketCheckoutService(new PaystackClient({ secretKey: FAKE_PAYSTACK_SECRET, baseUrl: fake.baseUrl, channels: ['card'] }), undefined, {
+const gateway = new PaystackClient({ secretKey: FAKE_PAYSTACK_SECRET, baseUrl: fake.baseUrl, channels: ['card'] });
+const settlement = new TicketSettlementService(gateway, undefined, ['card']);
+const paystack = new TicketCheckoutService(gateway, undefined, settlement, {
   clientUrl: 'http://localhost:5173', demo: () => false, paystackEnabled: () => true, termsVersion,
 });
-const demo = new TicketCheckoutService(undefined, undefined, { clientUrl: 'http://localhost:5173', demo: () => true, paystackEnabled: () => false, termsVersion });
+const processor = new PaystackWebhookProcessor(undefined, undefined, undefined, settlement);
+const refunds = new CardRefundsService(gateway);
+const emails = new TestEmailProvider();
+const webhookIds: string[] = [];
+/** A verified (signed) charge.success webhook, as the webhook route stores it. */
+const webhook = async (reference: string) => {
+  const event = await prisma.paymentWebhookEvent.create({
+    data: { provider: 'paystack', dedupeKey: `smoke:${randomUUID()}`, eventType: 'charge.success', reference, signatureValid: true, payload: { event: 'charge.success', data: { reference } } },
+  });
+  webhookIds.push(event.id);
+  return processor.process(event.id);
+};
+const demo = new TicketCheckoutService(undefined, undefined, undefined, { clientUrl: 'http://localhost:5173', demo: () => true, paystackEnabled: () => false, termsVersion });
 const matchIds: string[] = [];
 const userIds: string[] = [];
 
@@ -137,10 +157,84 @@ try {
   assert((await codeOf(() => paystack.start(free.id, b, sub(), randomUUID()))) === 'LINEUP_LOCKED', 'A ticket was sold after the lineup lock.');
   await prisma.user.update({ where: { id: b }, data: { bookingRestrictedAt: new Date(), bookingRestrictionReason: 'smoke dispute' } });
   assert((await codeOf(() => paystack.start(match.id, b, sub('AWAY'), randomUUID()))) === 'BOOKING_RESTRICTED', 'A player with a disputed payment could buy a ticket.');
-  console.log('Tickets smoke passed: a paid place is held for 10 minutes (Being booked, nobody else can buy or claim it, the lobby never says who), placed only once paid, one checkout per double tap, one hold per raced position, released by the job when unpaid (safe twice, never early), the policy acceptance is recorded with Terms version, IP and browser, the payment is a ticket payment (no wallet), free matches give R0 tickets with the promotions ledger unchanged, and full sides, the lineup lock and payment disputes refuse a purchase.');
+  // 8. Paystack confirms: whichever of the webhook, the status check and the hold-expiry job comes first, the player
+  //    is placed exactly once and gets one receipt. A late payment is placed if the position is still free.
+  const paid = await quickMatch(host);
+  const [p1, p2, p3, p4, p5] = await homeSlots(paid.id);
+  const [x1, x2, x3, x4, x5] = [await player('x1'), await player('x2'), await player('x3'), await player('x4'), await player('x5')];
+  const placedOnce = async (checkoutId: string, playerId: string) => {
+    const tickets = await prisma.matchTicket.findMany({ where: { checkoutId } });
+    assert(tickets.length === 1 && tickets[0]!.status === 'CONFIRMED', 'The paid ticket was not confirmed.');
+    assert((await prisma.matchParticipant.count({ where: { matchId: paid.id, userId: playerId, status: 'JOINED' } })) === 1, 'The player was not placed exactly once.');
+    assert((await prisma.durableJob.count({ where: { dedupeKey: { startsWith: `ticket-email:RECEIPT:${checkoutId}` } } })) === 1, 'The receipt was not queued exactly once.');
+  };
+  const webhookFirst = await paystack.start(paid.id, x1, position(p1!.id), randomUUID());
+  fake.pay(webhookFirst.reference!);
+  await webhook(webhookFirst.reference!);
+  assert((await paystack.status(x1, webhookFirst.checkoutId)).state === 'CONFIRMED', 'The webhook did not confirm the ticket.');
+  await runTicketHoldExpiry(webhookFirst.checkoutId, settlement, new Date(Date.now() + 11 * 60_000));
+  await placedOnce(webhookFirst.checkoutId, x1);
+
+  const verifyFirst = await paystack.start(paid.id, x2, position(p2!.id), randomUUID());
+  fake.pay(verifyFirst.reference!);
+  assert((await paystack.statusByReference(x2, verifyFirst.reference!)).state === 'CONFIRMED', 'The status check did not confirm the paid ticket.');
+  await webhook(verifyFirst.reference!);
+  await placedOnce(verifyFirst.checkoutId, x2);
+
+  const allAtOnce = await paystack.start(paid.id, x3, position(p3!.id), randomUUID());
+  fake.pay(allAtOnce.reference!);
+  await Promise.all([
+    webhook(allAtOnce.reference!).catch(() => undefined),
+    settlement.settleFromVerify(allAtOnce.reference!, 'expiry_job').catch(() => undefined),
+    paystack.statusByReference(x3, allAtOnce.reference!),
+  ]);
+  await placedOnce(allAtOnce.checkoutId, x3);
+
+  // Late, position still free: placed.
+  const late = await paystack.start(paid.id, x4, position(p4!.id), randomUUID());
+  await expireTicketHold(late.checkoutId, new Date(Date.now() + 11 * 60_000));
+  fake.pay(late.reference!);
+  await webhook(late.reference!);
+  assert((await paystack.status(x4, late.checkoutId)).state === 'CONFIRMED', 'A late payment for a still-free position was not placed.');
+
+  // 9. Late, the position is gone: refunded in full to the original method (never a credit), with an email.
+  const gone = await paystack.start(paid.id, x5, position(p5!.id), randomUUID());
+  await expireTicketHold(gone.checkoutId, new Date(Date.now() + 11 * 60_000));
+  await demo.start(paid.id, e, position(p5!.id), randomUUID());
+  fake.pay(gone.reference!);
+  await webhook(gone.reference!);
+  const goneTicket = await prisma.matchTicket.findFirstOrThrow({ where: { checkoutId: gone.checkoutId }, include: { refunds: true } });
+  assert(goneTicket.status === 'CLOSED' && goneTicket.outcome === 'LATE_PAYMENT_REFUNDED' && goneTicket.refunds.length === 1, 'A late payment for a taken position was not refunded.');
+  assert(goneTicket.refunds[0]!.amountCents === 8_000 && goneTicket.refunds[0]!.source === 'LATE_PAYMENT', 'The late refund is not the full ticket price.');
+  assert(!(await prisma.matchCredit.count({ where: { userId: x5 } })), 'A late payment was turned into a credit.');
+  assert(!(await prisma.matchParticipant.count({ where: { matchId: paid.id, userId: x5, status: 'JOINED' } })), 'The late payer was placed anyway.');
+  const goneStatus = await paystack.status(x5, gone.checkoutId);
+  assert(goneStatus.state === 'FAILED' && Boolean(goneStatus.refundReason?.includes('Someone else took that position')), 'The return page does not explain the refund.');
+  await refunds.submitQueued(goneTicket.refunds[0]!.id);
+  await refunds.submitQueued(goneTicket.refunds[0]!.id);
+  assert(fake.calls.refund === 1, 'The late refund was not sent to Paystack exactly once.');
+  await sendTicketEmail({ kind: 'LATE_PAYMENT_REFUND', userId: x5, checkoutId: gone.checkoutId }, emails);
+  await sendTicketEmail({ kind: 'RECEIPT', userId: x1, checkoutId: webhookFirst.checkoutId }, emails);
+  const receipt = emails.messages.find(({ subject }) => subject.startsWith('Your FootyFinder match ticket'));
+  assert(receipt?.text.includes('Cancellation policy') && receipt.text.includes('Manage my ticket') && receipt.text.includes('Position'), 'The receipt is missing the place, the policy or the manage link.');
+  assert(emails.messages.some(({ subject, text }) => subject.includes('refunded') && text.includes('Someone else took that position')), 'The late-refund email does not say why.');
+  assert((await prisma.ticketEmail.count({ where: { userId: { in: [x1, x5] } } })) === 2, 'Sent ticket emails were not logged for dispute evidence.');
+
+  // 10. An abandoned checkout fails cleanly and frees the place.
+  await prisma.user.update({ where: { id: b }, data: { bookingRestrictedAt: null } });
+  const quit = await paystack.start(paid.id, b, sub('AWAY'), randomUUID());
+  fake.pay(quit.reference!, { status: 'abandoned' });
+  await settlement.settleFromVerify(quit.reference!, 'expiry_job', { finalAttempt: true });
+  const quitRow = await prisma.ticketCheckout.findUniqueOrThrow({ where: { id: quit.checkoutId }, include: { tickets: true } });
+  assert(quitRow.status === 'FAILED' && quitRow.tickets[0]?.status === 'RELEASED', 'An abandoned checkout did not release the place.');
+
+  console.log('Tickets smoke passed: a paid place is held for 10 minutes (Being booked, nobody else can buy or claim it, the lobby never says who), placed only once paid, one checkout per double tap, one hold per raced position, released by the job when unpaid (safe twice, never early), the policy acceptance is recorded with Terms version, IP and browser, the payment is a ticket payment (no wallet), free matches give R0 tickets with the promotions ledger unchanged, full sides, the lineup lock and payment disputes refuse a purchase, the webhook, status check and expiry job place a paid player exactly once in any order (one receipt), a late payment is placed if the position is still free and otherwise refunded in full to the original method (never a credit, sent to Paystack once, with an email saying why), sent emails are logged, and an abandoned checkout releases the place.');
 } finally {
   const checkoutIds = (await prisma.ticketCheckout.findMany({ where: { matchId: { in: matchIds } }, select: { id: true, providerPaymentId: true } }));
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.paymentWebhookEvent.deleteMany({ where: { id: { in: webhookIds } } });
+  await prisma.ticketEmail.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.providerRefund.deleteMany({ where: { ticket: { matchId: { in: matchIds } } } });
   await prisma.matchTicket.deleteMany({ where: { matchId: { in: matchIds } } });
   await prisma.ticketCheckout.deleteMany({ where: { matchId: { in: matchIds } } });
   await prisma.providerPayment.deleteMany({ where: { id: { in: checkoutIds.flatMap(({ providerPaymentId }) => (providerPaymentId ? [providerPaymentId] : [])) } } });

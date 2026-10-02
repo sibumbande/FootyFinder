@@ -22,6 +22,10 @@ import { lockMatchForFormation } from '../matches/matches.repository.js';
 import { isPaystackCheckoutUrl, PaystackClient, PaystackError, type PaystackGateway } from '../payments/paystack.client.js';
 import { demoDepositsEnabled } from '../wallet/payment-config.js';
 import { assertTicketPlaceable, placeableMatchSelect, placeTicketInTx, refusal, releaseExpiredHolds } from './ticket-placement.js';
+import { TicketSettlementService } from './ticket-settlement.service.js';
+
+/** The return page re-verifies with Paystack at most this often per payment. */
+export const TICKET_STATUS_CHECK_MIN_INTERVAL_MS = 5_000;
 
 export const TICKET_HOLD_EXPIRE_JOB_TYPE = 'TICKET_HOLD_EXPIRE';
 const PAYSTACK = 'paystack';
@@ -65,6 +69,7 @@ export class TicketCheckoutService {
   constructor(
     private readonly gateway: PaystackGateway = new PaystackClient(),
     private readonly notifications = new NotificationsService(),
+    private readonly settlement = new TicketSettlementService(gateway),
     private readonly config: { clientUrl: string; demo: () => boolean; paystackEnabled: () => boolean; termsVersion: () => Promise<string | undefined> } = {
       clientUrl: env.CLIENT_URL,
       demo: () => demoDepositsEnabled(),
@@ -229,18 +234,34 @@ export class TicketCheckoutService {
     return toCheckoutResult(await prisma.ticketCheckout.findUniqueOrThrow({ where: { id: checkoutId }, include: checkoutInclude }));
   }
 
-  /** The payer's own checkout, by id (the return page asks this; it never confirms anything itself). */
-  async status(userId: string, checkoutId: string): Promise<TicketCheckoutResult> {
+  /** The payer's own checkout, by id. */
+  async status(userId: string, checkoutId: string, now = new Date()): Promise<TicketCheckoutResult> {
     const checkout = await prisma.ticketCheckout.findFirst({ where: { id: checkoutId, payerId: userId }, include: checkoutInclude });
     if (!checkout) throw new AppError(404, 'Checkout not found.', 'CHECKOUT_NOT_FOUND');
-    return toCheckoutResult(checkout);
+    return this.verifiedStatus(checkout, now);
   }
 
   /** The payer's own checkout, by Paystack reference (Paystack's return URL carries the reference). */
-  async statusByReference(userId: string, reference: string): Promise<TicketCheckoutResult> {
+  async statusByReference(userId: string, reference: string, now = new Date()): Promise<TicketCheckoutResult> {
     const checkout = await prisma.ticketCheckout.findFirst({ where: { payerId: userId, providerPayment: { reference } }, include: checkoutInclude });
     if (!checkout) throw new AppError(404, 'Checkout not found.', 'CHECKOUT_NOT_FOUND');
-    return toCheckoutResult(checkout);
+    return this.verifiedStatus(checkout, now);
+  }
+
+  /**
+   * While a payment is still open, our server re-verifies it with Paystack (at most every few seconds) through the
+   * shared settlement path, which may place the player. The browser never supplies payment facts.
+   */
+  private async verifiedStatus(checkout: CheckoutRecord, now: Date) {
+    const payment = checkout.providerPayment;
+    const due = payment && (!payment.lastVerifiedAt || now.getTime() - payment.lastVerifiedAt.getTime() >= TICKET_STATUS_CHECK_MIN_INTERVAL_MS);
+    if (!payment || payment.status !== 'INITIALIZED' || !payment.authorizationUrl || !due) return toCheckoutResult(checkout);
+    try {
+      await this.settlement.settleFromVerify(payment.reference, 'status_check', { now });
+    } catch (error) {
+      logError('ticket_status_check_failed', error, { checkoutId: checkout.id });
+    }
+    return this.result(checkout.id);
   }
 
   /** What the confirm and leave sheets need: the viewer's ticket, their credits and the policy (A1.1, A2). */
