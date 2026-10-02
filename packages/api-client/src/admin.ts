@@ -1,4 +1,5 @@
 import type {
+  RetentionOverview,
   AdminCancelMatchInput,
   AdminAuditEntry,
   AdminAuthStatus,
@@ -380,5 +381,13 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: Dispute }>(`/admin/disputes/${disputeId}/resolve`, {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  // CEO batch 5, item 4: data retention ("Report now" is a dry run; a mode change needs fresh MFA).
+  retention: () => client.request<{ data: RetentionOverview }>('/admin/retention'),
+  retentionReport: () => client.request<{ data: RetentionOverview }>('/admin/retention/report', { method: 'POST' }),
+  setRetentionMode: (category: string, mode: 'REPORT' | 'APPLY') =>
+    client.request<{ data: RetentionOverview }>(`/admin/retention/${category}`, {
+      method: 'PUT',
+      body: JSON.stringify({ mode }),
     }),
 });

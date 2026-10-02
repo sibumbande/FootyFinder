@@ -12,3 +12,7 @@ export const dataExportSchema = z.object({
   password: z.string().min(1, 'Enter your password').max(256),
 });
 export type DataExportInput = z.infer<typeof dataExportSchema>;
+
+/** CEO batch 5, item 4: an admin switches one retention category between a dry run and purging. */
+export const setRetentionModeSchema = z.object({ mode: z.enum(['REPORT', 'APPLY']) });
+export type SetRetentionModeInput = z.infer<typeof setRetentionModeSchema>;

@@ -243,6 +243,9 @@ Search engines may list these public pages. Before a match is played, people wit
 | Friend requests, Team recruitment posts, "Looking for a team" cards, Team invites and requests to join | While active; deleted 12 months after they end (declined, cancelled, expired, closed or removed), when the Account is deleted, or 12 months after we close the Account |
 | Record of your acceptance of these Terms | While your Account is active, and for as long as we may need it as evidence afterwards |
 | City waiting-list entries | Until you unsubscribe or ask us to delete them |
+| Records of actions taken on the platform (for example a refund, a suspension or a request to delete an Account) | Kept as a permanent record; once your Account is deleted they are linked only to an anonymous ID |
+
+When information reaches the end of its period, we delete it or make it anonymous automatically. Anything that has been reported and is still under investigation, or that relates to an unresolved incident or legal proceedings, is kept until the matter is closed.
 
 ### Your rights
 

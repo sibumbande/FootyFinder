@@ -76,3 +76,25 @@ export interface AccountDeletionScheduled {
 
 export const ACCOUNT_DELETION_STATUSES = ['BLOCKED', 'GRACE', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
 export type AccountDeletionStatus = (typeof ACCOUNT_DELETION_STATUSES)[number];
+
+/** CEO batch 5, item 4: the admin "Data retention" page. */
+export interface RetentionRunSummary {
+  id: string;
+  mode: 'REPORT' | 'APPLY';
+  trigger: string;
+  counts: Record<string, number>;
+  candidateCount: number;
+  purgedCount: number;
+  startedAt: string;
+}
+export interface RetentionCategorySummary {
+  category: string;
+  label: string;
+  rule: string;
+  mode: 'REPORT' | 'APPLY';
+  reportOnly: boolean;
+  runs: RetentionRunSummary[];
+}
+export interface RetentionOverview {
+  categories: RetentionCategorySummary[];
+}

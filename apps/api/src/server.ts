@@ -15,6 +15,7 @@ import { registerPaystackWebhookJobHandlers } from './modules/payments/paystack-
 import { registerTeamMatchJobHandlers } from './modules/team-matches/team-match.jobs.js';
 import { registerRefereeJobHandlers } from './modules/referees/referee.jobs.js';
 import { registerAccountDeletionJobHandlers } from './modules/account/account-deletion.jobs.js';
+import { registerRetentionJobHandlers, scheduleRetention } from './modules/retention/retention.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -30,5 +31,7 @@ registerPaystackWebhookJobHandlers();
 registerTeamMatchJobHandlers();
 registerRefereeJobHandlers();
 registerAccountDeletionJobHandlers();
+registerRetentionJobHandlers();
+void scheduleRetention().catch((error) => console.error('retention_schedule_failed', error));
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

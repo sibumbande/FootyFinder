@@ -17,6 +17,7 @@ import * as freeMatches from '../matches/free-match.admin.controller.js';
 import * as waitingList from '../cities/waiting-list.admin.controller.js';
 import * as adminMatches from '../matches/admin-matches.controller.js';
 import * as girlsOnly from './girls-only.admin.controller.js';
+import * as retention from '../retention/retention.admin.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -115,6 +116,10 @@ adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, co
 adminRouter.post('/finance/refunds/:refundId/bank-details', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundBankDetails);
 adminRouter.get('/finance/banks', finance.paystackBanks);
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
+// CEO batch 5, item 4: data retention. "Report now" is a dry run; switching a category to purge needs fresh MFA.
+adminRouter.get('/retention', retention.overview);
+adminRouter.post('/retention/report', costlyMutationRateLimit, retention.reportNow);
+adminRouter.put('/retention/:category', requireRecentAdminMfa, costlyMutationRateLimit, retention.setMode);
 // CEO touch-up batch 3, item 5: free "On FootyFinder" matches.
 adminRouter.get('/finance/free-matches', freeMatches.freeMatchCosts);
 // CEO touch-up batch 3.5, item 4: the city waiting list; the CSV of subscribed entries needs fresh MFA (audited).
