@@ -81,7 +81,10 @@ test.describe('wallet', () => {
     await page.getByRole('menuitem', { name: 'Wallet' }).click();
     await expect(page).toHaveURL('/wallet');
     await expect(page.getByText('No wallet activity yet.')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'R160' })).toHaveAttribute('aria-pressed', 'true');
+    // CEO touch-up batch 4, item 3: R200 / R400 / R800 with match hints, R400 preselected.
+    await expect(page.getByRole('button', { name: 'R400 5 matches' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'R200 2 matches + R40' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'R800 10 matches' })).toBeVisible();
 
     // Server-side and client-side validation: below R50 is refused.
     await page.getByRole('button', { name: 'Other' }).click();
@@ -89,18 +92,18 @@ test.describe('wallet', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
     await expect(page.getByText('The minimum top-up is R50.')).toBeVisible();
 
-    await page.getByRole('button', { name: 'R240' }).click();
+    await page.getByRole('button', { name: /^R200/ }).click();
     await page.getByRole('button', { name: 'Continue' }).click();
-    await expect(page.getByTestId('top-up-confirm')).toContainText(/You.re adding R\s?240,00 to your wallet. Correct\?/);
-    await page.getByRole('button', { name: /Yes, add R\s?240,00/ }).click();
-    await expect(page.getByRole('listitem').filter({ hasText: 'Wallet top-up' })).toContainText(/\+R\s?240,00/);
-    await expect(page.getByLabel(/Wallet balance R\s?240,00/)).toBeVisible();
+    await expect(page.getByTestId('top-up-confirm')).toContainText(/You.re adding R\s?200,00 to your wallet. Correct\?/);
+    await page.getByRole('button', { name: /Yes, add R\s?200,00/ }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'Wallet top-up' })).toContainText(/\+R\s?200,00/);
+    await expect(page.getByLabel(/Wallet balance R\s?200,00/)).toBeVisible();
 
     const wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
-    expect(wallet.balanceCents).toBe(24_000);
+    expect(wallet.balanceCents).toBe(20_000);
     const ledger = await prisma.walletTransaction.findMany({ where: { walletAccountId: wallet.id } });
     expect(ledger).toHaveLength(1);
-    expect(ledger[0]).toMatchObject({ type: 'DEPOSIT_CREDIT', amountCents: 24_000, status: 'SUCCEEDED' });
+    expect(ledger[0]).toMatchObject({ type: 'DEPOSIT_CREDIT', amountCents: 20_000, status: 'SUCCEEDED' });
 
     // The server enforces the range too.
     const tooBig = await api(page, '/wallet/deposits/demo', { method: 'POST', body: { amountCents: 500_100 } });

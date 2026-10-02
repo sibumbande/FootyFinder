@@ -21,7 +21,7 @@ Decisions: DEC-011 (Paystack personal payments), DEC-012 (weekly dual-control ve
 ## How a top-up is credited (single credit path)
 
 1. `POST /wallet/top-ups` (with an `Idempotency-Key`, per user) atomically creates a PENDING `DEPOSIT_CREDIT` ledger row and a `ProviderPayment`, then calls Paystack `transaction/initialize` with:
-   - `channels: ['card']` and `currency: 'ZAR'`;
+   - `channels` exactly as configured in `PAYSTACK_CHANNELS` (CEO batch 4, item 3; default `card`) and `currency: 'ZAR'`;
    - our reference `ff_topup_<32 hex>`;
    - metadata `{ providerPaymentId, userId }`;
    - `callback_url = CLIENT_URL/wallet/top-up/return`.
@@ -37,7 +37,7 @@ Decisions: DEC-011 (Paystack personal payments), DEC-012 (weekly dual-control ve
    - status is `success`;
    - the amount is exactly equal;
    - the currency is ZAR;
-   - the channel is `card`;
+   - the channel is one of `PAYSTACK_CHANNELS` (anything else, such as QR, goes to REVIEW as `channel_not_offered`);
    - the reference and metadata match.
 
    The credit happens under the `ProviderPayment` row lock in a serializable transaction, through the idempotent PENDING → SUCCEEDED ledger transition. However the three sources interleave, a top-up is credited once. `smoke:payments` proves webhook→verify, verify→webhook and all three at once.
@@ -82,6 +82,13 @@ It never prints the key and refuses anything but a test key.
   1. The wallet is debited at initiation (`TOP_UP_REFUND_DEBIT`).
   2. Paystack `/refund` is called.
   3. `refund.*` webhooks move it to PROCESSING, PROCESSED or FAILED.
+- **Refunds by payment method (CEO batch 4, item 3, D8).**
+  - Card and Apple Pay: refunded back automatically. These are the only top-ups the player can undo in the app.
+  - Capitec Pay and Instant EFT: the player contacts support; finance refunds them from the admin Finance page. If Paystack did not receive the customer's bank account, the refund comes back as **needs attention** (status `NEEDS_ATTENTION`, the player is told support will contact them). Support asks the player for their bank and account number; finance enters them in the "Needs the player's bank details" form (fresh MFA). They go to Paystack's `refund/retry_with_customer_details` only. FootyFinder never stores the account number; the audit entry `TOP_UP_REFUND_BANK_DETAILS_SENT` keeps the bank name and the last 4 digits. Finance can instead return the money to the wallet with a reason.
+  - Account closure (ToS 20.2) is a support process using the same admin refund, so it works for every method.
+  - Chargebacks are matched by payment reference, whatever the method.
+  - Wallet history shows how each top-up was paid ("Paid with Capitec Pay") and where a refund goes ("Back to Capitec Pay").
+  - Smoke: `npm run smoke:payment-methods`.
 - **Failed refund (D3).** It stays FAILED and is flagged in reconciliation. It is never re-credited automatically. Finance either:
   - **retries it**, after first checking the Paystack dashboard that a timed-out attempt was not in fact processed; or
   - **returns it to the wallet**, with a written reason (audited).
@@ -124,6 +131,7 @@ It never prints the key and refuses anything but a test key.
 | `PAYMENT_PROVIDER` | `demo` (development/test only; credits instantly) or `paystack`. Production must be `paystack`. |
 | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY` | `sk_test_`/`pk_test_` outside production, `sk_live_`/`pk_live_` only in production. Owned by Platform Operations. Error messages never echo them. |
 | `PAYSTACK_BASE_URL` | Pinned to `https://api.paystack.co` in production. |
+| `PAYSTACK_CHANNELS` | CEO batch 4, item 3. Comma-separated Paystack channel codes checkout offers, exactly: `card`, `apple_pay`, `capitec_pay`, `eft` (Instant EFT through Ozow). Default `card`. Any other value (`qr`, `ussd`, `bank_transfer`, …) stops the API from starting. A payment through a channel not listed goes to REVIEW. |
 | `PAYSTACK_WEBHOOK_IP_ALLOWLIST` | Optional, comma-separated. |
 | `TOP_UP_PENDING_EXPIRY_MINUTES`, `TOP_UP_MAX_PENDING_HOURS` | Default 60 and 24. |
 | `VENUE_BENEFICIARY_ENCRYPTION_KEY` | Required in production and must differ from `ADMIN_MFA_ENCRYPTION_KEY`. Losing it makes stored bank details unreadable. |
@@ -141,6 +149,7 @@ It never prints the key and refuses anything but a test key.
 | `20261002130000_gate_6_refunds_chargebacks` | `ProviderRefund`, `ProviderDispute`, the wallet restriction. Widens the non-negative-balance and ledger-sign CHECKs. |
 | `20261002140000_gate_6_venue_payables` | Beneficiary, payable and adjustment tables, plus the eligibility trigger. |
 | `20261002150000_gate_6_settlement_batches` | Batches, dual-control CHECKs, paid-immutability triggers. |
+| `20261009110000_batch_4_refund_needs_attention` | CEO batch 4: the `NEEDS_ATTENTION` refund status (enum value only). |
 
 No index uses a function; the partial unique indexes use plain `WHERE` predicates.
 
@@ -168,3 +177,17 @@ Run on disposable `footy_finder_test` only (see `docs/TEST_DATABASE.md`); result
 - A production `VENUE_BENEFICIARY_ENCRYPTION_KEY`, stored and backed up by Platform Operations.
 - Publish Terms of Service v2.2 with `legal:publish`.
 - External alerting for REVIEW top-ups, failed refunds and reconciliation issues. Today these are visible on the admin Finance page only.
+
+## More ways to pay (CEO batch 4, item 3)
+
+- **Capitec Pay and Instant EFT.** Paystack's extra KYC review must be approved on the FootyFinder account first (Paystack: "Pay with Bank South Africa"; about 3 business days after approval). Then add them to the setting, for example `PAYSTACK_CHANNELS=card,capitec_pay,eft`, and restart the API. Nothing else changes. Until then, checkout keeps offering card only.
+- **Apple Pay.** Card-based, so refunds go back automatically and Undo is offered. Kept off until launch. To switch it on:
+  1. Paystack dashboard → Settings → Apple Pay → Web Domains → **Add new domain**: the live web domain (and any subdomain checkout runs on).
+  2. Download Paystack's domain verification file.
+  3. Put it at `apps/web/public/.well-known/` with the file name Paystack gives, deploy the web app, and check it loads at `https://<live domain>/.well-known/<file>` (served as plain text).
+  4. Click **Verify** in the Paystack dashboard.
+  5. Add `apple_pay` to `PAYSTACK_CHANNELS` and restart the API.
+  - Ask Paystack to confirm whether their hosted checkout page (`checkout.paystack.com`, which FootyFinder redirects to) needs our domain verified; their docs describe it for checkout on your own site.
+- **QR, USSD and bank transfer** stay off; the API refuses to start if they are configured.
+- **Fees.** FootyFinder pays Paystack's fee for every method (D9); players always pay exactly the top-up amount. Paystack keeps its fee when a payment is refunded.
+- **Sandbox check.** `npm run smoke:paystack-sandbox` sends the configured channels to the Paystack test API with the test keys in `apps/api/.env` and reports which channels Paystack accepts.

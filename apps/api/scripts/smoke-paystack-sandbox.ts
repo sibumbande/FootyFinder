@@ -6,7 +6,9 @@ import { evaluateVerification } from '../src/modules/payments/top-up-settlement.
 
 /**
  * TKT-609: optional check against the real Paystack TEST API (no database). It initialises a
- * card-only ZAR hosted checkout and verifies it is NOT paid, so nothing could be credited. It
+ * ZAR hosted checkout with the configured channels (PAYSTACK_CHANNELS) and verifies it is NOT paid, so nothing
+ * could be credited. CEO touch-up batch 4, item 3: it also asks for each new channel (Capitec Pay, Instant EFT,
+ * Apple Pay) on its own and reports exactly what Paystack answers. It
  * never prints, logs or returns the secret key, and refuses to run with anything but a test key.
  */
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
@@ -51,4 +53,24 @@ const body = Buffer.from(JSON.stringify({ event: 'charge.success', data: { refer
 assert(verifyPaystackSignature(body, createHmac('sha512', secret).update(body).digest('hex'), secret), 'Signature check rejected a correct signature.');
 assert(!verifyPaystackSignature(body, createHmac('sha512', 'sk_test_other').update(body).digest('hex'), secret), 'Signature check accepted a forged signature.');
 
-console.log(`Paystack sandbox smoke passed: card-only ZAR checkout initialised, verify status "${verified.status}" (not credited), unknown reference rejected, signature check correct.`);
+// CEO touch-up batch 4, item 3: what Paystack answers for each new channel on this account (test mode).
+const probes: string[] = [];
+for (const channel of ['capitec_pay', 'eft', 'apple_pay'] as const) {
+  const probe = new PaystackClient({ secretKey: secret, baseUrl: env.PAYSTACK_BASE_URL, channels: [channel] });
+  const result = await probe
+    .initialize({
+      email: 'gate6-sandbox@example.com',
+      amountCents: 5_000,
+      reference: `ff_topup_${randomUUID().replaceAll('-', '')}`,
+      callbackUrl: `${env.CLIENT_URL.replace(/\/$/, '')}/wallet/top-up/return`,
+      metadata: { providerPaymentId: 'sandbox-smoke', userId: 'sandbox-smoke' },
+    })
+    .then(
+      (started) => `accepted (checkout ${isPaystackCheckoutUrl(started.authorizationUrl) ? 'on checkout.paystack.com' : 'on an unexpected host'})`,
+      (error: unknown) => `refused: ${error instanceof PaystackError ? `${error.code} "${error.message}"` : 'unexpected error'}`,
+    );
+  probes.push(`${channel}: ${result}`);
+}
+console.log(`Paystack sandbox channel probes (test mode): ${probes.join('; ')}`);
+
+console.log(`Paystack sandbox smoke passed: ZAR checkout with channels ${JSON.stringify(env.PAYSTACK_CHANNELS)} initialised, verify status "${verified.status}" (not credited), unknown reference rejected, signature check correct.`);

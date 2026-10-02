@@ -26,7 +26,7 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
   });
   const error = refund.error ?? retry.error ?? restore.error;
   return <article>
-    <strong>{rands(topUp.amountCents)} · {topUp.status}{topUp.creditedBy ? ` (credited by ${topUp.creditedBy})` : ''}</strong>
+    <strong>{rands(topUp.amountCents)} · {topUp.status}{topUp.paymentMethod ? ` · ${topUp.paymentMethod}` : ''}{topUp.creditedBy ? ` (credited by ${topUp.creditedBy})` : ''}</strong>
     <code>{topUp.reference}</code>
     <span>{topUp.player.username} · {topUp.player.email} · {new Date(topUp.createdAt).toLocaleString()}</span>
     {topUp.reviewReason && <span className="error">Review: {topUp.reviewReason}. Check the Paystack dashboard; nothing was credited.</span>}
@@ -34,6 +34,11 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
     {topUp.disputes.map((dispute) => <span key={dispute.id}>Dispute {dispute.providerDisputeId}: {dispute.status} · {rands(dispute.amountCents)}{dispute.resolution ? ` · ${dispute.resolution}` : ''}</span>)}
     {topUp.refunds.map((item) => <div key={item.id} className="row">
       <span>Refund {rands(item.amountCents)} · {item.state} · attempts {item.attempts}{item.failureReason ? ` · ${item.failureReason}` : ''}{item.reviewReason ? ` · REVIEW ${item.reviewReason}` : ''}</span>
+      {item.state === 'NEEDS_ATTENTION' && <>
+        <BankDetailsForm refundId={item.id} onDone={refresh} />
+        <input aria-label="Reason for returning to wallet" placeholder="Or return to wallet: reason" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
+        <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
+      </>}
       {item.state === 'FAILED' && !item.reviewReason && <>
         <button type="button" disabled={retry.isPending} onClick={() => { if (item.failureReason !== 'PAYSTACK_UNAVAILABLE' || window.confirm('The last attempt timed out. Confirm in the Paystack dashboard that this refund was NOT processed before retrying.')) retry.mutate(item.id); }}>Retry refund</button>
         <input aria-label="Reason for returning to wallet" placeholder="Reason (required)" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
@@ -41,12 +46,39 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
       </>}
     </div>)}
     {topUp.refundableCents > 0 && <form className="row" onSubmit={(event: FormEvent) => { event.preventDefault(); refund.mutate(); }}>
-      <label>Refund to card (R, max {rands(topUp.refundableCents)})<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
+      <label>Refund (R, max {rands(topUp.refundableCents)})<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
       <label>Reason<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={500} required /></label>
-      <button disabled={refund.isPending}>Refund to card</button>
+      <button disabled={refund.isPending}>Refund to {topUp.paymentMethod && topUp.paymentMethod !== 'Card' ? topUp.paymentMethod : 'card'}</button>
     </form>}
     {error && <AdminActionError error={error} onVerified={() => { refund.reset(); retry.reset(); restore.reset(); }} />}
   </article>;
+}
+
+/**
+ * CEO touch-up batch 4, item 3 (D8): Paystack could not send a bank-payment refund back (no bank account on file).
+ * Support asks the player; finance enters the bank and account number here. They go to Paystack only; the audit log
+ * keeps the bank name and the last 4 digits. Fresh MFA.
+ */
+function BankDetailsForm({ refundId, onDone }: { refundId: string; onDone: () => void }) {
+  const [bankId, setBankId] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const banks = useQuery({ queryKey: [...financeKey, 'banks'], queryFn: async () => (await adminClient.paystackBanks()).data, staleTime: 3_600_000 });
+  const bankName = banks.data?.find((bank) => bank.id === bankId)?.name ?? '';
+  const send = useMutation({
+    mutationFn: () => adminClient.refundBankDetails(refundId, { bankId, bankName, accountNumber }),
+    onSuccess: () => { setAccountNumber(''); onDone(); },
+  });
+  return <form className="row" data-testid="refund-bank-details" onSubmit={(event: FormEvent) => { event.preventDefault(); send.mutate(); }}>
+    <span className="muted">Needs the player&apos;s bank details (never stored by FootyFinder).</span>
+    <label>Bank<select value={bankId} onChange={(event) => setBankId(event.target.value)} required>
+      <option value="">{banks.isPending ? 'Loading banks…' : 'Choose a bank'}</option>
+      {banks.data?.map((bank) => <option key={bank.id} value={bank.id}>{bank.name}</option>)}
+    </select></label>
+    <label>Account number<input inputMode="numeric" autoComplete="off" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.replace(/\D/g, ''))} minLength={6} maxLength={16} required /></label>
+    <button disabled={send.isPending || !bankName || accountNumber.length < 6}>Send refund</button>
+    {banks.error && <span className="error">{banks.error.message}</span>}
+    <AdminActionError error={send.error} onVerified={() => send.reset()} />
+  </form>;
 }
 
 export function FinancePage() {

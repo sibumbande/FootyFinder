@@ -23,13 +23,14 @@ describe('demo payment operator gating (TKT-603)', () => {
     expect((await request(app('test')).post('/demo')).status).toBe(200);
   });
 
-  it('publishes the R50–R5,000 range and the quick picks', () => {
-    expect(topUpOptions({ NODE_ENV: 'development', PAYMENT_PROVIDER: 'demo' })).toEqual({
+  it('publishes the R50–R5,000 range, the R200/R400/R800 quick picks and the configured methods', () => {
+    expect(topUpOptions({ NODE_ENV: 'development', PAYMENT_PROVIDER: 'demo', PAYSTACK_CHANNELS: ['card', 'capitec_pay', 'eft'] })).toEqual({
       provider: 'demo',
       minCents: 5_000,
       maxCents: 500_000,
-      quickPickCents: [8_000, 16_000, 24_000, 40_000],
-      defaultCents: 16_000,
+      quickPickCents: [20_000, 40_000, 80_000],
+      defaultCents: 40_000,
+      channels: ['card', 'capitec_pay', 'eft'],
     });
     expect(topUpOptions({ NODE_ENV: 'production', PAYMENT_PROVIDER: 'paystack' }).provider).toBe('paystack');
   });

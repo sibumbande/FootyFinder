@@ -15,11 +15,14 @@ const BLOCKED: Record<NonNullable<UndoableTopUp['blockedReason']>, string> = {
   ALREADY_UNDONE: 'Already undone',
   WALLET_RESTRICTED: 'Not available while your wallet is restricted',
   DISPUTED: 'Not available: this payment is disputed',
+  // CEO touch-up batch 4, item 3 (D8): bank payments cannot be sent back automatically.
+  REFUND_VIA_SUPPORT: 'Paid by bank: contact support to get it refunded',
 };
 
 /**
  * CEO touch-up batch 3, item 6b: "Undo top-up". Within 24 hours of a top-up, the unspent part (full or partial)
- * goes back to the same card through Paystack, once per top-up (ToS 13.5).
+ * goes back to the same card through Paystack, once per top-up (ToS 13.5). Batch 4, item 3: card and Apple Pay
+ * top-ups only; bank payments (Instant EFT, Capitec Pay) are refunded through support.
  */
 export function UndoTopUps() {
   const undoable = useQuery({ queryKey: undoableKey, queryFn: async () => (await walletClient.undoableTopUps()).data });
@@ -28,7 +31,7 @@ export function UndoTopUps() {
     <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="undo-top-up" data-testid="undo-top-ups">
       <h2 id="undo-top-up" className="text-xl font-black uppercase text-content-strong">Undo a top-up</h2>
       <p className="mt-1 text-sm text-content-muted">
-        Made a mistake? Within 24 hours you can send the unspent part of a top-up back to the card you paid with, once per top-up.
+        Made a mistake? Within 24 hours you can send the unspent part of a card or Apple Pay top-up back to the card you paid with, once per top-up. Top-ups paid by bank (Instant EFT or Capitec Pay) are refunded through support.
       </p>
       <ul className="mt-4 grid gap-3">
         {undoable.data.map((topUp) => <UndoRow key={topUp.paymentId} topUp={topUp} />)}
@@ -69,7 +72,7 @@ function UndoRow({ topUp }: { topUp: UndoableTopUp }) {
   return (
     <li className="grid gap-3 rounded-2xl border border-line p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <strong className="text-content-strong">Top-up of {formatRands(topUp.amountCents)}</strong>
+        <strong className="text-content-strong">Top-up of {formatRands(topUp.amountCents)}{topUp.paymentMethod ? ` · ${topUp.paymentMethod}` : ''}</strong>
         <span className="text-xs text-content-muted">Undo until {new Date(topUp.undoUntil).toLocaleString()}</span>
       </div>
       {blocked ? (

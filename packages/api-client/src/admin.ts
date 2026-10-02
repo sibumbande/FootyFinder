@@ -24,6 +24,8 @@ import type {
   AdminWaitingListQuery,
   AdminCreateMatchInput,
   AdminGirlsOnlyInput,
+  AdminRefundBankDetailsInput,
+  PaystackBankOption,
   AdminCorrectGenderInput,
   AdminCreatedMatch,
   AdminMatchDetail,
@@ -292,6 +294,10 @@ export const adminApi = (client: ApiClient) => ({
     }),
   retryRefund: (refundId: string) =>
     client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/retry`, { method: 'POST' }),
+  // CEO touch-up batch 4, item 3 (D8): a bank refund Paystack marked "needs attention".
+  refundBankDetails: (refundId: string, input: AdminRefundBankDetailsInput) =>
+    client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${id(refundId)}/bank-details`, post(input)),
+  paystackBanks: () => client.request<{ data: PaystackBankOption[] }>('/admin/finance/banks'),
   restoreRefund: (refundId: string, reason: string) =>
     client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/restore`, {
       method: 'POST',

@@ -1,6 +1,7 @@
 import {
   adminCardRefundSchema,
   adminFinanceReasonSchema,
+  adminRefundBankDetailsSchema,
   adminTopUpQuerySchema,
 } from '@footy-finder/shared';
 import type { Request, RequestHandler } from 'express';
@@ -8,6 +9,7 @@ import { AppError } from '../../errors/app-error.js';
 import { AdminFinanceService } from './admin-finance.service.js';
 import { CardRefundsService } from './card-refunds.service.js';
 import { ChargebacksService } from './chargebacks.service.js';
+import { PaystackClient } from './paystack.client.js';
 
 const finance = new AdminFinanceService();
 const refunds = new CardRefundsService();
@@ -49,6 +51,18 @@ export const refundTopUp = handle(async (req, locals) => {
 export const retryRefund = handle(async (req, locals) => {
   const refund = await refunds.retry({ actorUserId: actor(locals), refundId: String(req.params.refundId), requestId: requestId(locals) });
   return finance.topUp(refund.providerPaymentId);
+});
+
+/** CEO touch-up batch 4, item 3 (D8): fresh MFA (route); the account number goes to Paystack only. */
+export const refundBankDetails = handle(async (req, locals) => {
+  const input = adminRefundBankDetailsSchema.parse(req.body);
+  const refund = await refunds.retryWithCustomerDetails({ actorUserId: actor(locals), refundId: String(req.params.refundId), ...input, requestId: requestId(locals) });
+  return finance.topUp(refund.providerPaymentId);
+});
+
+export const paystackBanks = handle(async () => {
+  const client = new PaystackClient();
+  return client.listBanks();
 });
 
 export const restoreRefund = handle(async (req, locals) => {

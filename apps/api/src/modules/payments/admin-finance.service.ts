@@ -1,4 +1,4 @@
-import type { AdminRestrictedWallet, AdminTopUp } from '@footy-finder/shared';
+import { paymentChannelLabel, type AdminRestrictedWallet, type AdminTopUp } from '@footy-finder/shared';
 import type { ProviderDispute, ProviderPayment, ProviderRefund } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 
@@ -25,6 +25,7 @@ export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
     failureReason: row.failureReason ?? undefined,
     reviewReason: row.reviewReason ?? undefined,
     refundableCents: row.status === 'SUCCEEDED' && !row.disputes.length ? row.amountCents - committed : 0,
+    ...(row.channel && { paymentMethod: paymentChannelLabel(row.channel)! }),
     refunds: row.refunds.map((refund) => ({
       id: refund.id,
       amountCents: refund.amountCents,

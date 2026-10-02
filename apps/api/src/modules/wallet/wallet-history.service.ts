@@ -5,6 +5,7 @@ import type {
   WalletLedgerPage,
   WalletSummary,
 } from '@footy-finder/shared';
+import { paymentChannelLabel } from '@footy-finder/shared';
 import type { WalletTransactionType } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';
@@ -121,6 +122,21 @@ export class WalletHistoryService {
         })
       : [];
     const refundState = new Map(refunds.map((refund) => [refund.debitTransactionId, refund.status]));
+    // CEO touch-up batch 4, item 3: how each top-up was paid, shown on the top-up and on any refund of it.
+    const deposits = page.filter((row) => row.type === 'DEPOSIT_CREDIT').map((row) => row.id);
+    const methods = new Map<string, string>();
+    if (deposits.length || refundDebits.length) {
+      const paid = await prisma.providerPayment.findMany({
+        where: { OR: [{ walletTransactionId: { in: deposits } }, { refunds: { some: { debitTransactionId: { in: refundDebits } } } }] },
+        select: { walletTransactionId: true, channel: true, refunds: { select: { debitTransactionId: true } } },
+      });
+      for (const payment of paid) {
+        const label = paymentChannelLabel(payment.channel);
+        if (!label) continue;
+        methods.set(payment.walletTransactionId, label);
+        for (const refund of payment.refunds) if (refund.debitTransactionId) methods.set(refund.debitTransactionId, label);
+      }
+    }
     const entries = page.map((row): WalletLedgerEntry => {
       const kind = walletLedgerKind(row.type);
       const match = matches.get(row.id);
@@ -137,6 +153,7 @@ export class WalletHistoryService {
         ...(match && { related: { type: 'match' as const, id: match.id, name: match.name } }),
         ...(team && { related: { type: 'team' as const, id: team.id, name: team.name } }),
         ...(refundState.has(row.id) && { cardRefund: { state: refundState.get(row.id)! } }),
+        ...(methods.has(row.id) && { paymentMethod: methods.get(row.id)! }),
       };
     });
     const last = page.at(-1);

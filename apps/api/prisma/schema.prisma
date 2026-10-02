@@ -167,6 +167,8 @@ enum ProviderRefundStatus {
   PROCESSED
   FAILED
   RESTORED_TO_WALLET
+  /// CEO touch-up batch 4, item 3: a bank-payment refund waiting for the customer's bank account.
+  NEEDS_ATTENTION
 }
 
 enum ProviderDisputeStatus {

@@ -293,3 +293,13 @@ describe('adminApi girls-only (CEO batch 4, item 1)', () => {
     expect(request.mock.calls.map(([path]) => path)).toEqual(['/admin/matches/match-id/girls-only', '/admin/moderation/users/user-id/gender']);
   });
 });
+
+describe('adminApi refunds that need bank details (CEO batch 4, item 3)', () => {
+  it('sends the bank details and lists banks', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.refundBankDetails('refund-id', { bankId: '140', bankName: 'Capitec Bank', accountNumber: '1234567890' });
+    await api.paystackBanks();
+    expect(request.mock.calls.map(([path]) => path)).toEqual(['/admin/finance/refunds/refund-id/bank-details', '/admin/finance/banks']);
+  });
+});

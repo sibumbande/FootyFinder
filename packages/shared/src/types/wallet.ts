@@ -5,11 +5,30 @@ export const MATCH_FEE_CENTS = 8_000;
 /** DEC-011: card top-ups are whole-rand ZAR amounts from R50 to R5,000. No withdrawals. */
 export const TOP_UP_MIN_CENTS = 5_000;
 export const TOP_UP_MAX_CENTS = 500_000;
-/** Quick-pick top-up amounts shown above the custom amount (CEO, 2026-09-29). */
-export const TOP_UP_QUICK_PICK_CENTS = [8_000, 16_000, 24_000, 40_000] as const;
-export const TOP_UP_DEFAULT_CENTS = 16_000;
+/** Quick-pick top-up amounts shown above the custom amount (CEO touch-up batch 4, item 3, D10: R200 / R400 / R800). */
+export const TOP_UP_QUICK_PICK_CENTS = [20_000, 40_000, 80_000] as const;
+export const TOP_UP_DEFAULT_CENTS = 40_000;
 
 export type PaymentProviderName = 'demo' | 'paystack';
+
+/**
+ * CEO touch-up batch 4, item 3 (D7): the Paystack checkout channels FootyFinder can offer, by Paystack's own codes.
+ * Which ones are switched on is a server setting (PAYSTACK_CHANNELS); checkout shows exactly those. QR, USSD and
+ * the rest are never offered.
+ */
+export const PAYMENT_CHANNELS = ['card', 'apple_pay', 'capitec_pay', 'eft'] as const;
+export type PaymentChannel = (typeof PAYMENT_CHANNELS)[number];
+export const PAYMENT_CHANNEL_LABELS: Record<PaymentChannel, string> = {
+  card: 'Card',
+  apple_pay: 'Apple Pay',
+  capitec_pay: 'Capitec Pay',
+  eft: 'Instant EFT',
+};
+/** D8: top-ups paid this way go back automatically, so "Undo top-up" is offered; others are refunded through support. */
+export const UNDO_REFUND_CHANNELS: readonly PaymentChannel[] = ['card', 'apple_pay'];
+/** The player-facing name of a Paystack channel (unknown channels are shown as they are). */
+export const paymentChannelLabel = (channel: string | null | undefined) =>
+  channel ? (PAYMENT_CHANNEL_LABELS[channel as PaymentChannel] ?? channel) : null;
 
 export interface TopUpOptions {
   provider: PaymentProviderName;
@@ -17,6 +36,8 @@ export interface TopUpOptions {
   maxCents: number;
   quickPickCents: number[];
   defaultCents: number;
+  /** CEO touch-up batch 4, item 3: the payment methods checkout offers right now. */
+  channels: PaymentChannel[];
 }
 
 /**
@@ -92,7 +113,7 @@ export type WalletLedgerKind =
  * TKT-606: the state of a refund to the player's card, kept separate from the wallet movement.
  * A failed refund stays FAILED for finance review; it is never silently turned into wallet credit.
  */
-export type CardRefundState = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'RESTORED_TO_WALLET';
+export type CardRefundState = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'RESTORED_TO_WALLET' | 'NEEDS_ATTENTION';
 
 export type WalletLedgerStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'ERROR';
 
@@ -110,6 +131,8 @@ export interface WalletLedgerEntry {
   related?: { type: 'match' | 'team'; id: string; name: string };
   /** Present on CARD_REFUND entries: where the money is on its way back to the card. */
   cardRefund?: { state: CardRefundState };
+  /** CEO touch-up batch 4, item 3: how a top-up was paid (and so where its refund goes), e.g. "Capitec Pay". */
+  paymentMethod?: string;
 }
 
 export interface WalletLedgerPage {
@@ -192,5 +215,8 @@ export interface UndoableTopUp {
   undoUntil: string;
   /** The most that can still be refunded: the top-up minus spending since, capped at the available balance. */
   refundableCents: number;
-  blockedReason: 'ALREADY_UNDONE' | 'WALLET_RESTRICTED' | 'DISPUTED' | null;
+  /** REFUND_VIA_SUPPORT (CEO touch-up batch 4, item 3, D8): bank payments (Instant EFT, Capitec Pay) are refunded through support. */
+  blockedReason: 'ALREADY_UNDONE' | 'WALLET_RESTRICTED' | 'DISPUTED' | 'REFUND_VIA_SUPPORT' | null;
+  /** How it was paid, e.g. "Card" or "Capitec Pay". */
+  paymentMethod: string | null;
 }

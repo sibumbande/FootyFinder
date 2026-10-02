@@ -1,3 +1,4 @@
+import type { PaymentChannel } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 
 /**
@@ -49,13 +50,27 @@ export interface PaystackRefundInput {
 
 export interface PaystackRefund {
   id: string;
+  /** pending, processing, processed, failed, or needs-attention (a bank refund missing the customer's account). */
   status: string;
+}
+
+/** CEO touch-up batch 4, item 3 (D8): the customer's bank account for a refund Paystack marked "needs attention". */
+export interface PaystackRefundAccount {
+  accountNumber: string;
+  bankId: string;
+}
+
+export interface PaystackBank {
+  id: string;
+  name: string;
 }
 
 export interface PaystackGateway {
   initialize(input: PaystackInitializeInput): Promise<{ authorizationUrl: string; reference: string }>;
   verify(reference: string): Promise<PaystackVerifiedTransaction>;
   refund(input: PaystackRefundInput): Promise<PaystackRefund>;
+  retryRefundWithAccount?(refundId: string, account: PaystackRefundAccount): Promise<PaystackRefund>;
+  listBanks?(): Promise<PaystackBank[]>;
 }
 
 type Fetch = typeof fetch;
@@ -66,7 +81,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 export class PaystackClient implements PaystackGateway {
   constructor(
-    private readonly config: { secretKey?: string; baseUrl: string } = {
+    private readonly config: { secretKey?: string; baseUrl: string; channels?: PaymentChannel[] } = {
       secretKey: env.PAYSTACK_SECRET_KEY,
       baseUrl: env.PAYSTACK_BASE_URL,
     },
@@ -114,8 +129,8 @@ export class PaystackClient implements PaystackGateway {
         currency: 'ZAR',
         reference: input.reference,
         callback_url: input.callbackUrl,
-        // DEC-011: card payments only at launch.
-        channels: ['card'],
+        // CEO touch-up batch 4, item 3 (D7): exactly the channels FootyFinder supports (PAYSTACK_CHANNELS).
+        channels: this.config.channels ?? env.PAYSTACK_CHANNELS,
         metadata: input.metadata,
       },
     });
@@ -143,6 +158,37 @@ export class PaystackClient implements PaystackGateway {
       body: { transaction: input.reference, amount: input.amountCents, merchant_note: input.merchantNote },
     });
     return { id: String(data.id ?? ''), status: String(data.status ?? '') };
+  }
+
+  /** CEO touch-up batch 4, item 3 (D8): sends the customer's bank account for a "needs attention" refund. Never stored. */
+  async retryRefundWithAccount(refundId: string, account: PaystackRefundAccount): Promise<PaystackRefund> {
+    const data = await this.call(`/refund/retry_with_customer_details/${encodeURIComponent(refundId)}`, {
+      method: 'POST',
+      body: { refund_account_details: { currency: 'ZAR', account_number: account.accountNumber, bank_id: account.bankId } },
+    });
+    return { id: String(data.id ?? refundId), status: String(data.status ?? 'processing') };
+  }
+
+  /** South African banks, for the "needs attention" refund form. */
+  async listBanks(): Promise<PaystackBank[]> {
+    const response = await this.callList('/bank?country=south%20africa&currency=ZAR&perPage=100');
+    return response.flatMap((bank) => (bank.id !== undefined && typeof bank.name === 'string' ? [{ id: String(bank.id), name: bank.name }] : []));
+  }
+
+  private async callList(path: string) {
+    if (!this.config.secretKey) throw new PaystackError('PAYSTACK_NOT_CONFIGURED', 'Card payments are not configured.');
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.config.baseUrl.replace(/\/$/, '')}${path}`, {
+        headers: { Authorization: `Bearer ${this.config.secretKey}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch {
+      throw new PaystackError('PAYSTACK_UNAVAILABLE', 'The payment provider could not be reached.');
+    }
+    const body = asRecord(await response.json().catch(() => ({})));
+    if (!response.ok || body.status !== true || !Array.isArray(body.data)) throw new PaystackError('PAYSTACK_UNAVAILABLE', 'The bank list is unavailable.');
+    return (body.data as unknown[]).map(asRecord);
   }
 }
 

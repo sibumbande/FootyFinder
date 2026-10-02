@@ -1,10 +1,13 @@
 import {
+  MATCH_FEE_CENTS,
+  PAYMENT_CHANNEL_LABELS,
   TOP_UP_DEFAULT_CENTS,
   TOP_UP_LARGE_WARNING_CENTS,
   TOP_UP_MAX_CENTS,
   TOP_UP_MIN_CENTS,
   TOP_UP_QUICK_PICK_CENTS,
   topUpAmountSchema,
+  type PaymentChannel,
 } from '@footy-finder/shared';
 import { type FormEvent, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button.js';
@@ -22,10 +25,24 @@ export const parseRandInput = (value: string): number | null => {
   return Math.round(Number(cleaned) * 100);
 };
 
+/** CEO touch-up batch 4, item 3 (D10): "R400 = 5 matches" style hints (R80 a match). */
+export const matchHint = (cents: number) => {
+  const matches = Math.floor(cents / MATCH_FEE_CENTS);
+  const left = cents - matches * MATCH_FEE_CENTS;
+  return `${matches} ${matches === 1 ? 'match' : 'matches'}${left ? ` + ${rands(left)}` : ''}`;
+};
+
+/** "card, Capitec Pay or Instant EFT" from the methods switched on. */
+const methodList = (channels: PaymentChannel[]) => {
+  const labels = channels.map((channel, index) => (index === 0 && channel === 'card' ? 'card' : PAYMENT_CHANNEL_LABELS[channel]));
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} or ${labels.at(-1)}` : (labels[0] ?? 'card');
+};
+
 export function TopUpForm({ initialCents }: { initialCents?: number }) {
   const options = useTopUpOptions();
   const topUp = useTopUp(options.data?.provider);
   const card = options.data?.provider === 'paystack';
+  const methods = methodList(options.data?.channels ?? ['card']);
   const { notify } = useNotifications();
   const quickPicks = options.data?.quickPickCents ?? [...TOP_UP_QUICK_PICK_CENTS];
   const minCents = options.data?.minCents ?? TOP_UP_MIN_CENTS;
@@ -92,21 +109,23 @@ export function TopUpForm({ initialCents }: { initialCents?: number }) {
         Top up
       </h2>
       <p className="mt-1 text-sm text-content-muted">
-        Card top-ups from {rands(minCents)} to {rands(maxCents)}. We pay the card fees, so the full
-        amount goes into your wallet. Wallet credit cannot be withdrawn.
+        Top up from {rands(minCents)} to {rands(maxCents)} by {methods}. We pay the payment fees, so the
+        full amount goes into your wallet. Wallet credit cannot be withdrawn.
       </p>
       <fieldset className="mt-4">
         <legend className="text-sm font-bold text-content-strong">Choose an amount</legend>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {quickPicks.map((cents) => (
             <button
               key={cents}
               type="button"
               aria-pressed={selected === cents}
               onClick={() => choose(cents)}
-              className={`min-h-11 rounded-xl border-2 px-3 font-black ${selected === cents ? 'border-brand-900 bg-brand-600 text-content-inverse' : 'border-line bg-canvas text-content-strong hover:border-line-strong'}`}
+              className={`grid min-h-14 place-items-center rounded-xl border-2 px-3 py-1 font-black ${selected === cents ? 'border-brand-900 bg-brand-600 text-content-inverse' : 'border-line bg-canvas text-content-strong hover:border-line-strong'}`}
+              data-testid="top-up-quick-pick"
             >
-              {rands(cents)}
+              <span>{rands(cents)}</span>
+              <span className={`text-xs font-bold ${selected === cents ? 'text-content-inverse' : 'text-content-muted'}`}>{matchHint(cents)}</span>
             </button>
           ))}
           <button
@@ -147,10 +166,10 @@ export function TopUpForm({ initialCents }: { initialCents?: number }) {
           <p className="font-semibold">You&apos;re adding {formatRands(amountCents)} to your wallet. Correct?</p>
           {amountCents >= TOP_UP_LARGE_WARNING_CENTS && (
             <p className="rounded-lg border border-warning-200 bg-warning-50 p-2 font-semibold text-warning-700" data-testid="top-up-large-warning">
-              That&apos;s a large top-up. Check the amount: wallet credit cannot be withdrawn, though you can undo a top-up within 24 hours.
+              That&apos;s a large top-up. Check the amount: wallet credit cannot be withdrawn, though you can undo a card or Apple Pay top-up within 24 hours.
             </p>
           )}
-          {card && <p className="text-content-muted">You will pay securely by card on Paystack, then come back here.</p>}
+          {card && <p className="text-content-muted">You will pay securely by {methods} on Paystack, then come back here.</p>}
         </div>
       )}
       <div className="mt-4 flex flex-wrap gap-2">

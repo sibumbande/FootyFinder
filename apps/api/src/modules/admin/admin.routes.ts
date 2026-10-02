@@ -111,6 +111,9 @@ adminRouter.get('/finance/top-ups/:paymentId', finance.getTopUp);
 adminRouter.post('/finance/top-ups/:paymentId/refunds', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundTopUp);
 adminRouter.post('/finance/refunds/:refundId/retry', requireRecentAdminMfa, costlyMutationRateLimit, finance.retryRefund);
 adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, costlyMutationRateLimit, finance.restoreRefund);
+// CEO touch-up batch 4, item 3 (D8): a bank refund Paystack marked "needs attention" gets the customer's account.
+adminRouter.post('/finance/refunds/:refundId/bank-details', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundBankDetails);
+adminRouter.get('/finance/banks', finance.paystackBanks);
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
 // CEO touch-up batch 3, item 5: free "On FootyFinder" matches.
 adminRouter.get('/finance/free-matches', freeMatches.freeMatchCosts);

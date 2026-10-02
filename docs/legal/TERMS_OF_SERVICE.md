@@ -118,7 +118,7 @@ The following information is provided in compliance with section 43 of ECTA:
 | Information Officer | Sibulele Obakhe Mbande |
 | Nature of business | On-demand football matchmaking, digital slot booking, team administration and venue facilitation |
 | Currency | All prices, fees and credits are quoted and settled in South African Rand (ZAR) and include VAT where applicable |
-| Payment processing | Card payments are processed by Paystack Payments South Africa, a PCI-DSS compliant third-party provider. We accept card payments only |
+| Payment processing | Payments are processed by Paystack Payments South Africa, a PCI-DSS compliant third-party provider. We accept the methods shown at checkout: card (including Apple Pay where it is offered), Capitec Pay and Instant EFT |
 | PAIA Manual | Available on request through support |
 
 **3.1 Registration status.** FootyFinder is not a registered financial services provider, bank or authorised payment service provider. We do not provide financial advice, credit or insurance.
@@ -192,7 +192,7 @@ The following information is provided in compliance with section 43 of ECTA:
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
 - **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), the players you block (clause 18.8), and your Team recruitment posts, "Looking for a team" card and requests to join Teams (clause 18.9).
-- **Transaction data:** Wallet top-ups, Slot Fees, Team Wallet contributions and refunds, refunds and cancellation credits, and payment references. We do not store card numbers; Paystack holds them.
+- **Transaction data:** Wallet top-ups, Slot Fees, Team Wallet contributions and refunds, refunds and cancellation credits, and payment references. We do not store card numbers or bank account numbers; Paystack holds them. If support needs your bank account to refund a bank payment (clause 14.7), we pass it to Paystack and keep only the bank's name and the last four digits.
 - **Identity documents,** only if we ask you to verify your age or identity (clause 7).
 - **Technical data:** IP address, browser and device information, and security logs.
 - **Communications:** Lobby chat, Team chat, direct messages, support requests and reports of misconduct.
@@ -396,21 +396,21 @@ The home Team cannot turn away the Team or players who take the Other Side.
 
 **13.1 Closed-loop credit.** The Wallet is a closed-loop store of prepaid credit that can be used only for FootyFinder Slot Fees and contributions to a Team Wallet. Wallet balances are not a deposit, do not earn interest, are not a claim against a bank, and are not the business of a bank under the Banks Act 94 of 1990.
 
-**13.2 Not a bank.** We are not a bank, an authorised payment service provider or a registered financial services provider. All card payments are processed and settled by Paystack.
+**13.2 Not a bank.** We are not a bank, an authorised payment service provider or a registered financial services provider. All payments are processed and settled by Paystack.
 
 **13.3 Paying for a match.** When you join a match, the R80 Slot Fee is taken from your Wallet straight away (in a free match nothing is taken, clause 13.11). If your Wallet does not hold enough, you cannot join until you top up. If the match does not go ahead, the fee is credited back to your Wallet under clause 14.
 
 **13.4 The price you see.** The Slot Fee is a fixed R80 per player per match, unless the match is shown as a free match (clause 13.11), and a Team Match Fee is R80 per place (clause 12.10), set by FootyFinder. The price you see before you join is the price you pay. We do not add undisclosed charges.
 
-**13.5 Topping up.** You add money to your Wallet by card on Paystack's secure checkout page, in amounts from R50 to R5,000 per top-up. We pay Paystack's fees, so the full amount you pay goes into your Wallet. A top-up is credited only once Paystack confirms the payment to us; returning to the app does not credit anything by itself. If a payment is declined, abandoned or cannot be confirmed, nothing is credited. If your card was charged but nothing was credited, contact support and we will refund the charge to your card. Before you pay, the app asks you to confirm the amount. Within 24 hours of a top-up being credited you can undo it once from your Wallet: the unspent part (all or some of it) is refunded to the same card through Paystack. Unspent means the top-up amount less anything you have spent since that top-up (for example, after a R800 top-up and a R80 match you can undo up to R720), and never more than your available Wallet balance. Undo is not available while your Wallet is restricted (clause 13.9) or if the payment is disputed. The amount leaves your Wallet when you ask for the refund; if the card refund fails, our team retries it or returns the amount to your Wallet.
+**13.5 Topping up.** You add money to your Wallet on Paystack's secure checkout page, using one of the methods shown there (card, Apple Pay, Capitec Pay or Instant EFT, as offered at the time), in amounts from R50 to R5,000 per top-up. We pay Paystack's fees, so the full amount you pay goes into your Wallet. A top-up is credited only once Paystack confirms the payment to us; returning to the app does not credit anything by itself. If a payment is declined, abandoned or cannot be confirmed, nothing is credited. If you were charged but nothing was credited, contact support and we will refund the charge the way you paid (clause 14.7). Before you pay, the app asks you to confirm the amount. Within 24 hours of a card or Apple Pay top-up being credited you can undo it once from your Wallet: the unspent part (all or some of it) is refunded to the same card through Paystack. Top-ups paid by Capitec Pay or Instant EFT cannot be undone in the app; contact support instead (clause 14.7). Unspent means the top-up amount less anything you have spent since that top-up (for example, after a R800 top-up and a R80 match you can undo up to R720), and never more than your available Wallet balance. Undo is not available while your Wallet is restricted (clause 13.9) or if the payment is disputed. The amount leaves your Wallet when you ask for the refund; if the refund fails, our team retries it or returns the amount to your Wallet.
 
-**13.6 No withdrawals.** Wallet credit cannot be withdrawn to a bank account or card. If your Account is closed, your unspent balance is refunded to the card you paid with (clause 20.2).
+**13.6 No withdrawals.** Wallet credit cannot be withdrawn to a bank account or card. If your Account is closed, your unspent balance is refunded to the card or bank account you paid with (clause 20.2).
 
 **13.7 Dormant balances.** If your Account has no activity for twenty-four (24) months in a row and holds a balance, we will try to contact you at your registered email address. If we do not hear from you within ninety (90) days, we will keep holding the balance for you and deal with it in line with applicable law. We will not simply take the funds, and you may reclaim your balance at any time on proof of identity.
 
 **13.8 Errors.** If an amount is credited to your Wallet in error, we may reverse it, and we will tell you before doing so. If you are charged in error, we will refund you in full. We may also, at our discretion, give a goodwill credit (clause 14.5).
 
-**13.9 Chargebacks and fraud.** If a card payment is reversed or disputed with your bank (a chargeback) or found to be fraudulent, we reverse the matching Wallet credit, even if this makes your balance negative. While a dispute is open or your balance is below zero, you cannot join matches or spend from your Wallet. The restriction lifts automatically once your balance is back at zero or above and no dispute is open, and our team may also lift it. If the dispute is resolved in our favour, we restore the reversed credit to your Wallet. We may also suspend the Account and recover any charge Paystack levies on us. We will tell you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
+**13.9 Chargebacks and fraud.** If a payment is reversed or disputed with your bank (a chargeback) or found to be fraudulent, we reverse the matching Wallet credit, even if this makes your balance negative. While a dispute is open or your balance is below zero, you cannot join matches or spend from your Wallet. The restriction lifts automatically once your balance is back at zero or above and no dispute is open, and our team may also lift it. If the dispute is resolved in our favour, we restore the reversed credit to your Wallet. We may also suspend the Account and recover any charge Paystack levies on us. We will tell you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
 
 **13.10 No betting or gambling.** The Wallet may not be used for wagering. FootyFinder is not a gambling operator, and nothing on the platform is a bet, a lottery or a game of chance under the National Gambling Act 7 of 2004.
 
@@ -451,7 +451,7 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 
 **14.6 No electronic cooling-off period.** The seven-day cooling-off right in section 44 of ECTA does not apply to these bookings. Section 42(2) of ECTA excludes agreements for leisure services that the supplier undertakes to provide on a specific date or within a specific period, and a match place is such a service. Your cancellation rights are those in this clause 14.
 
-**14.7 How refunds are paid.** Refunds and cancellation credits are paid to your Wallet straight away and cannot be withdrawn to a bank account (clause 13.6). If a card payment itself has to be refunded (for example a top-up charged in error or twice), we refund it to the original card. If that is not possible, our finance team reviews it, and a failed card refund is never turned into Wallet credit without telling you.
+**14.7 How refunds are paid.** Refunds and cancellation credits are paid to your Wallet straight away and cannot be withdrawn to a bank account (clause 13.6). If a payment itself has to be refunded (for example a top-up charged in error or twice), we refund it the way you paid: to the original card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from. For a bank refund Paystack sometimes needs your bank account details; support will ask you for them and pass them to Paystack. If a refund is not possible, our finance team reviews it, and a failed refund is never turned into Wallet credit without telling you.
 
 ## 15. Code of Conduct and Venue Rules
 
@@ -565,7 +565,7 @@ You may not:
 
 **20.1 Closing your Account.** You may close your Account at any time by contacting support. Closing your Account does not cancel matches you have already joined; clause 14 applies to those.
 
-**20.2 Your money on closure.** When your Account is closed, we refund your unspent Wallet balance to the card you paid with, less any amount lawfully due to us. If that is not possible, our finance team contacts you to arrange it. Your own unspent Team Wallet contributions can be returned to your Wallet first (clause 12.4).
+**20.2 Your money on closure.** When your Account is closed, we refund your unspent Wallet balance to the card or bank account you paid with, less any amount lawfully due to us. If that is not possible, our finance team contacts you to arrange it. Your own unspent Team Wallet contributions can be returned to your Wallet first (clause 12.4).
 
 **20.3 Suspension by us.** We may suspend your Account where we reasonably suspect fraud, a serious breach of clause 15 or 19, a risk to the safety of others, a failure to complete a check under clause 7, or where the law requires it.
 
@@ -691,7 +691,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | Who we are | FootyFinder (Pty) Ltd, a Cape Town company that helps you find, join and pay for football matches. |
 | Who can join | Anyone 18 or older. We may ask you to verify your age or identity; we never use face or biometric checks. |
 | What you pay | A fixed R80 per match, taken from your Wallet when you join. Subs pay R80 too. Free matches shown as "on FootyFinder" cost R0 (clause 13.11). A Team pays R80 for every starting position plus every sub it brings, from its Team Wallet. |
-| Your money | Top up R50 to R5,000 by card through Paystack; we pay the fees. Wallet credit is spent only on FootyFinder and can't be withdrawn. If your account closes, the balance goes back to your card. We never confiscate it. |
+| Your money | Top up R50 to R5,000 through Paystack by card, Apple Pay, Capitec Pay or Instant EFT (as offered); we pay the fees. Wallet credit is spent only on FootyFinder and can't be withdrawn. If your account closes, the balance goes back to the card or bank account you paid with. We never confiscate it. |
 | When a game goes ahead | Only if every starting position is filled (or, for Team Matches, the team fees are in) and a FootyFinder referee is assigned 30 minutes before kick-off. Otherwise it is cancelled and everyone gets their money back. |
 | If the game is off before kick-off | Cancelled at the 30-minute check, by the Host or the home Team, or by us for weather or venue problems: your R80 comes back to your Wallet and held team money goes back to the Team Wallet. |
 | After kick-off | No refunds if the match is abandoned, for any reason. |

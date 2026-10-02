@@ -38,9 +38,17 @@ export interface AdminTopUp {
   failureReason?: string;
   reviewReason?: string;
   refundableCents: number;
+  /** CEO touch-up batch 4, item 3: how it was paid (Paystack channel), e.g. "Capitec Pay". */
+  paymentMethod?: string;
   refunds: AdminCardRefund[];
   disputes: AdminCardDispute[];
   createdAt: string;
+}
+
+/** CEO touch-up batch 4, item 3: a bank, for the "needs attention" refund form. */
+export interface PaystackBankOption {
+  id: string;
+  name: string;
 }
 
 export interface AdminRestrictedWallet {

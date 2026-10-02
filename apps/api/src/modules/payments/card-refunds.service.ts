@@ -61,7 +61,7 @@ export class CardRefundsService {
         return { refund: replay.refundDebit, created: false, notifications: [] as Notification[] };
       }
       if (payment.status !== 'SUCCEEDED')
-        throw new AppError(409, 'Only a credited top-up can be refunded to the card.', 'TOP_UP_NOT_REFUNDABLE');
+        throw new AppError(409, 'Only a credited top-up can be refunded.', 'TOP_UP_NOT_REFUNDABLE');
       if (payment.disputes.length)
         throw new AppError(409, 'This top-up has a card dispute; refunds are handled through the dispute.', 'REFUND_BLOCKED_BY_DISPUTE');
       if (input.assertAllowed) await input.assertAllowed(tx, payment);
@@ -80,7 +80,7 @@ export class CardRefundsService {
           idempotencyKey: ledgerKey,
           referenceType: 'PROVIDER_REFUND',
           referenceId: refundId,
-          description: 'Refund to card',
+          description: 'Refund to the card or account you paid with',
         });
       } catch (error) {
         if (error instanceof FinancialInsufficientFundsError)
@@ -113,10 +113,10 @@ export class CardRefundsService {
           {
             userId: payment.userId,
             type: 'WALLET_DEBIT',
-            title: source === 'PLAYER_UNDO' ? 'Top-up undone' : 'Refund to your card',
+            title: source === 'PLAYER_UNDO' ? 'Top-up undone' : 'Refund on its way',
             message: source === 'PLAYER_UNDO'
               ? `${rands(input.amountCents)} of your top-up is being refunded to the card you paid with.`
-              : `${rands(input.amountCents)} is being refunded from your wallet to the card you paid with.`,
+              : `${rands(input.amountCents)} is being refunded from your wallet to the card or account you paid with.`,
             targetPath: '/wallet',
             dedupeKey: notificationDedupeKey('provider-refund', row.id, 'initiated', payment.userId),
           },
@@ -148,7 +148,7 @@ export class CardRefundsService {
               ? { status: 'PROCESSING' }
               : {}),
         },
-      });
+      }).then(async (updated) => (result.status === 'needs-attention' ? this.markNeedsAttention(updated.id, ['PENDING']) : updated));
     } catch (error) {
       logError('card_refund_submit_failed', error, { refundId });
       incrementOperationalMetric('card_refund_failed_total');
@@ -171,8 +171,8 @@ export class CardRefundsService {
           {
             userId: current.providerPayment.userId,
             type: 'INFO',
-            title: 'Card refund delayed',
-            message: `Your ${rands(current.amountCents)} refund to your card could not be completed yet. Our finance team will follow up with you.`,
+            title: 'Refund delayed',
+            message: `Your ${rands(current.amountCents)} refund to the card or account you paid with could not be completed yet. Our finance team will follow up with you.`,
             targetPath: '/wallet',
             dedupeKey: notificationDedupeKey('provider-refund', refundId, `failed-${current.attempts}`, current.providerPayment.userId),
           },
@@ -181,6 +181,66 @@ export class CardRefundsService {
     });
     this.notifications.publishPersistedMany(notifications);
     return refund;
+  }
+
+  /**
+   * CEO touch-up batch 4, item 3 (D8): Paystack could not complete a bank-payment refund (Instant EFT, Capitec Pay)
+   * because it did not receive the customer's bank account. Support asks the player for it; finance then retries with
+   * the details or returns the money to the wallet.
+   */
+  private async markNeedsAttention(refundId: string, from: ProviderRefund['status'][]) {
+    const { refund, notifications } = await serializableTransaction(async (tx) => {
+      await lockRefund(tx, refundId);
+      const current = await tx.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true } });
+      if (!from.includes(current.status)) return { refund: current, notifications: [] as Notification[] };
+      const updated = await tx.providerRefund.update({ where: { id: refundId }, data: { status: 'NEEDS_ATTENTION', failureReason: 'needs_customer_bank_account' } });
+      return {
+        refund: updated,
+        notifications: await persistNotifications(tx, [
+          {
+            userId: current.providerPayment.userId,
+            type: 'INFO',
+            title: 'Refund needs your bank details',
+            message: `To send your ${rands(current.amountCents)} refund back to your bank account, our support team needs your account details. We will contact you.`,
+            targetPath: '/support',
+            dedupeKey: notificationDedupeKey('provider-refund', refundId, 'needs-attention', current.providerPayment.userId),
+          },
+        ]),
+      };
+    });
+    this.notifications.publishPersistedMany(notifications);
+    return refund;
+  }
+
+  /**
+   * CEO touch-up batch 4, item 3 (D8): finance sends the customer's bank account for a NEEDS_ATTENTION refund. The
+   * account number goes to Paystack only; the audit log keeps the bank name and the last 4 digits.
+   */
+  async retryWithCustomerDetails(input: { actorUserId: string; refundId: string; accountNumber: string; bankId: string; bankName: string; requestId?: string }) {
+    const current = await prisma.providerRefund.findUnique({ where: { id: input.refundId } });
+    if (!current) throw new AppError(404, 'Refund not found.', 'REFUND_NOT_FOUND');
+    if (current.status !== 'NEEDS_ATTENTION' || !current.providerRefundId)
+      throw new AppError(409, 'Only a refund waiting for bank details can be sent this way.', 'REFUND_NOT_NEEDING_ATTENTION');
+    if (!this.gateway.retryRefundWithAccount) throw new AppError(503, 'Bank-detail refunds are not available.', 'REFUND_RETRY_UNAVAILABLE');
+    try {
+      await this.gateway.retryRefundWithAccount(current.providerRefundId, { accountNumber: input.accountNumber, bankId: input.bankId });
+    } catch (error) {
+      logError('refund_retry_with_details_failed', error, { refundId: current.id });
+      throw new AppError(502, error instanceof PaystackError ? error.message : 'Paystack could not take the bank details. Check them and try again.', 'REFUND_RETRY_REJECTED');
+    }
+    return serializableTransaction(async (tx) => {
+      await lockRefund(tx, current.id);
+      const updated = await tx.providerRefund.update({ where: { id: current.id }, data: { status: 'PROCESSING', failureReason: null, attempts: { increment: 1 } } });
+      await appendAdminAudit(tx, {
+        actorUserId: input.actorUserId,
+        action: 'TOP_UP_REFUND_BANK_DETAILS_SENT',
+        entityType: 'ProviderRefund',
+        entityId: current.id,
+        requestId: input.requestId,
+        metadata: { bankName: input.bankName, accountLast4: input.accountNumber.slice(-4) },
+      });
+      return updated;
+    });
   }
 
   /**
@@ -215,8 +275,8 @@ export class CardRefundsService {
       const current = await tx.providerRefund.findUnique({ where: { id: input.refundId }, include: { providerPayment: true } });
       if (!current) throw new AppError(404, 'Refund not found.', 'REFUND_NOT_FOUND');
       if (current.status === 'RESTORED_TO_WALLET') return { refund: current, notifications: [] as Notification[] };
-      if (current.status !== 'FAILED')
-        throw new AppError(409, 'Only a failed refund can be restored to the wallet.', 'REFUND_NOT_RESTORABLE');
+      if (current.status !== 'FAILED' && current.status !== 'NEEDS_ATTENTION')
+        throw new AppError(409, 'Only a failed refund, or one waiting for bank details, can be restored to the wallet.', 'REFUND_NOT_RESTORABLE');
       const credit = await this.financial.credit(tx, {
         userId: current.providerPayment.userId,
         amountCents: current.amountCents,
@@ -224,7 +284,7 @@ export class CardRefundsService {
         idempotencyKey: `top-up-refund-restore:${current.id}`,
         referenceType: 'PROVIDER_REFUND',
         referenceId: current.id,
-        description: 'Failed card refund returned to wallet',
+        description: 'Refund that could not be completed, returned to wallet',
       });
       const updated = await tx.providerRefund.update({
         where: { id: current.id },
@@ -250,7 +310,7 @@ export class CardRefundsService {
             userId: current.providerPayment.userId,
             type: 'WALLET_CREDIT',
             title: 'Refund returned to your wallet',
-            message: `Your ${rands(current.amountCents)} card refund could not be completed, so it was returned to your wallet.`,
+            message: `Your ${rands(current.amountCents)} refund could not be completed, so it was returned to your wallet.`,
             targetPath: '/wallet',
             dedupeKey: notificationDedupeKey('provider-refund', current.id, 'restored', current.providerPayment.userId),
           },
@@ -273,6 +333,11 @@ export class CardRefundsService {
       payment.refunds.find((item) => item.amountCents === amount && ['PENDING', 'PROCESSING', 'FAILED'].includes(item.status)) ??
       payment.refunds.find((item) => item.amountCents === amount);
     if (!match) return 'refund_unmatched';
+    // CEO touch-up batch 4, item 3 (D8): a bank refund waiting for the customer's account, whichever event says so.
+    if (data.status === 'needs-attention') {
+      const updated = await this.markNeedsAttention(match.id, ['PENDING', 'PROCESSING']);
+      return updated.status === 'NEEDS_ATTENTION' ? 'refund_needs_attention' : 'refund_replayed';
+    }
     if (eventType === 'refund.failed') {
       if (match.status === 'PROCESSED') {
         await prisma.providerRefund.update({ where: { id: match.id }, data: { reviewReason: 'failed_after_processed' } });

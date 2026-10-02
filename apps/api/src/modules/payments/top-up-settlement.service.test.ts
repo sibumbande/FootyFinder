@@ -30,12 +30,20 @@ describe('evaluateVerification (TKT-604 / D11)', () => {
   it.each([
     ['amount', { amountCents: 15_900 }, 'amount_mismatch'],
     ['currency', { currency: 'NGN' }, 'currency_mismatch'],
-    ['channel', { channel: 'eft' }, 'channel_not_card'],
+    ['channel', { channel: 'eft' }, 'channel_not_offered'],
     ['reference', { reference: 'ff_topup_2' }, 'reference_mismatch'],
     ['payment metadata', { metadata: { providerPaymentId: 'other' } }, 'metadata_payment_mismatch'],
     ['user metadata', { metadata: { userId: 'someone-else' } }, 'metadata_user_mismatch'],
   ])('sends a %s mismatch to review instead of crediting', (_label, overrides, reason) => {
     expect(evaluateVerification(payment, verified(overrides), open)).toEqual({ kind: 'REVIEW', reason });
+  });
+
+  it('credits any channel switched on in PAYSTACK_CHANNELS and reviews the rest (CEO batch 4, item 3)', () => {
+    const channels = ['card', 'apple_pay', 'capitec_pay', 'eft'] as const;
+    for (const channel of channels)
+      expect(evaluateVerification(payment, verified({ channel }), { ...open, channels })).toEqual({ kind: 'CREDIT' });
+    for (const channel of ['qr', 'ussd', 'bank_transfer', null])
+      expect(evaluateVerification(payment, verified({ channel }), { ...open, channels })).toEqual({ kind: 'REVIEW', reason: 'channel_not_offered' });
   });
 
   it('fails declined and reversed payments', () => {

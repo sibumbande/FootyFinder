@@ -204,6 +204,16 @@ export const adminCardRefundSchema = z.object({
 });
 export type AdminCardRefundInput = z.infer<typeof adminCardRefundSchema>;
 export const adminFinanceReasonSchema = z.object({ reason: z.string().trim().min(5).max(500) });
+/**
+ * CEO touch-up batch 4, item 3 (D8): the customer's bank account for a refund Paystack marked "needs attention".
+ * Sent to Paystack only; FootyFinder keeps just the bank name and the last 4 digits in the audit log.
+ */
+export const adminRefundBankDetailsSchema = z.object({
+  bankId: z.string().trim().min(1).max(20),
+  bankName: z.string().trim().min(2).max(120),
+  accountNumber: z.string().trim().regex(/^\d{6,16}$/, 'Enter the account number (digits only).'),
+});
+export type AdminRefundBankDetailsInput = z.infer<typeof adminRefundBankDetailsSchema>;
 export const adminTopUpQuerySchema = z.object({
   status: z.enum(['INITIALIZED', 'SUCCEEDED', 'FAILED', 'REVIEW']).optional(),
   reference: z.string().trim().max(120).optional(),

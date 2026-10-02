@@ -1,3 +1,4 @@
+import type { PaymentChannel } from '@footy-finder/shared';
 import type { Notification, Prisma, ProviderPayment } from '../../generated/prisma/client.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
@@ -26,20 +27,22 @@ type PaymentFacts = Pick<ProviderPayment, 'id' | 'userId' | 'reference' | 'amoun
 
 /**
  * Decides what a Paystack verify result means for one top-up. A credit needs every fact to match
- * our own record: status success, same reference, exact amount, ZAR, card channel, and (when
+ * our own record: status success, same reference, exact amount, ZAR, an offered channel, and (when
  * present) the metadata we sent at initialisation.
  */
 export function evaluateVerification(
   payment: PaymentFacts,
   verified: PaystackVerifiedTransaction | null,
-  options: { finalAttempt: boolean },
+  options: { finalAttempt: boolean; channels?: readonly PaymentChannel[] },
 ): VerificationOutcome {
   if (!verified) return options.finalAttempt ? { kind: 'FAIL', reason: 'not_found_at_provider' } : { kind: 'WAIT' };
   if (verified.reference !== payment.reference) return { kind: 'REVIEW', reason: 'reference_mismatch' };
   if (verified.status === 'success') {
     if (verified.amountCents !== payment.amountCents) return { kind: 'REVIEW', reason: 'amount_mismatch' };
     if (verified.currency !== 'ZAR') return { kind: 'REVIEW', reason: 'currency_mismatch' };
-    if (verified.channel !== 'card') return { kind: 'REVIEW', reason: 'channel_not_card' };
+    // CEO touch-up batch 4, item 3 (D7): only a channel FootyFinder offers (PAYSTACK_CHANNELS) is credited.
+    if (!verified.channel || !(options.channels ?? env.PAYSTACK_CHANNELS).includes(verified.channel as PaymentChannel))
+      return { kind: 'REVIEW', reason: 'channel_not_offered' };
     const { providerPaymentId, userId } = verified.metadata;
     if (providerPaymentId !== undefined && providerPaymentId !== payment.id)
       return { kind: 'REVIEW', reason: 'metadata_payment_mismatch' };
@@ -65,6 +68,8 @@ export class TopUpSettlementService {
     private readonly gateway: PaystackGateway = new PaystackClient(),
     private readonly financial = new FinancialRepository(),
     private readonly notifications = new NotificationsService(),
+    /** CEO touch-up batch 4, item 3: the channels credited (PAYSTACK_CHANNELS unless a smoke passes its own). */
+    private readonly channels?: readonly PaymentChannel[],
   ) {}
 
   /**
@@ -93,7 +98,7 @@ export class TopUpSettlementService {
     }
     const maxAgeMs = env.TOP_UP_MAX_PENDING_HOURS * 3_600_000;
     const finalAttempt = options.finalAttempt ?? now.getTime() - payment.createdAt.getTime() >= maxAgeMs;
-    const outcome = evaluateVerification(payment, verified, { finalAttempt });
+    const outcome = evaluateVerification(payment, verified, { finalAttempt, channels: this.channels });
 
     const result = await serializableTransaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "ProviderPayment" WHERE "id" = ${payment.id}::uuid FOR UPDATE`;

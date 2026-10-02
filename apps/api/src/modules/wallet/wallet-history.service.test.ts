@@ -48,6 +48,8 @@ vi.mock('../../database/prisma.js', () => ({
       ),
     },
     walletHold: { aggregate: vi.fn(async () => ({ _sum: { amountCents: db.heldCents || null } })) },
+    // CEO touch-up batch 4, item 3: the payment method lookup for top-ups (none in these fixtures).
+    providerPayment: { findMany: vi.fn(async () => []) },
     walletTransaction: {
       findMany: vi.fn(async ({ where, take }: { where: Record<string, unknown>; take: number }) =>
         db.rows

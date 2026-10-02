@@ -111,13 +111,15 @@ describe('WalletPage', () => {
     mocks.history.mockReturnValue(
       history([
         [
-          entry({ kind: 'CARD_REFUND', title: 'Refund to your card', amountCents: -5_000, cardRefund: { state: 'FAILED' } }),
+          entry({ kind: 'CARD_REFUND', title: 'Refund to your card', amountCents: -5_000, cardRefund: { state: 'FAILED' }, paymentMethod: 'Capitec Pay' }),
           entry({ kind: 'CHARGEBACK', title: 'Card payment disputed – top-up reversed', amountCents: -16_000 }),
         ],
       ]),
     );
     renderPage();
-    expect(screen.getByText(/Card refund delayed – our finance team will contact you/)).toBeInTheDocument();
+    expect(screen.getByText(/Refund delayed – our finance team will contact you/)).toBeInTheDocument();
+    // CEO touch-up batch 4, item 3: where the refund goes.
+    expect(screen.getByTestId('ledger-payment-method')).toHaveTextContent('Back to Capitec Pay');
     expect(screen.getByText('Card payment disputed – top-up reversed')).toBeInTheDocument();
   });
 

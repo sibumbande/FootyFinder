@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { PAYMENT_CHANNELS } from '@footy-finder/shared';
 import { assertDisposableDevelopmentOrTestDatabase } from '../database/test-database-safety.js';
 const optionalDate = z
   .string()
@@ -51,6 +52,13 @@ export const envSchema = z
     PAYSTACK_SECRET_KEY: optionalSecret,
     PAYSTACK_PUBLIC_KEY: optionalSecret,
     PAYSTACK_BASE_URL: z.string().url().default('https://api.paystack.co'),
+    // CEO touch-up batch 4, item 3 (D7): the checkout channels to offer, comma-separated Paystack codes. Only card,
+    // apple_pay, capitec_pay and eft are allowed (anything else stops the server); checkout shows exactly these.
+    PAYSTACK_CHANNELS: z
+      .string()
+      .default('card')
+      .transform((value) => [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))])
+      .pipe(z.array(z.enum(PAYMENT_CHANNELS)).min(1, 'PAYSTACK_CHANNELS needs at least one channel')),
     TOP_UP_PENDING_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
     TOP_UP_MAX_PENDING_HOURS: z.coerce.number().int().min(1).max(72).default(24),
     // TKT-605: optional comma-separated Paystack webhook source IPs (the signature is always checked).

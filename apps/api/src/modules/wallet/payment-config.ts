@@ -9,7 +9,7 @@ import type { RequestHandler } from 'express';
 import { env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
 
-type PaymentEnv = Pick<typeof env, 'NODE_ENV' | 'PAYMENT_PROVIDER'>;
+type PaymentEnv = Pick<typeof env, 'NODE_ENV' | 'PAYMENT_PROVIDER'> & Partial<Pick<typeof env, 'PAYSTACK_CHANNELS'>>;
 
 /** DEC-011 / TKT-603: the auto-success demo operator exists only in development and test. */
 export const demoDepositsEnabled = (config: PaymentEnv = env) =>
@@ -31,4 +31,6 @@ export const topUpOptions = (config: PaymentEnv = env): TopUpOptions => ({
   maxCents: TOP_UP_MAX_CENTS,
   quickPickCents: [...TOP_UP_QUICK_PICK_CENTS],
   defaultCents: TOP_UP_DEFAULT_CENTS,
+  // CEO touch-up batch 4, item 3: the methods checkout offers (PAYSTACK_CHANNELS).
+  channels: [...(config.PAYSTACK_CHANNELS ?? env.PAYSTACK_CHANNELS)],
 });

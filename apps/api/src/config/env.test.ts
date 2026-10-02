@@ -74,6 +74,11 @@ describe('environment contract', () => {
       envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'paystack', PAYSTACK_SECRET_KEY: 'sk_test_fake', PAYSTACK_PUBLIC_KEY: 'pk_test_fake' }).success,
     ).toBe(true);
     expect(envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'paystack' }).success).toBe(false);
+    // CEO touch-up batch 4, item 3 (D7): checkout channels default to card; only the four supported ones are allowed.
+    expect(envSchema.parse(valid).PAYSTACK_CHANNELS).toEqual(['card']);
+    expect(envSchema.parse({ ...valid, PAYSTACK_CHANNELS: 'card, capitec_pay,eft,card' }).PAYSTACK_CHANNELS).toEqual(['card', 'capitec_pay', 'eft']);
+    for (const channels of ['card,qr', 'ussd', 'bank_transfer', ''])
+      expect(envSchema.safeParse({ ...valid, PAYSTACK_CHANNELS: channels }).success).toBe(false);
     expect(envSchema.parse({ ...valid, PAYSTACK_SECRET_KEY: '', PAYSTACK_PUBLIC_KEY: '' }).PAYSTACK_SECRET_KEY).toBeUndefined();
     const production = {
       ...valid,

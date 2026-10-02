@@ -21,10 +21,12 @@ export interface FakeTransaction {
 
 export class FakePaystack {
   readonly transactions = new Map<string, FakeTransaction>();
-  readonly refunds: Array<{ id: number; transaction: string; amount: number; status: string }> = [];
-  readonly calls = { initialize: 0, verify: 0, refund: 0 };
+  readonly refunds: Array<{ id: number; transaction: string; amount: number; status: string; accountDetails?: Record<string, unknown> }> = [];
+  readonly calls = { initialize: 0, verify: 0, refund: 0, retry: 0 };
   failNext: { path: 'initialize' | 'verify' | 'refund'; status: number } | null = null;
   refundStatus = 'pending';
+  /** CEO touch-up batch 4, item 3: the exact checkout channels the smoke expects the app to send (PAYSTACK_CHANNELS). */
+  expectedChannels: string[] = ['card'];
   private server?: Server;
   private nextId = 1_000;
   baseUrl = '';
@@ -41,6 +43,18 @@ export class FakePaystack {
         if (req.headers.authorization !== `Bearer ${FAKE_PAYSTACK_SECRET}`)
           return send(401, { status: false, message: 'Invalid key' });
         const path = req.url ?? '';
+        // CEO touch-up batch 4, item 3: "needs attention" refunds are retried with the customer's bank account.
+        if (path.startsWith('/refund/retry_with_customer_details/')) {
+          this.calls.retry += 1;
+          const id = Number(decodeURIComponent(path.slice('/refund/retry_with_customer_details/'.length)));
+          const refund = this.refunds.find((item) => item.id === id);
+          if (!refund) return send(404, { status: false, message: 'Refund not found' });
+          const body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+          refund.accountDetails = body.refund_account_details as Record<string, unknown>;
+          refund.status = 'processing';
+          return send(200, { status: true, message: 'Refund retried and has been queued for processing', data: refund });
+        }
+        if (path.startsWith('/bank')) return send(200, { status: true, message: 'Banks retrieved', data: [{ id: 140, name: 'Capitec Bank' }, { id: 141, name: 'FNB' }] });
         const kind = path.startsWith('/transaction/initialize') ? 'initialize' : path.startsWith('/transaction/verify/') ? 'verify' : path.startsWith('/refund') ? 'refund' : null;
         if (!kind) return send(404, { status: false, message: 'Not found' });
         this.calls[kind] += 1;
@@ -54,8 +68,8 @@ export class FakePaystack {
           const reference = String(body.reference);
           if (this.transactions.has(reference)) return send(400, { status: false, message: 'Duplicate Transaction Reference' });
           const channels = body.channels as string[] | undefined;
-          if (JSON.stringify(channels) !== '["card"]' || body.currency !== 'ZAR')
-            return send(400, { status: false, message: 'Smoke expects card-only ZAR checkout' });
+          if (JSON.stringify(channels) !== JSON.stringify(this.expectedChannels) || body.currency !== 'ZAR')
+            return send(400, { status: false, message: `Smoke expects exactly ${JSON.stringify(this.expectedChannels)} and ZAR` });
           this.transactions.set(reference, {
             reference,
             amount: Number(body.amount),

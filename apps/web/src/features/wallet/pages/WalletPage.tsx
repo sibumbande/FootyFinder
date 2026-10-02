@@ -21,11 +21,13 @@ const STATUS_LABEL: Record<WalletLedgerEntry['status'], string | null> = {
 };
 
 const CARD_REFUND_LABEL: Record<NonNullable<WalletLedgerEntry['cardRefund']>['state'], string> = {
-  PENDING: 'On its way to your card',
-  PROCESSING: 'On its way to your card',
-  PROCESSED: 'Refunded to your card',
-  FAILED: 'Card refund delayed – our finance team will contact you',
-  RESTORED_TO_WALLET: 'Card refund failed – returned to your wallet',
+  PENDING: 'On its way back to you',
+  PROCESSING: 'On its way back to you',
+  PROCESSED: 'Refunded',
+  FAILED: 'Refund delayed – our finance team will contact you',
+  RESTORED_TO_WALLET: 'Refund failed – returned to your wallet',
+  // CEO touch-up batch 4, item 3 (D8).
+  NEEDS_ATTENTION: 'Waiting for your bank details – support will contact you',
 };
 
 function LedgerRow({ entry }: { entry: WalletLedgerEntry }) {
@@ -46,6 +48,8 @@ function LedgerRow({ entry }: { entry: WalletLedgerEntry }) {
             </>
           )}
         </p>
+        {/* CEO touch-up batch 4, item 3: how a top-up was paid (and where its refund goes). */}
+        {entry.paymentMethod && <p className="mt-1 text-xs font-bold text-content-muted" data-testid="ledger-payment-method">{entry.kind === 'CARD_REFUND' ? 'Back to' : 'Paid with'} {entry.paymentMethod}</p>}
         {status && <p className="mt-1 text-xs font-bold uppercase text-warning-700">{status}</p>}
         {entry.cardRefund && (
           <p className="mt-1 text-xs font-bold uppercase text-content-muted">{CARD_REFUND_LABEL[entry.cardRefund.state]}</p>

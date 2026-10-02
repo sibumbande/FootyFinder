@@ -5,7 +5,7 @@ import { parseRandInput, TopUpForm } from './TopUpForm.js';
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), notify: vi.fn() }));
 vi.mock('../hooks/useWallet.js', () => ({
   useTopUpOptions: () => ({
-    data: { provider: 'demo', minCents: 5_000, maxCents: 500_000, quickPickCents: [8_000, 16_000, 24_000, 40_000], defaultCents: 16_000 },
+    data: { provider: 'demo', minCents: 5_000, maxCents: 500_000, quickPickCents: [20_000, 40_000, 80_000], defaultCents: 40_000, channels: ['card', 'capitec_pay', 'eft'] },
     error: null,
   }),
   useTopUp: () => ({ mutate: mocks.mutate, isPending: false, error: null }),
@@ -23,27 +23,28 @@ const pressed = () =>
   screen.getAllByRole('button', { pressed: true }).map((button) => button.textContent);
 
 describe('TopUpForm', () => {
-  it('offers R80, R160, R240 and R400 quick picks with R160 selected by default', () => {
+  it('offers R200, R400 and R800 with match hints, R400 selected by default (CEO batch 4, item 3)', () => {
     render(<TopUpForm />);
-    for (const label of ['R80', 'R160', 'R240', 'R400', 'Other'])
+    for (const label of ['R200 2 matches + R40', 'R400 5 matches', 'R800 10 matches', 'Other'])
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
-    expect(pressed()).toEqual(['R160']);
+    expect(pressed()).toEqual(['R4005 matches']);
+    expect(screen.getByText(/by card, Capitec Pay or Instant EFT/)).toBeInTheDocument();
   });
 
   it('asks for confirmation, then sends one amount with a stable idempotency key', () => {
     render(<TopUpForm />);
-    fireEvent.click(screen.getByRole('button', { name: 'R240' }));
+    fireEvent.click(screen.getByRole('button', { name: /^R200/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(mocks.mutate).not.toHaveBeenCalled();
     // CEO touch-up batch 3, item 6a.
-    expect(screen.getByRole('status')).toHaveTextContent(/You.re adding R\s?240,00 to your wallet. Correct\?/);
+    expect(screen.getByRole('status')).toHaveTextContent(/You.re adding R\s?200,00 to your wallet. Correct\?/);
     expect(screen.queryByTestId('top-up-large-warning')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Yes, add R\s?240,00/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Yes, add R\s?240,00/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Yes, add R\s?200,00/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Yes, add R\s?200,00/ }));
     expect(mocks.mutate).toHaveBeenCalledTimes(2);
     const [first] = mocks.mutate.mock.calls[0]!;
     const [second] = mocks.mutate.mock.calls[1]!;
-    expect(first).toMatchObject({ amountCents: 24_000 });
+    expect(first).toMatchObject({ amountCents: 20_000 });
     expect(second.idempotencyKey).toBe(first.idempotencyKey);
   });
 

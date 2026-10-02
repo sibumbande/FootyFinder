@@ -116,6 +116,7 @@ vi.mock('../../database/prisma.js', () => {
       findUnique: vi.fn(async () => ({ id: 'wallet-1', userId: 'payer', balanceCents: 8_000 })),
     },
     walletHold: { aggregate: vi.fn(async () => ({ _sum: { amountCents: null } })) },
+    providerPayment: { findMany: vi.fn(async () => [{ walletTransactionId: '00000000-0000-4000-8000-000000000001', channel: 'capitec_pay', refunds: [] }]) },
     walletTransaction: {
       findMany: vi.fn(async () => [
         { id: '00000000-0000-4000-8000-000000000001', type: 'DEPOSIT_CREDIT', amountCents: 16_000, status: 'SUCCEEDED', referenceType: 'DEPOSIT', referenceId: null, createdAt: now },

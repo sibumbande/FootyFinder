@@ -1,10 +1,12 @@
-import type { UndoableTopUp } from '@footy-finder/shared';
+import { paymentChannelLabel, UNDO_REFUND_CHANNELS, type PaymentChannel, type UndoableTopUp } from '@footy-finder/shared';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../errors/app-error.js';
 import { CardRefundsService } from './card-refunds.service.js';
 
 export const TOP_UP_UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** CEO touch-up batch 4, item 3 (D8): card and Apple Pay refunds go back automatically; bank payments go through support. */
+export const undoRefundsBack = (channel: string | null) => Boolean(channel && UNDO_REFUND_CHANNELS.includes(channel as PaymentChannel));
 // Money movements that are not spending: top-ups themselves and refunds of top-ups.
 const NOT_SPENDING = ['DEPOSIT', 'DEPOSIT_CREDIT', 'TOP_UP_REFUND_DEBIT', 'TOP_UP_REFUND_RESTORE_CREDIT'] as const;
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -45,7 +47,7 @@ export class TopUpUndoService {
     });
     return Promise.all(payments.map(async (payment) => {
       const alreadyUndone = payment.refunds.some(({ source }) => source === 'PLAYER_UNDO');
-      const blocked = alreadyUndone ? 'ALREADY_UNDONE' : restricted ? 'WALLET_RESTRICTED' : payment.disputes.length ? 'DISPUTED' : null;
+      const blocked = !undoRefundsBack(payment.channel) ? 'REFUND_VIA_SUPPORT' : alreadyUndone ? 'ALREADY_UNDONE' : restricted ? 'WALLET_RESTRICTED' : payment.disputes.length ? 'DISPUTED' : null;
       return {
         paymentId: payment.id,
         amountCents: payment.amountCents,
@@ -53,6 +55,7 @@ export class TopUpUndoService {
         undoUntil: new Date(payment.verifiedAt!.getTime() + TOP_UP_UNDO_WINDOW_MS).toISOString(),
         refundableCents: blocked ? 0 : await refundableForUndo(prisma, payment),
         blockedReason: blocked,
+        paymentMethod: paymentChannelLabel(payment.channel),
       };
     }));
   }
@@ -68,6 +71,9 @@ export class TopUpUndoService {
       source: 'PLAYER_UNDO',
       assertAllowed: async (tx, payment) => {
         if (payment.userId !== userId) throw new AppError(404, 'Top-up not found.', 'TOP_UP_NOT_FOUND');
+        // CEO touch-up batch 4, item 3 (D8): only card and Apple Pay top-ups go back automatically.
+        if (!undoRefundsBack(payment.channel))
+          throw new AppError(409, 'This top-up was paid by bank, so it is refunded through support. Contact support to get it back.', 'REFUND_VIA_SUPPORT');
         if (!payment.verifiedAt || now.getTime() - payment.verifiedAt.getTime() > TOP_UP_UNDO_WINDOW_MS)
           throw new AppError(409, 'A top-up can only be undone within 24 hours.', 'TOP_UP_UNDO_EXPIRED');
         if (payment.refunds.some(({ source }) => source === 'PLAYER_UNDO'))
