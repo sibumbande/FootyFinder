@@ -20,6 +20,7 @@ type SafeUserSource = {
     dominantFoot: 'LEFT' | 'RIGHT' | 'BOTH' | null;
     homeArea: string | null;
     dateOfBirth?: Date | null;
+    gender?: 'MALE' | 'FEMALE' | null;
     yearsExperience?: number | null;
     onboardingStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETE';
     city?: {
@@ -90,6 +91,7 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
   const missingOnboardingRequirements = [
     ...(user.emailVerificationRequired !== false && !user.emailVerifiedAt ? ['EMAIL_VERIFICATION'] : []),
     ...(!profile?.dateOfBirth ? ['DATE_OF_BIRTH'] : []),
+    ...(!profile?.gender ? ['GENDER'] : []),
     ...(profile?.yearsExperience === null || profile?.yearsExperience === undefined
       ? ['EXPERIENCE']
       : []),
@@ -111,6 +113,8 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
     onboardingStatus: profile?.onboardingStatus ?? 'NOT_STARTED',
     onboardingComplete: Boolean(user.onboardingCompletedAt),
     dateOfBirth: profile?.dateOfBirth?.toISOString().slice(0, 10) ?? null,
+    // CEO touch-up batch 4, item 1: the player's own gender, only in their own account data.
+    gender: profile?.gender ?? null,
     missingOnboardingRequirements,
   };
 }

@@ -38,6 +38,7 @@ export const CREATE_MATCH_DRAFT_KEY = 'ff:create-match-draft';
 type Draft = {
   playAs: string; step: number; format: MatchFormat; substituteCapacityPerTeam: number; rollingSubstitutes: boolean; rules: MatchRule[];
   visibility: MatchVisibility; name: string; description: string; otherSideMode: TeamMatchOtherSideMode | null; teamSubs: number;
+  girlsOnly: boolean;
 };
 const readDraft = (): Partial<Draft> => {
   try {
@@ -122,13 +123,14 @@ export function CreateMatchPage() {
   const [description, setDescription] = useState(draft.description ?? '');
   const [otherSideMode, setOtherSideMode] = useState<TeamMatchOtherSideMode | null>(draft.otherSideMode ?? null);
   const [teamSubs, setTeamSubs] = useState(draft.teamSubs ?? 3);
+  const [girlsOnly, setGirlsOnly] = useState(draft.girlsOnly ?? false);
   useEffect(() => {
     try {
-      sessionStorage.setItem(CREATE_MATCH_DRAFT_KEY, JSON.stringify({ playAs: search.get('playAs') ?? '', step, format, substituteCapacityPerTeam, rollingSubstitutes, rules, visibility, name, description, otherSideMode, teamSubs } satisfies Draft));
+      sessionStorage.setItem(CREATE_MATCH_DRAFT_KEY, JSON.stringify({ playAs: search.get('playAs') ?? '', step, format, substituteCapacityPerTeam, rollingSubstitutes, rules, visibility, name, description, otherSideMode, teamSubs, girlsOnly } satisfies Draft));
     } catch {
       // Storage can be unavailable (private mode); the wizard still works without a draft.
     }
-  }, [search, step, format, substituteCapacityPerTeam, rollingSubstitutes, rules, visibility, name, description, otherSideMode, teamSubs]);
+  }, [search, step, format, substituteCapacityPerTeam, rollingSubstitutes, rules, visibility, name, description, otherSideMode, teamSubs, girlsOnly]);
   const venueSlug = search.get('venue') ?? '';
   const fieldId = search.get('field') ?? '';
   const startsAt = search.get('startsAt') ?? '';
@@ -193,7 +195,7 @@ export function CreateMatchPage() {
   }, [missingStep]);
   const submit = () => {
     if (!selectedField || !startsAt) return;
-    const base = { name, description, rollingSubstitutes, rules, startsAt, managedFieldId: selectedField.id };
+    const base = { name, description, rollingSubstitutes, rules, startsAt, managedFieldId: selectedField.id, girlsOnly };
     const input = teamMode && playAsTeamId && otherSideMode
       ? { ...base, format: matchFormat, substituteCapacityPerTeam: teamSubs, visibility: 'PUBLIC' as const, playAsTeamId, otherSideMode, teamSubstituteCount: teamSubs }
       : { ...base, format, substituteCapacityPerTeam, visibility };
@@ -290,6 +292,21 @@ export function CreateMatchPage() {
               onChange={(event) => setSubstituteCapacityPerTeam(Number(event.target.value))}
               hint={`Choose 0–${MAX_SUBSTITUTES_PER_TEAM}. This match can hold ${getMaxMatchParticipants(format, substituteCapacityPerTeam)} players in total.`}
             />
+            {/* CEO touch-up batch 4, item 1: set at creation only. */}
+            <label className="flex cursor-pointer gap-3 rounded-2xl border border-line bg-surface-muted p-4" data-testid="girls-only-option">
+              <input
+                className="mt-1 h-4 w-4 accent-brand-600"
+                type="checkbox"
+                checked={girlsOnly}
+                onChange={(event) => setGirlsOnly(event.target.checked)}
+              />
+              <span>
+                <strong className="block text-content-strong">Girls only</strong>
+                <span className="mt-1 block text-sm text-content-muted">
+                  Only female players can join{teamMode ? ', be picked or be loaded with a team' : ' and claim a position'}. The referee can be anyone. This can't be changed after you create the match.
+                </span>
+              </span>
+            </label>
             <label className="flex cursor-pointer gap-3 rounded-2xl border border-line bg-surface-muted p-4">
               <input
                 className="mt-1 h-4 w-4 accent-brand-600"
@@ -427,6 +444,22 @@ export function CreateMatchPage() {
               onChange={(event) => setTeamSubs(Math.max(0, Math.min(MAX_SUBSTITUTES_PER_TEAM, Math.trunc(Number(event.target.value) || 0))))}
               hint={`Choose 0–${MAX_SUBSTITUTES_PER_TEAM}. You can change this until 30 minutes before kickoff.`}
             />
+            {/* CEO touch-up batch 4, item 1: set at creation only. */}
+            <label className="flex cursor-pointer gap-3 rounded-2xl border border-line bg-surface-muted p-4" data-testid="girls-only-option">
+              <input
+                className="mt-1 h-4 w-4 accent-brand-600"
+                type="checkbox"
+                checked={girlsOnly}
+                onChange={(event) => setGirlsOnly(event.target.checked)}
+              />
+              <span>
+                <strong className="block text-content-strong">Girls only</strong>
+                <span className="mt-1 block text-sm text-content-muted">
+                  Only female players can join{teamMode ? ', be picked or be loaded with a team' : ' and claim a position'}. The referee can be anyone. This can't be changed after you create the match.
+                </span>
+              </span>
+            </label>
+
             <p data-testid="team-fee-breakdown" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-lg font-black text-brand-700">
               {formatTeamFeeBreakdown(teamFee)}
             </p>
@@ -443,6 +476,7 @@ export function CreateMatchPage() {
           >
             <dl className="grid gap-4 rounded-2xl bg-surface-muted p-5 sm:grid-cols-2">
               <Summary label="Match" value={name} />
+              {girlsOnly && <Summary label="Who can play" value="Girls only" />}
               {teamMode && <Summary label="Playing as" value={playAsTeam?.name ?? ''} />}
               <Summary
                 label="Format"

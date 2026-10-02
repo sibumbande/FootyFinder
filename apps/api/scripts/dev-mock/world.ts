@@ -31,6 +31,8 @@ export function mockPlayer(n: number) {
     displayName: `${NAMES[n - 1]} (mock ${String(n).padStart(2, '0')})`,
     initials: NAMES[n - 1]!.split(' ').map((part) => part[0]).join(''),
     dateOfBirth: `${1991 + (n % 16)}-${String((n % 12) + 1).padStart(2, '0')}-15`,
+    // CEO touch-up batch 4, item 1: every mock player is male (the names are); gender is private.
+    gender: 'MALE' as const,
     yearsExperience: 1 + ((n * 7) % 15),
     positions: GOALKEEPERS.has(n) ? (['GOALKEEPER'] as FootballPosition[]) : OUTFIELD[n % OUTFIELD.length]!,
   };

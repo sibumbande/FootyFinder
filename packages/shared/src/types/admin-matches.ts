@@ -18,6 +18,8 @@ export interface AdminMatchListItem {
   freeOnFootyFinder: boolean;
   firstTimersOnly: boolean;
   hostedByFootyFinder: boolean;
+  /** CEO touch-up batch 4, item 1. */
+  girlsOnly: boolean;
   /** "FootyFinder", or the player who created the match. */
   hostName: string;
 }
@@ -57,6 +59,7 @@ export interface AdminMatchMoney {
 export interface AdminMatchDetail extends AdminRefereeMatch {
   visibility: MatchVisibility;
   hostedByFootyFinder: boolean;
+  girlsOnly: boolean;
   hostName: string;
   fieldName: string | null;
   publicUrl: string | null;

@@ -151,6 +151,7 @@ function CreateMatchForm() {
   const [subs, setSubs] = useState(DEFAULT_SUBSTITUTE_CAPACITY_PER_TEAM);
   const [free, setFree] = useState(false);
   const [firstTimersOnly, setFirstTimersOnly] = useState(false);
+  const [girlsOnly, setGirlsOnly] = useState(false);
   const [created, setCreated] = useState<AdminCreatedMatch>();
   const venues = useQuery({ queryKey: ['admin', 'venues'], queryFn: async () => (await adminClient.venues()).data });
   const bookable = useMemo(() => venues.data?.filter((venue) => venue.isActive && venue.publicationStatus === 'PUBLISHED') ?? [], [venues.data]);
@@ -167,7 +168,7 @@ function CreateMatchForm() {
   const create = useMutation({
     mutationFn: () => adminClient.createAdminMatch({
       managedFieldId: fieldId, name, format: format as MatchFormat, visibility, startsAt, substituteCapacityPerTeam: subs, rules: [],
-      freeOnFootyFinder: free, firstTimersOnly: free && firstTimersOnly,
+      freeOnFootyFinder: free, firstTimersOnly: free && firstTimersOnly, girlsOnly,
     }),
     onSuccess: ({ data }) => {
       setCreated(data);
@@ -231,6 +232,8 @@ function CreateMatchForm() {
         <legend>Who can join</legend>
         <label className="check"><input type="radio" name="visibility" checked={visibility === 'PUBLIC'} onChange={() => setVisibility('PUBLIC')} />Public (listed in the app and website)</label>
         <label className="check"><input type="radio" name="visibility" checked={visibility === 'PRIVATE'} onChange={() => setVisibility('PRIVATE')} />Private (invite link only)</label>
+        {/* CEO touch-up batch 4, item 1. */}
+        <label className="check"><input type="checkbox" checked={girlsOnly} onChange={(event) => setGirlsOnly(event.target.checked)} />Girls only (only female players can join)</label>
       </fieldset>
       <fieldset>
         <legend>Price</legend>

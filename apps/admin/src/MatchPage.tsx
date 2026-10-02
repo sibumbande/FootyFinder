@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { adminClient } from './api.js';
 import { FreeMatchControl } from './FreeMatchControl.js';
+import { GirlsOnlyControl } from './GirlsOnlyControls.js';
 import { CancelPanel, InvitePanel, RefereePanel, matchesKey, rands, time, when } from './MatchActions.js';
 import { MatchResultPanel } from './MatchResultPanel.js';
 
@@ -36,6 +37,7 @@ export function MatchPage() {
               <span className="pill">{match.visibility === 'PRIVATE' ? 'Private' : 'Public'}</span>
               <span className="pill">{match.hostedByFootyFinder ? 'Hosted by FootyFinder' : `Host: ${match.hostName}`}</span>
               {match.freeOnFootyFinder && <span className="pill">Free{match.firstTimersOnly ? ' · first-time players only' : ''}</span>}
+              {match.girlsOnly && <span className="pill">Girls only</span>}
               {match.publicUrl && <a href={match.publicUrl} target="_blank" rel="noreferrer">Public page</a>}
             </div>
           </div>
@@ -48,6 +50,11 @@ export function MatchPage() {
           {match.mode === 'QUICK_GAME' && !['CANCELLED', 'COMPLETED'].includes(match.status) && (
             <article className="venue-card">
               <FreeMatchControl match={match} rootKey={matchesKey} />
+            </article>
+          )}
+          {!match.started && !['CANCELLED', 'COMPLETED'].includes(match.status) && (
+            <article className="venue-card">
+              <GirlsOnlyControl match={match} rootKey={matchesKey} />
             </article>
           )}
           {match.visibility === 'PRIVATE' && match.hostedByFootyFinder && !['CANCELLED', 'COMPLETED'].includes(match.status) && (

@@ -24,3 +24,15 @@ export function HostedByFootyFinderBadge({ onDark = false }: { onDark?: boolean 
     </span>
   );
 }
+
+/** CEO touch-up batch 4, item 1: only female players can take part. */
+export function GirlsOnlyBadge({ onDark = false }: { onDark?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black ${onDark ? 'bg-content-inverse/10 text-content-inverse' : 'bg-danger-50 text-danger-700 ring-1 ring-danger-200'}`}
+      data-testid="girls-only-badge"
+    >
+      Girls only
+    </span>
+  );
+}

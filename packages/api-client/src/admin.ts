@@ -23,6 +23,8 @@ import type {
   AdminWaitingList,
   AdminWaitingListQuery,
   AdminCreateMatchInput,
+  AdminGirlsOnlyInput,
+  AdminCorrectGenderInput,
   AdminCreatedMatch,
   AdminMatchDetail,
   AdminMatchList,
@@ -107,6 +109,11 @@ export const adminApi = (client: ApiClient) => ({
     client.request<{ data: AdminRefereeMatch }>(`/admin/matches/${id(matchId)}/referee/remove`, post(input)),
   /** CEO Q4: "Cancel match (weather/venue)" before kick-off (fresh MFA, written reason, audited). */
   /** CEO touch-up batch 3, item 5: free "On FootyFinder" matches (fresh MFA, reason, audit) and their cost. */
+  // CEO touch-up batch 4, item 1.
+  setGirlsOnly: (matchId: string, input: AdminGirlsOnlyInput) =>
+    client.request<{ data: { matchId: string; girlsOnly: boolean } }>(`/admin/matches/${id(matchId)}/girls-only`, post(input)),
+  correctGender: (userId: string, input: AdminCorrectGenderInput) =>
+    client.request<{ data: { gender: 'MALE' | 'FEMALE'; affectedMatches: Array<{ matchId: string; name: string; startsAt: string }> } }>(`/admin/moderation/users/${id(userId)}/gender`, post(input)),
   markFreeMatch: (matchId: string, input: AdminFreeMatchInput) =>
     client.request<{ data: AdminFreeMatchResult }>(`/admin/matches/${id(matchId)}/free`, post(input)),
   freeMatchCosts: () => client.request<{ data: FreeMatchCostReport }>('/admin/finance/free-matches'),

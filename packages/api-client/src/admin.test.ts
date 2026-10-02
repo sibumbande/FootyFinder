@@ -283,3 +283,13 @@ describe('adminApi waiting list (CEO batch 3.5, item 4)', () => {
     ]);
   });
 });
+
+describe('adminApi girls-only (CEO batch 4, item 1)', () => {
+  it('switches girls-only and corrects a gender', async () => {
+    const request = vi.fn().mockResolvedValue({ data: {} });
+    const api = adminApi({ request } as unknown as ApiClient);
+    await api.setGirlsOnly('match-id', { girlsOnly: true, reason: 'Women only night' });
+    await api.correctGender('user-id', { gender: 'FEMALE', reason: 'Player asked support' });
+    expect(request.mock.calls.map(([path]) => path)).toEqual(['/admin/matches/match-id/girls-only', '/admin/moderation/users/user-id/gender']);
+  });
+});

@@ -112,6 +112,10 @@ export function JoinTeamDialog({
             minutes before kickoff). If not, it&apos;s cancelled automatically{match.freeOnFootyFinder ? '. It is free, so there is nothing to refund.' : <> and your {rands(match.feeCents)} is refunded to your wallet.</>}
           </p>
         )}
+        {/* CEO touch-up batch 4, item 1. */}
+        {match.girlsOnly && (
+          <p className="mt-3 text-sm font-semibold text-content" data-testid="join-girls-only-notice">This is a girls-only match: only female players can join.</p>
+        )}
         {/* CEO touch-up batch 3, item 5. */}
         {match.firstTimersOnly && (
           <p className="mt-3 text-sm font-semibold text-content">This free match is for players who have never played a match on FootyFinder.</p>

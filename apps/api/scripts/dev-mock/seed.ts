@@ -117,7 +117,9 @@ async function ensurePlayers(): Promise<Players> {
       created += 1;
     }
     if (!user.profile?.dateOfBirth || !user.profile.preferredPositions.length)
-      await onboarding.saveProfile(user.id, { dateOfBirth: spec.dateOfBirth, yearsExperience: spec.yearsExperience, cityId: city.id, preferredPositions: spec.positions });
+      await onboarding.saveProfile(user.id, { dateOfBirth: spec.dateOfBirth, gender: spec.gender, yearsExperience: spec.yearsExperience, cityId: city.id, preferredPositions: spec.positions });
+    // CEO touch-up batch 4, item 1: mock players seeded before gender existed get it here (no reset needed).
+    else if (!user.profile?.gender) await onboarding.setGender(user.id, spec.gender);
     if (!user.profile?.photo) await photos.replace(user.id, await placeholderPhoto(n, spec.initials), {});
     // Recorded with source DEV_SEED so these acceptances are never mistaken for a real person's.
     await onboarding.acceptLegal(

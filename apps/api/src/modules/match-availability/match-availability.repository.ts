@@ -10,6 +10,7 @@ import {
   persistNotifications,
 } from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
+import { ineligibleForGirlsOnly } from '../matches/girls-only.js';
 
 export class TeamMatchSideNotFoundError extends Error {}
 export class TeamAvailabilityForbiddenError extends Error {}
@@ -73,7 +74,7 @@ export class MatchAvailabilityRepository {
       const matchTeam = await tx.matchTeam.findUniqueOrThrow({
         where: { id: initial.id },
         include: {
-          match: { select: { id: true, name: true, mode: true, status: true } },
+          match: { select: { id: true, name: true, mode: true, status: true, girlsOnly: true } },
           team: {
             select: {
               id: true,
@@ -98,8 +99,12 @@ export class MatchAvailabilityRepository {
         select: { userId: true },
       });
       const existingUserIds = new Set(existing.map((row) => row.userId));
+      // CEO touch-up batch 4, item 1 (D2): a girls-only match asks only the members who can play in it.
+      const ineligible = matchTeam.match.girlsOnly
+        ? await ineligibleForGirlsOnly(tx, matchTeam.team.memberships.map((member) => member.userId))
+        : new Set<string>();
       const missing = matchTeam.team.memberships.filter(
-        (member) => !existingUserIds.has(member.userId),
+        (member) => !existingUserIds.has(member.userId) && !ineligible.has(member.userId),
       );
       if (missing.length) {
         await tx.teamMatchAvailability.createMany({

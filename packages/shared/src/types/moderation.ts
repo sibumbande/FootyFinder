@@ -56,6 +56,8 @@ export interface ModerationUserSummary {
     email: string;
     accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
     platformRole: 'USER' | 'ADMIN';
+    /** CEO touch-up batch 4, item 1: admin-only (user detail), never in public data. */
+    gender?: 'MALE' | 'FEMALE' | null;
   };
   activeEnforcement?: AccountEnforcement;
   enforcementHistory: AccountEnforcement[];

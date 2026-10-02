@@ -33,6 +33,7 @@ import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage.js'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage.js';
 import { ConfirmEmailChangePage } from '@/features/auth/pages/ConfirmEmailChangePage.js';
 import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage.js';
+import { GenderPage } from '@/features/onboarding/pages/GenderPage.js';
 import { WaitingListPage } from '@/features/onboarding/pages/WaitingListPage.js';
 import { LegalPage } from '@/features/legal/pages/LegalPage.js';
 import { VenueDetailPage } from '@/features/venues/pages/VenueDetailPage.js';
@@ -77,6 +78,7 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/onboarding" element={animated(<OnboardingPage />)} />
+            <Route path="/gender" element={animated(<GenderPage />)} />
             <Route path="/matches/new" element={animated(<CreateMatchPage />)} />
             <Route path="/referee" element={animated(<RefereePage />)} />
             <Route path="/referee/matches/:matchId" element={animated(<RefereeMatchPage />)} />

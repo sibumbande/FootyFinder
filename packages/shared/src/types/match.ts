@@ -268,6 +268,8 @@ export interface Match extends MatchGoNoGoFacts {
   createdById: string;
   /** CEO touch-up batch 3.5, item 5: shown as "Hosted by FootyFinder". */
   hostedByFootyFinder?: boolean;
+  /** CEO touch-up batch 4, item 1: only female players can take part. */
+  girlsOnly?: boolean;
   mode: MatchMode;
   format: MatchFormat;
   substituteCapacityPerTeam: number;
@@ -342,6 +344,8 @@ export interface PublicMatchPreview extends MatchGoNoGoFacts {
   firstTimersOnly: boolean;
   /** CEO touch-up batch 3.5, item 5. */
   hostedByFootyFinder?: boolean;
+  /** CEO touch-up batch 4, item 1. */
+  girlsOnly?: boolean;
   currency: 'ZAR';
   rules: Array<{ code: MatchRule; label: string }>;
   status: MatchStatus;

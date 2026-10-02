@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { TERMS_ACCEPTANCE_STATEMENT, type LegalAcceptanceInput, type OnboardingProfileInput } from '@footy-finder/shared';
+import { TERMS_ACCEPTANCE_STATEMENT, type Gender, type LegalAcceptanceInput, type OnboardingProfileInput } from '@footy-finder/shared';
 import { prisma } from '../../database/prisma.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../errors/app-error.js';
@@ -40,12 +40,15 @@ export class OnboardingService {
     if (!city) throw new AppError(400, 'Choose a supported city option.', 'CITY_INVALID');
     if (city.supportStatus !== 'ACTIVE')
       throw new AppError(409, 'Footy Finder is not active in that city yet.', 'CITY_NOT_SUPPORTED');
+    // CEO touch-up batch 4, item 1: gender is saved once; only an admin can correct it afterwards.
+    const saved = await prisma.playerProfile.findUnique({ where: { userId }, select: { gender: true } });
     await prisma.user.update({
       where: { id: userId },
       data: {
         profile: {
           update: {
             dateOfBirth: new Date(`${input.dateOfBirth}T00:00:00.000Z`),
+            gender: saved?.gender ?? input.gender,
             yearsExperience: input.yearsExperience,
             cityId: input.cityId,
             onboardingStatus: 'IN_PROGRESS',
@@ -57,6 +60,13 @@ export class OnboardingService {
         },
       },
     });
+    return this.status(userId);
+  }
+
+  /** CEO touch-up batch 4, item 1 (D1): an existing player answers once; it cannot be changed here afterwards. */
+  async setGender(userId: string, gender: Gender) {
+    const updated = await prisma.playerProfile.updateMany({ where: { userId, gender: null }, data: { gender } });
+    if (!updated.count) throw new AppError(409, 'Your gender is already saved. Contact support if it needs correcting.', 'GENDER_ALREADY_SET');
     return this.status(userId);
   }
 
@@ -130,6 +140,7 @@ export class OnboardingService {
     return [
       ...(typed.emailVerificationRequired && !typed.emailVerifiedAt ? ['EMAIL_VERIFICATION'] : []),
       ...(!typed.profile?.dateOfBirth ? ['DATE_OF_BIRTH'] : []),
+      ...(!typed.profile?.gender ? ['GENDER'] : []),
       ...(typed.profile?.yearsExperience === null || typed.profile?.yearsExperience === undefined ? ['EXPERIENCE'] : []),
       ...(typed.profile?.city?.supportStatus !== 'ACTIVE' ? ['CITY'] : []),
       ...(!typed.profile?.preferredPositions.length ? ['POSITIONS'] : []),

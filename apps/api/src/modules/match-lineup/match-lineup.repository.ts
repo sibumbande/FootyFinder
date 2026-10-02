@@ -16,6 +16,7 @@ import {
 } from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
 import { assertNoPlayerOverlap } from '../matches/player-overlap.js';
+import { assertGirlsOnlyEligible } from '../matches/girls-only.js';
 
 export class LineupTeamSideNotFoundError extends Error {}
 export class LineupForbiddenError extends Error {}
@@ -47,12 +48,14 @@ const selectionInclude = {
 const ACTIVE_SELECTION = ['SELECTED_STARTER', 'SELECTED_SUBSTITUTE', 'OPEN_SLOT_CLAIMED'];
 async function assertEntersWithoutOverlap(
   tx: Prisma.TransactionClient,
-  context: { match: { id: string; mode: string; otherSideMode: string | null; startsAt: Date; durationMinutes: number } },
+  context: { match: { id: string; mode: string; otherSideMode: string | null; startsAt: Date; durationMinutes: number; girlsOnly: boolean } },
   playerId: string,
   actorId: string,
   existing?: { status: string } | null,
 ) {
   if (existing && ACTIVE_SELECTION.includes(existing.status)) return;
+  // CEO touch-up batch 4, item 1: only eligible players enter a girls-only lineup (starter, substitute, claim).
+  await assertGirlsOnlyEligible(tx, context.match, [playerId]);
   // Retired team planning fixtures are never played, so they do not take part in the rule.
   if (context.match.mode === 'TEAM_MATCH' && !context.match.otherSideMode) return;
   await assertNoPlayerOverlap(tx, playerId, context.match, playerId === actorId);
@@ -70,6 +73,7 @@ const lineupInclude = {
       startsAt: true,
       durationMinutes: true,
       otherSideMode: true,
+      girlsOnly: true,
     },
   },
   team: {
@@ -332,6 +336,7 @@ export class MatchLineupRepository {
         )
       )
         return unchanged(context);
+      await assertGirlsOnlyEligible(tx, context.match, [selectedUserId]);
       await saveSelection(tx, context, selectedUserId, 'INVITED', userId);
       await clearFinalization(tx, context);
       const notifications = await selectionNotification(

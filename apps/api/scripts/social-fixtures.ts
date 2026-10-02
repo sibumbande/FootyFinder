@@ -27,7 +27,7 @@ export function socialWorld(marker: string) {
     marker,
     userIds,
     matchIds,
-    async player(label: string, options: { friendRequestsEnabled?: boolean } = {}) {
+    async player(label: string, options: { friendRequestsEnabled?: boolean; gender?: 'MALE' | 'FEMALE' } = {}) {
       const n = index++;
       const user = await prisma.user.create({
         data: {
@@ -37,7 +37,7 @@ export function socialWorld(marker: string) {
           emailVerifiedAt: new Date(),
           onboardingCompletedAt: new Date(),
           friendRequestsEnabled: options.friendRequestsEnabled ?? true,
-          profile: { create: { displayName: `${label} ${marker.slice(-4)}`, onboardingStatus: 'COMPLETE' } },
+          profile: { create: { displayName: `${label} ${marker.slice(-4)}`, onboardingStatus: 'COMPLETE', gender: options.gender ?? 'MALE' } },
           walletAccount: { create: {} },
         },
       });

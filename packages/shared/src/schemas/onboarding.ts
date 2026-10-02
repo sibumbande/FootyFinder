@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { emailSchema } from './auth.js';
-import { FOOTBALL_POSITIONS } from '../types/user.js';
+import { FOOTBALL_POSITIONS, GENDERS } from '../types/user.js';
 import type { AuthenticatedUser, CitySummary } from '../types/user.js';
 
 /**
@@ -36,6 +36,8 @@ export const isAtLeastAge = (dateOfBirth: string, years: number, today = new Dat
 export const onboardingProfileSchema = z
   .object({
     dateOfBirth: isoDate,
+    /** CEO touch-up batch 4, item 1: required; saved once (players cannot change it later). */
+    gender: z.enum(GENDERS, { message: 'Choose your gender' }),
     yearsExperience: z.number().int().min(0).max(60),
     cityId: z.string().uuid(),
     preferredPositions: z
@@ -66,6 +68,9 @@ export const legalAcceptanceSchema = z.object({
 });
 
 export const completeOnboardingSchema = z.object({ confirm: z.literal(true) });
+/** CEO touch-up batch 4, item 1: existing players answer once at their next sign-in. */
+export const onboardingGenderSchema = z.object({ gender: z.enum(GENDERS, { message: 'Choose your gender' }) });
+export type OnboardingGenderInput = z.infer<typeof onboardingGenderSchema>;
 export const photoCropSchema = z.object({
   left: z.coerce.number().int().min(0).optional(),
   top: z.coerce.number().int().min(0).optional(),

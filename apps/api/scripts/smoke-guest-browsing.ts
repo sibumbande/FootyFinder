@@ -18,12 +18,13 @@ const world = socialWorld(`gate9-guest-${randomUUID()}`);
 const recruitment = new RecruitmentService();
 const teamIds: string[] = [];
 const extraMatchIds: string[] = [];
-const PRIVATE = /email|dateOfBirth|balance|wallet|passwordHash|conversation|friendRequests|priceCents|amountCents/i;
+// CEO touch-up batch 4, item 1: gender (key or value) never reaches guests.
+const PRIVATE = /email|dateOfBirth|gender|"(FE)?MALE"|balance|wallet|passwordHash|conversation|friendRequests|priceCents|amountCents/i;
 const guest = () => request(app);
 
 async function main() {
   const [owner, member, scorer, opponent] = await Promise.all(['Owner', 'Member', 'Scorer', 'Opponent'].map((name) => world.player(name)));
-  await prisma.user.update({ where: { id: scorer!.id }, data: { profile: { update: { bio: 'Left-footed winger', homeArea: 'Secret Street 1', dateOfBirth: new Date('1995-05-05') } } } });
+  await prisma.user.update({ where: { id: scorer!.id }, data: { profile: { update: { bio: 'Left-footed winger', homeArea: 'Secret Street 1', dateOfBirth: new Date('1995-05-05'), gender: 'FEMALE' } } } });
   const team = await new TeamsRepository().create({ name: `${world.marker}-FC`, primaryFormat: 'FIVE_A_SIDE', formationKey: getDefaultFormationKey('FIVE_A_SIDE') }, owner!.id);
   teamIds.push(team.id);
   await prisma.teamMembership.create({ data: { teamId: team.id, userId: member!.id, role: 'MEMBER' } });

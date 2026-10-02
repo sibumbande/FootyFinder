@@ -5,6 +5,7 @@ import type {
   CitySummary,
   LegalAcceptanceInput,
   LegalDocumentSummary,
+  OnboardingGenderInput,
   OnboardingProfileInput,
   OnboardingState,
 } from '@footy-finder/shared';
@@ -12,6 +13,8 @@ import type { ApiClient } from './client.js';
 
 export const onboardingApi = (client: ApiClient) => ({
   status: () => client.request<{ data: OnboardingState }>('/onboarding/status'),
+  /** CEO touch-up batch 4, item 1: existing players answer once. */
+  saveGender: (input: OnboardingGenderInput) => client.request<{ data: OnboardingState }>('/onboarding/gender', { method: 'PUT', body: JSON.stringify(input) }),
   saveProfile: (input: OnboardingProfileInput) => client.request<{ data: OnboardingState }>('/onboarding/profile', { method: 'PUT', body: JSON.stringify(input) }),
   acceptLegal: (input: LegalAcceptanceInput) => client.request<{ data: OnboardingState }>('/onboarding/legal-acceptance', { method: 'POST', body: JSON.stringify(input) }),
   complete: () => client.request<{ data: AuthenticatedUser }>('/onboarding/complete', { method: 'POST', body: JSON.stringify({ confirm: true }) }),

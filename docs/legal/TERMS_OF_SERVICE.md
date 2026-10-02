@@ -143,7 +143,7 @@ The following information is provided in compliance with section 43 of ECTA:
 
 **5.1 One account per person.** You may hold only one Account. Accounts are personal to you and may not be sold, shared, lent or transferred.
 
-**5.2 Accurate information.** You must give true, current and complete information and keep it up to date. To activate your player profile you verify your email address and give your date of birth, your city, your years of playing experience, your preferred positions and a profile photo.
+**5.2 Accurate information.** You must give true, current and complete information and keep it up to date. To activate your player profile you verify your email address and give your date of birth, your gender (Male or Female), your city, your years of playing experience, your preferred positions and a profile photo. You cannot change your gender yourself after saving it; if it is wrong, support can correct it.
 
 **5.3 Your profile photo.** Your profile photo must be a clear selfie that shows your full face. It is part of your player profile, which is visible to anyone (clause 8.3), so that teammates, opponents and Referees can recognise you. It is not used for facial recognition. We may hide a photo that breaks these Terms, and you will then need to upload a new one.
 
@@ -188,6 +188,7 @@ The following information is provided in compliance with section 43 of ECTA:
 ### What we collect
 
 - **Identity and contact data:** your name, username, email address, date of birth and city.
+- **Gender:** Male or Female. We use it only to decide who can join girls-only matches (clause 11.14). It is never shown to other users.
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
 - **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), the players you block (clause 18.8), and your Team recruitment posts, "Looking for a team" card and requests to join Teams (clause 18.9).
@@ -218,7 +219,7 @@ We do not collect your phone number, emergency contact details or health informa
 - Team recruitment posts and, while it is on, your "Looking for a team" card (clause 18.9);
 - public matches: the venue, time, format, fee and how many places are left; and, once a match has been played, its Final Result with the names of the scorers and assisters.
 
-Search engines may list these public pages. Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, identity documents, chats and messages, friends list or payment and Wallet information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
+Search engines may list these public pages. Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, gender, identity documents, chats and messages, friends list or payment and Wallet information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7).
 
 **8.4 Operators.** We use third-party operators for hosting, card payments (Paystack) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
 
@@ -337,6 +338,8 @@ Search engines may list these public pages. Before a match is played, people wit
 **11.12 One match at a time.** You cannot be in two matches at the same time. You cannot join a match, be picked as a starter or substitute in a Team's lineup, or be included when your Team takes a side, if that match's time overlaps another match you are already in, whether as a player on either side (including as a substitute) or as its Referee. A match's time runs from kick-off to its scheduled end plus 30 minutes: for a 60-minute match kicking off at 14:00, that is 14:00 to 15:30. If a Team takes a side and some members of its saved squad are already in an overlapping match, those members are left out of its lineup and the Owner or Captain who acted is told. A Referee may still play in the match they referee (clause 16.2).
 
 **11.13 Matches hosted by FootyFinder.** FootyFinder may host Quick Matches, shown as "Hosted by FootyFinder". FootyFinder does not join or play in them. It uses the Host's powers in clause 11.1 through its staff, and all other match rules (the Slot Fee or a free match, positions, the Lobby lock, go/no-go, cancellation and refunds) apply as normal.
+
+**11.14 Girls-only matches.** A match may be marked "Girls only" when it is created. Only female players can join it, claim a position in it, be selected or invited into a Team's lineup for it, or be loaded into it with their Team. The Referee can be anyone. When a Team takes part, members who are not eligible are left out of its lineup and the Owner or Captain who acted is told. FootyFinder can switch the rule on only while no player who is not eligible has joined, and off only while nobody has joined.
 
 ## 12. Teams, Team Wallets and Team Matches
 

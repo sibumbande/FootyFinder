@@ -66,7 +66,7 @@ export class AdminMatchesService {
         take: PAGE_SIZE,
         select: {
           id: true, name: true, mode: true, format: true, status: true, startsAt: true, visibility: true, substituteCapacityPerTeam: true,
-          freeOnFootyFinder: true, firstTimersOnly: true, hostedByFootyFinder: true,
+          freeOnFootyFinder: true, firstTimersOnly: true, hostedByFootyFinder: true, girlsOnly: true,
           venue: { select: { name: true } },
           createdBy: userSelect,
           referee: userSelect,
@@ -90,6 +90,7 @@ export class AdminMatchesService {
         freeOnFootyFinder: row.freeOnFootyFinder,
         firstTimersOnly: row.firstTimersOnly,
         hostedByFootyFinder: row.hostedByFootyFinder,
+        girlsOnly: row.girlsOnly,
         hostName: hostName(row),
       })),
       total,
@@ -103,7 +104,7 @@ export class AdminMatchesService {
     const match = await prisma.match.findUniqueOrThrow({
       where: { id: matchId },
       select: {
-        visibility: true, publicSlug: true, hostedByFootyFinder: true, mode: true, format: true, status: true, startsAt: true,
+        visibility: true, publicSlug: true, hostedByFootyFinder: true, girlsOnly: true, mode: true, format: true, status: true, startsAt: true,
         goNoGoAt: true, substituteCapacityPerTeam: true, otherSideMode: true,
         createdBy: userSelect,
         fieldReservation: { select: { priceCentsSnapshot: true, status: true, fieldNameSnapshot: true } },
@@ -154,6 +155,7 @@ export class AdminMatchesService {
       ...base,
       visibility: match.visibility,
       hostedByFootyFinder: match.hostedByFootyFinder,
+      girlsOnly: match.girlsOnly,
       hostName: hostName(match),
       fieldName: match.fieldReservation?.fieldNameSnapshot ?? null,
       publicUrl: match.publicSlug ? publicMatchUrl(match.publicSlug) : null,

@@ -168,6 +168,7 @@ export class BookingsService {
           name: input.name, description: input.description, createdBy: { connect: { id: actorUserId } }, mode: 'QUICK_GAME', format: input.format,
           substituteCapacityPerTeam: input.substituteCapacityPerTeam, rollingSubstitutes: input.rollingSubstitutes, rules: input.rules,
           visibility: input.visibility,
+          girlsOnly: input.girlsOnly ?? false,
           publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
           inviteTokenHash: inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
           // DEC-018: the platform sets the fee; hosts never choose it.
@@ -229,7 +230,7 @@ export class BookingsService {
           publicSlug: input.visibility === 'PUBLIC' ? createPublicMatchSlug() : undefined,
           inviteTokenHash: inviteToken ? hashMatchInviteToken(inviteToken) : undefined,
           startsAt, durationMinutes: MATCH_DURATION_MINUTES, feeCents: free ? 0 : MATCH_FEE_CENTS,
-          freeOnFootyFinder: free, firstTimersOnly, hostedByFootyFinder: true,
+          freeOnFootyFinder: free, firstTimersOnly, hostedByFootyFinder: true, girlsOnly: input.girlsOnly ?? false,
           status: 'OPEN', goNoGoAt: getGoNoGoAt(startsAt),
           venue: { create: slot.venue },
           formationSlots: { create: createDefaultFormation(input.format) },
@@ -240,7 +241,7 @@ export class BookingsService {
         await onRefereedMatchPublished(tx, created, now);
         await appendAdminAudit(tx, {
           actorUserId: adminUserId, action: 'MATCH_LOADED', entityType: 'FIELD_RESERVATION', entityId: reservation.id, requestId,
-          metadata: { matchId: created.id, fieldId: input.managedFieldId, priceCents: reservation.priceCentsSnapshot, visibility: input.visibility, freeOnFootyFinder: free, firstTimersOnly, hostedByFootyFinder: true },
+          metadata: { matchId: created.id, fieldId: input.managedFieldId, priceCents: reservation.priceCentsSnapshot, visibility: input.visibility, freeOnFootyFinder: free, firstTimersOnly, hostedByFootyFinder: true, girlsOnly: input.girlsOnly ?? false },
         });
         return created;
       });

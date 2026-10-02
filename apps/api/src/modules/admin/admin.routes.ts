@@ -16,6 +16,7 @@ import * as fieldClosures from './field-closures.controller.js';
 import * as freeMatches from '../matches/free-match.admin.controller.js';
 import * as waitingList from '../cities/waiting-list.admin.controller.js';
 import * as adminMatches from '../matches/admin-matches.controller.js';
+import * as girlsOnly from './girls-only.admin.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -117,6 +118,9 @@ adminRouter.get('/finance/free-matches', freeMatches.freeMatchCosts);
 adminRouter.get('/waiting-list', waitingList.listWaitingList);
 adminRouter.get('/waiting-list.csv', requireRecentAdminMfa, waitingList.downloadWaitingListCsv);
 adminRouter.post('/matches/:matchId/free', requireRecentAdminMfa, costlyMutationRateLimit, freeMatches.markFreeMatch);
+// CEO touch-up batch 4, item 1: girls-only switch (D3) and gender correction (D4), fresh MFA, audited.
+adminRouter.post('/matches/:matchId/girls-only', requireRecentAdminMfa, costlyMutationRateLimit, girlsOnly.setGirlsOnly);
+adminRouter.post('/moderation/users/:userId/gender', requireRecentAdminMfa, costlyMutationRateLimit, girlsOnly.correctGender);
 adminRouter.post('/finance/wallets/:userId/lift-restriction', costlyMutationRateLimit, finance.liftRestriction);
 // Gate 6 / TKT-607: venue beneficiaries (encrypted bank details) and payables. Admin-only.
 adminRouter.get('/venues/:venueId/beneficiaries', settlement.listBeneficiaries);

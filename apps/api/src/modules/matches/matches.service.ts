@@ -202,6 +202,7 @@ export class MatchesService {
       freeOnFootyFinder: match.freeOnFootyFinder,
       firstTimersOnly: match.firstTimersOnly,
       hostedByFootyFinder: match.hostedByFootyFinder,
+      girlsOnly: match.girlsOnly,
       currency: 'ZAR',
       rules: match.rules.map((code) => ({ code, label: MATCH_RULE_CONFIG[code].label })),
       status,

@@ -1,5 +1,5 @@
 import { TERMS_ANCHORS } from '@footy-finder/shared';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { NotificationsMenu } from '@/features/notifications/NotificationsMenu.js';
 import { formatRands } from '@/utils/format-currency.js';
@@ -14,6 +14,10 @@ export function Layout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const inSocial = pathname.startsWith('/social') || pathname.startsWith('/messages');
+  // CEO touch-up batch 4, item 1 (D1): players who signed up before gender was asked answer once, first.
+  const { search, hash } = useLocation();
+  if (user?.onboardingComplete && user.missingOnboardingRequirements?.includes('GENDER') && pathname !== '/gender')
+    return <Navigate to={`/gender?returnTo=${encodeURIComponent(`${pathname}${search}${hash}`)}`} replace />;
 
   return (
     <div className="min-h-screen bg-canvas">

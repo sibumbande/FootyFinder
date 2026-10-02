@@ -278,6 +278,13 @@ export const adminCreateMatchSchema = managedMatchSchema
   .refine((value) => value.freeOnFootyFinder || !value.firstTimersOnly, { path: ['firstTimersOnly'], message: '"First-time players only" needs a free match.' });
 export type AdminCreateMatchInput = z.input<typeof adminCreateMatchSchema>;
 
+/** CEO touch-up batch 4, item 1 (D3): an admin switches girls-only on (no male player joined) or off (nobody joined). */
+export const adminGirlsOnlySchema = z.object({ girlsOnly: z.boolean(), reason: z.string().trim().min(5).max(500) });
+export type AdminGirlsOnlyInput = z.infer<typeof adminGirlsOnlySchema>;
+/** CEO touch-up batch 4, item 1 (D4): an admin corrects a player's gender (fresh MFA, audited). */
+export const adminCorrectGenderSchema = z.object({ gender: z.enum(['MALE', 'FEMALE']), reason: z.string().trim().min(5).max(500) });
+export type AdminCorrectGenderInput = z.infer<typeof adminCorrectGenderSchema>;
+
 export const ADMIN_MATCH_VIEWS = ['upcoming', 'live', 'finished', 'cancelled'] as const;
 export const ADMIN_MATCH_NEEDS = ['referee', 'result', 'problem'] as const;
 const dayString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.');

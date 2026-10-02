@@ -52,6 +52,10 @@ export interface PublicPlayerProfile {
 }
 
 /** Public football identity. It intentionally contains no contact or billing data. */
+/** CEO touch-up batch 4, item 1: private; never in public or other-user data. Only decides girls-only eligibility. */
+export const GENDERS = ['MALE', 'FEMALE'] as const;
+export type Gender = (typeof GENDERS)[number];
+
 export interface PublicUser extends PublicPlayerProfile {
   id: string;
 }
@@ -69,6 +73,8 @@ export interface AuthenticatedUser extends PublicUser {
   onboardingStatus: OnboardingStatus;
   onboardingComplete: boolean;
   dateOfBirth?: string | null;
+  /** CEO touch-up batch 4, item 1: the player's own gender (only ever returned to them). */
+  gender?: Gender | null;
   missingOnboardingRequirements: string[];
 }
 

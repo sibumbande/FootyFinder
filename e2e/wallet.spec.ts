@@ -48,7 +48,7 @@ async function registerPlayer(page: Page) {
     const profile = await tx.playerProfile.update({
       where: { userId },
       data: {
-        dateOfBirth: new Date('1995-01-01T00:00:00Z'),
+        gender: 'MALE', dateOfBirth: new Date('1995-01-01T00:00:00Z'),
         yearsExperience: 5,
         cityId: city.id,
         onboardingStatus: 'COMPLETE',

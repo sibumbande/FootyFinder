@@ -478,7 +478,8 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
   });
 
   describe('guest browsing: what anyone can see without an account (Gate 9 / TKT-910)', () => {
-    const PRIVATE = /email|dateOfBirth|balance|wallet|payment|conversation|friend|password/i;
+    // CEO touch-up batch 4, item 1: gender is private too (key or value).
+    const PRIVATE = /email|dateOfBirth|gender|"(FE)?MALE"|balance|wallet|payment|conversation|friend|password/i;
     const guestSafe = (payload: unknown) => {
       expectNoVenueCost(payload);
       expect(JSON.stringify(payload)).not.toMatch(PRIVATE);
@@ -518,7 +519,7 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
       db.team!.findUnique!.mockResolvedValueOnce({
         id: 'team-1', name: 'Privacy FC', shortName: 'PFC', profileImageUrl: null, primaryFormat: 'FIVE_A_SIDE', locationText: 'Woodstock', description: null,
         primaryColor: null, secondaryColor: null, archivedAt: null,
-        memberships: [{ role: 'OWNER', user: { id: 'u1', username: 'thabo', accountStatus: 'ACTIVE', email: 'thabo@example.invalid', profile: { displayName: 'Thabo', avatarUrl: null, photo: null, preferredPositions: [{ position: 'GOALKEEPER' }] } } }],
+        memberships: [{ role: 'OWNER', user: { id: 'u1', username: 'thabo', accountStatus: 'ACTIVE', email: 'thabo@example.invalid', profile: { displayName: 'Thabo', gender: 'FEMALE', avatarUrl: null, photo: null, preferredPositions: [{ position: 'GOALKEEPER' }] } } }],
         walletAccount: { balanceCents: 100_000 },
       });
       const team = await new PublicBrowseService().team('team-1');

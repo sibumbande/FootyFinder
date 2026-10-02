@@ -71,6 +71,12 @@ enum FootballPosition {
   FORWARD
 }
 
+/// CEO touch-up batch 4, item 1: private; only decides who can join girls-only matches.
+enum Gender {
+  MALE
+  FEMALE
+}
+
 enum DominantFoot {
   LEFT
   RIGHT
@@ -1085,6 +1091,8 @@ model PlayerProfile {
   avatarUrl          String?
   bio                String?
   dominantFoot       DominantFoot?
+  /// CEO touch-up batch 4, item 1: never shown to other users; set once by the player, corrected only by an admin.
+  gender             Gender?
   homeArea           String?
   dateOfBirth        DateTime?                 @db.Date
   yearsExperience    Int?
@@ -1551,6 +1559,8 @@ model Match {
   firstTimersOnly           Boolean                    @default(false)
   /// CEO touch-up batch 3.5, item 5: created by an admin for FootyFinder; players see "Hosted by FootyFinder".
   hostedByFootyFinder       Boolean                    @default(false)
+  /// CEO touch-up batch 4, item 1: only female players can take part (the referee can be anyone).
+  girlsOnly                 Boolean                    @default(false)
   promotionalCosts          PromotionalCost[]
   status                    MatchStatus                @default(OPEN)
   formationVersion          Int                        @default(0)

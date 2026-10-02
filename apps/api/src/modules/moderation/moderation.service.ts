@@ -198,6 +198,8 @@ export class ModerationService {
         email: user.email,
         accountStatus: user.accountStatus,
         platformRole: user.platformRole,
+        // CEO touch-up batch 4, item 1: admin-only, so support can correct it (D4).
+        gender: user.profile?.gender ?? null,
       },
       activeEnforcement: history.find((item) => item.status === 'ACTIVE'),
       enforcementHistory: history,

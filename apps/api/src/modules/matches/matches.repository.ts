@@ -41,6 +41,7 @@ import {
 } from '../wallet/financial.repository.js';
 import { assertNoPlayerOverlap } from './player-overlap.js';
 import { hasPlayedAMatch, reversePromotionalCosts } from './free-matches.js';
+import { assertGirlsOnlyEligible } from './girls-only.js';
 import { hostAudience } from './host.js';
 
 export class InsufficientBalanceError extends Error {}
@@ -126,6 +127,7 @@ export const publicPreviewSelect = {
   feeCents: true,
   freeOnFootyFinder: true,
   hostedByFootyFinder: true,
+  girlsOnly: true,
   firstTimersOnly: true,
   venue: { select: { name: true, city: true, region: true } },
   // CEO touch-up batch 3, item 1: the venue page and cover photo only (DEC-018: never prices or policies).
@@ -362,6 +364,8 @@ export class MatchesRepository {
         throw new TeamFullError();
       // CEO touch-up batch 3, item 5: "first-time players only" free matches.
       if (match.firstTimersOnly && (await hasPlayedAMatch(tx, userId))) throw new FirstTimersOnlyError();
+      // CEO touch-up batch 4, item 1: girls-only matches (also covers an individual taking a team match's other side).
+      await assertGirlsOnlyEligible(tx, match, [userId]);
 
       let debit;
       try {

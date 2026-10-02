@@ -60,6 +60,8 @@ const matchDetailsSchema = z.object({
     .refine((rules) => new Set(rules).size === rules.length, 'Match rules must be unique')
     .default([]),
   visibility: z.enum(MATCH_VISIBILITIES),
+  /** CEO touch-up batch 4, item 1: only female players can join, claim, be selected or be loaded with a team. */
+  girlsOnly: z.boolean().optional(),
   startsAt: z
     .string()
     .datetime()

@@ -2,7 +2,7 @@ import { MATCH_FORMAT_CONFIG, type PublicMatchPreview } from '@footy-finder/shar
 import { Link, useLocation } from 'react-router-dom';
 import { GoNoGoBanner } from '@/features/matches/components/GoNoGoBanner.js';
 import { MatchTimer } from '@/features/matches/components/MatchTimer.js';
-import { FreeMatchBadge, HostedByFootyFinderBadge } from '@/features/matches/components/FreeMatchBadge.js';
+import { FreeMatchBadge, GirlsOnlyBadge, HostedByFootyFinderBadge } from '@/features/matches/components/FreeMatchBadge.js';
 import { MatchVenuePhoto } from '@/features/matches/components/MatchVenuePhoto.js';
 import { ShareMatchActions } from '@/features/matches/components/ShareMatchActions.js';
 import { QUICK_MATCH_SIDE_BADGES, QUICK_MATCH_SIDE_LABELS } from '@/features/matches/constants/quick-match-sides.js';
@@ -57,6 +57,7 @@ export function GuestMatchLobby({ preview }: { preview: PublicMatchPreview }) {
               <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-bold text-brand-700">{config.shortLabel}</span>
               <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">{preview.status.replace('_', ' ')}</span>
               <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">public</span>
+              {preview.girlsOnly && <GirlsOnlyBadge onDark />}
               {preview.hostedByFootyFinder && <HostedByFootyFinderBadge onDark />}
               {preview.freeOnFootyFinder && <FreeMatchBadge onDark firstTimersOnly={preview.firstTimersOnly} />}
               {preview.teamMatch && <span className="rounded-full bg-content-inverse/10 px-3 py-1 text-xs font-bold">Team match</span>}

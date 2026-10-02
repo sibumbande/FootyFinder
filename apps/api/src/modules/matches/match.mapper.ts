@@ -90,6 +90,7 @@ export function toMatch(
     // CEO touch-up batch 3.5, item 5: FootyFinder-hosted matches never expose the admin who created them.
     createdById: match.hostedByFootyFinder ? FOOTYFINDER_HOST_ID : match.createdById,
     hostedByFootyFinder: match.hostedByFootyFinder,
+    girlsOnly: match.girlsOnly,
     mode: match.mode,
     format: match.format,
     substituteCapacityPerTeam: match.substituteCapacityPerTeam,

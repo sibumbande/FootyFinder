@@ -11,6 +11,7 @@ describe('Gate 2 onboarding schema', () => {
   it('accepts ordered unique positions and whole 0-60 experience years', () => {
     expect(onboardingProfileSchema.safeParse({
       dateOfBirth: '2000-02-29',
+      gender: 'FEMALE',
       yearsExperience: 0,
       cityId: '10000000-0000-4000-8000-000000000001',
       preferredPositions: ['FORWARD', 'MIDFIELDER'],
@@ -21,6 +22,13 @@ describe('Gate 2 onboarding schema', () => {
       cityId: '10000000-0000-4000-8000-000000000001',
       preferredPositions: ['FORWARD', 'FORWARD'],
     }).success).toBe(false);
+  });
+
+  it('requires a gender, Male or Female (CEO batch 4, item 1)', () => {
+    const base = { dateOfBirth: '2000-02-29', yearsExperience: 3, cityId: '10000000-0000-4000-8000-000000000001', preferredPositions: ['FORWARD'] };
+    expect(onboardingProfileSchema.safeParse(base).success).toBe(false);
+    expect(onboardingProfileSchema.safeParse({ ...base, gender: 'OTHER' }).success).toBe(false);
+    expect(onboardingProfileSchema.safeParse({ ...base, gender: 'MALE' }).success).toBe(true);
   });
 
   it('rejects malformed calendar dates and under-age users', () => {
