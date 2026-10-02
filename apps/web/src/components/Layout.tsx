@@ -30,9 +30,16 @@ export function Layout() {
             <NavLink to="/social" className={() => navClass({ isActive: inSocial })}>
               Social
             </NavLink>
-            <NavLink to={user ? '/teams' : '/social?tab=teams'} className={navClass}>
-              Teams
-            </NavLink>
+            {/* Guests' Teams link opens a Social tab; it is a plain link so Social stays the highlighted item there. */}
+            {user ? (
+              <NavLink to="/teams" className={navClass}>
+                Teams
+              </NavLink>
+            ) : (
+              <Link to="/social?tab=teams" className={navClass({ isActive: false })}>
+                Teams
+              </Link>
+            )}
             {user?.isReferee && (
               <NavLink to="/referee" className={navClass}>
                 Referee
