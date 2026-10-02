@@ -12,6 +12,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApiClient, usersClient } from '../api/auth.js';
 
 export const currentUserKey = ['auth', 'current-user'] as const;
+/** CEO batch 5 (D6): set when a sign-in cancelled an account deletion, so the guest route opens "Welcome back". */
+export const deletionCancelledKey = ['auth', 'deletion-cancelled'] as const;
 
 export function useCurrentUser() {
   return useQuery<AuthenticatedUser | null>({
@@ -33,7 +35,10 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: LoginInput) => authApiClient.login(input),
-    onSuccess: ({ data }) => queryClient.setQueryData(currentUserKey, data),
+    onSuccess: ({ data, deletionCancelled }) => {
+      if (deletionCancelled) queryClient.setQueryData(deletionCancelledKey, true);
+      queryClient.setQueryData(currentUserKey, data);
+    },
   });
 }
 

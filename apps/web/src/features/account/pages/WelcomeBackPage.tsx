@@ -1,7 +1,12 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { deletionCancelledKey } from '@/features/auth/hooks/useAuth.js';
 
 /** CEO batch 5, item 2 (D6): shown once after a sign-in that cancelled the account deletion. */
 export function WelcomeBackPage() {
+  const cache = useQueryClient();
+  useEffect(() => cache.removeQueries({ queryKey: deletionCancelledKey }), [cache]);
   return (
     <section className="mx-auto grid max-w-xl gap-4 rounded-3xl border border-line bg-surface p-8 text-center shadow-soft">
       <h1 className="text-2xl font-bold text-content-strong">Welcome back</h1>
