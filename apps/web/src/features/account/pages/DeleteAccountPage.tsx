@@ -132,7 +132,7 @@ function Summary({ preview }: { preview: AccountDeletionPreview }) {
         <ul className="list-disc space-y-1 pl-5">
           <li>Payments and Wallet records, for 5 years from the end of the tax year (Tax Administration Act)</li>
           <li>The record that you accepted our Terms, as evidence of the agreement (Electronic Communications and Transactions Act)</li>
-          <li>Our audit logs, and conduct and safety records for 3 years</li>
+          <li>Our audit and security records for 5 years, and conduct and safety records for 3 years</li>
           <li>Past lineups and results, shown as "Deleted player"</li>
         </ul>
         <p className="text-content-muted">

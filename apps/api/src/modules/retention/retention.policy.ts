@@ -2,8 +2,10 @@
  * CEO batch 5, item 4: the Terms retention table (clause 8, "How long we keep it") as rules.
  * Every category starts in REPORT mode (a dry run); an admin may switch a category to APPLY (D12).
  * FINANCIAL is REPORT-only: the ledger is protected by database triggers and nothing qualifies before 2032.
+ * AUDIT (batch 5 brief, B4): audit and security records, deleted 5 years after the event unless linked to an open
+ * case. The database itself refuses to delete anything younger than 5 years, whatever the mode.
  */
-export const RETENTION_CATEGORIES = ['MESSAGES', 'ENDED_SOCIAL', 'CLOSED_ACCOUNTS', 'WAITING_LIST', 'CONDUCT', 'FINANCIAL'] as const;
+export const RETENTION_CATEGORIES = ['MESSAGES', 'ENDED_SOCIAL', 'CLOSED_ACCOUNTS', 'WAITING_LIST', 'CONDUCT', 'FINANCIAL', 'AUDIT'] as const;
 export type RetentionCategory = (typeof RETENTION_CATEGORIES)[number];
 export const isRetentionCategory = (value: string): value is RetentionCategory =>
   (RETENTION_CATEGORIES as readonly string[]).includes(value);
@@ -34,6 +36,10 @@ export const RETENTION_RULES: Record<RetentionCategory, { label: string; rule: s
     label: 'Financial and transaction records',
     rule: '5 years from the end of the tax year (28 or 29 February) they belong to, as the Tax Administration Act requires. Report only.',
   },
+  AUDIT: {
+    label: 'Audit and security records',
+    rule: 'Kept for 5 years after the event, or longer only while needed for an open dispute, investigation or legal claim, then deleted. Entries linked to an open dispute, a refund still in progress, an unsettled account deletion or an open report are kept.',
+  },
 };
 
 const subtractMonths = (date: Date, months: number) => {
@@ -44,6 +50,11 @@ const subtractMonths = (date: Date, months: number) => {
 
 export const twelveMonthsBefore = (now: Date) => subtractMonths(now, 12);
 export const threeYearsBefore = (now: Date) => subtractMonths(now, 36);
+/**
+ * Audit records: 5 years after the event. One extra day keeps the job's cutoff safely older than the database
+ * trigger's own 5-year check, which uses the database clock (it may run slightly ahead of the API's).
+ */
+export const auditRetentionCutoff = (now: Date) => new Date(subtractMonths(now, 60).getTime() - 86_400_000);
 
 /**
  * Financial records are kept for 5 years from the end of the South African tax year they belong to

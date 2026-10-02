@@ -17,7 +17,7 @@ Implemented 2026-10-02 on `ceo/finish-gate-5`, one commit per item. The CEO appr
 | D9 | Admins, referees, and suspended or banned accounts cannot self-delete; they contact support. |
 | D10 | A deleted player's profile shows "This player has left FootyFinder". Past lineups and results show "Deleted player" with no link. Deleted players are not on leaderboards. |
 | D11 | Closed-account data kept for 12 months covers deletion records and leftovers on deleted accounts. Banned accounts are only listed for review. |
-| D12 | Retention starts as report-only. An admin switches a category to purge with fresh MFA. Financial records and audit logs stay report-only. Anything under investigation is always kept. |
+| D12 | Retention starts as report-only. An admin switches a category to purge with fresh MFA. Financial records stay report-only. Audit and security records (batch 5 brief, B4) are a category of their own: kept 5 years after the event, then purged once an admin switches the category to purge, except entries linked to an open payment dispute, an unsettled refund, an unsettled deletion, an open booking dispute or an open report. The `AdminAuditLog` trigger (migration `20261011100000_batch_5_audit_retention`) still refuses every UPDATE and any DELETE of a row under 5 years old, and allows the older DELETE only inside the retention job's transaction (`footy.audit_purge`). Anything under investigation is always kept. |
 | D13 | "Download my data" needs the password and gives JSON plus a printable summary in the browser. It is limited to once every 24 hours and is audited. |
 | D14 | One commit per item. Item 1 includes "Transfer ownership to a Captain". |
 

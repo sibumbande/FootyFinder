@@ -8,6 +8,7 @@ import {
   REPORT_ONLY_CATEGORIES,
   RETENTION_CATEGORIES,
   RETENTION_RULES,
+  auditRetentionCutoff,
   financialRetentionCutoff,
   threeYearsBefore,
   twelveMonthsBefore,
@@ -177,6 +178,53 @@ async function financialPlan(db: Db, now: Date): Promise<CategoryPlan> {
   };
 }
 
+/**
+ * Batch 5 brief, B4 (CEO D18): admin audit entries older than 5 years, except entries linked to a case that is still
+ * open: a payment dispute, a refund not yet settled, an unsettled account deletion, an open booking/result dispute or
+ * an open report. The purge sets a transaction-local flag; the AdminAuditLog trigger still refuses any row younger
+ * than 5 years and every UPDATE.
+ */
+async function auditPlan(db: Db, now: Date): Promise<CategoryPlan> {
+  const cutoff = auditRetentionCutoff(now);
+  const openRefunds = await db.providerRefund.findMany({
+    where: { OR: [{ status: { in: ['PENDING', 'PROCESSING', 'NEEDS_ATTENTION', 'FAILED'] } }, { reviewReason: { not: null } }] },
+    select: { id: true, providerPaymentId: true },
+  });
+  const openPaymentDisputes = await db.providerDispute.findMany({
+    where: { status: 'OPEN' },
+    select: { id: true, providerPaymentId: true, providerPayment: { select: { userId: true } } },
+  });
+  const openDeletions = await db.accountDeletionRequest.findMany({
+    where: { OR: [{ status: { in: ['GRACE', 'WAITING'] } }, { status: 'COMPLETED', contactEmail: { not: null } }] },
+    select: { id: true, userId: true },
+  });
+  const openDisputes = await db.dispute.findMany({ where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } }, select: { id: true } });
+  const openReports = await db.moderationReport.findMany({ where: { status: { in: [...OPEN_REPORT] } }, select: { id: true } });
+  const disputedUsers = openPaymentDisputes.map(({ providerPayment }) => providerPayment.userId);
+  const held: Array<{ entityType: string; ids: string[] }> = [
+    { entityType: 'ProviderRefund', ids: openRefunds.map(({ id }) => id) },
+    { entityType: 'ProviderPayment', ids: [...openRefunds, ...openPaymentDisputes].map(({ providerPaymentId }) => providerPaymentId) },
+    { entityType: 'ProviderDispute', ids: openPaymentDisputes.map(({ id }) => id) },
+    { entityType: 'WalletAccount', ids: disputedUsers },
+    { entityType: 'USER', ids: [...disputedUsers, ...openDeletions.map(({ userId }) => userId)] },
+    { entityType: 'AccountDeletionRequest', ids: openDeletions.map(({ id }) => id) },
+    { entityType: 'DISPUTE', ids: openDisputes.map(({ id }) => id) },
+    { entityType: 'MODERATION_REPORT', ids: openReports.map(({ id }) => id) },
+  ].filter(({ ids }) => ids.length > 0);
+  const where = {
+    createdAt: { lt: cutoff },
+    NOT: held.map(({ entityType, ids }) => ({ entityType, entityId: { in: ids } })),
+  } satisfies Prisma.AdminAuditLogWhereInput;
+  return {
+    cutoffs: { olderThan: cutoff.toISOString() },
+    counts: { auditEntries: await db.adminAuditLog.count({ where }) },
+    purge: async (tx) => {
+      await tx.$queryRaw`SELECT set_config('footy.audit_purge', 'on', true)`;
+      return (await tx.adminAuditLog.deleteMany({ where })).count;
+    },
+  };
+}
+
 const plans: Record<RetentionCategory, (db: Db, now: Date) => Promise<CategoryPlan>> = {
   MESSAGES: messagesPlan,
   ENDED_SOCIAL: endedSocialPlan,
@@ -184,6 +232,7 @@ const plans: Record<RetentionCategory, (db: Db, now: Date) => Promise<CategoryPl
   WAITING_LIST: (db) => waitingListPlan(db),
   CONDUCT: conductPlan,
   FINANCIAL: financialPlan,
+  AUDIT: auditPlan,
 };
 
 export class RetentionService {

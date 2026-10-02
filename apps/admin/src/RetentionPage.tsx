@@ -25,6 +25,7 @@ const COUNT_LABELS: Record<string, string> = {
   teamWalletLedgerRows: 'Team Wallet ledger rows',
   payments: 'payments',
   refunds: 'refunds',
+  auditEntries: 'audit entries',
 };
 const describeCounts = (counts: Record<string, number>) =>
   Object.entries(counts).map(([kind, count]) => `${count} ${COUNT_LABELS[kind] ?? kind}`).join(' · ');

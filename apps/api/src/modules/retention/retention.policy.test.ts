@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nextRetentionRunAt } from './retention.jobs.js';
-import { financialRetentionCutoff, threeYearsBefore, twelveMonthsBefore } from './retention.policy.js';
+import { auditRetentionCutoff, financialRetentionCutoff, threeYearsBefore, twelveMonthsBefore } from './retention.policy.js';
 
 // CEO batch 5, item 4: the retention table in ToS clause 8.
 describe('retention periods', () => {
@@ -19,6 +19,10 @@ describe('retention periods', () => {
     expect(financialRetentionCutoff(new Date('2031-02-28T22:30:00Z')).toISOString()).toBe('2026-02-28T22:00:00.000Z');
     // Today nothing qualifies (the ledger starts in 2026).
     expect(financialRetentionCutoff(new Date('2026-10-02T10:00:00Z')).getUTCFullYear()).toBe(2021);
+  });
+
+  it('audit and security records: 5 years after the event (plus one day of margin for the database clock)', () => {
+    expect(auditRetentionCutoff(new Date('2031-10-02T10:00:00Z')).toISOString()).toBe('2026-10-01T10:00:00.000Z');
   });
 
   it('the daily run is at 02:00 Johannesburg', () => {

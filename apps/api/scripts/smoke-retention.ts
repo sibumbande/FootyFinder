@@ -62,6 +62,27 @@ try {
   });
   extra.interestId = interest.id;
 
+  // Audit (B4): a 6-year-old entry (purged), a 6-year-old entry linked to the open report (kept), a 4-year-old one (kept).
+  const yearsAgo = (years: number) => monthsAgo(years * 12);
+  const oldAudit = await prisma.adminAuditLog.create({ data: { action: 'SMOKE_OLD', entityType: 'SMOKE', entityId: marker, createdAt: yearsAgo(6) } });
+  const heldAudit = await prisma.adminAuditLog.create({ data: { action: 'SMOKE_HELD', entityType: 'MODERATION_REPORT', entityId: openReport.id, createdAt: yearsAgo(6) } });
+  const youngAudit = await prisma.adminAuditLog.create({ data: { action: 'SMOKE_YOUNG', entityType: 'SMOKE', entityId: marker, createdAt: yearsAgo(4) } });
+  const refusedByDb = async (work: (tx: typeof prisma) => Promise<unknown>) => {
+    try {
+      await prisma.$transaction(async (tx) => { await work(tx as typeof prisma); });
+      return false;
+    } catch (error) {
+      return String(error).includes('append-only');
+    }
+  };
+  assert(await refusedByDb((tx) => tx.adminAuditLog.delete({ where: { id: oldAudit.id } })), 'An audit entry was deleted without the retention flag.');
+  const flagged = (work: (tx: typeof prisma) => Promise<unknown>) => refusedByDb(async (tx) => {
+    await tx.$queryRaw`SELECT set_config('footy.audit_purge', 'on', true)`;
+    await work(tx);
+  });
+  assert(await flagged((tx) => tx.adminAuditLog.delete({ where: { id: youngAudit.id } })), 'A 4-year-old audit entry could be deleted.');
+  assert(await flagged((tx) => tx.adminAuditLog.update({ where: { id: oldAudit.id }, data: { action: 'CHANGED' } })), 'An audit entry could be updated.');
+
   // 1. Dry run ("Report now"): everything is counted, nothing deleted.
   const report = await service.run({ trigger: 'ADMIN_REPORT', actorUserId: admin.id });
   assert(report.length === RETENTION_CATEGORIES.length && report.every(({ mode, purgedCount }) => mode === 'REPORT' && purgedCount === 0), 'A dry run purged something.');
@@ -78,8 +99,9 @@ try {
     refused = (error as { code?: string }).code ?? '';
   }
   assert(refused === 'RETENTION_REPORT_ONLY', 'Financial records could be switched to purge.');
-  for (const category of ['MESSAGES', 'ENDED_SOCIAL', 'CONDUCT', 'WAITING_LIST'] as const) await service.setMode(category, 'APPLY', admin.id, marker);
-  assert((await prisma.adminAuditLog.count({ where: { requestId: marker, action: 'RETENTION_MODE_CHANGED' } })) === 4, 'Mode changes were not audited.');
+  for (const category of ['MESSAGES', 'ENDED_SOCIAL', 'CONDUCT', 'WAITING_LIST', 'AUDIT'] as const) await service.setMode(category, 'APPLY', admin.id, marker);
+  assert((await prisma.adminAuditLog.count({ where: { requestId: marker, action: 'RETENTION_MODE_CHANGED' } })) === 5, 'Mode changes were not audited.');
+  assert(await prisma.adminAuditLog.findUnique({ where: { id: oldAudit.id } }), 'A dry run deleted an audit entry.');
 
   // 3. The daily run purges what is due and keeps what is under investigation or recent.
   const daily = await service.run({ trigger: 'DAILY' });
@@ -92,8 +114,11 @@ try {
   assert(await prisma.moderationReport.findUnique({ where: { id: openReport.id } }), 'An unresolved report was purged.');
   const gone = await prisma.cityInterest.findUniqueOrThrow({ where: { id: interest.id } });
   assert(gone.deletedAt && !gone.email.includes(marker), 'The unsubscribed waiting-list entry was not removed.');
-  assert((await prisma.retentionRun.count({ where: { trigger: 'DAILY', mode: 'APPLY', purgedCount: { gt: 0 } } })) >= 4, 'Purges were not recorded.');
-  console.log('Retention smoke passed: a dry run reports and deletes nothing (audited per category); financial records are report-only; mode changes are audited; the daily run purges 12-month-old messages and ended requests, 3-year-old resolved reports and unsubscribed waiting-list entries, and keeps recent messages, a conversation under investigation and unresolved reports.');
+  assert(!(await prisma.adminAuditLog.findUnique({ where: { id: oldAudit.id } })), 'The 6-year-old audit entry was not purged.');
+  assert(await prisma.adminAuditLog.findUnique({ where: { id: heldAudit.id } }), 'An audit entry linked to an open report was purged.');
+  assert(await prisma.adminAuditLog.findUnique({ where: { id: youngAudit.id } }), 'A 4-year-old audit entry was purged.');
+  assert((await prisma.retentionRun.count({ where: { trigger: 'DAILY', mode: 'APPLY', purgedCount: { gt: 0 } } })) >= 5, 'Purges were not recorded.');
+  console.log('Retention smoke passed: a dry run reports and deletes nothing (audited per category); financial records are report-only; mode changes are audited; the daily run purges 12-month-old messages and ended requests, 3-year-old resolved reports, unsubscribed waiting-list entries and 5-year-old audit entries, and keeps recent messages, a conversation under investigation, unresolved reports, audit entries linked to an open case and audit entries under 5 years; the database refuses audit updates, unflagged deletes and deletes under 5 years.');
 } finally {
   // Back to the safe default for every other smoke and the next run.
   await prisma.retentionPolicySetting.updateMany({ data: { mode: 'REPORT' } });
