@@ -208,6 +208,7 @@ CEO decisions recorded for Gate 6 (Sibu, 2026-09-29):
 - D11 (amended by the CEO). The wallet is credited only after FootyFinder's server verifies the payment with Paystack (status success, exact amount, ZAR, card, the player's own reference). The verified webhook, the expiry job and the player's return-page status check all use the same idempotent, row-locked credit path, so a top-up is credited once whatever the order. The browser never credits on its own say-so. Only mismatches, or a success reported after the top-up was closed, go to finance REVIEW.
 - Top-up quick picks: R80, R160 (default), R240, R400, plus a custom amount (R50-R5,000).
 - D12. Terms of Service v2.2 (non-material clarifications): top-ups credited only once Paystack confirms (14.5), restore on a won dispute (14.9), failed card refunds never silently become wallet credit (15.7).
+Superseded in part by DEC-021 (2026-10-02): there is no wallet. Payments are match tickets through Paystack hosted checkout (still server-verified, never on the browser's say-so); refunds go to the original payment method; the only non-cash option is a match credit, always the player's choice; a chargeback opens a payment-dispute case and restricts booking instead of reversing a wallet. Server-side verification, fees absorbed by FootyFinder and "a failed refund never silently becomes credit" are unchanged.
 
 DEC-012 - Weekly dual-control venue settlement
 Status: APPROVED - BENEFICIARY FACTS STILL REQUIRED (2026-09-24)
@@ -253,6 +254,7 @@ Policy:
 - Current members see balance, transaction amount/type/time, and contributor display name. Only owner/captains see actionable holds; only platform admins see provider/internal references.
 - Block closure while balance, holds, or obligations remain. Settle/release/refund to zero, archive the team, and retain immutable audit/financial history.
 Blocks resolved by policy: TKT-701 through TKT-703, TKT-709.
+Superseded by DEC-021 (2026-10-02): the team wallet is removed. Squad members pay match tickets for named teammates; nothing is held for a team.
 Refined by DEC-019 (2026-09-29): D4 sets the daily limit (R5,000 and 10 contributions per member per team per rolling 24h); D7 closes a team by archiving it and returning each contributor's own unspent money to their personal wallet (no cash-out; N7 applies the same to the 60-day rule); D8 spends contributions oldest first and lets a contributor, including a former member, refund their own unspent money. "Exceptional refunds require review" is unchanged.
 
 DEC-015 - Challenge lifecycle, authority, and funding
@@ -370,6 +372,8 @@ Venue cost reference - ADMIN-ONLY / NEVER SHOWN TO PLAYERS OR HOSTS:
 | Cape Town City FC | -        | -        | R1000     |
 Entered by admins as format-scoped ManagedFieldPrice records (admin app "Format scope"); never hard-coded. Verified: one field can hold a different effective price per format, and reservation snapshots pick the format-specific price (smoke:go-no-go, privacy test).
 
+Superseded in part by DEC-021 (2026-10-02): refunds and leave credits no longer go to a wallet. Leaving more than 24 hours before kickoff gives the choice of 1 match credit or a refund to the original payment method; 24 hours or less, nothing; cancellations give every ticket holder the credit-or-refund choice (auto-refund after 7 days). The 12-hour rule (D2) and the replacement credit are removed. The R80 fee, hidden venue costs, the T-30 go/no-go and the lobby lock are unchanged.
+
 Venue settlement rule: a venue is owed money only for a match that went ahead. A cancelled match (organiser cancel or T-30 auto-cancel) leaves its FieldReservation CANCELLED with no hold, debit, obligation or payable. When Gate 6 settlement (TKT-607/TKT-608, DEC-012) is built, a payable is created exactly once per reservation (keyed by reservation id) from the admin-only priceCentsSnapshot, only when the reservation is CONFIRMED, the match has confirmedAt set and has reached kickoff/COMPLETED; it is marked due after kickoff and settled weekly under dual control.
 
 DEC-019 - Team match pricing, fill meters, instant side-taking and team go/no-go
@@ -485,6 +489,8 @@ Approved defaults (D1-D8, D11 as recommended; D12 and D13 as changed in F; D9 re
 - D12 (as changed in F). Publishing checks (does not hold) HOME's available team-wallet balance >= HOME's fee; at most 2 published matches per team waiting for an opponent (N6: a side counts as taken when a team loaded it, or every starting position of an individuals side is claimed).
 - D13 (as changed in F). Terms of Service v2.3, material, reacceptance required.
 
+Superseded in part by DEC-021 (2026-10-02): fees are paid as named match tickets, not from a team wallet through fill meters. A team must be fully paid by T-2h (alert at T-4h) or the fixture is cancelled with the credit-or-refund choice for every payer; publishing no longer checks a balance; the meter reminder is retired. Team fee = R80 x (starters + that team's subs) is unchanged.
+
 DEC-020 - FootyFinder referee on every match; the referee's result is final
 Status: APPROVED - CEO DECISION (Sibu), 2026-09-30. IMPLEMENTED AS TKT-801 TO TKT-811 (see section 12).
 Replaces: DEC-016 (captain propose/confirm). Confirms DEC-017 (team reviews), triggered when the referee's result is final.
@@ -538,10 +544,289 @@ Implementation notes:
 - The Terms were updated to v2.4 (material) in the same work: see section 12 and docs/GATE_8_REFEREES_RESULTS_RUNBOOK_2026-09-30.md.
 
 
+DEC-021 - Match Ticketing: no wallet; every payment is a ticket for one named match
+Status: APPROVED - CEO DECISION (Sibu), 2026-10-02. Being implemented in the Batch 5 brief (docs/BATCH_5_TICKETING_AND_TOUCH_UPS_BRIEF.md), Part A.
+Replaces: the wallet parts of DEC-011 (top-ups, wallet credit, wallet chargeback reversal, return to wallet), DEC-014 (the team wallet entirely), DEC-018 (refunds and leave credits to the wallet, the 12-hour rule and the replacement credit) and DEC-019 (team wallet fill meters, the publish balance check and the meter reminder).
+
+Decision as recorded (word for word, from the brief):
+
+## Why we're doing this
+
+Paystack declined to onboard FootyFinder because of the **wallet** (prepaid stored value). Payment providers see that as a high chargeback risk: people top up, forget the balance and dispute it later. We are changing to **Sports & Recreation Event Ticketing (standard e-commerce)**, the same model GoodRec uses:
+
+- Every payment is a **match ticket** for one named match, at a named venue, at a set date and time.
+- **Nobody can load money onto the platform.** There are no top-ups, no team wallets and no rand balances.
+- Refunds go back to the **original payment method** through the Paystack Refund API. The only non-cash option is a **match credit**, and it is only ever the player's choice.
+
+After this batch ships, we reapply to Paystack (and PayFast / Peach Payments in parallel) with the new model. **Nothing in the app, the ToS or the payment metadata may describe a "wallet", "balance", "top-up" or "funds".**
+
+This is recorded as **DEC-021 (Match Ticketing)**. It replaces the wallet parts of DEC-011, DEC-018 and DEC-019. Record it word for word in the ticket breakdown.
+
+## Part A: Match Ticketing (DEC-021)
+
+### A1. Quick matches (non-team): pay when you claim a position
+1. A player taps an open position, sees a confirm sheet (match, venue, kickoff, position, **R80**, the cancellation policy in plain words and a required "I understand the cancellation policy" tick), then taps **Pay R80 · Card / Instant EFT**. Paystack hosted checkout opens.
+2. While they pay, the position is **held for 10 minutes** (shown as "Being booked" to others). If checkout doesn't complete, the hold is released automatically by a durable job.
+3. The player is placed in the position **only after a server-verified payment** (webhook or server-side verify). A client "success" redirect never confirms anything.
+4. **Late payment edge case:** if the payment confirms after the hold expired and the position or the match is gone, the player gets an **automatic full refund** to the original method (not a credit) plus an email saying why.
+5. One Paystack transaction = one ticket. Metadata: `matchId`, `ticketId`, `positionId`, venue, kickoff. Customer receipt and line item say "FootyFinder match ticket: <venue>, <date time>".
+6. Free matches ("On FootyFinder"): an R0 ticket, no checkout, same placement rules. The promotions ledger stays as it is.
+7. Subs pay R80 too (DEC-018 unchanged).
+
+### A2. Player leaves a quick match
+- **More than 24 hours before kickoff:** the player chooses between
+  - **1 match credit** (recommended, the highlighted button: "Use it on any match"), or
+  - **Refund R80 to my card / bank** (Paystack Refund API, original method).
+- **24 hours or less before kickoff:** no refund and no credit. The spot is released for someone else to buy. The leave sheet says so clearly before they confirm.
+- **After the T-30 lock:** the player can't leave (unchanged).
+- The **old 12-hour rule and the "replacement credit" rule are removed.**
+
+### A3. Match cancelled by FootyFinder, the venue, the Host, or automatically at T-30
+- Every ticket holder gets the **choice: 1 match credit or a full refund.** They get an in-app and email alert with both buttons.
+- **If they don't choose within 7 days, they're refunded automatically.** We never quietly turn money into credit, because silent credit causes chargebacks.
+- The T-30 go/no-go rule (every position filled + a referee assigned) is unchanged for quick matches.
+- Matches abandoned after kickoff: no refund (unchanged).
+
+### A4. Match credits (replace the wallet)
+- A credit is counted in **matches, not rands**: "You have 2 match credits." **1 credit = 1 ticket** to any paid match, whatever its price. Never show a rand value.
+- A credit can be used at checkout instead of paying. When a player has credits, the confirm sheet shows "Use 1 match credit" as the main button, with "Pay R80 instead" below it.
+- Credits are **personal and non-transferable**, can't be bought, and **can't be cashed out once chosen**. The refund choice happens at the moment of leaving or cancellation, not afterwards.
+- **Expiry: at least 3 years from issue** (Consumer Protection Act s63 minimum for prepaid vouchers). Recommend simply "valid for 3 years".
+- Every credit is a ledger entry (issued / used / expired) linked to the ticket it came from, for reconciliation and audit.
+- A credit used on a match that is later cancelled is returned as a credit (it was never cash).
+
+### A5. Team matches: pay for named teammates
+Replaces the Team Wallet and fill meter.
+- Team fee = R80 × (starters + that team's chosen subs) (DEC-019 unchanged).
+- When a squad member taps **Pay match fee**, show a **named roster checklist**, not a "how many people?" prompt:
+
+```
+Select who you are paying for:
+
+[✓] Myself (Sibulele) ................. R80
+[✓] Sipho Ndlovu (Unpaid) ............. R80
+[✓] Thabo Mokoena (Unpaid) ............ R80
+[ ] David Khumalo (Unpaid) ............ R80
+[ ] Lwazi Jacobs (Unpaid) ............. R80
+
+Total: R240
+[ PAY R240 VIA CARD / INSTANT EFT ]
+```
+
+- Already-paid players show "Paid by Thabo" and can't be ticked. Players another person is currently paying for show "Being paid for" (10-minute hold, like A1), so nobody pays twice. If a double payment slips through anyway, the extra seat is refunded automatically.
+- One Paystack transaction can cover several players. Each covered player gets their own ticket with `payerId` and `playerId`. Refunds are partial (`amount` on the Refund API), **always to the payer, never to the player.**
+- Players can use their own match credit for **their own seat only**.
+- The team page shows a progress bar of named players: "11 of 14 paid · R240 still needed".
+- **Deadlines (recommended, CEO to confirm in D1):**
+  - **Team payment deadline: T-4 hours.** At T-4h, if the team isn't fully paid, the **captain** (and the HOME host) gets an in-app + email + push alert: "Pay the remaining R160 by 13:30 to confirm your team." The captain gets the same named checklist with the unpaid players pre-ticked.
+  - **Final cutoff: T-2 hours.** Still not fully paid → the fixture is cancelled automatically, and every payer gets the A3 choice (credit or refund) for each seat they paid for.
+  - Why not "cutoff at T-2h then 2 more hours for the captain": that runs into kickoff and the T-30 lock, and the venue and referee need notice.
+- A player who leaves a team match: same 24-hour rule as A2, but the credit or refund goes **to whoever paid for that seat**. If the payer isn't the player, both get an email.
+- A team withdrawing (loading team) or HOME cancelling: A3 applies to every payer.
+
+### A6. Remove the wallet completely
+- Remove: top-ups (R50–R5,000, quick picks R200/R400/R800), Undo top-up, team wallet contributions and take-backs, fill meter, field-booking funding pools if they only serve the wallet (check `modules/bookings`), the negative-balance spending restriction, and every "wallet / balance / funds / top up" string in web, admin, emails and ToS.
+- The **Wallet** page becomes **Tickets & credits**: upcoming tickets, past tickets, credits (with expiry), refunds and their status, and the payment method used.
+- Data: we are pre-launch and there is no real money. **Additive migrations only.** Keep old wallet tables read-only for history (or retire them through an additive migration). The local `footy_finder` mock world must keep working: convert mock balances to match credits or zero them in a dev-only script, Claude Code to propose (D-decision). **Never reset the local DB.**
+- Admin finance: replace wallet reconciliation with **ticket reconciliation** (every confirmed ticket has a verified provider transaction or a credit or an R0 free-match reason; every refund matches a provider refund event; credits issued = used + expired + outstanding).
+
+### A7. Refunds
+- Paystack Refund API with `amount` for partial refunds. Handle `refund.pending / processing / needs-attention / failed / processed` webhooks idempotently.
+- Reuse the existing **NEEDS_ATTENTION** flow for bank-method refunds (admin "retry with customer bank details"; details sent to Paystack, never stored).
+- A failed refund never silently becomes a credit. It stays in the admin "Refunds needing attention" queue.
+- FootyFinder absorbs fees (unchanged). Note that providers may not return the original fee on a refund, which is one more reason the credit is the highlighted option.
+
+### A8. Chargeback protection (what providers will ask about)
+- Required policy tick at checkout, stored with a timestamp, ToS version, IP and user agent.
+- An emailed **ticket receipt** straight after payment (match, venue, address, kickoff, position, amount, cancellation policy, "Manage my ticket" link).
+- **No new reminder notifications** (CEO decision: keep notifications to a minimum). The 24-hour rule is shown clearly **before they pay** (confirm sheet + required tick) and repeated in the ticket receipt email. The existing T-2h reminder stays as it is.
+- Billing descriptor / statement name set to something recognisable, e.g. `FOOTYFINDER MATCH`. Document this in the Gate 6 runbook (it's a Paystack dashboard setting).
+- Paystack **dispute webhooks** (`charge.dispute.create` / `remind` / `resolve`) → an admin **Disputes** queue with an auto-built **evidence pack**: ticket, policy acceptance record, emails sent, the referee's attendance record (who played / who didn't), and any cancellation or refund history. A disputed ticket's player is flagged; booking is restricted until the dispute is resolved.
+
+### A9. ToS and copy
+Per the CLAUDE.md rule, update `docs/legal/TERMS_OF_SERVICE.md` in the same work: payments become ticket purchases, the 24-hour rule, credits (3-year validity, non-transferable, no cash value once chosen), the refund-on-cancellation choice and the 7-day auto-refund, team payer rules, team deadlines, disputes. Remove every wallet clause. The version stays v2.4 "Launch version".
+
+### A10. Account deletion (built in commits `1075258`–`5f7a6b9`, runbook `docs/ACCOUNT_DELETION_AND_RETENTION_RUNBOOK_2026-10-02.md`)
+Adapt it to tickets:
+- Unused match credits → a warning in the delete summary. Recommended: credits are forfeited on deletion, and the screen says so and offers "Use your credits first".
+- Upcoming paid tickets follow the normal A2 rules (more than 24h before kickoff: the delete flow asks credit-or-refund, and because credits are forfeited it defaults to the refund; 24h or less: forfeited, and the summary says so).
+- Pending refunds and open disputes remain blockers.
+- Remove the "Team Wallet money back to wallet, then refund the balance across top-ups newest first" step at day 14, and **remove finance's "Return to wallet" option on closure refunds** (it leaves money in a deleted account). A closure refund is either retried to the original method or retried with bank details through NEEDS_ATTENTION.
+- Update ToS 20.2 ("Your money on closure") to the ticket wording.
+
+Decisions D1-D19, as approved by the CEO on 2026-10-02 (word for word, from the approved plan; D11 as changed below):
+
+**D1. Team deadlines (A5).** Recommend accepting the brief:
+- **T-4h:** if the team isn't fully paid, the captain and the HOME host get an in-app alert and an email: "Pay the remaining R160 by 13:30 to confirm your team". The alert links to the checklist with the unpaid players pre-ticked.
+- **T-2h:** if the team is still not fully paid, the fixture is cancelled automatically and every payer gets the A3 choice for each seat they paid for.
+
+How the details would work:
+- *"Fully paid"* means a confirmed ticket for every place in that team's fee (starters + its chosen subs).
+- Subs can be changed until T-2h, but never below the number already paid for. No refunds come from a subs change.
+- A player who leaves before T-2h frees their place. Within 24h of kickoff their ticket is forfeited and the place must be bought again, or the subs lowered.
+- After the T-2h check passes, it is not repeated. A player leaving between T-2h and T-30 just forfeits, and the team plays short or brings on a sub.
+- The T-30 check for team matches is unchanged otherwise: a referee is assigned, and on an "Open to both" individuals side every starting position is claimed.
+- The 48h "Teams only" warning and the T-24h unmatched cancel are unchanged.
+
+**D2. Push notifications.** The brief asks for "in-app + email + push" at T-4h. **The app has no push infrastructure** (no web-push or FCM). Recommend in-app + email only for this batch, with push as a separate later decision. Building push is a new subsystem with its own consent and privacy wording.
+
+**D3. Credit expiry.**
+- **Valid for 3 years from issue**, shown as "Valid until 2 Oct 2029".
+- The oldest credit is used first.
+- A nightly job marks expired credits with an EXPIRED ledger entry.
+- **No expiry reminder**, per your no-new-notifications rule.
+- A credit returned because a credit-paid match was cancelled is issued as **a new credit valid 3 years from its return**. One rule ("3 years from issue") is simplest to state and audit.
+
+**D4. Late leavers when the match is later cancelled.** A player who left within 24h has forfeited their ticket. Recommend: **if that match is later cancelled before kick-off, they also get the A3 choice.** This carries forward today's ToS 14.3 promise ("any R80 not yet credited is refunded under 14.1"), so it is not a new commitment. It also avoids keeping R80 for a match that never happened, which is a classic chargeback trigger.
+
+**D5. Late payment (A1.4).** The payment confirms after the 10-minute hold expired:
+- **Same position still free and match still open:** place the player as normal.
+- **Position taken, match cancelled or locked (T-30), or player no longer eligible:** automatic **full refund** plus an email saying why. Eligibility covers overlap, girls-only and first-timers.
+
+We never put a player in a position they didn't choose. A sub-place purchase is placed if any sub place is free.
+
+**D6. Team roster rules (A5).**
+- The checklist lists the side's **named lineup** (starters + selected subs) first, then other squad members.
+- **Paying for a player is what confirms their seat.**
+- Any squad member can pay, for themselves and for others. Credits can pay only for your own seat.
+- The captain can still swap paid players between starter and sub. The captain **cannot remove a paid player** from the lineup; the player must leave themselves, and the 24h rule pays the payer.
+- At kick-off, only ticket holders can be in the Lineup Record.
+- A payer who later leaves the team stays the payer: refunds and credits still go to them.
+
+**D7. Publishing a team match.** The "team wallet ≥ fee" check can't exist any more. Recommend:
+- **no money check at publish**;
+- keep the "at most 2 published matches waiting for an opponent" limit;
+- "Load my team" also has no money check.
+
+The T-4h and T-2h deadlines do the enforcement.
+
+**D8. Credit-paid and free tickets.**
+- A credit-paid ticket that is left (more than 24h before) or cancelled **returns as a credit automatically**, with no refund choice, because it was never cash.
+- An R0 free-match ticket gets nothing back, as today (13.11).
+
+**D9. Payment disputes (A8).** On `charge.dispute.create`:
+- the payer is flagged and **can't buy tickets or use credits** until the dispute is resolved;
+- **tickets in that payment stay valid**, so teammates who didn't dispute aren't punished;
+- we contest with the evidence pack.
+
+Resolution:
+- **Won:** the flag lifts automatically.
+- **Lost:** the flag stays until an admin lifts it, with a reason, fresh MFA and an audit entry.
+
+The old wallet reversal and negative balance disappear.
+
+**D10. Reminders.** No new reminders (A8).
+- **Retire** the team "kick-off -2h fill meter" reminder (`TEAM_METER_REMINDER`). The T-4h alert replaces it.
+- The quick-match T-2h "positions still open" reminder stays exactly as it is.
+
+**D11. Account deletion (A10). CEO-CHANGED AND APPROVED (2 Oct 2026):**
+- On deletion, each unused match credit that came from a paid ticket is **REFUNDED** to the original payment method of that ticket. The refund is R80, partial, and goes to the payer.
+  - Provenance is traced through returned credits back to the root paid ticket.
+  - If the provider can't refund it, it becomes a NEEDS_ATTENTION finance case.
+- There is **no forfeiture tick**.
+- Credits with no cash origin (DEV_SEED, future goodwill) lapse on deletion, with a FORFEITED ledger entry.
+- The delete summary shows "Your 2 unused match credits will be refunded to your card/bank", and lists any lapsing non-cash credits separately.
+- Upcoming tickets:
+  - more than 24h out: refunded to the original method when deletion is confirmed;
+  - 24h or less: forfeited, and the summary says so.
+- The day-14 step waits for both the credit refunds and the ticket refunds (processed, or handed to finance through NEEDS_ATTENTION). The contact email is kept for that, as today.
+- **The same rule applies when FootyFinder closes an account** (20.6), and when a player closes instead of accepting new Terms (25.3).
+- Update ToS 20.2 and 20.6 (and 25.3), and the deletion runbook, to match.
+
+**D12. Mock-world conversion (dev-only script, never resets the DB).** Add `npm run dev:tickets-cutover`, guarded by the existing `dev-mock/guard.ts` (localhost `footy_finder` only). It:
+1. cancels every **upcoming** DEV SEED match that has wallet-paid players, with no money step (dev-only reason `DEV_TICKETING_CUTOVER`);
+2. leaves all wallet and team-wallet rows untouched as read-only history;
+3. issues **2 match credits** to each mock player and to `--me`, with source `DEV_SEED`, so credit checkout can be tested;
+4. switches `dev:seed-mock` to tickets (demo checkout), so `--reset-mock` and a new round create fresh scenarios A–E with paid tickets.
+
+Past matches, results and stats stay.
+
+**D13. Old wallet data.**
+- Tables stay read-only. Routes are removed (404). There is no admin legacy screen.
+- Old rows appear in "Download my data" as "Earlier payment records".
+- No production database holds any of this data (pre-launch).
+
+**D14. Payment records (technical, your OK only).** Recommend **reusing** `ProviderPayment`, `ProviderRefund` and `ProviderDispute`, with a `purpose` column (TOP_UP for legacy, TICKETS for new).
+- The wallet links become optional, through an additive migration that relaxes NOT NULL.
+- A CHECK keeps legacy rows exactly as strict as today.
+- This keeps the tested refund, NEEDS_ATTENTION, bank-details and webhook code.
+- The alternative, brand-new tables, duplicates all of that.
+
+**D15. Policy-acceptance record (A8).** For each checkout, store:
+- the time;
+- the ToS version;
+- the policy wording shown;
+- the **raw IP and user agent**, not a hash, because chargeback evidence needs them.
+
+Keep these with the financial records for 5 years. ToS clause 8 already lists IP and device data; the retention table gets one line.
+
+**D16. Leaderboard tie-breakers (B3).** As the brief, with two specifics:
+- *"Reached first"* means the **kick-off time of the match in which the player reached their current total**. Referee submission time would reward fast referees.
+- **Final fallback** for a truly identical record: whoever joined FootyFinder first. It is deterministic and not alphabetical.
+
+Display:
+- strictly 1, 2, 3…, with no shared ranks;
+- **top 10**, down from 20, plus "Your position: 14th";
+- subtitle example: "Ranked by goals; ties go to fewer matches, then assists, then whoever got there first".
+
+**D17. Kit colour list (B1).** 18 swatches, stored as today (hex):
+White `#FFFFFF`, Black `#111111`, Grey `#8A8F98`, Red `#D7262E`, Maroon `#7A1F2B`, Orange `#F26B1D`, Gold `#C9A227`, Yellow `#FFD400`, Lime `#A3D936`, Green `#1E8E3E`, Dark green `#0B5D2A`, Sky blue `#6CB4EE`, Royal blue `#1F4EB4`, Navy `#14213D`, Purple `#5B2A86`, Pink `#EC5FA0`, Brown `#6B4226`, Cream `#F2E8CF`.
+
+- **New team default:** Green and White.
+- **The API accepts only these values** from now on.
+- **Existing teams:**
+  - a one-off script (`teams:map-kit-colours`, dry run first, then apply, audited) maps each team colour to the **nearest swatch by perceptual distance** (CIE Lab ΔE);
+  - the web also maps any unknown value at display time, as a safety net;
+  - past `MatchTeam` colour snapshots are left as history.
+  - Example: mock Wanderers `#1D4ED8`/`#FACC15` → Royal blue/Yellow; Observatory → Red/White.
+- **Similar-colour warning:** shown when the two colours are the same, or their contrast is below 1.5:1 (for example Navy on Black). It warns but does not block.
+
+**D18. Audit retention (B4).**
+- The new category covers `AdminAuditLog` (the "records of actions" row). Match history logs stay with match history.
+- `AdminAuditLog_append_only` blocks DELETE today. Safest additive change: `CREATE OR REPLACE` the trigger function so it allows DELETE **only** when:
+  - the row is older than 5 years, **and**
+  - the retention job set a transaction-local flag (`SET LOCAL footy.audit_purge = 'on'`).
+- UPDATE stays blocked. Nothing newer than 5 years becomes deletable.
+- The job also skips entries linked to an open payment dispute, a refund still in progress, an unsettled deletion case, or an open moderation case.
+- Report-only by default. Switching to purge needs fresh MFA (the existing flow).
+
+**D19. ESLint (B2).** The repo has **no ESLint at all**, and `lint` is just `tsc`. Recommend a minimal flat config in web and admin with only `no-alert` and `no-restricted-globals` (confirm/alert/prompt).
+- This adds dev dependencies (`eslint`, `typescript-eslint`) and so **changes `package-lock.json`**.
+- I need your OK to stage it.
+- Fallback with no new dependencies: a guard test that fails if any `confirm(`, `alert(` or `prompt(` appears in source.
+
+**Smaller choices, done as described unless you object:**
+- **Admin naming:** the new admin page is **"Payment disputes"**, and today's result/booking "Disputes" page is renamed "Booking disputes".
+- **Choice deadline:** the 7-day window runs from the cancellation alert. The alert and the email both carry "Get a credit" / "Refund to my card / bank" buttons, plus "apply to all my seats" for payers who paid for several seats.
+- **Refund timing:** a refund on leaving or on choice is sent to Paystack immediately, and its status shows on Tickets & credits.
+- **Settings:** the 10-minute hold, 24h rule, 7-day choice and 3-year expiry are fixed constants in `packages/shared`, not environment settings. `TOP_UP_*` env vars are retired.
+- **What Paystack can show:** the receipt text "FootyFinder match ticket: <venue>, <date time>" goes in Paystack `metadata.custom_fields`. That is the only line-item text Paystack's hosted checkout and receipt can show. Our own emailed ticket receipt (A8) carries the full detail.
+
+---
+
+CEO approval (verbatim, 2026-10-02):
+"Approved D1–D19 as written, with one change:
+
+D11 changed: on account deletion, unused match credits that came from a
+paid ticket are REFUNDED to the original payment method of the ticket they
+came from (NEEDS_ATTENTION / finance case if the provider can't). No
+forfeiture tick. Credits with no cash origin (DEV_SEED, future goodwill)
+lapse on deletion. The delete summary shows "Your 2 unused match credits
+will be refunded to your card/bank". The day-14 step waits for these
+refunds like the ticket refunds. Same rule when FootyFinder closes an
+account (20.6). Update ToS 20.2/20.6 and the deletion runbook to match.
+
+Smaller choices approved. Go ahead with the build in the order given:
+one commit per item, files staged by name, no push. Stop and ask me if
+anything during the build would change an approved decision."
+
+Applied as approved: D11 is the CEO's changed wording above (credits that came from a paid ticket are refunded on deletion and on closure by FootyFinder; non-cash credits lapse), not the forfeiture tick in the plan text.
+
+
 3A. CROSS-CUTTING APPROVED PRODUCT/UX RULES
 ============================================
 
-- Navigation: put My Profile, Wallet, and Sign out in the authenticated header/avatar account menu. Keep Matches and Teams primary; add Social as a primary area when Gate 9 ships. (Gate 9, 2026-09-30: Social replaced Messages in the main nav; DMs are its DMS tab and old /messages links still work.)
+- Navigation (Wallet replaced by "Tickets & credits" under DEC-021, 2026-10-02): put My Profile, Wallet, and Sign out in the authenticated header/avatar account menu. Keep Matches and Teams primary; add Social as a primary area when Gate 9 ships. (Gate 9, 2026-09-30: Social replaced Messages in the main nav; DMs are its DMS tab and old /messages links still work.)
 - Preferred positions: allow up to four unique ordered values; the first is primary.
 - Onboarding order: credentials -> verify email -> DOB/city/experience/positions/photo -> current legal acceptance -> activate profile.
 - Experience: required whole years from 0 through 60, user-editable and visible only on authenticated profiles.
@@ -554,7 +839,7 @@ Implementation notes:
 - Friendship: authenticated minimal-card search by username/name/city, preferences/rate limits, one pending request per pair, 30-day expiry, 20 new requests/day, 100 pending outgoing maximum, and an option to disable incoming requests. CEO Gate 9 (2026-09-30): the 20/day limit does not count requests to players who shared a match Lineup Record (either side); a declined requester may ask again at any time (D6); "Add friend" shows everywhere another player appears; finished matches show "Players you played with" with Add all.
 - Blocking: bilateral discovery/social invisibility and no requests/DMs/targeted invites/notifications. Shared teams/matches keep only the operational identity required by roster/lineup/result; blocking does not silently remove either user. (Gate 9, D9/D10: the blocked player is never told; DM history stays but no new messages; Lobby/Team chat messages from a blocked player are hidden until shown; blocking also hides recruitment posts and looking cards both ways.)
 - Team chat: one permanent team-owned conversation. Current members can read/send retained history; removed members immediately lose all access. Generate one first-unread in-app notification, suppress self/duplicates until read, and do not email chat.
-- Advanced escrow: TKT-906 is SUPERSEDED BY DEC-019 AND NOT TO BE BUILT (CEO, 2026-09-30). Team fees are held in each team wallet through the fill meter and captured once at the T-30 go/no-go (Gate 7).
+- Advanced escrow: TKT-906 is SUPERSEDED BY DEC-019 AND NOT TO BE BUILT (CEO, 2026-09-30). Since DEC-021 (2026-10-02) team fees are match tickets paid for named teammates; there is no team wallet or fill meter.
 - Advanced player statistics: TKT-907 remains deferred for attendance, POTM, player ratings and captaincy history. Assists were delivered in Gate 8 under DEC-020 (recorded by the referee, corrected only by an admin).
 - One match at a time (TKT-908, CEO 2026-09-30, found in live testing): a player cannot join a match, be selected in a team lineup, or be loaded with a team into a match whose window (kickoff to scheduled end + 30 min) overlaps another match they are in as a player (any side, including subs) or as its referee. A referee may still play in the match they referee (DEC-020 D17). Existing overlaps are left alone; retired team planning fixtures never count.
 - Guest browsing (TKT-910, CEO 2026-09-30): anyone can browse read-only without an account: public matches (counts only before kickoff), played results with scorers, venue pages, team pages, player profiles and the recruitment board. Every action that needs a profile shows "Sign up to play" and returns to the same page after sign-up and onboarding. Enforced by the server through guest-safe /public routes.
