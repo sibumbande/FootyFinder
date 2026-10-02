@@ -65,6 +65,8 @@ teamsRouter.post('/:teamId/join-requests/:requestId/accept', social.acceptJoinRe
 teamsRouter.post('/:teamId/join-requests/:requestId/decline', social.declineJoinRequest);
 teamsRouter.patch('/:teamId/members/:userId', controller.updateMemberRole);
 teamsRouter.delete('/:teamId/members/:userId', controller.removeMember);
+// Account deletion (item 1): the Owner hands the Team to a Captain.
+teamsRouter.post('/:teamId/transfer-ownership', costlyMutationRateLimit, controller.transferOwnership);
 teamsRouter.post('/:teamId/invites', costlyMutationRateLimit, controller.createInvite);
 teamsRouter.get('/:teamId/invites', controller.listInvites);
 teamsRouter.delete('/:teamId/invites/:inviteId', controller.revokeInvite);

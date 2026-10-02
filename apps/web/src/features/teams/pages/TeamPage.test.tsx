@@ -66,6 +66,7 @@ vi.mock('../hooks/useTeams.js', () => ({
   useTeamMemberMutation: () => ({
     role: { mutate: vi.fn(), error: null },
     remove: { mutate: vi.fn(), error: null },
+    transfer: { mutate: vi.fn(), error: null },
   }),
   useUpdateTeam: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   useUploadTeamImage: () => ({ mutate: vi.fn(), error: null }),

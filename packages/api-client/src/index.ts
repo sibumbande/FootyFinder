@@ -21,3 +21,4 @@ export * from './team-reviews.js';
 export * from './social.js';
 export * from './recruitment.js';
 export * from './public.js';
+export * from './account.js';

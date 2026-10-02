@@ -224,6 +224,26 @@ export function PlayerProfilePage() {
           </div>
         </form>
       )}
+      {mine && (
+        <div className="rounded-3xl border border-line bg-surface p-6 shadow-soft">
+          <h2 className="text-xl font-bold text-content-strong">Account settings</h2>
+          <p className="mt-1 text-sm text-content-muted">
+            Your rights over your data are explained in the{' '}
+            <Link className="font-bold text-brand-700 hover:underline" to="/legal/terms#clause-8-7">
+              Privacy Notice (clause 8.7)
+            </Link>
+            .
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              className="rounded-xl border border-danger-600 px-4 py-2 text-sm font-bold text-danger-700 hover:bg-danger-50"
+              to="/account/delete"
+            >
+              Delete my account
+            </Link>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

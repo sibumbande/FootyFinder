@@ -1,3 +1,4 @@
+import type { AccountStatus } from '../../generated/prisma/client.js';
 import type { AuthenticatedUser, FootballPosition, PublicUser } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 
@@ -5,7 +6,7 @@ type SafeUserSource = {
   id: string;
   email: string;
   username: string;
-  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  accountStatus?: AccountStatus;
   platformRole?: 'USER' | 'ADMIN';
   /** Active referee grants only (safeUserInclude filters revokedAt null). */
   refereeGrants?: Array<{ id: string }>;

@@ -98,7 +98,11 @@ export function useTeamMemberMutation(teamId: string) {
     mutationFn: (userId: string) => teamsClient.removeMember(teamId, userId),
     onSuccess: refresh,
   });
-  return { role, remove };
+  const transfer = useMutation({
+    mutationFn: (userId: string) => teamsClient.transferOwnership(teamId, userId),
+    onSuccess: refresh,
+  });
+  return { role, remove, transfer };
 }
 export const useTeamInvites = (teamId: string, enabled: boolean) =>
   useQuery({

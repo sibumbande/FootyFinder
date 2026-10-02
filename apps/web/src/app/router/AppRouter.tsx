@@ -42,6 +42,8 @@ import { WalletPage } from '@/features/wallet/pages/WalletPage.js';
 import { TopUpReturnPage } from '@/features/wallet/pages/TopUpReturnPage.js';
 import { RefereePage } from '@/features/referee/pages/RefereePage.js';
 import { RefereeMatchPage } from '@/features/referee/pages/RefereeMatchPage.js';
+import { DeleteAccountPage } from '@/features/account/pages/DeleteAccountPage.js';
+import { DeletionScheduledPage } from '@/features/account/pages/DeletionScheduledPage.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
@@ -59,6 +61,9 @@ export function AppRouter() {
         <Route path="/confirm-email-change" element={animated(<ConfirmEmailChangePage />)} />
         <Route path="/waiting-list" element={animated(<WaitingListPage />)} />
         <Route path="/legal/:document" element={animated(<LegalPage />)} />
+        <Route element={<Layout />}>
+          <Route path="/account/deletion-scheduled" element={animated(<DeletionScheduledPage />)} />
+        </Route>
         {/* CEO touch-up batch 2, item 5: the shared match link sits in the normal layout for everyone. */}
         <Route element={<Layout />}>
           <Route path="/m/:slug" element={animated(<PublicMatchPreviewPage />)} />
@@ -89,6 +94,7 @@ export function AppRouter() {
             <Route path="/teams" element={animated(<MyTeamsPage />)} />
             <Route path="/teams/create" element={animated(<CreateTeamPage />)} />
             <Route path="/teams/:teamId/matches/new" element={<RetiredTeamFixtureRedirect />} />
+            <Route path="/account/delete" element={animated(<DeleteAccountPage />)} />
             <Route path="/wallet" element={animated(<WalletPage />)} />
             <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />

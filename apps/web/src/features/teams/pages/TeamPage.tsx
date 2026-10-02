@@ -218,6 +218,28 @@ function Squad({ team }: { team: TeamDetail }) {
               >
                 {member.role === 'CAPTAIN' ? 'Demote' : 'Promote'}
               </Button>
+              {member.role === 'CAPTAIN' && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Make ${member.user.displayName} the Owner? You will stay on as a Captain.`,
+                      )
+                    )
+                      management.transfer.mutate(member.userId, {
+                        onSuccess: () =>
+                          notify({
+                            variant: 'success',
+                            title: 'Ownership transferred',
+                            message: `${member.user.displayName} is now the Owner. You are a Captain.`,
+                          }),
+                      });
+                  }}
+                >
+                  Make Owner
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 onClick={() => {
@@ -231,7 +253,13 @@ function Squad({ team }: { team: TeamDetail }) {
           )}
         </article>
       ))}
-      <FormError message={management.role.error?.message ?? management.remove.error?.message} />
+      <FormError
+        message={
+          management.role.error?.message ??
+          management.remove.error?.message ??
+          management.transfer.error?.message
+        }
+      />
     </div>
   );
 }

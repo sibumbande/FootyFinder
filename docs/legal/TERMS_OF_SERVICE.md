@@ -345,7 +345,7 @@ Search engines may list these public pages. Before a match is played, people wit
 
 ### Teams
 
-**12.1 Creating a Team.** Any user with an active player profile may create a Team and becomes its Owner. The Owner may make members Captains and change them back, remove members, change the Team's details and close the Team. The Owner and Captains may invite people to join through an invite link, or invite one player personally in the app: a friend of theirs (clause 18.7), or a player whose "Looking for a team" card is on (clause 18.9). A personal invite expires after fourteen (14) days if the player does not answer, and only one can be waiting for the same player and Team at a time. The player accepts or declines it; a player who accepts joins the Team as a member in the same way as through an invite link. No invite can be sent between players where one has blocked the other (clause 18.8).
+**12.1 Creating a Team.** Any user with an active player profile may create a Team and becomes its Owner. The Owner may make members Captains and change them back, remove members, change the Team's details and close the Team. The Owner may also make a Captain the Owner; the former Owner then stays in the Team as a Captain. The Owner and Captains may invite people to join through an invite link, or invite one player personally in the app: a friend of theirs (clause 18.7), or a player whose "Looking for a team" card is on (clause 18.9). A personal invite expires after fourteen (14) days if the player does not answer, and only one can be waiting for the same player and Team at a time. The player accepts or declines it; a player who accepts joins the Team as a member in the same way as through an invite link. No invite can be sent between players where one has blocked the other (clause 18.8).
 
 **12.2 Authority of the Owner and Captains.** A Team's Owner and its Captains act for their own Team only. They may create Team Matches for the Team, load the Team into the Other Side of another Team's match, choose the Team's substitutes and lineup, fill the Team's Fill Meter from the Team Wallet, and withdraw or cancel as set out in clauses 12.14 and 12.15. A Captain who is demoted or removed loses this authority immediately. By joining a Team you authorise its Owner and Captains to do these things on your behalf. FootyFinder's administrators do not act for a Team.
 
@@ -444,6 +444,8 @@ Once a match has kicked off, fees are not refunded if the Referee (or FootyFinde
 | Less than 30 minutes before kick-off (Lobby locked) | You cannot leave. If you do not attend, no refund is due |
 | No-show without notice | No refund. Repeated no-shows may, after a warning, affect your access to bookings |
 | Substitute who does not get on the pitch | No refund (clause 11.5) |
+
+If you delete your Account (clause 20.1), you leave each upcoming match at the moment you confirm, and this table applies as if you had left it yourself.
 
 **14.4 Why late cancellations are not refunded.** A late withdrawal is unlikely to be filled in time, leaves the remaining players short, and puts the match at risk of cancellation for everyone. If the match goes ahead, it costs the same to run. The amount kept reflects our actual loss and is not a penalty.
 
@@ -563,7 +565,13 @@ You may not:
 
 ## 20. Suspension, Termination and Closing Your Account
 
-**20.1 Closing your Account.** You may close your Account at any time by contacting support. Closing your Account does not cancel matches you have already joined; clause 14 applies to those.
+**20.1 Closing your Account.** You may delete your Account at any time in the app (Account settings, "Delete my account"), confirming with your password, or by contacting support. Before you confirm, the app shows what will happen to your matches, Teams and money, and anything that must be settled first. You cannot delete your Account in the app while:
+- you are in a match from 30 minutes before kick-off until it ends (the Lobby is locked or the match is being played);
+- you are hosting an upcoming match that other players have joined (you may cancel it under clause 14.1);
+- you own a Team that still has other members, Team Wallet money or an upcoming Team Match (make a Captain the Owner under clause 12.1, or close the Team under clause 12.5); or
+- a payment of yours is disputed, your Wallet is below zero, a top-up is still being confirmed, or a refund to your card or bank account is still in progress.
+
+Administrators, Referees and suspended or banned Accounts cannot delete their Account in the app and must contact support. When you confirm, you leave your upcoming matches under clause 14.3, you are taken out of the lineups of upcoming Team Matches, an upcoming match you host that nobody has joined is cancelled, and your Account is deleted fourteen (14) days later.
 
 **20.2 Your money on closure.** When your Account is closed, we refund your unspent Wallet balance to the card or bank account you paid with, less any amount lawfully due to us. If that is not possible, our finance team contacts you to arrange it. Your own unspent Team Wallet contributions can be returned to your Wallet first (clause 12.4).
 

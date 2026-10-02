@@ -193,6 +193,31 @@ export class TeamsRepository {
       include: memberInclude,
     });
   }
+  /**
+   * Account deletion (item 1): the Owner hands the Team to one of its Captains. The old Owner stays
+   * on as a Captain. Locks the team so two transfers (or a transfer and a close) cannot interleave.
+   */
+  transferOwnership(teamId: string, ownerUserId: string, captainUserId: string) {
+    return serializableTransaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Team" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
+      const team = await tx.team.findUniqueOrThrow({ where: { id: teamId } });
+      if (team.archivedAt || team.ownerUserId !== ownerUserId) return { outcome: 'NOT_OWNER' as const, notifications: [] };
+      const captain = await tx.teamMembership.findUnique({ where: { teamId_userId: { teamId, userId: captainUserId } } });
+      if (!captain || captain.role !== 'CAPTAIN') return { outcome: 'NOT_CAPTAIN' as const, notifications: [] };
+      await tx.teamMembership.update({ where: { teamId_userId: { teamId, userId: ownerUserId } }, data: { role: 'CAPTAIN' } });
+      await tx.teamMembership.update({ where: { teamId_userId: { teamId, userId: captainUserId } }, data: { role: 'OWNER' } });
+      await tx.team.update({ where: { id: teamId }, data: { ownerUserId: captainUserId } });
+      const notifications = await persistNotifications(tx, [{
+        userId: captainUserId,
+        type: 'TEAM_UPDATED' as const,
+        title: 'You are now the Team owner',
+        message: `You are now the Owner of ${team.name}.`,
+        targetPath: `/teams/${teamId}`,
+        dedupeKey: notificationDedupeKey('team', teamId, 'owner', captainUserId, new Date().toISOString()),
+      }]);
+      return { outcome: 'TRANSFERRED' as const, notifications };
+    });
+  }
   async removeMember(teamId: string, userId: string) {
     return serializableTransaction(async (tx) => {
       await tx.teamFormationSlot.updateMany({

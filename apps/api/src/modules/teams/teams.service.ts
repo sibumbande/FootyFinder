@@ -142,6 +142,19 @@ export class TeamsService {
     });
     return member;
   }
+  /** Account deletion (item 1): "Transfer ownership to a Captain". */
+  async transferOwnership(id: string, captainUserId: string, userId: string) {
+    await this.assertOwner(id, userId);
+    const result = await this.teams.transferOwnership(id, userId, captainUserId);
+    if (result.outcome === 'NOT_OWNER')
+      throw new AppError(403, 'Only the Team owner can do that.', 'TEAM_OWNER_REQUIRED');
+    if (result.outcome === 'NOT_CAPTAIN')
+      throw new AppError(409, 'Make this member a Captain first, then make them the Owner.', 'TEAM_CAPTAIN_REQUIRED');
+    this.notifications.publishPersistedMany(result.notifications);
+    emitDomainEventBestEffort('team:member-role-updated', { teamId: id, userId: captainUserId });
+    emitDomainEventBestEffort('team:member-role-updated', { teamId: id, userId });
+    return toTeamDetail(await this.load(id), userId);
+  }
   async removeMember(id: string, memberUserId: string, userId: string) {
     const team = await this.assertOwner(id, userId);
     if (memberUserId === team.ownerUserId)

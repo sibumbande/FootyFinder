@@ -1,3 +1,4 @@
+import type { AccountStatus } from '../../generated/prisma/client.js';
 import { createHash } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { TokenService } from './token.service.js';
@@ -14,7 +15,7 @@ export interface SessionClientMetadata {
 export interface VerifiedSession {
   userId: string;
   sessionId?: string;
-  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  accountStatus: AccountStatus;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
   onboardingComplete: boolean;

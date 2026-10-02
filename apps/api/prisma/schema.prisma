@@ -232,6 +232,19 @@ enum AccountStatus {
   ACTIVE
   SUSPENDED
   BANNED
+  /// CEO batch 5: deactivated during the 14-day deletion grace period (signing in cancels it).
+  PENDING_DELETION
+  /// CEO batch 5: anonymised after the final step; the row stays as an anonymous ID.
+  DELETED
+}
+
+/// CEO batch 5: self-service account deletion (see AccountDeletionRequest).
+enum AccountDeletionStatus {
+  BLOCKED
+  GRACE
+  WAITING
+  COMPLETED
+  CANCELLED
 }
 
 enum PlatformRole {
@@ -668,6 +681,8 @@ model User {
   removedLookingCards       PlayerLookingCard[]       @relation("LookingCardRemover")
   teamJoinRequests          TeamJoinRequest[]         @relation("JoinRequester")
   answeredJoinRequests      TeamJoinRequest[]         @relation("JoinRequestResponder")
+  deletionRequests          AccountDeletionRequest[]  @relation("DeletionRequestUser")
+  settledDeletionRequests   AccountDeletionRequest[]  @relation("DeletionRequestFinanceSettler")
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -2502,4 +2517,34 @@ model TeamJoinRequest {
   @@index([userId, status])
   @@index([teamId, status])
   @@index([postId, status])
+}
+
+/// CEO batch 5, items 1-3 and 6: a self-service deletion request. contactEmail is finance-only (D2) and is
+/// erased once every closure refund is settled and the final email has been sent.
+model AccountDeletionRequest {
+  id                 String                @id @default(uuid()) @db.Uuid
+  userId             String                @db.Uuid
+  status             AccountDeletionStatus
+  requestedAt        DateTime              @default(now())
+  scheduledFor       DateTime?
+  cancelledAt        DateTime?
+  completedAt        DateTime?
+  blockedReasons     String[]              @default([])
+  waitingReason      String?
+  lastCheckedAt      DateTime?
+  confirmSummary     Json?
+  refundSummary      Json?
+  uncoveredCents     Int                   @default(0)
+  contactEmail       String?
+  finalEmailSentAt   DateTime?
+  financeSettledAt   DateTime?
+  financeSettledById String?               @db.Uuid
+  financeNote        String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  user               User                  @relation("DeletionRequestUser", fields: [userId], references: [id], onDelete: Restrict)
+  financeSettledBy   User?                 @relation("DeletionRequestFinanceSettler", fields: [financeSettledById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status, scheduledFor])
 }

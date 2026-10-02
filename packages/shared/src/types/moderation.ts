@@ -54,7 +54,7 @@ export interface AccountEnforcement {
 export interface ModerationUserSummary {
   user: PublicUser & {
     email: string;
-    accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+    accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'PENDING_DELETION' | 'DELETED';
     platformRole: 'USER' | 'ADMIN';
     /** CEO touch-up batch 4, item 1: admin-only (user detail), never in public data. */
     gender?: 'MALE' | 'FEMALE' | null;

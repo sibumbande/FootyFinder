@@ -46,6 +46,11 @@ export const teamsApi = (client: ApiClient) => ({
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  transferOwnership: (teamId: string, captainUserId: string) =>
+    client.request<{ data: TeamDetail }>(`/teams/${teamId}/transfer-ownership`, {
+      method: 'POST',
+      body: JSON.stringify({ captainUserId }),
+    }),
   removeMember: (teamId: string, userId: string) =>
     client.request<{ data: { success: true } }>(`/teams/${teamId}/members/${userId}`, {
       method: 'DELETE',

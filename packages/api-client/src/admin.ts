@@ -340,7 +340,7 @@ export const adminApi = (client: ApiClient) => ({
       data: Array<
         PublicUser & {
           email: string;
-          accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+          accountStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'PENDING_DELETION' | 'DELETED';
           platformRole: 'USER' | 'ADMIN';
         }
       >;

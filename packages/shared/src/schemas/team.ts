@@ -40,6 +40,8 @@ export const updateTeamMemberRoleSchema = z.object({
   role: z.enum(TEAM_ROLES).refine((role) => role !== 'OWNER', 'Ownership cannot be assigned here'),
 });
 
+export const transferTeamOwnershipSchema = z.object({ captainUserId: z.string().uuid() });
+
 export const saveTeamFormationSchema = z.object({
   formationKey: z.string().trim().min(1).max(80),
 });

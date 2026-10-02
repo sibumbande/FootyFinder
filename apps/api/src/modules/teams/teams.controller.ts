@@ -3,6 +3,7 @@ import {
   createTeamSchema,
   matchFormatRouteParamSchema,
   saveTeamFormationSchema,
+  transferTeamOwnershipSchema,
   updateTeamFormationSlotSchema,
   updateTeamMemberRoleSchema,
   updateTeamSchema,
@@ -94,6 +95,19 @@ export const updateMemberRole: RequestHandler = async (req, res, next) => {
         teamId(req.params),
         String(req.params.userId),
         updateTeamMemberRoleSchema.parse(req.body).role,
+        userId(res.locals),
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const transferOwnership: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({
+      data: await service.transferOwnership(
+        teamId(req.params),
+        transferTeamOwnershipSchema.parse(req.body).captainUserId,
         userId(res.locals),
       ),
     });
