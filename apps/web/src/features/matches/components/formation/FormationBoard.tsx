@@ -86,6 +86,9 @@ export function FormationBoard({
   reserveLabels,
   claimableSlotIds = [],
   onClaim,
+  buyableSlotIds = [],
+  onBuy,
+  bookedSlotIds = [],
   currentPlayerId,
   sideLabels,
   sideBadges,
@@ -107,6 +110,11 @@ export function FormationBoard({
   /** Open slots the viewer may claim for themselves (DEC-013). Ignored while `canEdit`. */
   claimableSlotIds?: readonly string[];
   onClaim?: (slotId: string) => Promise<unknown>;
+  /** DEC-021 A1: open positions the viewer can buy a ticket for (they are not in the match yet). */
+  buyableSlotIds?: readonly string[];
+  onBuy?: (slotId: string) => void;
+  /** DEC-021 A1.2: positions someone is paying for right now ("Being booked"). */
+  bookedSlotIds?: readonly string[];
   /** The viewer's own player id, used for the optimistic claim and current-user emphasis. */
   currentPlayerId?: string | null;
   /** Text name for each side, used in accessible labels (defaults to Home/Away). */
@@ -131,7 +139,9 @@ export function FormationBoard({
   const [landingSlotId, setLandingSlotId] = useState<string | null>(null);
   const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
   const [claimingSlotId, setClaimingSlotId] = useState<string | null>(null);
-  const claimable = new Set(canEdit || !onClaim ? [] : claimableSlotIds);
+  const booked = new Set(bookedSlotIds);
+  const claimable = new Set(canEdit || !onClaim ? [] : claimableSlotIds.filter((id) => !booked.has(id)));
+  const buyable = new Set(canEdit || !onBuy ? [] : buyableSlotIds.filter((id) => !booked.has(id)));
   const sideLabel = (team: TeamSide) => sideLabels?.[team] ?? (team === 'HOME' ? 'Home' : 'Away');
   const isOpenSlot = (slot: FormationBoardSlot) => Boolean(slot.isOpen || emptySlotsAreOpen);
   const describeSlot = (slot: FormationBoardSlot) => {
@@ -139,6 +149,8 @@ export function FormationBoard({
     if (slot.player)
       return `${base}, occupied by ${slot.player.user.displayName}${slot.playerId === currentPlayerId ? ' (you)' : ''}`;
     if (claimable.has(slot.id)) return `${base}, open, claim it`;
+    if (buyable.has(slot.id)) return `${base}, open, buy a ticket for it`;
+    if (booked.has(slot.id)) return `${base}, being booked by another player`;
     return `${base}, ${isOpenSlot(slot) ? 'open' : 'empty'}`;
   };
   const pitch = useRef<HTMLDivElement>(null);
@@ -518,11 +530,15 @@ export function FormationBoard({
                   void claim(slot);
                   return;
                 }
+                if (!canEdit && buyable.has(slot.id) && !slot.playerId) {
+                  onBuy?.(slot.id);
+                  return;
+                }
                 if (suppressClick.current || !canEdit) return;
                 if (selected) chooseAssignment(slot, selected);
                 else if (slot.playerId) setSelected(slot.playerId);
               }}
-              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${canEdit ? '' : 'formation-marker--static'} ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${claimable.has(slot.id) && !slot.playerId ? 'formation-marker--claimable ring-4 ring-brand-200' : ''} ${isCurrentPlayer ? 'formation-marker--current ring-4 ring-brand-500' : ''} ${claimingSlotId === slot.id ? 'animate-pulse' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
+              className={`formation-marker absolute grid size-12 place-items-center rounded-full border-2 shadow-sm ${canEdit ? '' : 'formation-marker--static'} ${dragging ? 'formation-marker--dragging' : ''} ${dropTargetId === slot.id ? 'formation-marker--drop-target' : ''} ${landingSlotId === slot.id ? 'formation-marker--landing' : ''} ${slot.isOpen ? 'ring-4 ring-warning-300' : ''} ${(claimable.has(slot.id) || buyable.has(slot.id)) && !slot.playerId ? 'formation-marker--claimable ring-4 ring-brand-200' : ''} ${booked.has(slot.id) && !slot.playerId ? 'opacity-70 ring-4 ring-warning-200' : ''} ${isCurrentPlayer ? 'formation-marker--current ring-4 ring-brand-500' : ''} ${claimingSlotId === slot.id ? 'animate-pulse' : ''} ${selected && slot.playerId !== selected ? 'formation-marker--selectable border-brand-200 bg-brand-50' : slot.team === 'HOME' ? 'border-team-home-border bg-team-home-muted text-team-home' : 'border-team-away-border bg-team-away-muted text-team-away'}`}
               style={{
                 left: `${dragging ? playerDrag.positionX : slot.positionX}%`,
                 top: `${dragging ? playerDrag.positionY : slot.positionY}%`,
@@ -546,8 +562,8 @@ export function FormationBoard({
                   <Avatar user={slot.player.user} size="sm" />
                 </span>
               ) : (
-                <span className="pointer-events-none text-[10px] font-black">
-                  {claimable.has(slot.id) ? 'CLAIM' : isOpenSlot(slot) ? 'OPEN' : slot.slotIndex}
+                <span className={`pointer-events-none font-black ${booked.has(slot.id) && !claimable.has(slot.id) && !buyable.has(slot.id) ? 'text-[8px]' : 'text-[10px]'}`}>
+                  {claimable.has(slot.id) ? 'CLAIM' : buyable.has(slot.id) ? 'JOIN' : booked.has(slot.id) && !slot.playerId ? 'BOOKING' : isOpenSlot(slot) ? 'OPEN' : slot.slotIndex}
                 </span>
               )}
               {slot.player && (

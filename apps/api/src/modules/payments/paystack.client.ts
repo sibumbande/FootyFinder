@@ -28,7 +28,7 @@ export interface PaystackInitializeInput {
   amountCents: number;
   reference: string;
   callbackUrl: string;
-  metadata: Record<string, string>;
+  metadata: Record<string, unknown>;
 }
 
 export interface PaystackVerifiedTransaction {

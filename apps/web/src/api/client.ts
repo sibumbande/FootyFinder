@@ -21,12 +21,14 @@ import {
   recruitmentApi,
   publicApi,
   accountApi,
+  ticketsApi,
 } from '@footy-finder/api-client';
 
 export const apiClient = new ApiClient(import.meta.env.VITE_API_URL ?? 'http://localhost:3000');
 export const authClient = authApi(apiClient);
 export const usersClient = usersApi(apiClient);
 export const matchClient = matchesApi(apiClient);
+export const ticketsClient = ticketsApi(apiClient);
 export const walletClient = walletApi(apiClient);
 export const messagingClient = messagingApi(apiClient);
 export const notificationsClient = notificationsApi(apiClient);

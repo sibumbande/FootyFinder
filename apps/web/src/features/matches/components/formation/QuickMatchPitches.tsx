@@ -31,6 +31,9 @@ export function QuickMatchPitches({
   canEdit,
   claimableSlotIds,
   onClaim,
+  buyableSlotIds,
+  onBuy,
+  bookedSlotIds,
   currentPlayerId,
   currentSide,
   readonlyHint,
@@ -43,6 +46,11 @@ export function QuickMatchPitches({
   canEdit: boolean;
   claimableSlotIds: readonly string[];
   onClaim: (slotId: string) => Promise<unknown>;
+  /** DEC-021 A1: open positions a viewer who is not in the match can buy a ticket for. */
+  buyableSlotIds?: readonly string[];
+  onBuy?: (slotId: string) => void;
+  /** DEC-021 A1.2: positions someone is paying for right now. */
+  bookedSlotIds?: readonly string[];
   currentPlayerId: string | null;
   currentSide: TeamSide | null;
   readonlyHint: string;
@@ -105,6 +113,9 @@ export function QuickMatchPitches({
               canEdit={canEdit}
               claimableSlotIds={claimableSlotIds}
               onClaim={onClaim}
+              buyableSlotIds={buyableSlotIds}
+              onBuy={onBuy}
+              bookedSlotIds={bookedSlotIds}
               currentPlayerId={currentPlayerId}
               sideLabels={QUICK_MATCH_SIDE_LABELS}
               sideBadges={QUICK_MATCH_SIDE_BADGES}

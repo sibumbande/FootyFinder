@@ -18,6 +18,7 @@ vi.mock('../hooks/useMatches.js', () => ({
 vi.mock('@/features/teams/hooks/useTeams.js', () => ({ useMyTeams: () => ({ data: mocks.teams }) }));
 vi.mock('@/features/auth/hooks/useAuth.js', () => ({ useAuth: () => ({ user: { id: 'viewer' } }) }));
 vi.mock('@/features/notifications/NotificationProvider.js', () => ({ useNotifications: () => ({ notify: vi.fn() }) }));
+vi.mock('@/features/tickets/hooks/useTickets.js', () => ({ useBuyTicket: () => ({ mutate: mocks.join, isPending: false, error: null }) }));
 
 const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
 const base = {
@@ -59,13 +60,20 @@ describe('TeamMatchOtherSide (Gate 7 / TKT-707)', () => {
     expect(screen.queryByRole('button', { name: /Join as a player/ })).not.toBeInTheDocument();
   });
 
-  it('lets a player join an open "Open to both" side for R80, but not a home team member', async () => {
+  it('lets a player buy an R80 ticket on an open "Open to both" side, but not a home team member', () => {
     mocks.teams = [];
-    renderSide({ otherSideMode: 'OPEN' });
+    renderSide({ otherSideMode: 'OPEN', venue: { name: 'Green Point', city: 'Cape Town' } } as Partial<Match>);
     fireEvent.click(screen.getByRole('button', { name: /Join as a player/ }));
-    expect(mocks.join).not.toHaveBeenCalled();
-    await confirmInDialog('Join');
-    await vi.waitFor(() => expect(mocks.join).toHaveBeenCalledWith({ team: 'AWAY' }));
+    const sheet = screen.getByTestId('ticket-confirm-sheet');
+    expect(sheet).toHaveTextContent('Substitute · Away side');
+    const pay = within(sheet).getByRole('button', { name: /Pay R80/ });
+    expect(pay).toBeDisabled();
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'I understand the cancellation policy' }));
+    fireEvent.click(pay);
+    expect(mocks.join).toHaveBeenCalledWith(
+      { input: { seat: 'SUBSTITUTE', side: 'AWAY', method: 'PAYMENT', acceptPolicy: true }, idempotencyKey: expect.any(String) },
+      expect.anything(),
+    );
     cleanup();
     renderSide({ otherSideMode: 'OPEN', viewerTeamSide: 'HOME' });
     expect(screen.queryByRole('button', { name: /Join as a player/ })).not.toBeInTheDocument();

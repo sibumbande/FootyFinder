@@ -5,6 +5,7 @@ import * as controller from './matches.controller.js';
 import * as teamMatches from '../team-matches/team-matches.controller.js';
 import * as resultEvidence from '../referees/result-evidence.controller.js';
 import * as teamReviews from '../team-reviews/team-reviews.controller.js';
+import * as tickets from '../tickets/tickets.controller.js';
 import { costlyMutationRateLimit, messageRateLimit } from '../../middleware/rate-limit.js';
 export const matchesRouter: ExpressRouter = Router();
 registerUuidRouteParams(matchesRouter, ['id', 'slotId', 'participantId', 'userId']);
@@ -19,6 +20,9 @@ matchesRouter.patch('/:id', controller.update);
 matchesRouter.delete('/:id', controller.remove);
 matchesRouter.post('/:id/ready', controller.ready);
 matchesRouter.post('/:id/join', costlyMutationRateLimit, controller.join);
+// DEC-021 A1: buy a ticket for one place; the viewer's ticket, credits and the cancellation policy.
+matchesRouter.get('/:id/tickets/context', tickets.context);
+matchesRouter.post('/:id/tickets/checkout', costlyMutationRateLimit, tickets.checkout);
 // Gate 7 / DEC-019: take or withdraw from the other side of a team match.
 matchesRouter.post('/:id/other-side/team', costlyMutationRateLimit, teamMatches.loadTeam);
 matchesRouter.post('/:id/other-side/team/withdraw', teamMatches.withdrawTeam);

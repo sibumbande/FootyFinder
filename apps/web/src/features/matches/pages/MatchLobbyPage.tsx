@@ -1,5 +1,6 @@
 import {
   CANCELLATION_CUTOFF_HOURS,
+  isLobbyFrozen,
   getMaxMatchParticipants,
   MATCH_FORMAT_CONFIG,
   MATCH_RULE_CONFIG,
@@ -25,7 +26,6 @@ import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReview
 import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js';
 import { rands } from '../utils/go-no-go-format.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
-import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
 import { MatchTimer } from '../components/MatchTimer.js';
 import { ResultForm } from '../components/ResultForm.js';
 import { FreeMatchBadge, GirlsOnlyBadge, HostedByFootyFinderBadge } from '../components/FreeMatchBadge.js';
@@ -47,6 +47,7 @@ import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { useScrollToFormation } from '../hooks/useScrollToFormation.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
 import { useConfirm } from '@/components/ui/ConfirmDialog.js';
+import { TicketConfirmSheet, type TicketPlace } from '@/features/tickets/components/TicketConfirmSheet.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -61,7 +62,8 @@ export function MatchLobbyPage() {
   const formation = useFormationUpdate(matchId);
   const claimPosition = useClaimPosition(matchId);
   const changeTeam = useChangeTeam(matchId);
-  const [joinOpen, setJoinOpen] = useState(false);
+  // DEC-021 A1: the place the viewer is buying a ticket for (a position, or a substitute place).
+  const [buying, setBuying] = useState<TicketPlace | null>(null);
   const [tab, setTab] = useState<'formation' | 'players' | 'chat'>('formation');
   const match = matchQuery.data;
   useScrollToFormation(Boolean(match));
@@ -156,11 +158,19 @@ export function MatchLobbyPage() {
     });
   };
   const canClaim = mutable && Boolean(currentParticipant) && !isHost;
+  const bookedSlotIds = match.bookingHolds?.slotIds ?? [];
   const claimableSlotIds = canClaim
     ? (match.formationSlots ?? [])
         .filter((slot) => slot.team === currentParticipant?.team && !slot.participantId)
         .map((slot) => slot.id)
     : [];
+  // DEC-021 A1: a player who is not in the match taps an open position to buy a ticket for it.
+  const canBuy = mutable && !currentParticipant && !isLobbyFrozen(match);
+  const buyableSlotIds = canBuy ? (match.formationSlots ?? []).filter((slot) => !slot.participantId).map((slot) => slot.id) : [];
+  const buyPosition = (slotId: string) => {
+    const slot = match.formationSlots?.find((item) => item.id === slotId);
+    if (slot) setBuying({ seat: 'POSITION', side: slot.team, slotId: slot.id, slotIndex: slot.slotIndex });
+  };
   const claim = async (slotId: string) => {
     try {
       await claimPosition.mutateAsync(slotId);
@@ -254,7 +264,7 @@ export function MatchLobbyPage() {
         </div>
         <div className="mt-6 flex flex-wrap gap-2">
           {!currentParticipant && mutable && match.participantCount < capacity && (
-            <Button onClick={() => setJoinOpen(true)}>Join a team</Button>
+            <Button onClick={() => setBuying({ seat: 'SUBSTITUTE' })}>Join as a sub</Button>
           )}
           {currentParticipant && mutable && (
             <Button variant="secondary" onClick={leaveMatch} loading={leave.isPending}>
@@ -358,12 +368,17 @@ export function MatchLobbyPage() {
             canEdit={isHost && mutable}
             claimableSlotIds={claimableSlotIds}
             onClaim={claim}
+            buyableSlotIds={buyableSlotIds}
+            onBuy={buyPosition}
+            bookedSlotIds={bookedSlotIds}
             currentPlayerId={currentParticipant?.id ?? null}
             currentSide={currentParticipant?.team ?? null}
             readonlyHint={
               canClaim
                 ? 'Tap an open position on your team to claim it.'
-                : 'The organiser controls the pre-match formation.'
+                : canBuy
+                  ? 'Tap an open position to buy a ticket for it, or join as a sub.'
+                  : 'The organiser controls the pre-match formation.'
             }
             onAssign={({ slotId, playerId }) =>
               formation.mutateAsync({ slotId, input: { participantId: playerId } })
@@ -463,7 +478,17 @@ export function MatchLobbyPage() {
           </div>
         </section>
       )}
-      <JoinTeamDialog match={match} open={joinOpen} onClose={() => setJoinOpen(false)} />
+      {buying && (
+        <TicketConfirmSheet
+          match={match}
+          place={buying}
+          onClose={() => setBuying(null)}
+          onConfirmed={() => {
+            setBuying(null);
+            notify({ variant: 'success', title: 'You’re in', message: 'Your match ticket is confirmed.' });
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -16,6 +16,7 @@ import { registerTeamMatchJobHandlers } from './modules/team-matches/team-match.
 import { registerRefereeJobHandlers } from './modules/referees/referee.jobs.js';
 import { registerAccountDeletionJobHandlers } from './modules/account/account-deletion.jobs.js';
 import { registerRetentionJobHandlers, scheduleRetention } from './modules/retention/retention.jobs.js';
+import { registerTicketJobHandlers } from './modules/tickets/ticket.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -32,6 +33,7 @@ registerTeamMatchJobHandlers();
 registerRefereeJobHandlers();
 registerAccountDeletionJobHandlers();
 registerRetentionJobHandlers();
+registerTicketJobHandlers();
 void scheduleRetention().catch((error) => console.error('retention_schedule_failed', error));
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));

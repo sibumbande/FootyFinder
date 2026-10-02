@@ -22,3 +22,4 @@ export * from './social.js';
 export * from './recruitment.js';
 export * from './public.js';
 export * from './account.js';
+export * from './tickets.js';

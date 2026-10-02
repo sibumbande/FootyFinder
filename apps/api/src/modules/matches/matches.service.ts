@@ -41,6 +41,7 @@ import {
   MatchesRepository,
   NotMatchParticipantError,
   PositionAlreadyClaimedError,
+  PositionBeingBookedError,
   PositionWrongSideError,
   TeamFullError,
   FirstTimersOnlyError,
@@ -432,6 +433,8 @@ export class MatchesService {
           slots: current.formationSlots.map(toFormationSlot),
         } satisfies FormationSnapshot);
       }
+      if (error instanceof PositionBeingBookedError)
+        throw new AppError(409, 'Someone is paying for that position right now. Try another one.', 'POSITION_BEING_BOOKED');
       if (error instanceof FormationSlotNotFoundError)
         throw new AppError(404, 'That position does not exist in this match.', 'FORMATION_SLOT_NOT_FOUND');
       if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();

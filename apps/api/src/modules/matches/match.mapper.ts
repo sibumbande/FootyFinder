@@ -57,6 +57,18 @@ export const goNoGoFacts = (match: {
       }
     : {};
 
+/** DEC-021 A1.2: the positions and substitute places being paid for right now (holds that have not expired). */
+const bookingHolds = (holds: Array<{ slotId: string | null; side: 'HOME' | 'AWAY'; holdExpiresAt: Date | null }>, now = new Date()) => {
+  const live = holds.filter(({ holdExpiresAt }) => holdExpiresAt && holdExpiresAt > now);
+  return {
+    slotIds: live.flatMap(({ slotId }) => (slotId ? [slotId] : [])),
+    substitutes: {
+      HOME: live.filter(({ slotId, side }) => !slotId && side === 'HOME').length,
+      AWAY: live.filter(({ slotId, side }) => !slotId && side === 'AWAY').length,
+    },
+  };
+};
+
 export function toMatch(
   match: MatchRecord,
   options: {
@@ -126,6 +138,7 @@ export function toMatch(
     participants: match.participants.map(toMatchParticipant),
     formationSlots: match.formationSlots.map(toFormationSlot),
     formationVersion: match.formationVersion,
+    bookingHolds: bookingHolds(match.tickets ?? []),
     result: match.result
       ? {
           id: match.result.id,

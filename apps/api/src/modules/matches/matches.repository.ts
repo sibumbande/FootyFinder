@@ -61,6 +61,8 @@ export class FormationSlotNotFoundError extends Error {}
 export class NotMatchParticipantError extends Error {}
 export class PositionWrongSideError extends Error {}
 export class PositionAlreadyClaimedError extends Error {}
+/** DEC-021 A1.2: someone is paying for this position right now. */
+export class PositionBeingBookedError extends Error {}
 /** Gate 7 / DEC-019: the other side of a team match cannot be taken this way right now. */
 export class OtherSideRefusedError extends Error {
   constructor(readonly reason: OtherSideRefusal | 'HOME_IS_A_TEAM') {
@@ -83,7 +85,7 @@ export class AdminCancelRefusedError extends Error {
 export const lockMatchForFormation = (tx: Prisma.TransactionClient, matchId: string) =>
   tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id" = ${matchId}::uuid FOR UPDATE`;
 
-const bumpFormationVersion = async (tx: Prisma.TransactionClient, matchId: string) =>
+export const bumpFormationVersion = async (tx: Prisma.TransactionClient, matchId: string) =>
   (
     await tx.match.update({
       where: { id: matchId },
@@ -105,7 +107,7 @@ const isLobbyOpen = (
  * Throws LineupLockedError once a DEC-018 match reaches its go/no-go instant (distinct from a
  * started/closed match), or MatchClosedError when the lobby is otherwise closed.
  */
-const assertLobbyOpen = (
+export const assertLobbyOpen = (
   match: { mode: string; status: string; startsAt: Date; durationMinutes: number; goNoGoAt?: Date | null; otherSideMode?: string | null },
   now: Date,
 ) => {
@@ -1139,6 +1141,9 @@ export class MatchesRepository {
           replayed: true,
         };
       if (target.participantId) throw new PositionAlreadyClaimedError();
+      // DEC-021 A1.2: someone else is paying for this position right now ("Being booked").
+      if (await tx.matchTicket.count({ where: { slotId: target.id, status: 'HELD', holdExpiresAt: { gt: now }, playerId: { not: userId } } }))
+        throw new PositionBeingBookedError();
       const source = participant.formationSlot;
       if (source)
         await tx.formationSlot.update({ where: { id: source.id }, data: { participantId: null } });

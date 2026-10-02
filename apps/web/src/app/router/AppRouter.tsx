@@ -40,6 +40,7 @@ import { VenueDetailPage } from '@/features/venues/pages/VenueDetailPage.js';
 import { PublicMatchPreviewPage } from '@/features/matches/pages/PublicMatchPreviewPage.js';
 import { WalletPage } from '@/features/wallet/pages/WalletPage.js';
 import { TopUpReturnPage } from '@/features/wallet/pages/TopUpReturnPage.js';
+import { TicketReturnPage } from '@/features/tickets/pages/TicketReturnPage.js';
 import { RefereePage } from '@/features/referee/pages/RefereePage.js';
 import { RefereeMatchPage } from '@/features/referee/pages/RefereeMatchPage.js';
 import { DeleteAccountPage } from '@/features/account/pages/DeleteAccountPage.js';
@@ -101,6 +102,7 @@ export function AppRouter() {
             <Route path="/account/data" element={animated(<DownloadDataPage />)} />
             <Route path="/wallet" element={animated(<WalletPage />)} />
             <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />
+            <Route path="/tickets/return" element={animated(<TicketReturnPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />
             <Route path="/support/:ticketId" element={animated(<SupportPage />)} />
             <Route path="/bookings" element={animated(<BookingsPage />)} />

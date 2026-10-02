@@ -27,6 +27,7 @@ import {
 import { formatClock } from '../utils/go-no-go-format.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { useConfirm } from '@/components/ui/ConfirmDialog.js';
+import { TicketConfirmSheet, type TicketPlace } from '@/features/tickets/components/TicketConfirmSheet.js';
 
 /**
  * Gate 7 / DEC-019 decisions B, C, N1, N5: the other side of a public team match. The first team
@@ -46,6 +47,8 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
   const [teamId, setTeamId] = useState('');
   const [subs, setSubs] = useState(3);
   const { confirm, confirmDialog } = useConfirm();
+  // DEC-021 A1: individuals buy a ticket for one place on the other side, exactly like a Quick Match.
+  const [buying, setBuying] = useState<TicketPlace | null>(null);
   if (!match.otherSideMode) return null;
   const home = match.teamSides.find(({ side }) => side === 'HOME');
   const away = match.teamSides.find(({ side }) => side === 'AWAY');
@@ -66,6 +69,18 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
   return (
     <section className="grid gap-4 rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="other-side-heading">
       {confirmDialog}
+      {buying && (
+        <TicketConfirmSheet
+          match={match}
+          place={buying}
+          sides={['AWAY']}
+          onClose={() => setBuying(null)}
+          onConfirmed={() => {
+            setBuying(null);
+            notify({ variant: 'success', title: 'You’re in', message: 'Your match ticket is confirmed.' });
+          }}
+        />
+      )}
       <div>
         <h2 id="other-side-heading" className="text-xl font-bold text-content-strong">The other side</h2>
         <p className="mt-1 text-sm text-content-muted">
@@ -164,26 +179,27 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
             <Button
               className="mt-3"
               variant="secondary"
-              loading={join.isPending}
-              onClick={async () => {
-                const { confirmed } = await confirm({
-                  title: `Join the other side for ${formatRands(match.feeCents)}?`,
-                  message: <p>{formatRands(match.feeCents)} comes from your wallet. The match goes ahead only if it's ready by {lockAt}; otherwise your {formatRands(match.feeCents)} is refunded.</p>,
-                  confirmLabel: 'Join',
-                });
-                if (confirmed) join.mutate({ team: 'AWAY' });
-              }}
+              onClick={() => setBuying({ seat: 'SUBSTITUTE', side: 'AWAY' })}
             >
               Join as a player ({formatRands(match.feeCents)})
             </Button>
           )}
-          {join.error && (
-            <p className="mt-2 text-sm">
-              <FormError message={join.error.message} />
-              {/enough funds/i.test(join.error.message) && (
-                <Link className="font-bold underline" to={`/wallet?returnTo=${encodeURIComponent(`/matches/${match.id}`)}#top-up`}>Top up your wallet</Link>
-              )}
-            </p>
+          {!myParticipant && !locked && !onHomeTeam && !('reason' in playerDecision) && (
+            <ul className="mt-3 grid gap-1 text-sm">
+              {awaySlots.filter((slot) => !slot.participantId).map((slot) => {
+                const booked = match.bookingHolds?.slotIds.includes(slot.id);
+                return (
+                  <li key={slot.id} className="flex items-center justify-between gap-2">
+                    <span>Position {slot.slotIndex + 1}: {booked ? 'being booked' : 'open'}</span>
+                    {!booked && (
+                      <Button variant="ghost" onClick={() => setBuying({ seat: 'POSITION', side: 'AWAY', slotId: slot.id, slotIndex: slot.slotIndex + 1 })}>
+                        Buy ticket
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
           {myParticipant && (
             <div className="mt-3 grid gap-2">

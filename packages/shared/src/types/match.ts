@@ -3,6 +3,7 @@ import type { PublicMatchResult } from './public.js';
 import type { PublicUser } from './user.js';
 import type { MatchReferee } from './referee.js';
 import type { TeamMatchOtherSideMode, TeamMatchOtherSideTakenBy } from '../config/team-match-fees.js';
+import type { MatchBookingHolds } from './ticket.js';
 
 export const MATCH_STATUSES = [
   'DRAFT',
@@ -306,6 +307,8 @@ export interface Match extends MatchGoNoGoFacts {
   viewerManagedTeamSide?: TeamSide | null;
   /** Gate 8 / D18: the FootyFinder referee assigned to this match (display name only). */
   referee?: MatchReferee | null;
+  /** DEC-021 A1.2: places someone is paying for right now ("Being booked"). */
+  bookingHolds?: MatchBookingHolds;
   viewerCanManage: boolean;
   viewerCanChat: boolean;
 }
