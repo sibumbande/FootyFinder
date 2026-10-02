@@ -18,6 +18,9 @@ export interface AdminCardRefund {
    * is refunded (left, match cancelled, no choice within 7 days, late payment, paid twice).
    */
   source?: 'ADMIN' | 'PLAYER_UNDO' | 'ACCOUNT_CLOSURE' | 'TICKET_LEFT' | 'MATCH_CANCELLED' | 'CHOICE_TIMEOUT' | 'LATE_PAYMENT' | 'DUPLICATE_PAYMENT';
+  /** DEC-021: the ticket this refund is for (and the match), when it is a ticket refund. */
+  ticketId?: string;
+  matchId?: string;
   createdAt: string;
 }
 
@@ -45,6 +48,8 @@ export interface AdminTopUp {
   refundableCents: number;
   /** CEO touch-up batch 4, item 3: how it was paid (Paystack channel), e.g. "Capitec Pay". */
   paymentMethod?: string;
+  /** DEC-021: a legacy wallet top-up, or a match ticket payment (refunded per ticket, never "to the wallet"). */
+  purpose?: 'TOP_UP' | 'TICKETS';
   refunds: AdminCardRefund[];
   disputes: AdminCardDispute[];
   createdAt: string;

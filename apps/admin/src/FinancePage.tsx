@@ -29,7 +29,7 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
   const error = refund.error ?? retry.error ?? restore.error;
   return <article>
     {confirmDialog}
-    <strong>{rands(topUp.amountCents)} · {topUp.status}{topUp.paymentMethod ? ` · ${topUp.paymentMethod}` : ''}{topUp.creditedBy ? ` (credited by ${topUp.creditedBy})` : ''}</strong>
+    <strong>{topUp.purpose === 'TICKETS' ? 'Match ticket payment · ' : ''}{rands(topUp.amountCents)} · {topUp.status}{topUp.paymentMethod ? ` · ${topUp.paymentMethod}` : ''}{topUp.creditedBy ? ` (confirmed by ${topUp.creditedBy})` : ''}</strong>
     <code>{topUp.reference}</code>
     <span>{topUp.player.username} · {topUp.player.email} · {new Date(topUp.createdAt).toLocaleString()}</span>
     {topUp.accountClosure && <span className="error">The player deleted their account. Contact them at {topUp.accountClosure.contactEmail ?? 'the address on the Deletion requests page'} for bank details; never return this money to the wallet unless you then pay it out (ToS 20.2).</span>}
@@ -37,11 +37,14 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
     {topUp.failureReason && <span className="muted">Failure: {topUp.failureReason}</span>}
     {topUp.disputes.map((dispute) => <span key={dispute.id}>Dispute {dispute.providerDisputeId}: {dispute.status} · {rands(dispute.amountCents)}{dispute.resolution ? ` · ${dispute.resolution}` : ''}</span>)}
     {topUp.refunds.map((item) => <div key={item.id} className="row">
-      <span>Refund {rands(item.amountCents)}{item.source === 'ACCOUNT_CLOSURE' ? ' (account closure)' : ''} · {item.state} · attempts {item.attempts}{item.failureReason ? ` · ${item.failureReason}` : ''}{item.reviewReason ? ` · REVIEW ${item.reviewReason}` : ''}</span>
+      <span>Refund {rands(item.amountCents)}{item.source === 'ACCOUNT_CLOSURE' ? ' (account closure)' : item.ticketId ? ` (ticket, ${item.source?.toLowerCase().replaceAll('_', ' ')})` : ''} · {item.state} · attempts {item.attempts}{item.failureReason ? ` · ${item.failureReason}` : ''}{item.reviewReason ? ` · REVIEW ${item.reviewReason}` : ''}</span>
       {item.state === 'NEEDS_ATTENTION' && <>
         <BankDetailsForm refundId={item.id} onDone={refresh} />
-        <input aria-label="Reason for returning to wallet" placeholder="Or return to wallet: reason" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
-        <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
+        {/* DEC-021 A7: a ticket refund never becomes wallet money; it is retried, or retried with bank details. */}
+        {!item.ticketId && <>
+          <input aria-label="Reason for returning to wallet" placeholder="Or return to wallet: reason" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
+          <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
+        </>}
       </>}
       {item.state === 'FAILED' && !item.reviewReason && <>
         <button type="button" disabled={retry.isPending} onClick={async () => {
@@ -53,8 +56,10 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
           }))) return;
           retry.mutate(item.id);
         }}>Retry refund</button>
-        <input aria-label="Reason for returning to wallet" placeholder="Reason (required)" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
-        <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
+        {!item.ticketId && <>
+          <input aria-label="Reason for returning to wallet" placeholder="Reason (required)" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
+          <button type="button" className="ghost" disabled={restore.isPending || restoreReason.trim().length < 5} onClick={() => restore.mutate(item.id)}>Return to wallet</button>
+        </>}
       </>}
     </div>)}
     {topUp.refundableCents > 0 && <form className="row" onSubmit={(event: FormEvent) => { event.preventDefault(); refund.mutate(); }}>

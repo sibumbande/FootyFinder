@@ -4,7 +4,7 @@ import { prisma } from '../../database/prisma.js';
 
 type PaymentRow = ProviderPayment & {
   user: { id: string; username: string; email: string };
-  refunds: ProviderRefund[];
+  refunds: Array<ProviderRefund & { ticket?: { matchId: string } | null }>;
   disputes: ProviderDispute[];
 };
 
@@ -24,7 +24,9 @@ export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
     providerTransactionId: row.providerTransactionId ?? undefined,
     failureReason: row.failureReason ?? undefined,
     reviewReason: row.reviewReason ?? undefined,
-    refundableCents: row.status === 'SUCCEEDED' && !row.disputes.length ? row.amountCents - committed : 0,
+    // DEC-021: a ticket payment is refunded per ticket by the ticket rules, never by a free-form admin refund.
+    refundableCents: row.purpose === 'TOP_UP' && row.status === 'SUCCEEDED' && !row.disputes.length ? row.amountCents - committed : 0,
+    purpose: row.purpose,
     ...(row.channel && { paymentMethod: paymentChannelLabel(row.channel)! }),
     refunds: row.refunds.map((refund) => ({
       id: refund.id,
@@ -37,6 +39,8 @@ export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
       providerRefundId: refund.providerRefundId ?? undefined,
       restoreReason: refund.restoreReason ?? undefined,
       source: refund.source,
+      ...(refund.ticketId ? { ticketId: refund.ticketId } : {}),
+      ...(refund.ticket ? { matchId: refund.ticket.matchId } : {}),
       createdAt: refund.createdAt.toISOString(),
     })),
     disputes: row.disputes.map((dispute) => ({
@@ -61,7 +65,7 @@ export class AdminFinanceService {
       },
       include: {
         user: { select: { id: true, username: true, email: true } },
-        refunds: { orderBy: { createdAt: 'asc' } },
+        refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
         disputes: { orderBy: { openedAt: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
@@ -75,7 +79,7 @@ export class AdminFinanceService {
       where: { id },
       include: {
         user: { select: { id: true, username: true, email: true } },
-        refunds: { orderBy: { createdAt: 'asc' } },
+        refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
         disputes: { orderBy: { openedAt: 'asc' } },
       },
     });
@@ -100,7 +104,7 @@ export class AdminFinanceService {
       },
       include: {
         user: { select: { id: true, username: true, email: true } },
-        refunds: { orderBy: { createdAt: 'asc' } },
+        refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
         disputes: { orderBy: { openedAt: 'asc' } },
       },
       orderBy: { createdAt: 'asc' },

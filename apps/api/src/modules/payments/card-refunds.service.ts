@@ -54,6 +54,9 @@ export class CardRefundsService {
         include: { refunds: true, disputes: true },
       });
       if (!payment) throw new AppError(404, 'Top-up not found.', 'TOP_UP_NOT_FOUND');
+      // DEC-021: ticket payments are refunded per ticket by the ticket rules (leave, cancellation, late payment).
+      if (payment.purpose !== 'TOP_UP')
+        throw new AppError(409, 'A match ticket payment is refunded per ticket, not here.', 'TICKET_PAYMENT_NOT_REFUNDABLE_HERE');
       const replay = await tx.walletTransaction.findUnique({ where: { idempotencyKey: ledgerKey }, include: { refundDebit: true } });
       if (replay?.refundDebit) {
         if (replay.refundDebit.amountCents !== input.amountCents)
@@ -169,7 +172,7 @@ export class CardRefundsService {
   private async markFailed(refundId: string, reason: string, from: ProviderRefund['status'][], countAttempt = false) {
     const { refund, notifications } = await serializableTransaction(async (tx) => {
       await lockRefund(tx, refundId);
-      const current = await tx.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true } });
+      const current = await tx.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true, ticket: { select: { matchId: true } } } });
       if (!from.includes(current.status)) return { refund: current, notifications: [] as Notification[] };
       const updated = await tx.providerRefund.update({
         where: { id: refundId },
@@ -180,10 +183,10 @@ export class CardRefundsService {
         notifications: await persistNotifications(tx, [
           {
             userId: current.providerPayment.userId,
-            type: 'INFO',
+            type: current.ticket ? 'TICKET_REFUND_UPDATE' : 'INFO',
             title: 'Refund delayed',
             message: `Your ${rands(current.amountCents)} refund to the card or account you paid with could not be completed yet. Our finance team will follow up with you.`,
-            targetPath: '/wallet',
+            targetPath: current.ticket ? `/matches/${current.ticket.matchId}` : '/wallet',
             dedupeKey: notificationDedupeKey('provider-refund', refundId, `failed-${current.attempts}`, current.providerPayment.userId),
           },
         ]),
@@ -201,7 +204,7 @@ export class CardRefundsService {
   private async markNeedsAttention(refundId: string, from: ProviderRefund['status'][]) {
     const { refund, notifications } = await serializableTransaction(async (tx) => {
       await lockRefund(tx, refundId);
-      const current = await tx.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true } });
+      const current = await tx.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true, ticket: { select: { id: true } } } });
       if (!from.includes(current.status)) return { refund: current, notifications: [] as Notification[] };
       const updated = await tx.providerRefund.update({ where: { id: refundId }, data: { status: 'NEEDS_ATTENTION', failureReason: 'needs_customer_bank_account' } });
       return {
@@ -209,7 +212,7 @@ export class CardRefundsService {
         notifications: await persistNotifications(tx, [
           {
             userId: current.providerPayment.userId,
-            type: 'INFO',
+            type: current.ticket ? 'TICKET_REFUND_UPDATE' : 'INFO',
             title: 'Refund needs your bank details',
             message: `To send your ${rands(current.amountCents)} refund back to your bank account, our support team needs your account details. We will contact you.`,
             targetPath: '/support',
@@ -285,6 +288,10 @@ export class CardRefundsService {
       const current = await tx.providerRefund.findUnique({ where: { id: input.refundId }, include: { providerPayment: true } });
       if (!current) throw new AppError(404, 'Refund not found.', 'REFUND_NOT_FOUND');
       if (current.status === 'RESTORED_TO_WALLET') return { refund: current, notifications: [] as Notification[] };
+      // DEC-021 A7: a ticket refund never becomes wallet money (there is no wallet). Finance retries it, or retries it
+      // with the customer's bank details.
+      if (current.ticketId)
+        throw new AppError(409, 'A ticket refund can only be retried, or retried with the customer’s bank details.', 'REFUND_NOT_RESTORABLE');
       if (current.status !== 'FAILED' && current.status !== 'NEEDS_ATTENTION')
         throw new AppError(409, 'Only a failed refund, or one waiting for bank details, can be restored to the wallet.', 'REFUND_NOT_RESTORABLE');
       const credit = await this.financial.credit(tx, {
@@ -338,11 +345,14 @@ export class CardRefundsService {
     if (!payment) return 'refund_unknown_reference';
     const providerRefundId = data.id === undefined ? undefined : String(data.id);
     const amount = Number(data.amount);
-    const match =
-      payment.refunds.find((item) => providerRefundId && item.providerRefundId === providerRefundId) ??
-      payment.refunds.find((item) => item.amountCents === amount && ['PENDING', 'PROCESSING', 'FAILED'].includes(item.status)) ??
-      payment.refunds.find((item) => item.amountCents === amount);
-    if (!match) return 'refund_unmatched';
+    // Match by Paystack's refund id. Without it, fall back to the amount only when exactly one refund of that amount
+    // is still open: a team payment can carry several equal R80 refunds (DEC-021 A5), and guessing between them
+    // could mark the wrong ticket's refund. A later event carries the id (saved when we submitted the refund).
+    const byId = providerRefundId ? payment.refunds.find((item) => item.providerRefundId === providerRefundId) : undefined;
+    const open = payment.refunds.filter((item) => item.amountCents === amount && ['PENDING', 'PROCESSING', 'FAILED'].includes(item.status) && (!item.providerRefundId || !providerRefundId));
+    const settled = payment.refunds.filter((item) => item.amountCents === amount);
+    const match = byId ?? (open.length === 1 ? open[0] : open.length === 0 && settled.length === 1 ? settled[0] : undefined);
+    if (!match) return open.length > 1 || settled.length > 1 ? 'refund_ambiguous' : 'refund_unmatched';
     // CEO touch-up batch 4, item 3 (D8): a bank refund waiting for the customer's account, whichever event says so.
     if (data.status === 'needs-attention') {
       const updated = await this.markNeedsAttention(match.id, ['PENDING', 'PROCESSING']);
