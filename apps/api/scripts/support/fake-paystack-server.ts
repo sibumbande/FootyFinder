@@ -25,6 +25,8 @@ export class FakePaystack {
   readonly calls = { initialize: 0, verify: 0, refund: 0, retry: 0 };
   failNext: { path: 'initialize' | 'verify' | 'refund'; status: number } | null = null;
   refundStatus = 'pending';
+  /** CEO batch 5: a per-transaction refund status (by our reference), overriding refundStatus. */
+  readonly refundStatusByReference = new Map<string, string>();
   /** CEO touch-up batch 4, item 3: the exact checkout channels the smoke expects the app to send (PAYSTACK_CHANNELS). */
   expectedChannels: string[] = ['card'];
   private server?: Server;
@@ -87,7 +89,7 @@ export class FakePaystack {
           if (!transaction) return send(404, { status: false, message: 'Transaction reference not found' });
           return send(200, { status: true, message: 'Verification successful', data: transaction });
         }
-        const refund = { id: this.nextId++, transaction: String(body.transaction), amount: Number(body.amount), status: this.refundStatus };
+        const refund = { id: this.nextId++, transaction: String(body.transaction), amount: Number(body.amount), status: this.refundStatusByReference.get(String(body.transaction)) ?? this.refundStatus };
         this.refunds.push(refund);
         return send(200, { status: true, message: 'Refund has been queued for processing', data: refund });
       });

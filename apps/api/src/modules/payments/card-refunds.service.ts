@@ -40,7 +40,7 @@ export class CardRefundsService {
     idempotencyKey: string;
     requestId?: string;
     /** CEO touch-up batch 3, item 6b: a player's own undo (no admin audit; its own checks run under the lock). */
-    source?: 'ADMIN' | 'PLAYER_UNDO';
+    source?: 'ADMIN' | 'PLAYER_UNDO' | 'ACCOUNT_CLOSURE';
     assertAllowed?: (tx: Prisma.TransactionClient, payment: PaymentWithRefunds) => Promise<void>;
   }) {
     const source = input.source ?? 'ADMIN';

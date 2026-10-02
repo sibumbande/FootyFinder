@@ -299,6 +299,8 @@ enum VenuePublicationStatus {
 enum RefundSource {
   ADMIN
   PLAYER_UNDO
+  /// CEO batch 5, item 3: the final step of a self-service account deletion (ToS 20.2).
+  ACCOUNT_CLOSURE
 }
 
 enum FieldClosureKind {
