@@ -23,6 +23,8 @@ import { isPaystackCheckoutUrl, PaystackClient, PaystackError, type PaystackGate
 import { demoDepositsEnabled } from '../wallet/payment-config.js';
 import { assertTicketPlaceable, placeableMatchSelect, placeTicketInTx, refusal, releaseExpiredHolds } from './ticket-placement.js';
 import { TicketSettlementService } from './ticket-settlement.service.js';
+import { useOldestCreditInTx } from './match-credits.js';
+import { enqueueTicketEmail } from './ticket-emails.js';
 
 /** The return page re-verifies with Paystack at most this often per payment. */
 export const TICKET_STATUS_CHECK_MIN_INTERVAL_MS = 5_000;
@@ -94,12 +96,10 @@ export class TicketCheckoutService {
       if (replay.matchId !== matchId) throw new AppError(409, 'That idempotency key was used for a different purchase.', 'IDEMPOTENCY_KEY_REUSED');
       return toCheckoutResult(replay);
     }
-    if (input.method === 'CREDIT')
-      throw new AppError(409, 'Paying with a match credit is not available yet.', 'CREDIT_CHECKOUT_UNAVAILABLE');
     const termsVersion = await this.config.termsVersion();
     if (!termsVersion) throw new AppError(503, 'Approved legal documents are not yet available.', 'LEGAL_DOCUMENTS_UNAVAILABLE');
     const demo = this.config.demo();
-    if (!demo && !this.config.paystackEnabled())
+    if (input.method !== 'CREDIT' && !demo && !this.config.paystackEnabled())
       throw new AppError(409, 'Card payments are not enabled in this environment.', 'CARD_PAYMENTS_DISABLED');
 
     const outcome = await serializableTransaction(async (tx) => {
@@ -111,8 +111,11 @@ export class TicketCheckoutService {
       await releaseExpiredHolds(tx, matchId, now);
       await assertTicketPlaceable(tx, { match, playerId: userId, side: input.side, seat: input.seat, slotId: input.slotId, now });
       const free = match.freeOnFootyFinder;
-      const amountCents = free ? 0 : match.feeCents;
-      const paymentId = free ? null : randomUUID();
+      // A4: 1 credit = 1 ticket to any paid match (a free match needs no credit). Only for the payer's own seat.
+      const credit = !free && input.method === 'CREDIT';
+      const method = free ? 'FREE' : credit ? 'CREDIT' : 'PAYMENT';
+      const amountCents = method === 'PAYMENT' ? match.feeCents : 0;
+      const paymentId = method === 'PAYMENT' ? randomUUID() : null;
       if (paymentId)
         await tx.providerPayment.create({
           data: {
@@ -129,7 +132,7 @@ export class TicketCheckoutService {
           matchId,
           payerId: userId,
           kind: 'QUICK',
-          method: free ? 'FREE' : 'PAYMENT',
+          method,
           providerPaymentId: paymentId,
           amountCents,
           idempotencyKey,
@@ -150,17 +153,22 @@ export class TicketCheckoutService {
           side: input.side,
           seat: input.seat,
           slotId: input.seat === 'POSITION' ? input.slotId : null,
-          method: free ? 'FREE' : 'PAYMENT',
+          method,
           amountCents,
           holdExpiresAt,
         },
       });
-      // A free place, or the demo operator: no checkout to wait for, so place the player straight away.
-      if (free || demo) {
+      if (credit && !(await useOldestCreditInTx(tx, { userId, ticketId: ticket.id, now })))
+        throw new AppError(409, 'You have no match credits to use.', 'NO_MATCH_CREDIT');
+      // A free place, a credit, or the demo operator: no checkout to wait for, so place the player straight away.
+      if (method !== 'PAYMENT' || demo) {
         if (paymentId)
           await tx.providerPayment.update({ where: { id: paymentId }, data: { status: 'SUCCEEDED', verifiedAt: now, creditedBy: DEMO, providerStatus: 'success', channel: 'card' } });
         const placed = await placeTicketInTx(tx, ticket.id, now);
         if (!placed.placed) throw new Error(`Placement failed right after the checks passed: ${"reason" in placed ? placed.reason : ""}`);
+        await tx.ticketCheckout.update({ where: { id: checkout.id }, data: { status: 'COMPLETED', completedAt: now } });
+        // A8: the ticket receipt straight after a confirmed purchase (paid, credit or free).
+        await enqueueTicketEmail(tx, { kind: 'RECEIPT', userId, checkoutId: checkout.id });
         return { checkoutId: checkout.id, notifications: placed.notifications, needsPaystack: false };
       }
       await enqueueDurableJob(tx, {

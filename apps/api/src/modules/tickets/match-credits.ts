@@ -49,3 +49,44 @@ export async function returnCreditForTicketInTx(tx: Tx, ticketId: string, now: D
     now,
   });
 }
+
+/**
+ * A4: takes the payer's oldest usable credit (soonest to expire) for one ticket, under a row lock, so two checkouts
+ * racing for the last credit cannot both use it. Returns null when they have none.
+ */
+export async function useOldestCreditInTx(tx: Tx, input: { userId: string; ticketId: string; now: Date }) {
+  const [row] = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "MatchCredit"
+    WHERE "userId" = ${input.userId}::uuid AND "status" = 'AVAILABLE' AND "expiresAt" > ${input.now}
+    ORDER BY "expiresAt" ASC, "issuedAt" ASC
+    LIMIT 1
+    FOR UPDATE`;
+  if (!row) return null;
+  const credit = await tx.matchCredit.update({
+    where: { id: row.id },
+    data: { status: 'USED', usedTicketId: input.ticketId, usedAt: input.now, closedAt: input.now },
+  });
+  await tx.matchCreditEvent.create({ data: { creditId: credit.id, type: 'USED', ticketId: input.ticketId, actorUserId: input.userId } });
+  return credit;
+}
+
+export const MATCH_CREDIT_EXPIRE_JOB = 'MATCH_CREDIT_EXPIRE';
+
+/** A4 / D3: credits past their 3 years expire, with an EXPIRED ledger entry (safe to run twice). No reminder (A8). */
+export async function expireMatchCredits(db: { $transaction: (work: (tx: Tx) => Promise<number>) => Promise<number> }, now = new Date()) {
+  return db.$transaction(async (tx) => {
+    const due = await tx.matchCredit.findMany({ where: { status: 'AVAILABLE', expiresAt: { lte: now } }, select: { id: true } });
+    for (const { id } of due) {
+      const updated = await tx.matchCredit.updateMany({ where: { id, status: 'AVAILABLE' }, data: { status: 'EXPIRED', closedAt: now } });
+      if (updated.count) await tx.matchCreditEvent.create({ data: { creditId: id, type: 'EXPIRED' } });
+    }
+    return due.length;
+  });
+}
+
+/** The next 02:30 in Johannesburg (UTC+2) after `now`. */
+export const nextCreditExpiryRunAt = (now: Date) => {
+  const local = new Date(now.getTime() + 2 * 3_600_000);
+  const next = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 2, 30) - 2 * 3_600_000;
+  return new Date(next > now.getTime() ? next : next + 24 * 3_600_000);
+};

@@ -5,6 +5,16 @@ import { registerTicketEmailJobHandlers } from './ticket-emails.js';
 import { registerTicketRefundJobHandlers } from './ticket-refunds.js';
 import { TICKET_CHOICE_AUTO_REFUND_JOB_TYPE } from './ticket-cancellation.js';
 import { TicketLeaveService } from './ticket-leave.service.js';
+import { expireMatchCredits, MATCH_CREDIT_EXPIRE_JOB, nextCreditExpiryRunAt } from './match-credits.js';
+
+const scheduleCreditExpiry = (now: Date) => {
+  const runAt = nextCreditExpiryRunAt(now);
+  return prisma.$transaction((tx) =>
+    enqueueDurableJob(tx, { type: MATCH_CREDIT_EXPIRE_JOB, dedupeKey: `match-credit-expire:${runAt.toISOString().slice(0, 10)}`, payload: {}, runAt }),
+  );
+};
+/** DEC-021 A4: the nightly credit expiry (02:30 Johannesburg); the server schedules one on start. */
+export const scheduleMatchCreditExpiry = () => scheduleCreditExpiry(new Date());
 import { TICKET_PAYMENT_MAX_PENDING_HOURS, TicketSettlementService } from './ticket-settlement.service.js';
 
 export const TICKET_PAYMENT_RECHECK_JOB_TYPE = 'TICKET_PAYMENT_RECHECK';
@@ -67,6 +77,10 @@ export const registerTicketJobHandlers = () => {
     const record = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : {};
     if (typeof record.ticketId !== 'string') throw Object.assign(new Error('Invalid choice payload.'), { code: 'JOB_PAYLOAD_INVALID' });
     await new TicketLeaveService().autoRefund(record.ticketId);
+  });
+  registerDurableJobHandler(MATCH_CREDIT_EXPIRE_JOB, async () => {
+    await expireMatchCredits(prisma);
+    await scheduleCreditExpiry(new Date(Date.now() + 60_000));
   });
   registerTicketRefundJobHandlers();
   registerTicketEmailJobHandlers();

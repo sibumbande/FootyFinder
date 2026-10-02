@@ -5,7 +5,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { Sheet } from '@/components/ui/Sheet.js';
 import { formatDate } from '@/utils/format-date.js';
 import { formatWholeRands as formatRands } from '@/utils/format-currency.js';
-import { useBuyTicket } from '../hooks/useTickets.js';
+import { useBuyTicket, useTicketContext } from '../hooks/useTickets.js';
 
 export type TicketPlace = { seat: 'POSITION'; side: TeamSide; slotId: string; slotIndex: number } | { seat: 'SUBSTITUTE'; side?: TeamSide };
 
@@ -32,6 +32,9 @@ export function TicketConfirmSheet({
   onConfirmed: () => void;
 }) {
   const buy = useBuyTicket(match.id);
+  const context = useTicketContext(match.id);
+  const credits = context.data?.creditsAvailable ?? 0;
+  const restricted = Boolean(context.data?.bookingRestricted);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [accepted, setAccepted] = useState(false);
   const [side, setSide] = useState<TeamSide | undefined>(place.side ?? (sides.length === 1 ? sides[0] : undefined));
@@ -42,14 +45,14 @@ export function TicketConfirmSheet({
   const placeText = place.seat === 'POSITION'
     ? `Position ${place.slotIndex} · ${SIDE_NAME[place.side]} side`
     : side ? `Substitute · ${SIDE_NAME[side]} side` : 'Substitute';
-  const submit = () => {
+  const submit = (method: 'PAYMENT' | 'CREDIT') => {
     if (!side || !accepted) return;
     buy.mutate(
       {
         input: place.seat === 'POSITION'
-          ? { seat: 'POSITION', side: place.side, slotId: place.slotId, method: 'PAYMENT', acceptPolicy: true }
-          : { seat: 'SUBSTITUTE', side, method: 'PAYMENT', acceptPolicy: true },
-        idempotencyKey,
+          ? { seat: 'POSITION', side: place.side, slotId: place.slotId, method, acceptPolicy: true }
+          : { seat: 'SUBSTITUTE', side, method, acceptPolicy: true },
+        idempotencyKey: `${idempotencyKey}:${method}`,
       },
       { onSuccess: (outcome) => outcome.kind === 'confirmed' && onConfirmed() },
     );
@@ -93,10 +96,28 @@ export function TicketConfirmSheet({
         <span>{TICKET_POLICY_TICK}</span>
       </label>
       <FormError message={buy.error?.message} />
-      <Button className="mt-4 w-full" onClick={submit} disabled={!accepted || !side} loading={busy}>
-        {free ? 'Join for free' : `Pay ${formatRands(match.feeCents)} · Card / Instant EFT`}
-      </Button>
-      {!free && <p className="mt-2 text-center text-xs text-content-muted">You pay on Paystack’s secure page. Your place is held for 10 minutes while you pay.</p>}
+      {restricted && (
+        <p role="alert" className="mt-4 rounded-xl border border-danger-200 bg-danger-50 p-3 text-sm font-semibold text-danger-700">
+          A payment of yours is disputed with your bank, so you can’t buy tickets or use credits until it is resolved.
+        </p>
+      )}
+      {/* A4: with a match credit, using it is the main button; paying is the alternative. */}
+      {!free && credits > 0 ? (
+        <>
+          <Button className="mt-4 w-full" onClick={() => submit('CREDIT')} disabled={!accepted || !side || restricted} loading={busy}>
+            Use 1 match credit
+          </Button>
+          <p className="mt-1 text-center text-xs text-content-muted">You have {credits === 1 ? '1 match credit' : `${credits} match credits`}.</p>
+          <Button variant="ghost" className="mt-1 w-full" onClick={() => submit('PAYMENT')} disabled={!accepted || !side || restricted || busy}>
+            Pay {formatRands(match.feeCents)} instead
+          </Button>
+        </>
+      ) : (
+        <Button className="mt-4 w-full" onClick={() => submit('PAYMENT')} disabled={!accepted || !side || restricted} loading={busy}>
+          {free ? 'Join for free' : `Pay ${formatRands(match.feeCents)} · Card / Instant EFT`}
+        </Button>
+      )}
+      {!free && <p className="mt-2 text-center text-xs text-content-muted">Card or bank payments are made on Paystack’s secure page. Your place is held for 10 minutes while you pay.</p>}
     </Sheet>
   );
 }

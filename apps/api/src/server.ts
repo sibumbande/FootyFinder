@@ -16,7 +16,7 @@ import { registerTeamMatchJobHandlers } from './modules/team-matches/team-match.
 import { registerRefereeJobHandlers } from './modules/referees/referee.jobs.js';
 import { registerAccountDeletionJobHandlers } from './modules/account/account-deletion.jobs.js';
 import { registerRetentionJobHandlers, scheduleRetention } from './modules/retention/retention.jobs.js';
-import { registerTicketJobHandlers } from './modules/tickets/ticket.jobs.js';
+import { registerTicketJobHandlers, scheduleMatchCreditExpiry } from './modules/tickets/ticket.jobs.js';
 
 const server = createServer(app);
 createSocketServer(server);
@@ -34,6 +34,7 @@ registerRefereeJobHandlers();
 registerAccountDeletionJobHandlers();
 registerRetentionJobHandlers();
 registerTicketJobHandlers();
+void scheduleMatchCreditExpiry().catch((error) => console.error('match_credit_expiry_schedule_failed', error));
 void scheduleRetention().catch((error) => console.error('retention_schedule_failed', error));
 startDurableJobScheduler();
 server.listen(env.PORT, () => console.log(`API listening on http://localhost:${env.PORT}`));
