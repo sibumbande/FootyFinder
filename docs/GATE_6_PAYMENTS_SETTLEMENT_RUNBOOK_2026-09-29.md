@@ -85,7 +85,7 @@ It never prints the key and refuses anything but a test key.
 - **Refunds by payment method (CEO batch 4, item 3, D8).**
   - Card and Apple Pay: refunded back automatically. These are the only top-ups the player can undo in the app.
   - Capitec Pay and Instant EFT: the player contacts support; finance refunds them from the admin Finance page. If Paystack did not receive the customer's bank account, the refund comes back as **needs attention** (status `NEEDS_ATTENTION`, the player is told support will contact them). Support asks the player for their bank and account number; finance enters them in the "Needs the player's bank details" form (fresh MFA). They go to Paystack's `refund/retry_with_customer_details` only. FootyFinder never stores the account number; the audit entry `TOP_UP_REFUND_BANK_DETAILS_SENT` keeps the bank name and the last 4 digits. Finance can instead return the money to the wallet with a reason.
-  - Account closure (ToS 20.2) is a support process using the same admin refund, so it works for every method.
+  - Account closure (ToS 20.2): since CEO batch 5 the player deletes their own account in the app; 14 days later the final step refunds the balance through this same refund path (source `ACCOUNT_CLOSURE`, newest top-up first). Anything that needs finance appears under Finance > "Refunds needing attention" and on the admin "Deletion requests" page. See `docs/ACCOUNT_DELETION_AND_RETENTION_RUNBOOK_2026-10-02.md`.
   - Chargebacks are matched by payment reference, whatever the method.
   - Wallet history shows how each top-up was paid ("Paid with Capitec Pay") and where a refund goes ("Back to Capitec Pay").
   - Smoke: `npm run smoke:payment-methods`.

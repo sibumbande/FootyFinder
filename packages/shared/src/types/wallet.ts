@@ -176,6 +176,8 @@ export type WalletReconciliationIssueCode =
   | 'TOP_UP_SUCCEEDED_WITHOUT_CREDIT'
   | 'REFUND_LEDGER_MISMATCH'
   | 'REFUND_NEEDS_FINANCE'
+  /** CEO batch 5, item 6: a deleted account's balance that no top-up could carry back (ToS 20.2). */
+  | 'ACCOUNT_CLOSURE_UNREFUNDED'
   | 'REFUNDS_EXCEED_TOP_UP'
   | 'DISPUTE_LEDGER_MISMATCH'
   | 'PAYABLE_NOT_ELIGIBLE'

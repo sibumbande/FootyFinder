@@ -77,6 +77,8 @@ export const restoreRefund = handle(async (req, locals) => {
 });
 
 export const restrictedWallets = handle(() => finance.restrictedWallets());
+// CEO batch 5, item 6: the "Refunds needing attention" queue.
+export const refundsNeedingAttention = handle(() => finance.refundsNeedingAttention());
 
 export const liftRestriction = handle(async (req, locals) => {
   const { reason } = adminFinanceReasonSchema.parse(req.body);

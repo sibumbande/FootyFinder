@@ -1,5 +1,6 @@
 import type {
   RetentionOverview,
+  AdminAccountDeletionRequest,
   AdminCancelMatchInput,
   AdminAuditEntry,
   AdminAuthStatus,
@@ -390,4 +391,13 @@ export const adminApi = (client: ApiClient) => ({
       method: 'PUT',
       body: JSON.stringify({ mode }),
     }),
+  // CEO batch 5, item 6: deletion requests (read-only), the finance queue and settling a closure.
+  accountDeletions: (status?: string) =>
+    client.request<{ data: AdminAccountDeletionRequest[] }>(`/admin/account-deletions${status ? `?status=${status}` : ''}`),
+  settleAccountClosure: (requestId: string, note: string) =>
+    client.request<{ data: AdminAccountDeletionRequest }>(`/admin/account-deletions/${requestId}/settle`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+  refundsNeedingAttention: () => client.request<{ data: AdminTopUp[] }>('/admin/finance/refunds-needing-attention'),
 });

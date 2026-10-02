@@ -17,6 +17,7 @@ import { TeamReviewsPage } from './TeamReviewsPage.js';
 import { RecruitmentPage } from './RecruitmentPage.js';
 import { ThemeToggle } from './theme.js';
 import { RetentionPage } from './RetentionPage.js';
+import { DeletionRequestsPage } from './DeletionRequestsPage.js';
 import { WaitingListPage } from './WaitingListPage.js';
 
 const meKey = ['admin', 'me'] as const;
@@ -347,7 +348,7 @@ const NAV_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string
   ['Matches', [['/matches', 'Matches']]],
   ['Venues', [['/venues', 'Venues & fields']]],
   ['Money', [['/finance', 'Finance'], ['/settlement', 'Venue settlement']]],
-  ['People and safety', [['/support', 'Support inbox'], ['/moderation', 'Moderation'], ['/disputes', 'Disputes'], ['/referees', 'Referees'], ['/team-reviews', 'Team reviews'], ['/recruitment', 'Recruitment']]],
+  ['People and safety', [['/support', 'Support inbox'], ['/deletion-requests', 'Deletion requests'], ['/moderation', 'Moderation'], ['/disputes', 'Disputes'], ['/referees', 'Referees'], ['/team-reviews', 'Team reviews'], ['/recruitment', 'Recruitment']]],
   ['System', [['/test-data', 'Test data'], ['/retention', 'Data retention'], ['/audit', 'Audit log']]],
 ];
 
@@ -419,6 +420,7 @@ function AdminShell() {
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="retention" element={<RetentionPage />} />
+          <Route path="deletion-requests" element={<DeletionRequestsPage />} />
           <Route path="waiting-list" element={<WaitingListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

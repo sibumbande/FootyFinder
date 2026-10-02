@@ -36,6 +36,7 @@ export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
       attempts: refund.attempts,
       providerRefundId: refund.providerRefundId ?? undefined,
       restoreReason: refund.restoreReason ?? undefined,
+      source: refund.source,
       createdAt: refund.createdAt.toISOString(),
     })),
     disputes: row.disputes.map((dispute) => ({
@@ -79,6 +80,40 @@ export class AdminFinanceService {
       },
     });
     return row ? toAdminTopUp(row) : null;
+  }
+
+  /**
+   * CEO batch 5, item 6: one queue of refunds finance must act on (NEEDS_ATTENTION, FAILED or flagged for review),
+   * with the contact email of a deleted account's closure refund (D2).
+   */
+  async refundsNeedingAttention(): Promise<AdminTopUp[]> {
+    const rows = await prisma.providerPayment.findMany({
+      where: {
+        refunds: {
+          some: {
+            OR: [
+              { status: { in: ['NEEDS_ATTENTION', 'FAILED'] } },
+              { reviewReason: { not: null }, status: { not: 'RESTORED_TO_WALLET' } },
+            ],
+          },
+        },
+      },
+      include: {
+        user: { select: { id: true, username: true, email: true } },
+        refunds: { orderBy: { createdAt: 'asc' } },
+        disputes: { orderBy: { openedAt: 'asc' } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+    const closures = await prisma.accountDeletionRequest.findMany({
+      where: { status: 'COMPLETED', userId: { in: rows.map(({ userId }) => userId) } },
+      select: { id: true, userId: true, contactEmail: true },
+    });
+    return rows.map((row) => {
+      const closure = closures.find(({ userId }) => userId === row.userId);
+      return { ...toAdminTopUp(row), ...(closure && { accountClosure: { requestId: closure.id, contactEmail: closure.contactEmail } }) };
+    });
   }
 
   async restrictedWallets(): Promise<AdminRestrictedWallet[]> {

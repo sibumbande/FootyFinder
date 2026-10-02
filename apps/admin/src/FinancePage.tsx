@@ -29,11 +29,12 @@ function TopUpCard({ topUp }: { topUp: AdminTopUp }) {
     <strong>{rands(topUp.amountCents)} · {topUp.status}{topUp.paymentMethod ? ` · ${topUp.paymentMethod}` : ''}{topUp.creditedBy ? ` (credited by ${topUp.creditedBy})` : ''}</strong>
     <code>{topUp.reference}</code>
     <span>{topUp.player.username} · {topUp.player.email} · {new Date(topUp.createdAt).toLocaleString()}</span>
+    {topUp.accountClosure && <span className="error">The player deleted their account. Contact them at {topUp.accountClosure.contactEmail ?? 'the address on the Deletion requests page'} for bank details; never return this money to the wallet unless you then pay it out (ToS 20.2).</span>}
     {topUp.reviewReason && <span className="error">Review: {topUp.reviewReason}. Check the Paystack dashboard; nothing was credited.</span>}
     {topUp.failureReason && <span className="muted">Failure: {topUp.failureReason}</span>}
     {topUp.disputes.map((dispute) => <span key={dispute.id}>Dispute {dispute.providerDisputeId}: {dispute.status} · {rands(dispute.amountCents)}{dispute.resolution ? ` · ${dispute.resolution}` : ''}</span>)}
     {topUp.refunds.map((item) => <div key={item.id} className="row">
-      <span>Refund {rands(item.amountCents)} · {item.state} · attempts {item.attempts}{item.failureReason ? ` · ${item.failureReason}` : ''}{item.reviewReason ? ` · REVIEW ${item.reviewReason}` : ''}</span>
+      <span>Refund {rands(item.amountCents)}{item.source === 'ACCOUNT_CLOSURE' ? ' (account closure)' : ''} · {item.state} · attempts {item.attempts}{item.failureReason ? ` · ${item.failureReason}` : ''}{item.reviewReason ? ` · REVIEW ${item.reviewReason}` : ''}</span>
       {item.state === 'NEEDS_ATTENTION' && <>
         <BankDetailsForm refundId={item.id} onDone={refresh} />
         <input aria-label="Reason for returning to wallet" placeholder="Or return to wallet: reason" value={restoreReason} onChange={(event) => setRestoreReason(event.target.value)} />
@@ -88,6 +89,7 @@ export function FinancePage() {
   const report = useQuery({ queryKey: [...financeKey, 'reconciliation'], queryFn: async () => (await adminClient.walletReconciliation()).data });
   const topUps = useQuery({ queryKey: [...financeKey, 'top-ups', status], queryFn: async () => (await adminClient.topUps(status ? { status } : {})).data });
   const restricted = useQuery({ queryKey: [...financeKey, 'restricted'], queryFn: async () => (await adminClient.restrictedWallets()).data });
+  const attention = useQuery({ queryKey: [...financeKey, 'needs-attention'], queryFn: async () => (await adminClient.refundsNeedingAttention()).data });
   const lift = useMutation({
     mutationFn: (userId: string) => adminClient.liftRestriction(userId, liftReason),
     onSuccess: () => { setLiftReason(''); void cache.invalidateQueries({ queryKey: financeKey }); },
@@ -99,6 +101,12 @@ export function FinancePage() {
       {report.data.issueCount === 0 ? <div className="secret"><strong>Reconciliation passed</strong><span>Generated {new Date(report.data.generatedAt).toLocaleString()}</span></div> : <div className="audit-list">{report.data.issues.map((issue, index) => <article key={`${issue.code}-${issue.referenceId ?? issue.walletAccountId}-${index}`}><strong>{issue.code}</strong><code>{issue.walletAccountId ?? issue.referenceId}</code><span>Expected {issue.expectedCents ?? 'n/a'} cents · actual {issue.actualCents ?? 'n/a'} cents{issue.detail ? ` · ${issue.detail}` : ''}</span></article>)}</div>}
       <p className="muted">Checked {report.data.providerPaymentCount ?? 0} card top-ups, {report.data.payableCount ?? 0} venue payables and {report.data.settlementBatchCount ?? 0} settlement batches.</p>
     </>}
+
+    <h3>Refunds needing attention</h3>
+    <p className="muted">Bank refunds waiting for the player&apos;s account details, failed refunds and refunds flagged for review, including refunds from deleted accounts. See also <Link to="/deletion-requests">Deletion requests</Link> for amounts no top-up could cover.</p>
+    {attention.error && <p className="error">{attention.error.message}</p>}
+    {attention.data?.length === 0 && <p className="muted">Nothing needs attention.</p>}
+    <div className="audit-list" data-testid="refunds-needing-attention">{attention.data?.map((topUp) => <TopUpCard key={topUp.id} topUp={topUp} />)}</div>
 
     <h3>Card top-ups</h3>
     <div className="row"><label>Status<select value={status} onChange={(event) => setStatus(event.target.value as AdminTopUpStatus | '')}><option value="">All (latest 100)</option>{['REVIEW', 'INITIALIZED', 'SUCCEEDED', 'FAILED'].map((item) => <option key={item}>{item}</option>)}</select></label></div>

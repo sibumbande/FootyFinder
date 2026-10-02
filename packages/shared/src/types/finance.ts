@@ -13,6 +13,8 @@ export interface AdminCardRefund {
   attempts: number;
   providerRefundId?: string;
   restoreReason?: string;
+  /** CEO batch 5: ADMIN, PLAYER_UNDO or ACCOUNT_CLOSURE (the final step of an account deletion). */
+  source?: 'ADMIN' | 'PLAYER_UNDO' | 'ACCOUNT_CLOSURE';
   createdAt: string;
 }
 
@@ -43,6 +45,35 @@ export interface AdminTopUp {
   refunds: AdminCardRefund[];
   disputes: AdminCardDispute[];
   createdAt: string;
+  /**
+   * CEO batch 5, item 6 (D2): the player deleted their account; finance contacts them at this address (kept
+   * only until the closure refunds are settled).
+   */
+  accountClosure?: { requestId: string; contactEmail: string | null };
+}
+
+/** CEO batch 5, item 6: the admin "Deletion requests" page. */
+export interface AdminAccountDeletionRequest {
+  id: string;
+  /** The account's id (the anonymous ID once deleted). */
+  userId: string;
+  status: 'BLOCKED' | 'GRACE' | 'WAITING' | 'COMPLETED' | 'CANCELLED';
+  /** The player's name while the account still exists; "Deleted player" once anonymised. */
+  displayName: string;
+  requestedAt: string;
+  scheduledFor: string | null;
+  cancelledAt: string | null;
+  completedAt: string | null;
+  blockedReasons: string[];
+  waitingReason: string | null;
+  lastCheckedAt: string | null;
+  refunds: Array<{ refundId: string | null; amountCents: number; method: string | null; status: string }>;
+  uncoveredCents: number;
+  walletBalanceCents: number;
+  contactEmail: string | null;
+  finalEmailSentAt: string | null;
+  financeSettledAt: string | null;
+  financeNote: string | null;
 }
 
 /** CEO touch-up batch 4, item 3: a bank, for the "needs attention" refund form. */

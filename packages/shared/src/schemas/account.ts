@@ -16,3 +16,7 @@ export type DataExportInput = z.infer<typeof dataExportSchema>;
 /** CEO batch 5, item 4: an admin switches one retention category between a dry run and purging. */
 export const setRetentionModeSchema = z.object({ mode: z.enum(['REPORT', 'APPLY']) });
 export type SetRetentionModeInput = z.infer<typeof setRetentionModeSchema>;
+
+/** CEO batch 5, item 6: finance marks a deleted account's money as settled (fresh MFA, audited). */
+export const settleAccountClosureSchema = z.object({ note: z.string().trim().min(5).max(500) });
+export type SettleAccountClosureInput = z.infer<typeof settleAccountClosureSchema>;

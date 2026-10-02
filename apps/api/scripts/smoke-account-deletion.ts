@@ -19,6 +19,9 @@ import { TeamWalletService } from '../src/modules/team-wallet/team-wallet.servic
 import { TeamsService } from '../src/modules/teams/teams.service.js';
 import { joinTeamAsMember } from '../src/modules/teams/teams.repository.js';
 import { UsersService } from '../src/modules/users/users.service.js';
+import { AccountDeletionAdminService } from '../src/modules/account/account-deletion.admin.service.js';
+import { AdminFinanceService } from '../src/modules/payments/admin-finance.service.js';
+import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconciliation.service.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-server.js';
 import { deleteTeamWalletFixtures } from './team-wallet-fixtures.js';
@@ -58,6 +61,7 @@ const topUps = new TopUpService(gateway, settlement, undefined, { clientUrl: 'ht
 const emails = new TestEmailProvider();
 const deletion = new AccountDeletionService(emails);
 const finaliser = new AccountDeletionFinaliser(new CardRefundsService(gateway), undefined, undefined, deletion);
+const adminDeletions = new AccountDeletionAdminService(finaliser);
 const friends = new FriendsService();
 const teams = new TeamsService();
 const teamWallet = new TeamWalletService();
@@ -226,15 +230,29 @@ try {
   for (const secret of [`Leaver ${marker}`, leaver.username, leaver.email, 'Leaver Area', 'Bio of Leaver', 'Secret plan'])
     assert(!seenByFriend.includes(secret), `Another player can still see "${secret}".`);
 
-  // D2: once every closure refund is processed (and nothing is uncovered) the contact email is erased.
+  // ---------- Admin and finance (item 6) ----------
+  const listed = (await adminDeletions.list()).find(({ id }) => id === request.id);
+  assert(listed?.status === 'COMPLETED' && listed.displayName === DELETED_PLAYER_NAME && listed.uncoveredCents === 2_500, 'The admin page does not show the completed deletion.');
+  assert(listed.refunds.some(({ status }) => status === 'NEEDS_ATTENTION'), 'The admin page does not show the EFT refund needing attention.');
+  assert((await adminDeletions.list('BLOCKED')).some(({ userId }) => userId === locked.id), 'The admin page does not show the refused attempt.');
+  const queue = await new AdminFinanceService().refundsNeedingAttention();
+  const queued = queue.find(({ id }) => id === eft.id);
+  assert(queued?.accountClosure?.contactEmail === leaver.email, 'Finance does not see the EFT closure refund with the contact email.');
+  const issues = (await new WalletReconciliationService().report()).issues;
+  assert(issues.some(({ code: c, referenceId }) => c === 'ACCOUNT_CLOSURE_UNREFUNDED' && referenceId === request.id), 'Reconciliation does not flag the uncovered closure amount.');
+  assert(issues.some(({ code: c, referenceId }) => c === 'REFUND_NEEDS_FINANCE' && referenceId === refunds[0]!.id), 'Reconciliation does not flag the needs-attention refund.');
+  assert((await code(adminDeletions.settle(request.id, admin.id, 'Paid R25 by EFT'))) === 'DELETION_REFUNDS_OPEN', 'Finance could settle while a closure refund was still open.');
+
+  // D2: once every closure refund is processed and finance has settled the rest, the contact email is erased.
   await prisma.providerRefund.updateMany({ where: { id: { in: refunds.map(({ id }) => id) } }, data: { status: 'PROCESSED' } });
   assert(!(await finaliser.settleCheck(request.id)).settled, 'The case settled with an uncovered amount.');
-  await prisma.accountDeletionRequest.update({ where: { id: request.id }, data: { uncoveredCents: 0, financeSettledAt: new Date() } });
-  assert((await finaliser.settleCheck(request.id)).settled, 'The case did not settle.');
+  const settled = await adminDeletions.settle(request.id, admin.id, 'Paid R25 by EFT, ref smoke');
+  assert(settled.financeSettledAt && !settled.contactEmail, 'Settling did not erase the contact email.');
+  assert((await prisma.adminAuditLog.count({ where: { actorUserId: admin.id, action: 'ACCOUNT_CLOSURE_SETTLED', entityId: request.id } })) === 1, 'Settling was not audited.');
   assert(!(await prisma.accountDeletionRequest.findUniqueOrThrow({ where: { id: request.id } })).contactEmail, 'The contact email was not erased once settled.');
 
   for (const userId of [disputer.id, otherOwner.id]) assert(await reconciles(userId), 'A wallet does not reconcile to its ledger.');
-  console.log('Account deletion smoke passed: admin, referee, team owner with members (fixed by Make Owner), locked match and chargeback are blocked and the attempt recorded; a wrong password is refused; signing in during grace cancels it; the final step returns Team Wallet money, refunds the newest top-up first (EFT to finance, card automatic), keeps an uncovered amount for finance, anonymises the account, DMs and notifications, and erases the contact email once settled; ledgers reconcile.');
+  console.log('Account deletion smoke passed: admin, referee, team owner with members (fixed by Make Owner), locked match and chargeback are blocked and the attempt recorded; a wrong password is refused; signing in during grace cancels it; the final step returns Team Wallet money, refunds the newest top-up first (EFT to finance, card automatic), keeps an uncovered amount for finance, anonymises the account, DMs and notifications, and erases the contact email once settled; admins see requests and refused attempts, finance sees the closure refund with the contact email, reconciliation flags what is open, settling is refused while a refund is open and is audited; ledgers reconcile.');
 } finally {
   const requests = await prisma.accountDeletionRequest.findMany({ where: { userId: { in: userIds } }, select: { id: true } });
   for (const { id } of requests) await prisma.durableJob.deleteMany({ where: { dedupeKey: { contains: id } } });

@@ -18,6 +18,7 @@ import * as waitingList from '../cities/waiting-list.admin.controller.js';
 import * as adminMatches from '../matches/admin-matches.controller.js';
 import * as girlsOnly from './girls-only.admin.controller.js';
 import * as retention from '../retention/retention.admin.controller.js';
+import * as accountDeletions from '../account/account-deletion.admin.controller.js';
 import { requireRecentAdminMfa } from '../../middleware/require-admin.js';
 
 export const adminAuthRouter: ExpressRouter = Router();
@@ -46,6 +47,7 @@ registerUuidRouteParams(adminRouter, [
   'cardId',
   'changeId',
   'closureId',
+  'requestId',
 ]);
 adminRouter.get('/operations/summary', controller.operationsSummary);
 adminRouter.get('/audit-logs', controller.auditLog);
@@ -116,6 +118,11 @@ adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, co
 adminRouter.post('/finance/refunds/:refundId/bank-details', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundBankDetails);
 adminRouter.get('/finance/banks', finance.paystackBanks);
 adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
+// CEO batch 5, item 6: deletion requests (read-only; no speed-up or undo), the finance "needs attention" queue,
+// and finance recording that a deleted account's money is settled (fresh MFA).
+adminRouter.get('/account-deletions', accountDeletions.list);
+adminRouter.post('/account-deletions/:requestId/settle', requireRecentAdminMfa, costlyMutationRateLimit, accountDeletions.settle);
+adminRouter.get('/finance/refunds-needing-attention', finance.refundsNeedingAttention);
 // CEO batch 5, item 4: data retention. "Report now" is a dry run; switching a category to purge needs fresh MFA.
 adminRouter.get('/retention', retention.overview);
 adminRouter.post('/retention/report', costlyMutationRateLimit, retention.reportNow);

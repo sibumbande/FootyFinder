@@ -16,6 +16,7 @@ export class WalletReconciliationService {
     const wallet = await this.wallets(issues);
     const providerPaymentCount = await this.topUps(issues, now);
     await this.refunds(issues);
+    await this.accountClosures(issues);
     await this.disputes(issues);
     const payableCount = await this.payables(issues);
     const settlementBatchCount = await this.batches(issues);
@@ -137,6 +138,16 @@ export class WalletReconciliationService {
     return payments.length;
   }
 
+  /** CEO batch 5, item 6 (ToS 20.2): money of a deleted account that still has to be returned by finance. */
+  private async accountClosures(issues: WalletReconciliationIssue[]) {
+    const open = await prisma.accountDeletionRequest.findMany({
+      where: { status: 'COMPLETED', uncoveredCents: { gt: 0 }, financeSettledAt: null },
+      select: { id: true, userId: true, uncoveredCents: true },
+    });
+    for (const request of open)
+      issues.push({ code: 'ACCOUNT_CLOSURE_UNREFUNDED', userId: request.userId, referenceId: request.id, expectedCents: 0, actualCents: request.uncoveredCents });
+  }
+
   private async refunds(issues: WalletReconciliationIssue[]) {
     const refunds = await prisma.providerRefund.findMany({
       include: {
@@ -152,7 +163,8 @@ export class WalletReconciliationService {
         issues.push({ code: 'REFUND_LEDGER_MISMATCH', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: -refund.amountCents, actualCents: debit.amountCents, detail: 'debit' });
       if (refund.status === 'RESTORED_TO_WALLET' && (!restore || restore.status !== 'SUCCEEDED' || restore.type !== 'TOP_UP_REFUND_RESTORE_CREDIT' || restore.amountCents !== refund.amountCents))
         issues.push({ code: 'REFUND_LEDGER_MISMATCH', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: refund.amountCents, actualCents: restore?.amountCents, detail: 'restore' });
-      if (refund.status === 'FAILED' || refund.reviewReason)
+      // CEO batch 5, item 6: a bank refund waiting for the customer's account also needs finance.
+      if (refund.status === 'FAILED' || refund.status === 'NEEDS_ATTENTION' || refund.reviewReason)
         issues.push({ code: 'REFUND_NEEDS_FINANCE', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: refund.amountCents, detail: refund.reviewReason ?? refund.failureReason ?? 'failed' });
       if (refund.status !== 'RESTORED_TO_WALLET')
         committedByPayment.set(refund.providerPayment.id, (committedByPayment.get(refund.providerPayment.id) ?? 0) + refund.amountCents);
