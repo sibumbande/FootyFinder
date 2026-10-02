@@ -1,3 +1,4 @@
+import type { PlayerStatistics } from './user.js';
 /**
  * CEO batch 5: self-service account deletion (ToS 20.1, 20.2) and the POPIA data download (ToS 8.7, 8.13).
  */
@@ -97,4 +98,61 @@ export interface RetentionCategorySummary {
 }
 export interface RetentionOverview {
   categories: RetentionCategorySummary[];
+}
+
+/** CEO batch 5, item 5: "Download my data" (POPIA section 23; ToS 8.7 and 8.13). */
+export interface PersonalDataExport {
+  format: 'footyfinder-personal-data';
+  version: 1;
+  generatedAt: string;
+  about: string;
+  account: {
+    id: string;
+    email: string;
+    username: string;
+    createdAt: string;
+    emailVerifiedAt: string | null;
+    onboardingCompletedAt: string | null;
+    accountStatus: string;
+    friendRequestsEnabled: boolean;
+  };
+  profile: {
+    displayName: string | null;
+    bio: string | null;
+    dateOfBirth: string | null;
+    gender: string | null;
+    city: string | null;
+    homeArea: string | null;
+    dominantFoot: string | null;
+    yearsExperience: number | null;
+    preferredPositions: string[];
+    photo: { uploadedAt: string; hiddenByFootyFinder: boolean } | null;
+  };
+  matches: Array<{ matchId: string; name: string; startsAt: string; matchStatus: string; side: string; yourStatus: string; joinedAt: string; leftAt: string | null; paidCents: number }>;
+  results: Array<{ matchId: string; name: string; startsAt: string; side: string; role: string; didNotPlay: boolean; score: { home: number | null; away: number | null; outcome: string | null } | null }>;
+  statistics: PlayerStatistics;
+  wallet: {
+    balanceCents: number;
+    transactions: Array<{ type: string; amountCents: number; status: string; description: string | null; createdAt: string }>;
+    topUps: Array<{ reference: string; amountCents: number; status: string; method: string | null; createdAt: string; refunds: Array<{ amountCents: number; status: string; createdAt: string }> }>;
+  };
+  teams: Array<{ teamId: string; name: string; role: string; joinedAt: string }>;
+  teamWalletContributions: Array<{ team: string; type: string; amountCents: number; createdAt: string }>;
+  friends: Array<{ displayName: string; since: string }>;
+  friendRequests: Array<{ direction: 'SENT' | 'RECEIVED'; otherPlayer: string; status: string; createdAt: string }>;
+  blockedPlayers: Array<{ displayName: string; since: string }>;
+  messagesSent: {
+    direct: Array<{ conversationId: string; content: string; sentAt: string }>;
+    lobbyChat: Array<{ matchId: string; content: string; sentAt: string }>;
+    teamChat: Array<{ teamId: string; content: string; sentAt: string }>;
+  };
+  teamReviews: Array<{ team: string; match: string; rating: number; comment: string | null; status: string; createdAt: string }>;
+  recruitment: {
+    lookingCard: Record<string, unknown> | null;
+    joinRequests: Array<{ team: string; status: string; createdAt: string }>;
+    postsCreated: Array<{ team: string; status: string; area: string; note: string | null; createdAt: string }>;
+  };
+  consents: { cityWaitingList: Array<{ city: string; email: string; source: string; consentedAt: string; unsubscribedAt: string | null }> };
+  termsAcceptances: Array<{ document: string; type: string; version: string; acceptedAt: string; source: string; evidence: unknown }>;
+  deletionRequests: Array<{ status: string; requestedAt: string; scheduledFor: string | null; cancelledAt: string | null }>;
 }

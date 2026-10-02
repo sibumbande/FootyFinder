@@ -249,7 +249,7 @@ When information reaches the end of its period, we delete it or make it anonymou
 
 ### Your rights
 
-**8.7 What you may do.** Under POPIA you have the right to be told what Personal Information we hold about you; to ask for access to it; to ask us to correct or delete information that is inaccurate, irrelevant, excessive, out of date, incomplete, misleading or unlawfully obtained; to object to processing based on legitimate interests; and to lodge a complaint with the Information Regulator. Contact support to use these rights.
+**8.7 What you may do.** Under POPIA you have the right to be told what Personal Information we hold about you; to ask for access to it; to ask us to correct or delete information that is inaccurate, irrelevant, excessive, out of date, incomplete, misleading or unlawfully obtained; to object to processing based on legitimate interests; and to lodge a complaint with the Information Regulator. You can download a copy of your personal data in the app (clause 8.13) and delete your Account in the app (clause 20.1). Contact support to use your other rights.
 
 **8.8 Withdrawing consent.** Where we rely on your consent, you may withdraw it at any time. Withdrawal does not affect processing carried out before it.
 
@@ -260,6 +260,8 @@ When information reaches the end of its period, we delete it or make it anonymou
 **8.11 Automated decisions.** We do not make decisions about you that have legal or similarly significant effects based solely on automated processing. The automatic go/no-go check applies the published match rules in clauses 11.7 and 12.17 to everyone in the same way. A person reviews the matter before any suspension is imposed.
 
 **8.12 Security incidents.** If a security compromise affects your Personal Information, we will notify you and the Information Regulator as soon as reasonably possible after establishing the extent of the compromise, as required by section 22 of POPIA.
+
+**8.13 Downloading your data.** In Account settings you can download a copy of the personal data we hold about you ("Download my data") after confirming your password. It includes your Account and profile details, your matches, results and statistics, your Wallet and Team Wallet history, your Teams, friends, friend requests and blocks, the messages you sent, your Team reviews, your recruitment posts, requests to join and "Looking for a team" card, your consents, and your acceptances of these Terms. You receive it as a file in a standard machine-readable format (JSON) and as a summary you can print. Other players appear in it only by their public display name. You can download it once every twenty-four (24) hours, and each download is recorded.
 
 > **COMPLAINTS TO THE REGULATOR**
 > If you are not satisfied with how we have handled your Personal Information, you may complain to the Information Regulator (South Africa), JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001.
@@ -715,7 +717,7 @@ This summary is for convenience and does not replace the full Terms above. If th
 | Recruitment | Teams can post that they're recruiting (30 days, renewable) and you can switch on "Looking for a team". Ask to join a team (up to 10 requests waiting, 14 days each). No money involved. |
 | Blocking | Block anyone: they can't message you, add you or ask to join your team, and you stop seeing each other. They aren't told. Shared matches and teams stay as they are. |
 | The risk | Football can injure you. You accept that risk and cover your own medical costs. We are still responsible if we are grossly negligent. |
-| Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can see, correct or delete your data and complain to the Information Regulator. |
+| Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can download your data and delete your account in the app, ask us to correct your data, and complain to the Information Regulator. |
 | What the public sees | Anyone can browse FootyFinder without an account: player profiles, team pages, recruitment posts, looking cards, upcoming public matches (counts only) and past results with scorers. Never your email, date of birth, messages, friends or payments. |
 | Behaviour | Violence, racism and abuse mean a permanent ban and possibly a police report. |
 | If something goes wrong | Contact support. You can also go to the National Consumer Commission or the Information Regulator. |

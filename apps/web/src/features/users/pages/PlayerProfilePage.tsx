@@ -236,6 +236,12 @@ export function PlayerProfilePage() {
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
+              className="rounded-xl border border-line-strong px-4 py-2 text-sm font-bold text-content hover:bg-surface-hover"
+              to="/account/data"
+            >
+              Download my data
+            </Link>
+            <Link
               className="rounded-xl border border-danger-600 px-4 py-2 text-sm font-bold text-danger-700 hover:bg-danger-50"
               to="/account/delete"
             >

@@ -10,3 +10,4 @@ import * as controller from './account.controller.js';
 export const accountRouter: ExpressRouter = Router();
 accountRouter.get('/deletion/preview', controller.deletionPreview);
 accountRouter.post('/deletion', authRateLimit, controller.requestDeletion);
+accountRouter.post('/data-export', authRateLimit, controller.downloadData);

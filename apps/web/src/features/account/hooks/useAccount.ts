@@ -1,4 +1,4 @@
-import type { ConfirmAccountDeletionInput } from '@footy-finder/shared';
+import type { ConfirmAccountDeletionInput, DataExportInput } from '@footy-finder/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { accountClient } from '@/api/client.js';
 
@@ -13,3 +13,6 @@ export const useDeletionPreview = () =>
 
 export const useRequestDeletion = () =>
   useMutation({ mutationFn: (input: ConfirmAccountDeletionInput) => accountClient.requestDeletion(input) });
+
+export const useDownloadData = () =>
+  useMutation({ mutationFn: async (input: DataExportInput) => accountClient.downloadData(input) });
