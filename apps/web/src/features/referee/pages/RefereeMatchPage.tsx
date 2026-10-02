@@ -4,6 +4,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { RefereeResultForm } from '../components/RefereeResultForm.js';
 import { useDeclineRefereeMatch, useRefereeMatch } from '../hooks/useReferee.js';
 import { formatKickoff } from '../utils.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 /** Gate 8 / TKT-805 (DEC-020): one match the referee is assigned to: lineups, decline, result. */
 export function RefereeMatchPage() {
@@ -76,10 +77,10 @@ function Lineup({ title, players }: { title: string; players: MatchLineupPlayer[
       {players.length === 0 && <p className="text-sm text-content-muted">No players yet.</p>}
       <ul className="mt-2 grid gap-1 text-sm text-content">
         {players.map((player) => (
-          <li key={player.userId}>
-            {player.displayName}
-            {player.role === 'SUBSTITUTE' && <span className="text-content-muted"> (sub)</span>}
-            {player.didNotPlay && <span className="text-content-muted"> (did not play)</span>}
+          <li key={player.userId} className="flex min-w-0 items-center gap-1">
+            <span className="min-w-0"><PlayerName name={player.displayName} revealOnTap /></span>
+            {player.role === 'SUBSTITUTE' && <span className="shrink-0 text-content-muted"> (sub)</span>}
+            {player.didNotPlay && <span className="shrink-0 text-content-muted"> (did not play)</span>}
           </li>
         ))}
       </ul>

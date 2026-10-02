@@ -1,6 +1,7 @@
 import type { DisplacedPlayerAction, PublicUser, TeamSide } from '@footy-finder/shared';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 import { Button } from '@/components/ui/Button.js';
 import { formationNow, recordFormationTiming } from './formation-timing.js';
 
@@ -529,6 +530,7 @@ export function FormationBoard({
               }}
               aria-busy={claimingSlotId === slot.id || undefined}
               aria-label={describeSlot(slot)}
+              title={slot.player ? slot.player.user.displayName : undefined}
             >
               {badge && (
                 <span
@@ -577,7 +579,8 @@ export function FormationBoard({
           </div>
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* CEO touch-up batch 4, item 5: minmax(0, 1fr) so a long name can never widen the benches past the screen. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
         {sides.map((team) => (
           <ReserveBench
             key={team}
@@ -663,7 +666,8 @@ function ReserveBench({
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 ${team === 'HOME' ? 'border-team-home-border bg-team-home-muted' : 'border-team-away-border bg-team-away-muted'}`}
+      className={`min-w-0 rounded-2xl border p-4 ${team === 'HOME' ? 'border-team-home-border bg-team-home-muted' : 'border-team-away-border bg-team-away-muted'}`}
+      data-testid={`reserve-bench-${team.toLowerCase()}`}
     >
       <div className="mb-3 flex justify-between">
         <h3
@@ -681,7 +685,7 @@ function ReserveBench({
         </h3>
         <span className="text-xs font-bold text-content-muted">{players.length}</span>
       </div>
-      <div className="grid gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
         {players.length === 0 && <p className="text-sm text-content-muted">No reserve players.</p>}
         {players.map((player) => (
           <button
@@ -689,19 +693,20 @@ function ReserveBench({
             type="button"
             disabled={!canEdit}
             onClick={() => onSelect(player.id)}
-            className={`flex items-center gap-2 rounded-xl border p-2 text-left ${selected === player.id ? 'border-brand-500 bg-surface' : 'border-line bg-surface/70'} disabled:cursor-default`}
+            className={`flex min-w-0 items-center gap-2 rounded-xl border p-2 text-left ${selected === player.id ? 'border-brand-500 bg-surface' : 'border-line bg-surface/70'} disabled:cursor-default`}
+            data-testid="reserve-player"
           >
             <Avatar user={player.user} size="sm" />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-content-strong">
-              {player.user.displayName}
+            <span className="min-w-0 flex-1">
+              <PlayerName name={player.user.displayName} className="text-sm font-semibold text-content-strong" />
             </span>
             {player.id === currentPlayerId && (
-              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-black uppercase text-content-inverse">
+              <span className="shrink-0 rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-black uppercase text-content-inverse">
                 You
               </span>
             )}
             {player.badge && (
-              <span className="text-[10px] font-bold uppercase text-content-muted">
+              <span className="shrink-0 text-[10px] font-bold uppercase text-content-muted">
                 {player.badge}
               </span>
             )}

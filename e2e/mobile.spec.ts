@@ -55,6 +55,27 @@ async function expectHeaderAligned(page: Page) {
   expect(Math.max(...centres) - Math.min(...centres), 'header controls share one centre line').toBeLessThanOrEqual(3);
 }
 
+/**
+ * CEO touch-up batch 4, item 5: player names and their "YOU" badge stay inside their own box (a reserves chip, a
+ * lineup card, a leaderboard row), not just inside the screen. Returns the offenders.
+ */
+async function overflowingNames(page: Page) {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    const inside = (child: DOMRect, box: DOMRect) => child.left >= box.left - 1 && child.right <= box.right + 1;
+    for (const chip of document.querySelectorAll<HTMLElement>('[data-testid="reserve-player"]')) {
+      const bench = chip.closest<HTMLElement>('[data-testid^="reserve-bench"]');
+      if (bench && !inside(chip.getBoundingClientRect(), bench.getBoundingClientRect())) out.push(`chip outside bench: ${chip.textContent}`);
+      for (const part of chip.children) if (!inside(part.getBoundingClientRect(), chip.getBoundingClientRect())) out.push(`part outside chip: ${part.textContent}`);
+    }
+    for (const name of document.querySelectorAll<HTMLElement>('[data-testid="player-name"]')) {
+      const box = name.parentElement;
+      if (name.getBoundingClientRect().width > 1 && box && !inside(name.getBoundingClientRect(), box.getBoundingClientRect())) out.push(`name outside its box: ${name.textContent}`);
+    }
+    return out.slice(0, 6);
+  });
+}
+
 async function expectFits(page: Page, path: string, label = path) {
   await page.goto(path);
   await page.locator('main').waitFor();
@@ -110,6 +131,10 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
     });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     matchId = created.body.data!.id;
+    // CEO touch-up batch 4, item 5: the long-named player sits in the reserves, so the name checks have a chip to test.
+    await f.deposit(page, 'reserve-join');
+    const joined = await f.api(page, `/matches/${matchId}/join`, { method: 'POST', body: { team: 'HOME' }, headers: { 'Idempotency-Key': `${f.marker}-reserve-join` } });
+    expect(joined.status, JSON.stringify(joined.body)).toBeLessThan(300);
     publicSlug = (await f.prisma.match.findUniqueOrThrow({ where: { id: matchId }, select: { publicSlug: true } })).publicSlug!;
     await context.close();
   });
@@ -117,6 +142,17 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
   test.afterAll(async () => {
     await f.cleanFixtures();
     await f.prisma.$disconnect();
+  });
+
+  test('long player names stay inside their boxes on desktop (CEO batch 4, item 5)', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.goto('/');
+    expect((await f.api(page, '/auth/login', { method: 'POST', body: { identifier: `${f.marker}-player@test.invalid`, password: f.PASSWORD } })).status).toBe(200);
+    await page.goto(`/matches/${matchId}#formation`);
+    await expect(page.getByTestId('reserve-player').first()).toBeVisible();
+    expect(await overflowingNames(page)).toEqual([]);
+    await context.close();
   });
 
   test('the signed-in header lines up on desktop (CEO batch 3.5, item 2)', async ({ browser }) => {
@@ -220,6 +256,14 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       await page.getByRole('tab', { name: /Away/ }).click();
       await expect(page.getByTestId('pitch-away')).toBeVisible();
       expect(await offscreen(page)).toEqual([]);
+
+      // CEO touch-up batch 4, item 5: the reserves chip, its shortened name and the YOU badge stay inside the bench.
+      await page.getByRole('tab', { name: /Home/ }).click();
+      const chip = page.getByTestId('reserve-player').filter({ hasText: 'You' });
+      await expect(chip).toBeVisible();
+      expect(await overflowingNames(page)).toEqual([]);
+      for (const path of [`/teams/${teamId}`, '/social?tab=leaderboards', '/social?tab=friends'])
+        await page.goto(path).then(async () => expect.soft(await overflowingNames(page), path).toEqual([]));
       await context.close();
     });
   }

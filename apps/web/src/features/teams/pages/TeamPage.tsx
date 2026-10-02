@@ -24,6 +24,7 @@ import {
 import { useTeamSocket } from '../hooks/useTeamSocket.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { TeamStatsPanel } from '@/features/teams/components/TeamStatsPanel.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'chat' | 'invites' | 'settings';
 export function TeamPage() {
@@ -131,7 +132,7 @@ function TeamMatches({ team }: { team: TeamDetail }) {
 }
 function Overview({ team }: { team: TeamDetail }) {
   return (
-    <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[minmax(0,1fr)_18rem]">
       <div>
         <h2 className="text-xl font-bold text-content-strong">About the Team</h2>
         <p className="mt-3 leading-7 text-content">
@@ -150,9 +151,9 @@ function Overview({ team }: { team: TeamDetail }) {
       </div>
       <aside className="rounded-2xl bg-surface-muted p-4 md:row-start-1">
         <p className="text-xs font-bold uppercase text-content-muted">Owner</p>
-        <Link to={`/players/${team.owner.id}`} className="mt-3 flex items-center gap-3">
+        <Link to={`/players/${team.owner.id}`} className="mt-3 flex min-w-0 items-center gap-3">
           <Avatar user={team.owner} />
-          <span className="font-bold text-content-strong">{team.owner.displayName}</span>
+          <span className="min-w-0 flex-1"><PlayerName name={team.owner.displayName} className="font-bold text-content-strong" /></span>
         </Link>
       </aside>
     </div>
@@ -184,10 +185,10 @@ function Squad({ team }: { team: TeamDetail }) {
             </Link>
             <div className="min-w-0 flex-1">
               <Link
-                className="font-bold text-content-strong hover:text-brand-700"
+                className="block min-w-0 font-bold text-content-strong hover:text-brand-700"
                 to={`/players/${member.userId}`}
               >
-                {member.user.displayName}
+                <PlayerName name={member.user.displayName} />
               </Link>
               <p className="text-xs font-bold uppercase text-brand-700">{member.role}</p>
               <p className="mt-1 text-xs text-content-muted">

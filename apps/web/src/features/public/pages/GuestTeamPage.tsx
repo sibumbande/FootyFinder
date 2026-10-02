@@ -10,6 +10,7 @@ import { GuestAction } from '../components/SignUpPrompt.js';
 import { usePublicTeam } from '../hooks/usePublic.js';
 import { plural } from '@/utils/plural.js';
 import { TeamStatsPanel } from '@/features/teams/components/TeamStatsPanel.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 const GUEST_TABS = ['overview', 'squad'] as const;
 type GuestTab = (typeof GUEST_TABS)[number];
@@ -52,7 +53,7 @@ export function GuestTeamPage() {
 function Overview({ team }: { team: PublicTeamView }) {
   const owner = team.members.find(({ role }) => role === 'OWNER');
   return (
-    <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[minmax(0,1fr)_18rem]">
       <div>
         <h2 className="text-xl font-bold text-content-strong">About the Team</h2>
         <p className="mt-3 leading-7 text-content">{team.description || 'This Team has not added a description yet.'}</p>
@@ -69,9 +70,9 @@ function Overview({ team }: { team: PublicTeamView }) {
       {owner && (
         <aside className="rounded-2xl bg-surface-muted p-4 md:row-start-1">
           <p className="text-xs font-bold uppercase text-content-muted">Owner</p>
-          <Link to={`/players/${owner.userId}`} className="mt-3 flex items-center gap-3">
+          <Link to={`/players/${owner.userId}`} className="mt-3 flex min-w-0 items-center gap-3">
             <Avatar user={owner} />
-            <span className="font-bold text-content-strong">{owner.displayName}</span>
+            <span className="min-w-0 flex-1"><PlayerName name={owner.displayName} className="font-bold text-content-strong" /></span>
           </Link>
         </aside>
       )}

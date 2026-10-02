@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar.js';
 import { FriendButton } from './FriendButton.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 const positionLabel = (position: string) => position.charAt(0) + position.slice(1).toLowerCase();
 
@@ -35,8 +36,8 @@ export function SocialPlayerCardView({
         <Avatar user={player} size="md" />
       </Link>
       <div className="min-w-0">
-        <Link to={`/players/${player.id}`} className="block break-words font-black leading-snug text-content-strong hover:underline">
-          {player.displayName}
+        <Link to={`/players/${player.id}`} className="block min-w-0 font-black leading-snug text-content-strong hover:underline">
+          <PlayerName name={player.displayName} />
         </Link>
         {showUsername && (
           <p className="break-words text-xs text-content-muted">

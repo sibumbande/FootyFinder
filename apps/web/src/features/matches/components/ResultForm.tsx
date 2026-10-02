@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input.js';
 import { useNotifications } from '@/features/notifications/NotificationProvider.js';
 import { QUICK_MATCH_SIDE_LABELS } from '../constants/quick-match-sides.js';
 import { useSubmitResult } from '../hooks/useMatches.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 export function ResultForm({
   matchId,
   participants,
@@ -67,8 +68,8 @@ export function ResultForm({
             <span
               className={`size-2 rounded-full ${participant.team === 'HOME' ? 'bg-team-home' : 'bg-team-away'}`}
             />
-            <span className="min-w-0 flex-1 truncate font-semibold text-content">
-              {participant.user?.displayName}
+            <span className="min-w-0 flex-1">
+              <PlayerName name={participant.user?.displayName ?? ''} className="font-semibold text-content" revealOnTap />
             </span>
             <input
               aria-label={`Goals by ${participant.user?.displayName}`}

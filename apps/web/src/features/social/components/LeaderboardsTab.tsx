@@ -8,6 +8,7 @@ import { FormError } from '@/components/ui/FormError.js';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { publicKey } from '@/features/public/hooks/usePublic.js';
 import { plural } from '@/utils/plural.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 type Unit = readonly [singular: string, plural: string];
 const BOARDS: Array<{ board: LeaderboardBoard; title: string; unit: Unit }> = [
@@ -88,8 +89,9 @@ function Row({ row, unit, mine }: { row: LeaderboardRow; unit: Unit; mine: boole
     <li className={`flex min-w-0 items-center gap-3 rounded-xl p-2 ${mine ? 'bg-brand-50 ring-1 ring-brand-200' : 'bg-surface'}`}>
       <span className="w-8 shrink-0 text-center text-sm font-black text-content-strong" aria-label={`Place ${row.rank}`}>{row.rank}</span>
       <Avatar user={{ displayName: row.displayName, username: row.displayName, avatarUrl: row.avatarUrl }} size="sm" />
-      <Link to={`/players/${row.userId}`} className="min-w-0 flex-1 truncate font-bold text-content-strong hover:underline">
-        {row.displayName}{mine ? ' (you)' : ''}
+      <Link to={`/players/${row.userId}`} className="flex min-w-0 flex-1 items-center gap-1 font-bold text-content-strong hover:underline">
+        <span className="min-w-0"><PlayerName name={row.displayName} /></span>
+        {mine && <span className="shrink-0">(you)</span>}
       </Link>
       <span className="shrink-0 text-sm font-black text-content-strong" aria-label={plural(row.value, ...unit)}>{row.value}</span>
     </li>

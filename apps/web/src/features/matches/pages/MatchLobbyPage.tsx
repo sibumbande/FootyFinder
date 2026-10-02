@@ -45,6 +45,7 @@ import {
 } from '../hooks/useMatches.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { useScrollToFormation } from '../hooks/useScrollToFormation.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -391,8 +392,8 @@ export function MatchLobbyPage() {
                   key={player.id}
                   className="mt-2 flex items-center gap-2 rounded-xl bg-surface p-3 text-sm font-semibold text-content-strong"
                 >
-                  <Link className="min-w-0 flex-1 truncate" to={`/players/${player.userId}`}>
-                    {player.user?.displayName}
+                  <Link className="min-w-0 flex-1" to={`/players/${player.userId}`}>
+                    <PlayerName name={player.user?.displayName ?? ''} />
                   </Link>
                   <FriendButton userId={player.userId} />
                   {player.userId === user?.id && (

@@ -10,6 +10,7 @@ import {
   type GoalDraft,
   type ResultDraft,
 } from '../result-draft.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 const selectClass = 'min-h-11 w-full rounded-xl border-2 border-line bg-surface px-3 text-sm text-content';
 let goalKey = 0;
@@ -125,9 +126,10 @@ export function ResultEntryForm({ sides, lineup, mode, onSubmit, pending, submit
       <fieldset className="grid gap-1">
         <legend className="text-sm font-bold text-content-strong">Who played? Untick anyone who did not play.</legend>
         {match.lineup.map((player) => (
-          <label key={player.userId} className="flex min-h-11 items-center gap-3 text-sm text-content">
-            <input type="checkbox" checked={!draft.didNotPlayUserIds.includes(player.userId)} onChange={() => toggleDidNotPlay(player.userId)} />
-            {player.displayName} <span className="text-content-muted">({match.sides[player.side]}{player.role === 'SUBSTITUTE' ? ', sub' : ''})</span>
+          <label key={player.userId} className="flex min-h-11 min-w-0 items-center gap-3 text-sm text-content">
+            <input type="checkbox" className="shrink-0" checked={!draft.didNotPlayUserIds.includes(player.userId)} onChange={() => toggleDidNotPlay(player.userId)} />
+            <span className="min-w-0"><PlayerName name={player.displayName} /></span>
+            <span className="shrink-0 text-content-muted">({match.sides[player.side]}{player.role === 'SUBSTITUTE' ? ', sub' : ''})</span>
           </label>
         ))}
       </fieldset>

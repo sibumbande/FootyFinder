@@ -36,6 +36,7 @@ import { MatchResultPanel } from './MatchResultPanel.js';
 import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
 import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
+import { PlayerName } from '@/components/ui/PlayerName.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -249,8 +250,8 @@ function AvailabilityPanel({ match, teamSide }: { match: Match; teamSide: MatchT
         {query.data?.rows.map((row) => (
           <article key={row.id} className="rounded-2xl border border-line bg-surface p-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-bold text-content-strong">{row.user.displayName}</p>
+              <div className="min-w-0 flex-1">
+                <PlayerName name={row.user.displayName} className="font-bold text-content-strong" revealOnTap />
                 <p className="mt-1 text-xs font-bold uppercase text-brand-700">
                   {row.status.replace('_', ' ')}
                 </p>
@@ -493,10 +494,10 @@ function LineupPanel({ match, teamSide }: { match: Match; teamSide: MatchTeamSid
               return (
                 <article key={member.id} className="rounded-2xl border border-line p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-semibold text-content-strong">
-                      {member.user.displayName}
+                    <span className="min-w-0 flex-1">
+                      <PlayerName name={member.user.displayName} className="font-semibold text-content-strong" revealOnTap />
                     </span>
-                    <span className="text-[10px] font-bold uppercase text-brand-700">
+                    <span className="shrink-0 text-[10px] font-bold uppercase text-brand-700">
                       {selection?.status.replaceAll('_', ' ') ?? 'Not selected'}
                     </span>
                   </div>
