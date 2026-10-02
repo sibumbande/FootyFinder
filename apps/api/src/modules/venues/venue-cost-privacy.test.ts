@@ -455,6 +455,7 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     const topUp = toTopUpStatus({
       id: 'payment-1',
       userId: 'payer',
+      purpose: 'TOP_UP',
       walletTransactionId: 'tx-1',
       provider: 'paystack',
       reference: 'ff_topup_0123456789abcdef0123456789abcdef',

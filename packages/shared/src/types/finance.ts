@@ -13,8 +13,11 @@ export interface AdminCardRefund {
   attempts: number;
   providerRefundId?: string;
   restoreReason?: string;
-  /** CEO batch 5: ADMIN, PLAYER_UNDO or ACCOUNT_CLOSURE (the final step of an account deletion). */
-  source?: 'ADMIN' | 'PLAYER_UNDO' | 'ACCOUNT_CLOSURE';
+  /**
+   * CEO batch 5: ADMIN, PLAYER_UNDO or ACCOUNT_CLOSURE (the final step of an account deletion). DEC-021: why a ticket
+   * is refunded (left, match cancelled, no choice within 7 days, late payment, paid twice).
+   */
+  source?: 'ADMIN' | 'PLAYER_UNDO' | 'ACCOUNT_CLOSURE' | 'TICKET_LEFT' | 'MATCH_CANCELLED' | 'CHOICE_TIMEOUT' | 'LATE_PAYMENT' | 'DUPLICATE_PAYMENT';
   createdAt: string;
 }
 

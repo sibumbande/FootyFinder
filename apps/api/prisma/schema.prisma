@@ -301,6 +301,12 @@ enum RefundSource {
   PLAYER_UNDO
   /// CEO batch 5, item 3: the final step of a self-service account deletion (ToS 20.2).
   ACCOUNT_CLOSURE
+  /// DEC-021 (batch 5): why a ticket, or a credit that came from one, is refunded to the original payment method.
+  TICKET_LEFT
+  MATCH_CANCELLED
+  CHOICE_TIMEOUT
+  LATE_PAYMENT
+  DUPLICATE_PAYMENT
 }
 
 enum FieldClosureKind {
@@ -483,6 +489,10 @@ enum NotificationType {
   TEAM_INVITE_ANSWERED
   TEAM_JOIN_REQUEST_RECEIVED
   TEAM_JOIN_REQUEST_ANSWERED
+  TICKET_CHOICE_REQUIRED
+  TICKET_REFUND_UPDATE
+  TEAM_PAYMENT_DUE
+  PAYMENT_DISPUTE_OPENED
 }
 
 /// Gate 9 / TKT-909: team recruitment board.
@@ -687,6 +697,15 @@ model User {
   settledDeletionRequests   AccountDeletionRequest[]  @relation("DeletionRequestFinanceSettler")
   retentionSettings         RetentionPolicySetting[]  @relation("RetentionSettingUpdater")
   retentionRuns             RetentionRun[]            @relation("RetentionRunActor")
+  /// DEC-021 D9: set while a payment of theirs is disputed; no tickets can be bought or credits used.
+  bookingRestrictedAt       DateTime?
+  bookingRestrictionReason  String?
+  ticketsHeld               MatchTicket[]             @relation("TicketPlayer")
+  ticketsPaid               MatchTicket[]             @relation("TicketPayer")
+  ticketCheckouts           TicketCheckout[]
+  matchCredits              MatchCredit[]
+  matchCreditEvents         MatchCreditEvent[]
+  ticketEmails              TicketEmail[]
 
   @@index([isTestAccount, testDataBatchId])
 }
@@ -1317,14 +1336,16 @@ model WalletHold {
 
 /// Gate 6 / TKT-604: one Paystack card top-up. Credited only after our server verifies it.
 model ProviderPayment {
-  id                    String                @id @default(uuid()) @db.Uuid
-  userId                String                @db.Uuid
-  walletTransactionId   String                @unique @db.Uuid
+  id                    String                 @id @default(uuid()) @db.Uuid
+  userId                String                 @db.Uuid
+  /// DEC-021 D14: TOP_UP (legacy, linked to its wallet credit) or TICKETS (no wallet link).
+  purpose               ProviderPaymentPurpose @default(TOP_UP)
+  walletTransactionId   String?                @unique @db.Uuid
   provider              String
-  reference             String                @unique
+  reference             String                 @unique
   amountCents           Int
-  currency              String                @default("ZAR")
-  status                ProviderPaymentStatus @default(INITIALIZED)
+  currency              String                 @default("ZAR")
+  status                ProviderPaymentStatus  @default(INITIALIZED)
   authorizationUrl      String?
   initializeStartedAt   DateTime?
   providerTransactionId String?
@@ -1335,10 +1356,11 @@ model ProviderPayment {
   creditedBy            String?
   failureReason         String?
   reviewReason          String?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  user                  User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
-  walletTransaction     WalletTransaction     @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  walletTransaction     WalletTransaction?     @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
+  checkout              TicketCheckout?
   refunds               ProviderRefund[]
   disputes              ProviderDispute[]
 
@@ -1353,7 +1375,11 @@ model ProviderRefund {
   amountCents          Int
   status               ProviderRefundStatus @default(PENDING)
   providerRefundId     String?              @unique
-  debitTransactionId   String               @unique @db.Uuid
+  /// Legacy top-up refunds only; a ticket refund has ticketId instead (DEC-021 D14).
+  debitTransactionId   String?              @unique @db.Uuid
+  ticketId             String?              @db.Uuid
+  /// Set when a credit that came from the ticket is refunded on account closure (DEC-021 D11).
+  creditId             String?              @db.Uuid
   restoreTransactionId String?              @unique @db.Uuid
   reason               String
   /// CEO touch-up batch 3, item 6b: ADMIN, or PLAYER_UNDO (at most one per top-up).
@@ -1368,7 +1394,9 @@ model ProviderRefund {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   providerPayment      ProviderPayment      @relation(fields: [providerPaymentId], references: [id], onDelete: Restrict)
-  debitTransaction     WalletTransaction    @relation("RefundDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
+  debitTransaction     WalletTransaction?   @relation("RefundDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
+  ticket               MatchTicket?         @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  credit               MatchCredit?         @relation(fields: [creditId], references: [id], onDelete: Restrict)
   restoreTransaction   WalletTransaction?   @relation("RefundRestore", fields: [restoreTransactionId], references: [id], onDelete: Restrict)
   initiatedBy          User                 @relation("RefundInitiator", fields: [initiatedByUserId], references: [id], onDelete: Restrict)
   restoredBy           User?                @relation("RefundRestorer", fields: [restoredByUserId], references: [id], onDelete: Restrict)
@@ -1384,15 +1412,18 @@ model ProviderDispute {
   providerDisputeId     String                @unique
   status                ProviderDisputeStatus @default(OPEN)
   amountCents           Int
-  debitTransactionId    String                @unique @db.Uuid
+  /// Legacy wallet reversal only; a ticket payment dispute has none (DEC-021 D9).
+  debitTransactionId    String?               @unique @db.Uuid
   reversalTransactionId String?               @unique @db.Uuid
   resolution            String?
+  /// The deadline Paystack gives for our evidence, when it gives one.
+  dueAt                 DateTime?
   openedAt              DateTime              @default(now())
   resolvedAt            DateTime?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   providerPayment       ProviderPayment       @relation(fields: [providerPaymentId], references: [id], onDelete: Restrict)
-  debitTransaction      WalletTransaction     @relation("DisputeDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
+  debitTransaction      WalletTransaction?    @relation("DisputeDebit", fields: [debitTransactionId], references: [id], onDelete: Restrict)
   reversalTransaction   WalletTransaction?    @relation("DisputeReversal", fields: [reversalTransactionId], references: [id], onDelete: Restrict)
 
   @@index([providerPaymentId, status])
@@ -1618,6 +1649,8 @@ model Match {
   captainSubmissions        CaptainResultSubmission[]
   resultProblemReports      ResultProblemReport[]
   teamReviews               TeamReview[]
+  tickets                   MatchTicket[]
+  ticketCheckouts           TicketCheckout[]
 
   @@index([visibility, startsAt])
   @@index([format, startsAt])
@@ -1849,6 +1882,7 @@ model MatchTeam {
   availabilities          TeamMatchAvailability[]
   selections              TeamMatchSelection[]
   lineupSlots             TeamMatchLineupSlot[]
+  tickets                 MatchTicket[]
 
   @@unique([matchId, side])
   @@unique([matchId, teamId])
@@ -1948,6 +1982,7 @@ model MatchParticipant {
   promotionalCost PromotionalCost?
   scoring         MatchScorer[]
   replacementFor  ParticipantCancellation? @relation("ReplacementParticipant")
+  ticket          MatchTicket?
 
   @@unique([matchId, userId])
   @@index([matchId, team, status])
@@ -1966,6 +2001,7 @@ model FormationSlot {
   updatedAt     DateTime          @updatedAt
   match         Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
   participant   MatchParticipant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  tickets       MatchTicket[]
 
   @@unique([matchId, team, slotIndex])
   @@index([matchId, team])
@@ -2584,4 +2620,222 @@ model RetentionRun {
   actor          User?         @relation("RetentionRunActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([category, startedAt])
+}
+
+/// DEC-021 Match Ticketing (batch 5 brief, Part A). See migration 20261011120000_batch_5_match_ticketing.
+enum ProviderPaymentPurpose {
+  TOP_UP
+  TICKETS
+}
+
+enum TicketCheckoutKind {
+  QUICK
+  TEAM
+}
+
+enum TicketCheckoutMethod {
+  PAYMENT
+  CREDIT
+  FREE
+}
+
+enum TicketCheckoutStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  FAILED
+}
+
+enum MatchTicketSeat {
+  POSITION
+  SUBSTITUTE
+  TEAM
+}
+
+enum MatchTicketStatus {
+  HELD
+  CONFIRMED
+  RELEASED
+  CHOICE_PENDING
+  CLOSED
+}
+
+enum MatchTicketOutcome {
+  CREDIT_ISSUED
+  REFUNDED
+  CREDIT_RETURNED
+  FORFEITED
+  NOTHING_DUE
+  LATE_PAYMENT_REFUNDED
+  DUPLICATE_REFUNDED
+}
+
+enum MatchCreditStatus {
+  AVAILABLE
+  USED
+  EXPIRED
+  FORFEITED
+  REFUNDED
+}
+
+enum MatchCreditReason {
+  LEFT_MATCH
+  MATCH_CANCELLED
+  CREDIT_RETURNED
+  DEV_SEED
+  GOODWILL
+}
+
+enum MatchCreditEventType {
+  ISSUED
+  USED
+  EXPIRED
+  FORFEITED
+  REFUNDED
+}
+
+/// DEC-021: one purchase by one payer for one match (a Paystack payment, a match credit or a free place), with the
+/// cancellation-policy acceptance record (A8, D15: time, Terms version, wording shown, IP and browser).
+model TicketCheckout {
+  id                String               @id @default(uuid()) @db.Uuid
+  matchId           String               @db.Uuid
+  payerId           String               @db.Uuid
+  kind              TicketCheckoutKind
+  method            TicketCheckoutMethod
+  status            TicketCheckoutStatus @default(PENDING)
+  providerPaymentId String?              @unique @db.Uuid
+  amountCents       Int
+  idempotencyKey    String
+  policyAcceptedAt  DateTime
+  termsVersion      String
+  policyText        String
+  ipAddress         String?
+  userAgent         String?
+  completedAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  match             Match                @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  payer             User                 @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  providerPayment   ProviderPayment?     @relation(fields: [providerPaymentId], references: [id], onDelete: Restrict)
+  tickets           MatchTicket[]
+  emails            TicketEmail[]
+
+  @@unique([payerId, idempotencyKey])
+  @@index([matchId, status])
+  @@index([payerId, createdAt])
+}
+
+/// DEC-021: one place in one match for one named player, paid by the payer (themselves, or a teammate in a team
+/// match). HELD while checkout runs ("Being booked", 10 minutes), CONFIRMED once paid, RELEASED if checkout never
+/// completed, CHOICE_PENDING after a cancellation (credit or refund; refunded automatically after 7 days), CLOSED
+/// with an outcome. Partial unique indexes: one live ticket per player per match; one hold per position.
+model MatchTicket {
+  id                String               @id @default(uuid()) @db.Uuid
+  matchId           String               @db.Uuid
+  checkoutId        String               @db.Uuid
+  playerId          String               @db.Uuid
+  payerId           String               @db.Uuid
+  side              TeamSide
+  seat              MatchTicketSeat
+  slotId            String?              @db.Uuid
+  matchTeamId       String?              @db.Uuid
+  participantId     String?              @unique @db.Uuid
+  status            MatchTicketStatus    @default(HELD)
+  method            TicketCheckoutMethod
+  amountCents       Int
+  holdExpiresAt     DateTime?
+  confirmedAt       DateTime?
+  releasedAt        DateTime?
+  choiceDeadlineAt  DateTime?
+  closedAt          DateTime?
+  outcome           MatchTicketOutcome?
+  closedReason      String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  match             Match                @relation(fields: [matchId], references: [id], onDelete: Restrict)
+  checkout          TicketCheckout       @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
+  player            User                 @relation("TicketPlayer", fields: [playerId], references: [id], onDelete: Restrict)
+  payer             User                 @relation("TicketPayer", fields: [payerId], references: [id], onDelete: Restrict)
+  slot              FormationSlot?       @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  matchTeam         MatchTeam?           @relation(fields: [matchTeamId], references: [id], onDelete: SetNull)
+  participant       MatchParticipant?    @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  creditIssued      MatchCredit?         @relation("CreditSource")
+  creditsOriginated MatchCredit[]        @relation("CreditOrigin")
+  creditUsed        MatchCredit?         @relation("CreditUse")
+  creditEvents      MatchCreditEvent[]
+  refunds           ProviderRefund[]
+  emails            TicketEmail[]
+
+  @@index([matchId, status])
+  @@index([checkoutId])
+  @@index([playerId, status])
+  @@index([payerId, status])
+  @@index([matchTeamId, status])
+  @@index([status, choiceDeadlineAt])
+}
+
+/// DEC-021 A4: a match credit, counted in matches (1 credit = 1 ticket), personal, non-transferable, valid at least
+/// 3 years (D3). originTicketId is the paid ticket it ultimately came from (null for credits with no cash origin,
+/// which lapse on account deletion; D11 as changed by the CEO).
+model MatchCredit {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @db.Uuid
+  status         MatchCreditStatus  @default(AVAILABLE)
+  reason         MatchCreditReason
+  sourceTicketId String?            @unique @db.Uuid
+  originTicketId String?            @db.Uuid
+  issuedAt       DateTime           @default(now())
+  expiresAt      DateTime
+  usedTicketId   String?            @unique @db.Uuid
+  usedAt         DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  user           User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sourceTicket   MatchTicket?       @relation("CreditSource", fields: [sourceTicketId], references: [id], onDelete: Restrict)
+  originTicket   MatchTicket?       @relation("CreditOrigin", fields: [originTicketId], references: [id], onDelete: Restrict)
+  usedTicket     MatchTicket?       @relation("CreditUse", fields: [usedTicketId], references: [id], onDelete: Restrict)
+  events         MatchCreditEvent[]
+  refunds        ProviderRefund[]
+
+  @@index([userId, status, expiresAt])
+  @@index([status, expiresAt])
+  @@index([originTicketId])
+}
+
+/// DEC-021 A4: the append-only credit ledger (issued / used / expired / forfeited / refunded), DB trigger enforced.
+model MatchCreditEvent {
+  id          String               @id @default(uuid()) @db.Uuid
+  creditId    String               @db.Uuid
+  type        MatchCreditEventType
+  ticketId    String?              @db.Uuid
+  actorUserId String?              @db.Uuid
+  note        String?
+  createdAt   DateTime             @default(now())
+  credit      MatchCredit          @relation(fields: [creditId], references: [id], onDelete: Restrict)
+  ticket      MatchTicket?         @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  actor       User?                @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([creditId, type], map: "MatchCreditEvent_one_per_type")
+  @@index([ticketId])
+}
+
+/// DEC-021 A8: the ticketing emails actually sent (receipt, choice, late-payment refund, team payment alert), so a
+/// payment dispute's evidence pack can list them.
+model TicketEmail {
+  id         String          @id @default(uuid()) @db.Uuid
+  userId     String          @db.Uuid
+  kind       String
+  subject    String
+  matchId    String?         @db.Uuid
+  checkoutId String?         @db.Uuid
+  ticketId   String?         @db.Uuid
+  sentAt     DateTime        @default(now())
+  user       User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  checkout   TicketCheckout? @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+  ticket     MatchTicket?    @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([userId, sentAt])
+  @@index([checkoutId])
+  @@index([ticketId])
 }

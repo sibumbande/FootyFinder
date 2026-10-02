@@ -15,7 +15,7 @@ import {
   PaystackError,
   type PaystackGateway,
 } from './paystack.client.js';
-import { TopUpSettlementService } from './top-up-settlement.service.js';
+import { TopUpSettlementService, topUpLedgerId } from './top-up-settlement.service.js';
 
 export const TOP_UP_EXPIRE_JOB_TYPE = 'PAYSTACK_TOP_UP_EXPIRE';
 export const PAYSTACK_PROVIDER = 'paystack';
@@ -136,7 +136,7 @@ export class TopUpService {
         await tx.$queryRaw`SELECT "id" FROM "ProviderPayment" WHERE "id" = ${payment.id}::uuid FOR UPDATE`;
         const current = await tx.providerPayment.findUniqueOrThrow({ where: { id: payment.id } });
         if (current.status !== 'INITIALIZED') return;
-        await this.financial.settlePending(tx, current.walletTransactionId, 'ERROR', 'Card checkout could not be started.');
+        await this.financial.settlePending(tx, topUpLedgerId(current), 'ERROR', 'Card checkout could not be started.');
         await tx.providerPayment.update({ where: { id: current.id }, data: { status: 'FAILED', failureReason: reason } });
       });
       logError('top_up_initialize_failed', error, { paymentId: payment.id });

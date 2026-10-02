@@ -47,6 +47,11 @@ export const NOTIFICATION_TYPES = [
   // Gate 9 (TKT-909): join requests.
   'TEAM_JOIN_REQUEST_RECEIVED',
   'TEAM_JOIN_REQUEST_ANSWERED',
+  // DEC-021 (batch 5): match ticketing.
+  'TICKET_CHOICE_REQUIRED',
+  'TICKET_REFUND_UPDATE',
+  'TEAM_PAYMENT_DUE',
+  'PAYMENT_DISPUTE_OPENED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export interface AppNotification {

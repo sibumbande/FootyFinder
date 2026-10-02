@@ -110,6 +110,7 @@ export class WalletReconciliationService {
   /** A card top-up is credited exactly when its ProviderPayment was verified and credited. */
   private async topUps(issues: WalletReconciliationIssue[], now: Date) {
     const payments = await prisma.providerPayment.findMany({
+      where: { purpose: 'TOP_UP' },
       select: {
         id: true, userId: true, amountCents: true, status: true, verifiedAt: true, createdAt: true, reviewReason: true,
         walletTransaction: { select: { status: true, amountCents: true, type: true } },
@@ -118,6 +119,7 @@ export class WalletReconciliationService {
     const maxPendingMs = env.TOP_UP_MAX_PENDING_HOURS * 3_600_000;
     for (const payment of payments) {
       const ledger = payment.walletTransaction;
+      if (!ledger) continue; // a TOP_UP payment always has its ledger row (ProviderPayment_purpose_wallet_check)
       const credited = ledger.status === 'SUCCEEDED';
       if (payment.status === 'SUCCEEDED' && (!credited || ledger.amountCents !== payment.amountCents || ledger.type !== 'DEPOSIT_CREDIT'))
         issues.push({ code: 'TOP_UP_SUCCEEDED_WITHOUT_CREDIT', userId: payment.userId, referenceId: payment.id, expectedCents: payment.amountCents, actualCents: credited ? ledger.amountCents : 0 });
@@ -150,6 +152,7 @@ export class WalletReconciliationService {
 
   private async refunds(issues: WalletReconciliationIssue[]) {
     const refunds = await prisma.providerRefund.findMany({
+      where: { ticketId: null },
       include: {
         debitTransaction: { select: { amountCents: true, status: true, type: true } },
         restoreTransaction: { select: { amountCents: true, status: true, type: true } },
@@ -159,6 +162,7 @@ export class WalletReconciliationService {
     const committedByPayment = new Map<string, number>();
     for (const refund of refunds) {
       const { debitTransaction: debit, restoreTransaction: restore } = refund;
+      if (!debit) continue; // a top-up refund always has its debit (ProviderRefund_link_check)
       if (debit.status !== 'SUCCEEDED' || debit.type !== 'TOP_UP_REFUND_DEBIT' || debit.amountCents !== -refund.amountCents)
         issues.push({ code: 'REFUND_LEDGER_MISMATCH', userId: refund.providerPayment.userId, referenceId: refund.id, expectedCents: -refund.amountCents, actualCents: debit.amountCents, detail: 'debit' });
       if (refund.status === 'RESTORED_TO_WALLET' && (!restore || restore.status !== 'SUCCEEDED' || restore.type !== 'TOP_UP_REFUND_RESTORE_CREDIT' || restore.amountCents !== refund.amountCents))
@@ -180,6 +184,7 @@ export class WalletReconciliationService {
 
   private async disputes(issues: WalletReconciliationIssue[]) {
     const disputes = await prisma.providerDispute.findMany({
+      where: { debitTransactionId: { not: null } },
       include: {
         debitTransaction: { select: { amountCents: true, status: true, type: true } },
         reversalTransaction: { select: { amountCents: true, status: true, type: true } },
@@ -188,6 +193,7 @@ export class WalletReconciliationService {
     });
     for (const dispute of disputes) {
       const { debitTransaction: debit, reversalTransaction: reversal } = dispute;
+      if (!debit) continue;
       if (debit.status !== 'SUCCEEDED' || debit.type !== 'CHARGEBACK_DEBIT' || debit.amountCents !== -dispute.amountCents)
         issues.push({ code: 'DISPUTE_LEDGER_MISMATCH', userId: dispute.providerPayment.userId, referenceId: dispute.id, expectedCents: -dispute.amountCents, actualCents: debit.amountCents, detail: 'debit' });
       if (dispute.status === 'WON' && (!reversal || reversal.status !== 'SUCCEEDED' || reversal.type !== 'CHARGEBACK_REVERSAL_CREDIT' || reversal.amountCents !== dispute.amountCents))

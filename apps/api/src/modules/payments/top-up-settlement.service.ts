@@ -8,6 +8,12 @@ import { incrementOperationalMetric } from '../../observability/operational-metr
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { FinancialRepository } from '../wallet/financial.repository.js';
+
+/** A legacy top-up's wallet ledger row. Every TOP_UP payment has one (ProviderPayment_purpose_wallet_check). */
+export const topUpLedgerId = (payment: Pick<ProviderPayment, 'id' | 'walletTransactionId'>) => {
+  if (!payment.walletTransactionId) throw new Error(`Payment ${payment.id} is not a wallet top-up.`);
+  return payment.walletTransactionId;
+};
 import {
   PaystackClient,
   PaystackError,
@@ -131,7 +137,7 @@ export class TopUpSettlementService {
       if (outcome.kind === 'CREDIT') {
         const transition = await this.financial.succeedPendingCredit(
           tx,
-          current.walletTransactionId,
+          topUpLedgerId(current),
           current.userId,
           current.reference,
         );
@@ -153,7 +159,7 @@ export class TopUpSettlementService {
         return { status: 'SUCCEEDED' as const, credited: !transition.replayed, outcome: 'CREDIT' as const, notifications };
       }
       if (outcome.kind === 'FAIL') {
-        await this.financial.settlePending(tx, current.walletTransactionId, 'FAILED', `Card payment ${outcome.reason}.`, current.reference);
+        await this.financial.settlePending(tx, topUpLedgerId(current), 'FAILED', `Card payment ${outcome.reason}.`, current.reference);
         await tx.providerPayment.update({
           where: { id: current.id },
           data: { ...observed, status: 'FAILED', failureReason: outcome.reason },

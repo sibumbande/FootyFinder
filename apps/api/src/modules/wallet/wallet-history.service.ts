@@ -133,7 +133,7 @@ export class WalletHistoryService {
       for (const payment of paid) {
         const label = paymentChannelLabel(payment.channel);
         if (!label) continue;
-        methods.set(payment.walletTransactionId, label);
+        if (payment.walletTransactionId) methods.set(payment.walletTransactionId, label);
         for (const refund of payment.refunds) if (refund.debitTransactionId) methods.set(refund.debitTransactionId, label);
       }
     }
