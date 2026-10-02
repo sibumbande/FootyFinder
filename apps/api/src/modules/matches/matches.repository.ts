@@ -43,6 +43,7 @@ import { assertNoPlayerOverlap } from './player-overlap.js';
 import { hasPlayedAMatch, reversePromotionalCosts } from './free-matches.js';
 import { assertGirlsOnlyEligible } from './girls-only.js';
 import { hostAudience } from './host.js';
+import { settleTicketsOnCancellationInTx } from '../tickets/ticket-cancellation.js';
 
 export class InsufficientBalanceError extends Error {}
 export class AlreadyJoinedError extends Error {}
@@ -515,6 +516,11 @@ export class MatchesRepository {
     });
   }
 
+  /** DEC-021: the player holds a confirmed ticket for this match (they leave under the ticket rules). */
+  async hasConfirmedTicket(matchId: string, userId: string) {
+    return (await prisma.matchTicket.count({ where: { matchId, playerId: userId, status: 'CONFIRMED' } })) > 0;
+  }
+
   cancelParticipation(matchId: string, userId: string, now: Date) {
     return serializableTransaction(async (tx) => {
       const peek = await tx.match.findUniqueOrThrow({ where: { id: matchId }, select: { otherSideMode: true } });
@@ -892,12 +898,16 @@ export class MatchesRepository {
         (refundedCentsByUser.get(payment.userId) ?? 0) + payment.amountCents,
       );
     }
-    // One alert per person: every joined player, every refunded payer and the host. Each gets one
-    // in-app notification (realtime toast after commit) and one transactional email job.
+    // DEC-021 A3: every ticket holder (the payer) chooses a match credit or a full refund; credit-paid tickets get
+    // their credit back; free places owe nothing.
+    const tickets = await settleTicketsOnCancellationInTx(tx, matchId, new Date());
+    // One alert per person: every joined player, every refunded payer, every ticket payer and the host. Each gets
+    // one in-app notification (realtime toast after commit) and one transactional email job.
     const recipients = [
       ...new Set([
         ...match.participants.map(({ userId }) => userId),
         ...refundedCentsByUser.keys(),
+        ...tickets.byPayer.keys(),
         ...teamMemberIds,
         ...hostAudience(match),
       ]),
@@ -905,21 +915,23 @@ export class MatchesRepository {
     const notificationDrafts: NotificationDraft[] = [];
     for (const userId of recipients) {
       const refundedCents = refundedCentsByUser.get(userId) ?? 0;
+      const ticketFacts = tickets.byPayer.get(userId);
       notificationDrafts.push({
         userId,
-        type: 'MATCH_CANCELLED',
-        title: 'Match cancelled',
+        type: ticketFacts?.choiceSeats ? 'TICKET_CHOICE_REQUIRED' : 'MATCH_CANCELLED',
+        title: ticketFacts?.choiceSeats ? 'Match cancelled: choose a credit or a refund' : 'Match cancelled',
         message: matchCancelledMessage({
           venueName: match.venue.name,
           startsAt: match.startsAt,
           reason,
           refundedCents,
           teamMember: teamNotice(userId),
+          ...ticketFacts,
         }),
         targetPath: `/matches/${matchId}`,
         dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', userId),
       });
-      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents, teamMember: teamNotice(userId) });
+      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents, teamMember: teamNotice(userId), ...ticketFacts });
     }
     if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
       // DEC-018: nothing is owed to the venue for a cancelled match and the host is never

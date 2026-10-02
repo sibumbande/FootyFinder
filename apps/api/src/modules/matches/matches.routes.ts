@@ -23,6 +23,8 @@ matchesRouter.post('/:id/join', costlyMutationRateLimit, controller.join);
 // DEC-021 A1: buy a ticket for one place; the viewer's ticket, credits and the cancellation policy.
 matchesRouter.get('/:id/tickets/context', tickets.context);
 matchesRouter.post('/:id/tickets/checkout', costlyMutationRateLimit, tickets.checkout);
+matchesRouter.post('/:id/tickets/leave', tickets.leave);
+matchesRouter.post('/:id/tickets/choice', tickets.choose);
 // Gate 7 / DEC-019: take or withdraw from the other side of a team match.
 matchesRouter.post('/:id/other-side/team', costlyMutationRateLimit, teamMatches.loadTeam);
 matchesRouter.post('/:id/other-side/team/withdraw', teamMatches.withdrawTeam);

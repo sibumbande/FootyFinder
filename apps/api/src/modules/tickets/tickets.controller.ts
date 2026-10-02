@@ -1,10 +1,12 @@
-import { ticketCheckoutSchema, TICKET_REFERENCE_PATTERN } from '@footy-finder/shared';
+import { ticketCheckoutSchema, ticketChoiceSchema, ticketLeaveSchema, TICKET_REFERENCE_PATTERN } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { AppError } from '../../errors/app-error.js';
 import { TicketCheckoutService } from './ticket-checkout.service.js';
+import { TicketLeaveService } from './ticket-leave.service.js';
 
 const service = new TicketCheckoutService();
+const leaving = new TicketLeaveService();
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 
 /** DEC-021 A1: buy a ticket for one place (a position or a substitute place). Needs an Idempotency-Key. */
@@ -18,6 +20,25 @@ export const checkout: RequestHandler = async (req, res, next) => {
       { ip: req.ip, userAgent: req.get('User-Agent') ?? undefined },
     );
     res.status(result.state === 'CONFIRMED' ? 201 : 202).json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** DEC-021 A2: leave the match (a choice of credit or refund is needed more than 24 hours before kick-off). */
+export const leave: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await leaving.leave(String(req.params.id), userId(res.locals), ticketLeaveSchema.parse(req.body ?? {}).choice) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** DEC-021 A3: the payer's choice for a cancelled match: a match credit or a full refund. */
+export const choose: RequestHandler = async (req, res, next) => {
+  try {
+    const input = ticketChoiceSchema.parse(req.body);
+    res.json({ data: await leaving.choose(userId(res.locals), String(req.params.id), input.choice, input.ticketIds) });
   } catch (error) {
     next(error);
   }

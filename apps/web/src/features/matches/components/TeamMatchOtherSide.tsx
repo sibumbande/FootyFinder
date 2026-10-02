@@ -28,6 +28,8 @@ import { formatClock } from '../utils/go-no-go-format.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 import { TicketConfirmSheet, type TicketPlace } from '@/features/tickets/components/TicketConfirmSheet.js';
+import { TicketLeaveSheet } from '@/features/tickets/components/TicketLeaveSheet.js';
+import { useTicketContext } from '@/features/tickets/hooks/useTickets.js';
 
 /**
  * Gate 7 / DEC-019 decisions B, C, N1, N5: the other side of a public team match. The first team
@@ -49,6 +51,8 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
   const { confirm, confirmDialog } = useConfirm();
   // DEC-021 A1: individuals buy a ticket for one place on the other side, exactly like a Quick Match.
   const [buying, setBuying] = useState<TicketPlace | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const ticketContext = useTicketContext(match.id, Boolean(user));
   if (!match.otherSideMode) return null;
   const home = match.teamSides.find(({ side }) => side === 'HOME');
   const away = match.teamSides.find(({ side }) => side === 'AWAY');
@@ -69,6 +73,17 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
   return (
     <section className="grid gap-4 rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="other-side-heading">
       {confirmDialog}
+      {leaving && ticketContext.data && (
+        <TicketLeaveSheet
+          matchId={match.id}
+          context={ticketContext.data}
+          onClose={() => setLeaving(false)}
+          onLeft={(message) => {
+            setLeaving(false);
+            notify({ variant: 'info', title: 'You left the match', message });
+          }}
+        />
+      )}
       {buying && (
         <TicketConfirmSheet
           match={match}
@@ -215,7 +230,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
                 ))}
               </ul>
               {!locked && (
-                <Button variant="ghost" loading={leave.isPending} onClick={() => void confirm({
+                <Button variant="ghost" loading={leave.isPending} onClick={() => ticketContext.data?.ticket?.status === 'CONFIRMED' ? setLeaving(true) : void confirm({
                   title: 'Leave this match?',
                   message: <p>More than 12 hours before kickoff your R80 comes back to your wallet; after that, only if a paid player takes your place.</p>,
                   confirmLabel: 'Leave match',

@@ -27,6 +27,7 @@ import {
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { TicketLeaveService } from '../tickets/ticket-leave.service.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { logInfo } from '../../observability/logger.js';
 import { goNoGoFacts, toFormationSlot, toMatch, toMatchParticipant, venuePhotoFacts } from './match.mapper.js';
@@ -373,6 +374,9 @@ export class MatchesService {
     };
   }
   async leave(id: string, userId: string) {
+    // DEC-021 A2: a place bought with a ticket is left under the ticket rules (24 hours, credit or refund).
+    if (await this.matches.hasConfirmedTicket(id, userId))
+      return new TicketLeaveService().leave(id, userId, undefined);
     try {
       const { cancellation, replayed, notifications } = await this.matches.cancelParticipation(
         id,

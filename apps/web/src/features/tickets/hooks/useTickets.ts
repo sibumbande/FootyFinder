@@ -52,6 +52,24 @@ export function useBuyTicket(matchId: string) {
   });
 }
 
+/** DEC-021 A2: leave the match (with the player's credit-or-refund choice when one is needed). */
+export function useLeaveTicket(matchId: string) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: async (choice?: 'CREDIT' | 'REFUND') => (await ticketsClient.leave(matchId, choice)).data,
+    onSettled: () => void cache.invalidateQueries({ queryKey: matchKey(matchId) }),
+  });
+}
+
+/** DEC-021 A3: the payer's choice for a cancelled match. */
+export function useTicketChoice(matchId: string) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: async (choice: 'CREDIT' | 'REFUND') => (await ticketsClient.choose(matchId, { choice })).data,
+    onSettled: () => void cache.invalidateQueries({ queryKey: matchKey(matchId) }),
+  });
+}
+
 /** The return page: asks our server (which verifies with Paystack) until the ticket is confirmed or refused. */
 export const useCheckoutByReference = (reference: string | null) =>
   useQuery({

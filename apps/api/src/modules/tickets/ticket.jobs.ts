@@ -3,6 +3,8 @@ import { enqueueDurableJob, registerDurableJobHandler } from '../../jobs/durable
 import { expireTicketHold, TICKET_HOLD_EXPIRE_JOB_TYPE } from './ticket-checkout.service.js';
 import { registerTicketEmailJobHandlers } from './ticket-emails.js';
 import { registerTicketRefundJobHandlers } from './ticket-refunds.js';
+import { TICKET_CHOICE_AUTO_REFUND_JOB_TYPE } from './ticket-cancellation.js';
+import { TicketLeaveService } from './ticket-leave.service.js';
 import { TICKET_PAYMENT_MAX_PENDING_HOURS, TicketSettlementService } from './ticket-settlement.service.js';
 
 export const TICKET_PAYMENT_RECHECK_JOB_TYPE = 'TICKET_PAYMENT_RECHECK';
@@ -61,6 +63,11 @@ export async function runTicketPaymentRecheck(payload: unknown, settlement = new
 export const registerTicketJobHandlers = () => {
   registerDurableJobHandler(TICKET_HOLD_EXPIRE_JOB_TYPE, (payload) => runTicketHoldExpiry(checkoutIdOf(payload)));
   registerDurableJobHandler(TICKET_PAYMENT_RECHECK_JOB_TYPE, (payload) => runTicketPaymentRecheck(payload));
+  registerDurableJobHandler(TICKET_CHOICE_AUTO_REFUND_JOB_TYPE, async (payload) => {
+    const record = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : {};
+    if (typeof record.ticketId !== 'string') throw Object.assign(new Error('Invalid choice payload.'), { code: 'JOB_PAYLOAD_INVALID' });
+    await new TicketLeaveService().autoRefund(record.ticketId);
+  });
   registerTicketRefundJobHandlers();
   registerTicketEmailJobHandlers();
 };

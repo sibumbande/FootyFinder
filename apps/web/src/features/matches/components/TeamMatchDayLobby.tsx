@@ -38,6 +38,8 @@ import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js
 import { FriendButton } from '@/features/social/components/FriendButton.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
 import { useConfirm } from '@/components/ui/ConfirmDialog.js';
+import { CancelledMatchChoice } from '@/features/tickets/components/CancelledMatchChoice.js';
+import { useTicketContext } from '@/features/tickets/hooks/useTickets.js';
 
 type TeamMatchTab = 'availability' | 'lineup' | 'chat';
 
@@ -56,11 +58,13 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
   const { notify } = useNotifications();
   const deletion = useDeleteMatch(match.id, home?.teamId ?? undefined);
   const { confirm, confirmDialog } = useConfirm();
+  const ticketContext = useTicketContext(match.id);
   if (!attached || !home)
     return <FormError message="This Team fixture does not have an attached Team side." />;
   return (
     <section className="grid gap-6">
       {confirmDialog}
+      {ticketContext.data && <CancelledMatchChoice matchId={match.id} context={ticketContext.data} />}
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>

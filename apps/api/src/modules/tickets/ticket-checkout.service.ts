@@ -268,7 +268,7 @@ export class TicketCheckoutService {
   async context(matchId: string, userId: string, now = new Date()): Promise<MatchTicketContext> {
     const match = await prisma.match.findUnique({ where: { id: matchId }, select: { id: true, feeCents: true, startsAt: true, status: true, goNoGoAt: true } });
     if (!match) throw new AppError(404, 'Match not found.', 'MATCH_NOT_FOUND');
-    const [ticket, credits, user] = await Promise.all([
+    const [ticket, credits, user, pending] = await Promise.all([
       prisma.matchTicket.findFirst({
         where: { matchId, playerId: userId, status: { in: ['HELD', 'CONFIRMED', 'CHOICE_PENDING'] } },
         orderBy: { createdAt: 'desc' },
@@ -276,6 +276,11 @@ export class TicketCheckoutService {
       }),
       prisma.matchCredit.count({ where: { userId, status: 'AVAILABLE', expiresAt: { gt: now } } }),
       prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { bookingRestrictedAt: true } }),
+      prisma.matchTicket.findMany({
+        where: { matchId, payerId: userId, status: 'CHOICE_PENDING' },
+        orderBy: { createdAt: 'asc' },
+        include: { player: { select: { username: true, profile: { select: { displayName: true } } } } },
+      }),
     ]);
     const locked = Boolean(match.goNoGoAt && now >= match.goNoGoAt);
     const open = ['OPEN', 'READY'].includes(match.status) && now < match.startsAt;
@@ -299,6 +304,12 @@ export class TicketCheckoutService {
         : null,
       creditsAvailable: credits,
       bookingRestricted: Boolean(user.bookingRestrictedAt),
+      pendingChoices: pending.map((item) => ({
+        ticketId: item.id,
+        playerDisplayName: item.player.profile?.displayName ?? item.player.username,
+        amountCents: item.amountCents,
+        choiceDeadlineAt: (item.choiceDeadlineAt ?? new Date()).toISOString(),
+      })),
       policy: ticketCancellationPolicy(match.feeCents),
       leave: !confirmed
         ? { allowed: false, outcome: 'NOTHING', reason: 'NOT_IN_MATCH' }

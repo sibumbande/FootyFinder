@@ -8,6 +8,7 @@ vi.mock('@/features/social/hooks/useSocial.js', async () => (await import('@/tes
 const request = vi.hoisted(() => vi.fn());
 vi.mock('@/features/auth/hooks/useAuth.js', () => ({ useAuth: () => ({ user: { id: 'owner' } }) }));
 vi.mock('./MatchResultPanel.js', () => ({ MatchResultPanel: () => null }));
+vi.mock('@/features/tickets/hooks/useTickets.js', () => ({ useTicketContext: () => ({ data: undefined }), useBuyTicket: () => ({ mutate: vi.fn() }), useLeaveTicket: () => ({ mutate: vi.fn() }) }));
 vi.mock('@/features/team-reviews/components/MatchReviewPanel.js', () => ({ MatchReviewPanel: () => null }));
 vi.mock('@/features/chat/components/ChatPanel.js', () => ({
   ChatPanel: () => <div>Team chat panel</div>,

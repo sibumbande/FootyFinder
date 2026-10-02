@@ -18,7 +18,10 @@ vi.mock('../hooks/useMatches.js', () => ({
 vi.mock('@/features/teams/hooks/useTeams.js', () => ({ useMyTeams: () => ({ data: mocks.teams }) }));
 vi.mock('@/features/auth/hooks/useAuth.js', () => ({ useAuth: () => ({ user: { id: 'viewer' } }) }));
 vi.mock('@/features/notifications/NotificationProvider.js', () => ({ useNotifications: () => ({ notify: vi.fn() }) }));
-vi.mock('@/features/tickets/hooks/useTickets.js', () => ({ useBuyTicket: () => ({ mutate: mocks.join, isPending: false, error: null }) }));
+vi.mock('@/features/tickets/hooks/useTickets.js', () => ({
+  useBuyTicket: () => ({ mutate: mocks.join, isPending: false, error: null }),
+  useTicketContext: () => ({ data: undefined }),
+}));
 
 const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
 const base = {

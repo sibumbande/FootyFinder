@@ -143,6 +143,12 @@ export class CardRefundsService {
   /** Sends one refund to Paystack. Any provider error leaves it FAILED for finance review. */
   private async submit(refundId: string) {
     const refund = await prisma.providerRefund.findUniqueOrThrow({ where: { id: refundId }, include: { providerPayment: true } });
+    // DEC-021: a development/test demo payment (never possible in production) is refunded by the demo operator.
+    if (refund.providerPayment.provider === 'demo')
+      return prisma.providerRefund.update({
+        where: { id: refund.id },
+        data: { providerRefundId: `demo-${refund.id}`, attempts: { increment: 1 }, status: 'PROCESSED', processedAt: new Date(), failureReason: null },
+      });
     try {
       const result = await this.gateway.refund({
         reference: refund.providerPayment.reference,

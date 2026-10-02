@@ -10,10 +10,11 @@ const invalidPayload = () =>
 
 export const parseMatchCancelledEmailPayload = (payload: unknown) => {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw invalidPayload();
-  const { matchId, userId, refundedCents, teamMember } = payload as Record<string, unknown>;
+  const { matchId, userId, refundedCents, teamMember, choiceSeats, choiceCents, creditsReturned } = payload as Record<string, unknown>;
   if (typeof matchId !== 'string' || typeof userId !== 'string' || typeof refundedCents !== 'number')
     throw invalidPayload();
-  return { matchId, userId, refundedCents, teamMember: teamMember === true };
+  const count = (value: unknown) => (typeof value === 'number' && value > 0 ? value : 0);
+  return { matchId, userId, refundedCents, teamMember: teamMember === true, choiceSeats: count(choiceSeats), choiceCents: count(choiceCents), creditsReturned: count(creditsReturned) };
 };
 
 type MatchCancelledEmailStore = {
@@ -45,7 +46,7 @@ export const sendMatchCancelledEmail = async (
   emails: EmailProvider,
   store: MatchCancelledEmailStore = prismaStore,
 ) => {
-  const { matchId, userId, refundedCents, teamMember } = parseMatchCancelledEmailPayload(payload);
+  const { matchId, userId, refundedCents, teamMember, choiceSeats, choiceCents, creditsReturned } = parseMatchCancelledEmailPayload(payload);
   const match = await store.findMatch(matchId);
   if (!match || match.status !== 'CANCELLED') return;
   const to = await store.findEmail(userId);
@@ -57,11 +58,19 @@ export const sendMatchCancelledEmail = async (
     reason,
     refundedCents,
     teamMember,
+    choiceSeats,
+    choiceCents,
+    creditsReturned,
   });
+  const link = `${env.CLIENT_URL.replace(/\/$/, '')}/matches/${matchId}`;
+  // DEC-021 A3: the alert carries both choices; each opens the match page with that choice ready to confirm.
+  const choices = choiceSeats
+    ? `\n\nGet a match credit (use it on any match): ${link}?choice=credit\nRefund to my card / bank: ${link}?choice=refund`
+    : '';
   await emails.send({
     to,
     subject: 'Your FootyFinder match was cancelled',
-    text: `${message}\n\nView the match: ${env.CLIENT_URL.replace(/\/$/, '')}/matches/${matchId}`,
+    text: `${message}${choices}\n\nView the match: ${link}`,
   });
 };
 

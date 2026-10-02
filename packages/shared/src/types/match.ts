@@ -241,7 +241,11 @@ export type MatchCancellationReason =
   // Gate 8 (DEC-020, D2): no active FootyFinder referee was assigned by T-30.
   | 'NO_REFEREE'
   // CEO Q4 (2026-09-30): an admin cancelled before kick-off for weather or a venue problem.
-  | 'FOOTYFINDER_CANCELLED';
+  | 'FOOTYFINDER_CANCELLED'
+  // DEC-021 (D1): a team was not fully paid 2 hours before kick-off.
+  | 'TEAM_UNPAID'
+  // DEC-021 (D12): dev-only mock-world cutover; never used outside the local dev database.
+  | 'DEV_TICKETING_CUTOVER';
 
 /**
  * DEC-018 go/no-go facts. Present only on matches created under DEC-018: the match goes ahead only

@@ -131,6 +131,7 @@ describe('lineup freeze from T-30 (D1)', () => {
   ])('maps a frozen %s to LINEUP_LOCKED', async (_label, act, method) => {
     const repository = {
       [method]: vi.fn().mockRejectedValue(new LineupLockedError()),
+      hasConfirmedTicket: vi.fn().mockResolvedValue(false),
     } as unknown as MatchesRepository;
 
     await expect(act(new MatchesService(repository, notificationsStub()))).rejects.toMatchObject({

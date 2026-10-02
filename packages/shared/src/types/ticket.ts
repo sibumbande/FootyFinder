@@ -54,6 +54,8 @@ export interface MatchTicketContext {
   bookingRestricted: boolean;
   /** The cancellation policy in plain words, exactly as stored with the purchase. */
   policy: string[];
+  /** DEC-021 A3: the viewer's places (as payer) in this cancelled match that still need a credit-or-refund choice. */
+  pendingChoices: Array<{ ticketId: string; playerDisplayName: string; amountCents: number; choiceDeadlineAt: string }>;
   /** What leaving gives back right now. */
   leave: { allowed: boolean; outcome: 'CHOICE' | 'NOTHING' | 'CREDIT_BACK'; reason?: 'LINEUP_LOCKED' | 'NOT_IN_MATCH' | 'MATCH_CLOSED' };
 }

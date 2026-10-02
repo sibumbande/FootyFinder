@@ -48,6 +48,9 @@ import { useScrollToFormation } from '../hooks/useScrollToFormation.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
 import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 import { TicketConfirmSheet, type TicketPlace } from '@/features/tickets/components/TicketConfirmSheet.js';
+import { TicketLeaveSheet } from '@/features/tickets/components/TicketLeaveSheet.js';
+import { CancelledMatchChoice } from '@/features/tickets/components/CancelledMatchChoice.js';
+import { useTicketContext } from '@/features/tickets/hooks/useTickets.js';
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -64,6 +67,8 @@ export function MatchLobbyPage() {
   const changeTeam = useChangeTeam(matchId);
   // DEC-021 A1: the place the viewer is buying a ticket for (a position, or a substitute place).
   const [buying, setBuying] = useState<TicketPlace | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const ticketContext = useTicketContext(matchId, Boolean(user));
   const [tab, setTab] = useState<'formation' | 'players' | 'chat'>('formation');
   const match = matchQuery.data;
   useScrollToFormation(Boolean(match));
@@ -138,6 +143,11 @@ export function MatchLobbyPage() {
     navigate('/matches', { replace: true });
   };
   const leaveMatch = () => {
+    // DEC-021 A2: a ticket holder leaves through the leave sheet (credit or refund, or nothing within 24 hours).
+    if (ticketContext.data?.ticket?.status === 'CONFIRMED') {
+      setLeaving(true);
+      return;
+    }
     const initial = quote.data?.initialCreditCents ?? 0;
     const replacement = quote.data?.possibleReplacementCreditCents ?? 0;
     const detail =
@@ -207,6 +217,7 @@ export function MatchLobbyPage() {
   return (
     <section className="grid gap-6">
       {confirmDialog}
+      {ticketContext.data && <CancelledMatchChoice matchId={match.id} context={ticketContext.data} />}
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
         <MatchVenuePhoto venue={match.venue} />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -477,6 +488,17 @@ export function MatchLobbyPage() {
             ))}
           </div>
         </section>
+      )}
+      {leaving && ticketContext.data && (
+        <TicketLeaveSheet
+          matchId={match.id}
+          context={ticketContext.data}
+          onClose={() => setLeaving(false)}
+          onLeft={(message) => {
+            setLeaving(false);
+            notify({ variant: 'info', title: 'You left the match', message });
+          }}
+        />
       )}
       {buying && (
         <TicketConfirmSheet

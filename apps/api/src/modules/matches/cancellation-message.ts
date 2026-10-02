@@ -45,6 +45,9 @@ const CANCELLED_BECAUSE: Record<MatchCancellationReason, string> = {
   NO_REFEREE: 'because no FootyFinder referee was available',
   // CEO Q4: admin "Cancel match (weather/venue)". The admin's written reason stays in the audit log.
   FOOTYFINDER_CANCELLED: 'by FootyFinder because of the weather or a problem at the venue',
+  // DEC-021 (D1).
+  TEAM_UNPAID: "because a team wasn't fully paid 2 hours before kickoff",
+  DEV_TICKETING_CUTOVER: 'for a FootyFinder test-data change',
 };
 
 export const isMatchCancellationReason = (value: unknown): value is MatchCancellationReason =>
@@ -60,6 +63,11 @@ export const matchCancelledMessage = (input: {
    * that team actually had fill-meter money released, so nobody is told about money they didn't pay.
    */
   teamMember?: boolean;
+  /** DEC-021 A3: places this person paid for, to choose a match credit or a full refund for (and their total). */
+  choiceSeats?: number;
+  choiceCents?: number;
+  /** DEC-021 A4: match credits returned to this person (credit-paid tickets). */
+  creditsReturned?: number;
 }) => {
   const first = `Your match at ${input.venueName} on ${formatMatchDate(input.startsAt)} at ${formatKickoffTime(input.startsAt)} was cancelled ${CANCELLED_BECAUSE[input.reason]}.`;
   const refund = input.refundedCents > 0
@@ -70,5 +78,12 @@ export const matchCancelledMessage = (input: {
     : input.reason === 'FOOTYFINDER_CANCELLED'
       ? " Your team's fee has been returned to your team wallet."
       : ' Any money held for this match has gone back to your team wallet.';
-  return `${first}${refund}${team}`;
+  const seats = input.choiceSeats ?? 0;
+  const choice = seats === 0
+    ? ''
+    : seats === 1
+      ? ` You paid ${formatRands(input.choiceCents ?? 0)} for this match: choose 1 match credit or a full refund to the card or bank account you paid with. If you don't choose within 7 days, you're refunded automatically.`
+      : ` You paid ${formatRands(input.choiceCents ?? 0)} for ${seats} places: choose a match credit or a full refund for each one. If you don't choose within 7 days, you're refunded automatically.`;
+  const credits = input.creditsReturned ? ` Your ${input.creditsReturned === 1 ? 'match credit has' : `${input.creditsReturned} match credits have`} been returned to you.` : '';
+  return `${first}${refund}${choice}${credits}${team}`;
 };
