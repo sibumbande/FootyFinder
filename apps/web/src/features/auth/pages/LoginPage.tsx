@@ -23,7 +23,11 @@ export function LoginPage() {
     defaultValues: { identifier: '', password: '' },
   });
   const submit = handleSubmit((values) =>
-    login.mutate(values, { onSuccess: () => navigate(returnTo, { replace: true }) }),
+    login.mutate(values, {
+      // CEO batch 5 (D6): signing in during the 14-day grace period cancelled the account deletion.
+      onSuccess: ({ deletionCancelled }) =>
+        navigate(deletionCancelled ? '/account/welcome-back' : returnTo, { replace: true }),
+    }),
   );
 
   return (

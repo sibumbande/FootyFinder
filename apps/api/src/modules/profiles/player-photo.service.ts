@@ -1,3 +1,4 @@
+import { visibleAccountWhere } from '../users/hidden-account.js';
 import type { PhotoCropInput } from '@footy-finder/shared';
 import { env } from '../../config/env.js';
 import { prisma } from '../../database/prisma.js';
@@ -41,7 +42,8 @@ export class PlayerPhotoService {
 
   async filePath(userId: string) {
     const photo = await prisma.playerPhoto.findFirst({
-      where: { profile: { userId }, hiddenAt: null },
+      // CEO batch 5: never served for a deleting or deleted account.
+      where: { profile: { userId, user: visibleAccountWhere }, hiddenAt: null },
       select: { fileKey: true },
     });
     if (!photo) throw new AppError(404, 'Player photo not found.', 'PLAYER_PHOTO_NOT_FOUND');

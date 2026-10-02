@@ -144,7 +144,7 @@ export const publicPreviewSelect = {
   result: {
     select: {
       homeScore: true, awayScore: true, outcomeType: true, forfeitWinner: true, finalSource: true,
-      goals: { orderBy: { sortOrder: 'asc' }, select: { side: true, ownGoal: true, scorer: { select: { displayNameSnapshot: true } }, assist: { select: { displayNameSnapshot: true } } } },
+      goals: { orderBy: { sortOrder: 'asc' }, select: { side: true, ownGoal: true, scorer: { select: { displayNameSnapshot: true, user: { select: { accountStatus: true } } } }, assist: { select: { displayNameSnapshot: true, user: { select: { accountStatus: true } } } } } },
     },
   },
 } satisfies Prisma.MatchSelect;

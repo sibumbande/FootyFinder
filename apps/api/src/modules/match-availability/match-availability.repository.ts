@@ -1,3 +1,4 @@
+import { visibleAccountWhere } from '../users/hidden-account.js';
 import {
   Prisma,
   type TeamMatchAvailabilityStatus,
@@ -46,7 +47,8 @@ export class MatchAvailabilityRepository {
 
   listForSide(matchTeamId: string) {
     return prisma.teamMatchAvailability.findMany({
-      where: { matchTeamId },
+      // CEO batch 5: a player who is deleting their account is left off the availability list.
+      where: { matchTeamId, user: visibleAccountWhere },
       include: availabilityInclude,
       orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }],
     });
@@ -79,6 +81,7 @@ export class MatchAvailabilityRepository {
             select: {
               id: true,
               memberships: {
+                where: { user: visibleAccountWhere },
                 select: { userId: true, role: true },
                 orderBy: [{ joinedAt: 'asc' }, { userId: 'asc' }],
               },

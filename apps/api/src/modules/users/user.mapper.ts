@@ -1,5 +1,6 @@
 import type { AccountStatus } from '../../generated/prisma/client.js';
-import type { AuthenticatedUser, FootballPosition, PublicUser } from '@footy-finder/shared';
+import { DELETED_PLAYER_NAME, type AuthenticatedUser, type FootballPosition, type PublicUser } from '@footy-finder/shared';
+import { isHiddenAccount } from './hidden-account.js';
 import { env } from '../../config/env.js';
 
 type SafeUserSource = {
@@ -60,7 +61,27 @@ export const playerAvatarUrl = (
       : `${env.PUBLIC_API_URL.replace(/\/$/, '')}/players/${userId}/photo`
     : profile?.avatarUrl;
 
+/** CEO batch 5: how a hidden (deleting or deleted) account appears anywhere it is still referenced. */
+export const deletedPublicUser = (id: string, createdAt: Date): PublicUser => ({
+  id,
+  userId: id,
+  username: '',
+  displayName: DELETED_PLAYER_NAME,
+  avatarUrl: null,
+  bio: null,
+  preferredPositions: [],
+  dominantFoot: null,
+  homeArea: null,
+  yearsExperience: null,
+  city: null,
+  createdAt: createdAt.toISOString(),
+  updatedAt: createdAt.toISOString(),
+  teams: [],
+  deleted: true,
+});
+
 export function toPublicUser(user: SafeUserSource): PublicUser {
+  if (isHiddenAccount(user.accountStatus)) return deletedPublicUser(user.id, user.createdAt);
   const profile = user.profile;
   const avatarUrl = playerAvatarUrl(user.id, profile);
   return {

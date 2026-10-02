@@ -44,6 +44,7 @@ import { RefereePage } from '@/features/referee/pages/RefereePage.js';
 import { RefereeMatchPage } from '@/features/referee/pages/RefereeMatchPage.js';
 import { DeleteAccountPage } from '@/features/account/pages/DeleteAccountPage.js';
 import { DeletionScheduledPage } from '@/features/account/pages/DeletionScheduledPage.js';
+import { WelcomeBackPage } from '@/features/account/pages/WelcomeBackPage.js';
 
 const animated = (page: ReactNode) => <PageTransition>{page}</PageTransition>;
 
@@ -95,6 +96,7 @@ export function AppRouter() {
             <Route path="/teams/create" element={animated(<CreateTeamPage />)} />
             <Route path="/teams/:teamId/matches/new" element={<RetiredTeamFixtureRedirect />} />
             <Route path="/account/delete" element={animated(<DeleteAccountPage />)} />
+            <Route path="/account/welcome-back" element={animated(<WelcomeBackPage />)} />
             <Route path="/wallet" element={animated(<WalletPage />)} />
             <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />

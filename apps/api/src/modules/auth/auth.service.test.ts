@@ -77,7 +77,7 @@ describe('AuthService', () => {
     );
     await expect(
       valid.login({ identifier: user.username, password: input.password }),
-    ).resolves.toMatchObject({ id: user.id });
+    ).resolves.toMatchObject({ user: { id: user.id }, deletionCancelled: false });
     await expect(
       valid.login({ identifier: user.email, password: 'incorrect' }),
     ).rejects.toMatchObject({ statusCode: 401, code: 'INVALID_CREDENTIALS' });

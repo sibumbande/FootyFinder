@@ -1,3 +1,4 @@
+import { shownName } from '../users/hidden-account.js';
 import {
   getMatchEndsAt,
   type AdminCaptainVersion,
@@ -55,8 +56,8 @@ const queueSelect = {
         select: {
           side: true,
           ownGoal: true,
-          scorer: { select: { userId: true, displayNameSnapshot: true } },
-          assist: { select: { userId: true, displayNameSnapshot: true } },
+          scorer: { select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } } } },
+          assist: { select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } } } },
         },
       },
     },
@@ -115,8 +116,8 @@ function toQueueItem(row: QueueRow, now: Date): AdminResultQueueItem {
           goals: row.result.goals.map((goal) => ({
             side: goal.side,
             ownGoal: goal.ownGoal,
-            scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: goal.scorer.displayNameSnapshot } : null,
-            assist: goal.assist ? { userId: goal.assist.userId, displayName: goal.assist.displayNameSnapshot } : null,
+            scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: shownName(goal.scorer.user.accountStatus, goal.scorer.displayNameSnapshot) } : null,
+            assist: goal.assist ? { userId: goal.assist.userId, displayName: shownName(goal.assist.user.accountStatus, goal.assist.displayNameSnapshot) } : null,
           })),
         }
       : null,
@@ -175,7 +176,7 @@ export class AdminResultsService {
     const [lineup, revisions, problems] = await Promise.all([
       prisma.matchLineupEntry.findMany({
         where: { matchId },
-        select: { userId: true, displayNameSnapshot: true, side: true, role: true, slotIndex: true, didNotPlay: true },
+        select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } }, side: true, role: true, slotIndex: true, didNotPlay: true },
         orderBy: [{ side: 'asc' }, { role: 'asc' }, { displayNameSnapshot: 'asc' }],
       }),
       prisma.matchResultRevision.findMany({
@@ -187,7 +188,7 @@ export class AdminResultsService {
     ]);
     return {
       ...toQueueItem(row, now),
-      lineup: lineup.map(({ displayNameSnapshot, ...entry }) => ({ ...entry, displayName: displayNameSnapshot })),
+      lineup: lineup.map(({ displayNameSnapshot, user, ...entry }) => ({ ...entry, displayName: shownName(user.accountStatus, displayNameSnapshot) })),
       revisions: revisions.map((revision) => {
         const snapshot = revision.scorersSnapshot as { correctionReason?: string } | null;
         const author = revision.createdBy ?? revision.createdByAdmin;

@@ -40,6 +40,8 @@ export interface PublicPlayerProfile {
   yearsExperience?: number | null;
   city?: CitySummary | null;
   statistics?: PlayerStatistics;
+  /** CEO batch 5: the player deleted their account (or is in the 14-day grace); shown as "Deleted player", never linked. */
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
   teams?: Array<{

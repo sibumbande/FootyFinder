@@ -1,3 +1,4 @@
+import { shownName } from '../users/hidden-account.js';
 import type {
   ChangeParticipantTeamInput,
   CreateMatchInput,
@@ -237,8 +238,8 @@ export class MatchesService {
           goals: match.result.goals.map((goal) => ({
             side: goal.side,
             ownGoal: goal.ownGoal,
-            scorer: goal.scorer?.displayNameSnapshot ?? null,
-            assister: goal.assist?.displayNameSnapshot ?? null,
+            scorer: (goal.scorer ? shownName(goal.scorer.user.accountStatus, goal.scorer.displayNameSnapshot) : null),
+            assister: (goal.assist ? shownName(goal.assist.user.accountStatus, goal.assist.displayNameSnapshot) : null),
           })),
         },
       }),

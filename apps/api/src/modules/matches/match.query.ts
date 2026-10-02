@@ -24,8 +24,8 @@ export const matchInclude = {
       goals: {
         orderBy: { sortOrder: 'asc' },
         include: {
-          scorer: { select: { userId: true, displayNameSnapshot: true } },
-          assist: { select: { userId: true, displayNameSnapshot: true } },
+          scorer: { select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } } } },
+          assist: { select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } } } },
         },
       },
     },

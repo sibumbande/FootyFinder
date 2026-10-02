@@ -1,3 +1,4 @@
+import { isHiddenAccount } from '../users/hidden-account.js';
 import type {
   TeamDetail,
   TeamFormation,
@@ -51,7 +52,9 @@ export const toTeamDetail = (team: any, viewerUserId?: string): TeamDetail => ({
   description: team.description,
   ownerUserId: team.ownerUserId,
   owner: toPublicUser(team.owner),
-  members: team.memberships.map(toTeamMember),
+  // CEO batch 5, item 2: a member who is deleting their account is hidden from the squad (and so cannot be
+  // picked); the membership itself is kept until the final step, in case they sign in and cancel.
+  members: team.memberships.filter((item: any) => !isHiddenAccount(item.user?.accountStatus)).map(toTeamMember),
   createdAt: team.createdAt.toISOString(),
   updatedAt: team.updatedAt.toISOString(),
 });
@@ -89,7 +92,7 @@ export const toTeamFormation = (formation: any): TeamFormation => ({
     positionX: Number(slot.positionX),
     positionY: Number(slot.positionY),
     membershipId: slot.membershipId,
-    member: slot.membership
+    member: slot.membership && !isHiddenAccount(slot.membership.user?.accountStatus)
       ? {
           id: slot.membership.id,
           userId: slot.membership.userId,

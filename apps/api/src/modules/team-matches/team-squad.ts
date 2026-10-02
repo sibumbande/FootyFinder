@@ -7,6 +7,7 @@ import {
   type TeamSide,
 } from '@footy-finder/shared';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { isHiddenAccount } from '../users/hidden-account.js';
 import { lockPlayers, overlappingMatches, type TimedMatch } from '../matches/player-overlap.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 
@@ -15,7 +16,7 @@ export async function savedFormation(tx: Prisma.TransactionClient, teamId: strin
   const formation = await tx.teamFormation.findUnique({
     where: { teamId_format: { teamId, format } },
     include: {
-      slots: { include: { membership: { select: { userId: true } } }, orderBy: { slotIndex: 'asc' } },
+      slots: { include: { membership: { select: { userId: true, user: { select: { accountStatus: true } } } } }, orderBy: { slotIndex: 'asc' } },
     },
   });
   return { formation, formationKey: formation?.formationKey ?? getDefaultFormationKey(format) };
@@ -53,7 +54,9 @@ export async function copySavedSquad(
   const assignedUserBySlot = new Map(
     formation?.slots
       .filter(({ membership, slotIndex }) =>
-        Boolean(membership) && validSlotIndexes.has(slotIndex) && !input.excludeUserIds?.has(membership!.userId))
+        Boolean(membership) && validSlotIndexes.has(slotIndex) && !input.excludeUserIds?.has(membership!.userId)
+        // CEO batch 5: never copy a player who is deleting their account into a new lineup.
+        && !isHiddenAccount(membership!.user.accountStatus))
       .map(({ slotIndex, membership }) => [slotIndex, membership!.userId]) ?? [],
   );
   const selectionIdByUser = new Map<string, string>();

@@ -16,6 +16,7 @@ import { toTeamMember } from '../teams/team.mapper.js';
 import { onBlock } from './blocks.service.js';
 import { orderedPair } from './friend-rules.js';
 import { FriendsService, socialCardSelect, toSocialCard } from './friends.service.js';
+import { isHiddenAccount } from '../users/hidden-account.js';
 import { blockedEitherWay, isBlockedEitherWay } from './visibility.js';
 
 type Db = Prisma.TransactionClient;
@@ -114,7 +115,7 @@ export class TeamMemberInvitesService {
     await this.assertManager(prisma, teamId, actorId);
     const rows = await prisma.teamMemberInvite.findMany({ where: { teamId, status: 'PENDING', expiresAt: { gt: now } }, include: inviteInclude, orderBy: { createdAt: 'desc' } });
     const relationships = await this.friends.relationships(actorId, rows.map(({ inviteeId }) => inviteeId));
-    return rows.map((row) => toView(row, relationships.get(row.inviteeId)!));
+    return rows.filter((row) => !isHiddenAccount(row.invitee.accountStatus)).map((row) => toView(row, relationships.get(row.inviteeId)!));
   }
 
   /** The friend picker: your friends, marked as members, invited, or invitable. */

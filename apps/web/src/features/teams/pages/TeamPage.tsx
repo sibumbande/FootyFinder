@@ -151,10 +151,17 @@ function Overview({ team }: { team: TeamDetail }) {
       </div>
       <aside className="rounded-2xl bg-surface-muted p-4 md:row-start-1">
         <p className="text-xs font-bold uppercase text-content-muted">Owner</p>
-        <Link to={`/players/${team.owner.id}`} className="mt-3 flex min-w-0 items-center gap-3">
-          <Avatar user={team.owner} />
-          <span className="min-w-0 flex-1"><PlayerName name={team.owner.displayName} className="font-bold text-content-strong" /></span>
-        </Link>
+        {team.owner.deleted ? (
+          <div className="mt-3 flex min-w-0 items-center gap-3">
+            <Avatar user={team.owner} />
+            <span className="min-w-0 flex-1"><PlayerName name={team.owner.displayName} className="font-bold text-content-muted" /></span>
+          </div>
+        ) : (
+          <Link to={`/players/${team.owner.id}`} className="mt-3 flex min-w-0 items-center gap-3">
+            <Avatar user={team.owner} />
+            <span className="min-w-0 flex-1"><PlayerName name={team.owner.displayName} className="font-bold text-content-strong" /></span>
+          </Link>
+        )}
       </aside>
     </div>
   );

@@ -44,7 +44,9 @@ export class VerificationService {
 
   async requestPasswordReset(email: string) {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, accountStatus: true } });
-    if (user?.accountStatus === 'ACTIVE') {
+    // CEO batch 5 (D6): a player in the 14-day deletion grace may reset their password; signing in afterwards
+    // cancels the deletion.
+    if (user?.accountStatus === 'ACTIVE' || user?.accountStatus === 'PENDING_DELETION') {
       try {
         await this.issue(user.id, user.email, 'PASSWORD_RESET');
       } catch {

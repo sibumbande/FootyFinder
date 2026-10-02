@@ -37,10 +37,11 @@ export const register: RequestHandler = async (req, res, next) => {
 };
 export const login: RequestHandler = async (req, res, next) => {
   try {
-    const user = await service.login(loginSchema.parse(req.body));
+    const { user, deletionCancelled } = await service.login(loginSchema.parse(req.body));
     const session = await sessions.issue(user.id, metadata(req));
     setSession(res, session.token);
-    res.json({ data: user });
+    // CEO batch 5 (D6): the web app shows "your account deletion was cancelled" when this is true.
+    res.json({ data: user, ...(deletionCancelled ? { deletionCancelled: true } : {}) });
   } catch (error) {
     next(error);
   }

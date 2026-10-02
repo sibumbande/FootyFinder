@@ -24,7 +24,8 @@ import { toTeamMember } from '../teams/team.mapper.js';
 import { joinTeamAsMember } from '../teams/teams.repository.js';
 import { onBlock } from './blocks.service.js';
 import { FriendsService, socialCardSelect, toSocialCard } from './friends.service.js';
-import { blockedEitherWay } from './visibility.js';
+import { isHiddenAccount } from '../users/hidden-account.js';
+import { blockedEitherWay, blocksEitherWay } from './visibility.js';
 
 type Db = Prisma.TransactionClient;
 const DAY_MS = 86_400_000;
@@ -123,7 +124,7 @@ export class RecruitmentService {
       take: 100,
     });
     if (!viewerId) return rows.map((row) => this.toPostView(row, null, null, now));
-    const blocked = await blockedEitherWay(prisma, viewerId, rows.flatMap(managersOf));
+    const blocked = await blocksEitherWay(prisma, viewerId, rows.flatMap(managersOf));
     const visible = rows.filter((row) => !managersOf(row).some((id) => blocked.has(id)));
     const requests = await prisma.teamJoinRequest.findMany({
       where: { userId: viewerId, teamId: { in: visible.map(({ teamId }) => teamId) }, status: 'PENDING', expiresAt: { gt: now } },
@@ -249,7 +250,8 @@ export class RecruitmentService {
   private joinRequestInclude = { team: { select: { id: true, name: true } }, user: { select: socialCardSelect } } as const;
   private async toRequestViews(viewerId: string, rows: Array<Prisma.TeamJoinRequestGetPayload<{ include: { team: { select: { id: true; name: true } }; user: { select: typeof socialCardSelect } } }>>) {
     const relationships = await this.friends.relationships(viewerId, rows.map(({ userId }) => userId));
-    return rows.map((row): TeamJoinRequestView => ({
+    // CEO batch 5: requests from a player who is deleting their account are not shown.
+    return rows.filter((row) => !isHiddenAccount(row.user.accountStatus)).map((row): TeamJoinRequestView => ({
       id: row.id,
       status: row.status,
       createdAt: row.createdAt.toISOString(),
@@ -267,7 +269,7 @@ export class RecruitmentService {
       const post = await tx.teamRecruitmentPost.findUnique({ where: { id: postId }, include: postInclude });
       if (!post || post.status !== 'OPEN' || post.expiresAt <= now || post.team.archivedAt) throw notFound();
       const managers = managersOf(post);
-      if ((await blockedEitherWay(tx, viewerId, managers)).size) throw notFound();
+      if ((await blocksEitherWay(tx, viewerId, managers)).size) throw notFound();
       if (post.team.memberships.some(({ userId }) => userId === viewerId))
         throw new AppError(409, 'You are already in this team.', 'JOIN_REQUEST_ALREADY_MEMBER');
       await tx.teamJoinRequest.updateMany({ where: { teamId: post.teamId, userId: viewerId, status: 'PENDING', expiresAt: { lte: now } }, data: { status: 'EXPIRED', respondedAt: now } });

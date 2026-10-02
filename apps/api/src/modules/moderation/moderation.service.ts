@@ -218,6 +218,9 @@ export class ModerationService {
       if (!target) throw new AppError(404, 'Player not found.', 'PLAYER_NOT_FOUND');
       if (target.id === adminUserId || target.platformRole === 'ADMIN')
         throw new AppError(403, 'Administrator accounts cannot be restricted here.', 'ADMIN_ENFORCEMENT_FORBIDDEN');
+      // CEO batch 5: an anonymised account has nothing left to restrict (its conduct records are kept).
+      if (target.accountStatus === 'DELETED')
+        throw new AppError(409, 'This account has been deleted.', 'ACCOUNT_DELETED');
       const active = await tx.accountEnforcement.findFirst({ where: { userId, status: 'ACTIVE' } });
       if (active) {
         if (input.type !== 'BAN')
@@ -272,7 +275,8 @@ export class ModerationService {
         where: { id: enforcementId },
         data: { status: 'REVOKED', revokedAt: now, revokedByAdminUserId: adminUserId },
       });
-      await tx.user.update({ where: { id: userId }, data: { accountStatus: 'ACTIVE' } });
+      // CEO batch 5: reinstating never reactivates a deleting or deleted account.
+      await tx.user.updateMany({ where: { id: userId, accountStatus: { in: ['SUSPENDED', 'BANNED'] } }, data: { accountStatus: 'ACTIVE' } });
       await appendAdminAudit(tx, {
         actorUserId: adminUserId,
         action: 'PLAYER_REINSTATED',

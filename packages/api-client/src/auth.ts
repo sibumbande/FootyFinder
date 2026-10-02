@@ -15,7 +15,7 @@ export const authApi = (client: ApiClient) => ({
       body: JSON.stringify(input),
     }),
   login: (input: LoginInput) =>
-    client.request<{ data: AuthenticatedUser }>('/auth/login', {
+    client.request<{ data: AuthenticatedUser; deletionCancelled?: boolean }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

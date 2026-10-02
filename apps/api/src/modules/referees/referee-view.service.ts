@@ -1,3 +1,4 @@
+import { shownName } from '../users/hidden-account.js';
 import {
   getEffectiveMatchStatus,
   getMatchEndsAt,
@@ -38,8 +39,8 @@ const summarySelect = {
         select: {
           side: true,
           ownGoal: true,
-          scorer: { select: { userId: true, displayNameSnapshot: true } },
-          assist: { select: { userId: true, displayNameSnapshot: true } },
+          scorer: { select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } } } },
+          assist: { select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } } } },
         },
       },
     },
@@ -101,10 +102,10 @@ export class RefereeViewService {
     if (!row) throw new AppError(404, 'You are not the referee for this match.', 'NOT_MATCH_REFEREE');
     const recorded = await prisma.matchLineupEntry.findMany({
       where: { matchId },
-      select: { userId: true, displayNameSnapshot: true, side: true, role: true, slotIndex: true, didNotPlay: true },
+      select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } }, side: true, role: true, slotIndex: true, didNotPlay: true },
     });
     const lineup: MatchLineupPlayer[] = recorded.length
-      ? recorded.map(({ displayNameSnapshot, ...entry }) => ({ ...entry, displayName: displayNameSnapshot }))
+      ? recorded.map(({ displayNameSnapshot, user, ...entry }) => ({ ...entry, displayName: shownName(user.accountStatus, displayNameSnapshot) }))
       : (await buildLineup(prisma, matchId)).map((entry) => ({
           userId: entry.userId,
           displayName: entry.displayNameSnapshot,
@@ -130,8 +131,8 @@ export class RefereeViewService {
             goals: row.result.goals.map((goal) => ({
               side: goal.side,
               ownGoal: goal.ownGoal,
-              scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: goal.scorer.displayNameSnapshot } : null,
-              assist: goal.assist ? { userId: goal.assist.userId, displayName: goal.assist.displayNameSnapshot } : null,
+              scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: shownName(goal.scorer.user.accountStatus, goal.scorer.displayNameSnapshot) } : null,
+              assist: goal.assist ? { userId: goal.assist.userId, displayName: shownName(goal.assist.user.accountStatus, goal.assist.displayNameSnapshot) } : null,
             })),
           }
         : null,

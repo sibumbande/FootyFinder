@@ -1,3 +1,4 @@
+import { shownName } from '../users/hidden-account.js';
 import type {
   FormationSlot,
   Match,
@@ -146,8 +147,8 @@ export function toMatch(
           goals: match.result.goals.map((goal) => ({
             side: goal.side,
             ownGoal: goal.ownGoal,
-            scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: goal.scorer.displayNameSnapshot } : null,
-            assist: goal.assist ? { userId: goal.assist.userId, displayName: goal.assist.displayNameSnapshot } : null,
+            scorer: goal.scorer ? { userId: goal.scorer.userId, displayName: shownName(goal.scorer.user.accountStatus, goal.scorer.displayNameSnapshot) } : null,
+            assist: goal.assist ? { userId: goal.assist.userId, displayName: shownName(goal.assist.user.accountStatus, goal.assist.displayNameSnapshot) } : null,
           })),
         }
       : null,

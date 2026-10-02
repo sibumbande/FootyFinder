@@ -1,3 +1,4 @@
+import { visibleAccountWhere } from '../users/hidden-account.js';
 import { Prisma, type Notification, type TeamSide } from '../../generated/prisma/client.js';
 import type {
   AssignTeamMatchStarterInput,
@@ -79,7 +80,8 @@ const lineupInclude = {
   team: {
     select: {
       id: true,
-      memberships: { select: { id: true, userId: true, role: true } },
+      // CEO batch 5: a member who is deleting their account cannot be picked for a lineup.
+      memberships: { where: { user: visibleAccountWhere }, select: { id: true, userId: true, role: true } },
     },
   },
   lineupSlots: {

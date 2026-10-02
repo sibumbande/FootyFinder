@@ -1,3 +1,4 @@
+import { shownName } from '../users/hidden-account.js';
 import {
   getMatchEndsAt,
   MATCH_RESULT_PROBLEM_MESSAGES,
@@ -97,11 +98,11 @@ export class ResultEvidenceService {
   private async lineup(matchId: string): Promise<{ recorded: boolean; players: MatchLineupPlayer[] }> {
     const recorded = await prisma.matchLineupEntry.findMany({
       where: { matchId },
-      select: { userId: true, displayNameSnapshot: true, side: true, role: true, slotIndex: true, didNotPlay: true },
+      select: { userId: true, displayNameSnapshot: true, user: { select: { accountStatus: true } }, side: true, role: true, slotIndex: true, didNotPlay: true },
       orderBy: [{ side: 'asc' }, { role: 'asc' }, { displayNameSnapshot: 'asc' }],
     });
     if (recorded.length)
-      return { recorded: true, players: recorded.map(({ displayNameSnapshot, ...entry }) => ({ ...entry, displayName: displayNameSnapshot })) };
+      return { recorded: true, players: recorded.map(({ displayNameSnapshot, user, ...entry }) => ({ ...entry, displayName: shownName(user.accountStatus, displayNameSnapshot) })) };
     const live = await buildLineup(prisma, matchId);
     return {
       recorded: false,

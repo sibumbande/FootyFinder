@@ -1,3 +1,4 @@
+import { DELETED_PLAYER_NAME } from '@footy-finder/shared';
 import type {
   AddAllResult,
   FriendRequestView,
@@ -15,6 +16,7 @@ import { AppError } from '../../errors/app-error.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { playerAvatarUrl } from '../users/user.mapper.js';
+import { isHiddenAccount } from '../users/hidden-account.js';
 import {
   dailyWindowStart,
   friendRequestExpiresAt,
@@ -46,7 +48,10 @@ export const socialCardSelect = {
 } satisfies Prisma.UserSelect;
 export type SocialCardUser = Prisma.UserGetPayload<{ select: typeof socialCardSelect }>;
 
-export const toSocialCard = (user: SocialCardUser, relationship: Relationship): SocialPlayerCard => ({
+export const toSocialCard = (user: SocialCardUser, relationship: Relationship): SocialPlayerCard =>
+  isHiddenAccount(user.accountStatus)
+    ? { id: user.id, username: '', displayName: DELETED_PLAYER_NAME, avatarUrl: null, city: null, homeArea: null, preferredPositions: [], relationship: { userId: user.id, state: 'UNAVAILABLE' } }
+    : {
   id: user.id,
   username: user.username,
   displayName: user.profile?.displayName ?? user.username,
@@ -55,7 +60,7 @@ export const toSocialCard = (user: SocialCardUser, relationship: Relationship): 
   homeArea: user.profile?.homeArea ?? null,
   preferredPositions: user.profile?.preferredPositions.map(({ position }) => position) ?? [],
   relationship,
-});
+};
 
 const requestable = (user: { accountStatus: string; onboardingCompletedAt: Date | null; friendRequestsEnabled: boolean }) =>
   user.accountStatus === 'ACTIVE' && Boolean(user.onboardingCompletedAt) && user.friendRequestsEnabled;

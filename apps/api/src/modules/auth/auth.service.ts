@@ -4,6 +4,7 @@ import { AppError } from '../../errors/app-error.js';
 import { toAuthenticatedUser } from '../users/user.mapper.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { VerificationService } from './verification.service.js';
+import { cancelDeletionOnSignIn } from '../account/account-deletion.cancel.js';
 
 export class AuthService {
   constructor(
@@ -38,9 +39,15 @@ export class AuthService {
   }
 
   async login(input: LoginInput) {
-    const user = await this.users.findByIdentifier(input.identifier);
+    let user = await this.users.findByIdentifier(input.identifier);
     if (!user || !(await argon2.verify(user.passwordHash, input.password))) {
       throw new AppError(401, 'Email/username or password is incorrect.', 'INVALID_CREDENTIALS');
+    }
+    // CEO batch 5 (D6): signing in during the 14-day grace period cancels the deletion.
+    let deletionCancelled = false;
+    if (user.accountStatus === 'PENDING_DELETION') {
+      deletionCancelled = await cancelDeletionOnSignIn(user.id);
+      user = (await this.users.findById(user.id))!;
     }
     if (user.accountStatus !== 'ACTIVE')
       throw new AppError(
@@ -48,6 +55,6 @@ export class AuthService {
         'This account is currently restricted. Contact support if you need help.',
         'ACCOUNT_RESTRICTED',
       );
-    return toAuthenticatedUser(user);
+    return { user: toAuthenticatedUser(user), deletionCancelled };
   }
 }

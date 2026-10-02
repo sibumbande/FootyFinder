@@ -392,10 +392,17 @@ export function MatchLobbyPage() {
                   key={player.id}
                   className="mt-2 flex items-center gap-2 rounded-xl bg-surface p-3 text-sm font-semibold text-content-strong"
                 >
-                  <Link className="min-w-0 flex-1" to={`/players/${player.userId}`}>
-                    <PlayerName name={player.user?.displayName ?? ''} />
-                  </Link>
-                  <FriendButton userId={player.userId} />
+                  {player.user?.deleted ? (
+                    // CEO batch 5 (D10): a deleted player is shown by name only, never linked.
+                    <span className="min-w-0 flex-1 text-content-muted">
+                      <PlayerName name={player.user.displayName} />
+                    </span>
+                  ) : (
+                    <Link className="min-w-0 flex-1" to={`/players/${player.userId}`}>
+                      <PlayerName name={player.user?.displayName ?? ''} />
+                    </Link>
+                  )}
+                  {!player.user?.deleted && <FriendButton userId={player.userId} />}
                   {player.userId === user?.id && (
                     <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-black uppercase text-content-inverse">
                       You

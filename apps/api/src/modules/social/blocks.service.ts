@@ -5,6 +5,7 @@ import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';
 import { orderedPair, pairKey } from './friend-rules.js';
 import { socialCardSelect, toSocialCard } from './friends.service.js';
+import { isHiddenAccount } from '../users/hidden-account.js';
 
 type Db = Prisma.TransactionClient;
 type BlockHook = (tx: Db, blockerId: string, blockedId: string, now: Date) => Promise<unknown>;
@@ -49,6 +50,6 @@ export class BlocksService {
       include: { blocked: { select: socialCardSelect } },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map(({ blocked }) => toSocialCard(blocked, { userId: blocked.id, state: 'UNAVAILABLE', blockedByYou: true }));
+    return rows.filter(({ blocked }) => !isHiddenAccount(blocked.accountStatus)).map(({ blocked }) => toSocialCard(blocked, { userId: blocked.id, state: 'UNAVAILABLE', blockedByYou: true }));
   }
 }

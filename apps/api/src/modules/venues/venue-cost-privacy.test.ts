@@ -506,7 +506,7 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
       findMany.mockResolvedValueOnce([{
         ...previewRow, status: 'COMPLETED',
         teamSides: [{ side: 'HOME', teamNameSnapshot: 'Privacy FC' }, { side: 'AWAY', teamNameSnapshot: 'Guest FC' }],
-        result: { homeScore: 1, awayScore: 0, outcomeType: 'PLAYED', forfeitWinner: null, finalSource: 'REFEREE', goals: [{ side: 'HOME', ownGoal: false, scorer: { displayNameSnapshot: 'Thabo' }, assist: null }] },
+        result: { homeScore: 1, awayScore: 0, outcomeType: 'PLAYED', forfeitWinner: null, finalSource: 'REFEREE', goals: [{ side: 'HOME', ownGoal: false, scorer: { displayNameSnapshot: 'Thabo', user: { accountStatus: 'ACTIVE' } }, assist: null }] },
       }]);
       const [played] = await new MatchesService().publicList();
       guestSafe(played);
