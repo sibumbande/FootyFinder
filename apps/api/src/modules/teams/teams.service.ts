@@ -31,6 +31,7 @@ import {
   toTeamSummary,
 } from './team.mapper.js';
 import { TeamsRepository } from './teams.repository.js';
+import { teamStats } from './team-stats.js';
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 const validInviteToken = /^[A-Za-z0-9_-]{43}$/;
@@ -56,7 +57,8 @@ export class TeamsService {
   }
   async get(id: string, userId: string) {
     const team = await this.load(id);
-    return toTeamDetail(team, userId);
+    // CEO touch-up batch 4, item 2: results from final results only (same rules as player statistics).
+    return { ...toTeamDetail(team, userId), stats: await teamStats(id) };
   }
   async update(id: string, input: UpdateTeamInput, userId: string) {
     await this.assertOwner(id, userId);

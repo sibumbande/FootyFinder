@@ -1,5 +1,6 @@
 import type { MatchFormat } from '../config/match-formats.js';
 import type { PlayerStatistics, FootballPosition } from './user.js';
+import type { TeamStats } from './team.js';
 
 /**
  * Gate 9 / TKT-910: what anyone on the internet can see without an account. These shapes never
@@ -37,7 +38,8 @@ export interface PublicTeamView {
   secondaryColor?: string | null;
   closed: boolean;
   members: PublicTeamMember[];
-  record: { played: number; wins: number; draws: number; losses: number };
+  /** CEO touch-up batch 4, item 2: the same team statistics members see. */
+  stats: TeamStats;
   reviews: { enoughReviews: boolean; averageRating: number | null; reviewCount: number | null };
 }
 

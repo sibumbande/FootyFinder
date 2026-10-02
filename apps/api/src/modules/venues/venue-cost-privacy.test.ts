@@ -525,7 +525,7 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
       const team = await new PublicBrowseService().team('team-1');
       guestSafe(team);
       expect(team.members).toEqual([{ userId: 'u1', username: 'thabo', displayName: 'Thabo', avatarUrl: null, role: 'OWNER', positions: ['GOALKEEPER'] }]);
-      expect(team.record).toEqual({ played: 0, wins: 0, draws: 0, losses: 0 });
+      expect(team.stats).toEqual({ played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, lastFive: [] });
     });
 
     it('the guest recruitment board and looking cards carry no private data', async () => {

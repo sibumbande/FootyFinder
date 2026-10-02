@@ -58,6 +58,8 @@ const team = {
   createdAt: now,
   updatedAt: now,
 };
+// CEO touch-up batch 4, item 2: team statistics read the database; these tests stub them.
+vi.mock('./team-stats.js', () => ({ teamStats: vi.fn(async () => ({ played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, lastFive: [] })) }));
 const notifications = { publishPersistedMany: vi.fn() } as unknown as NotificationsService;
 const images = { save: vi.fn(), delete: vi.fn() } as unknown as TeamImageStorage;
 

@@ -23,6 +23,7 @@ import {
 } from '../hooks/useTeams.js';
 import { useTeamSocket } from '../hooks/useTeamSocket.js';
 import { FriendButton } from '@/features/social/components/FriendButton.js';
+import { TeamStatsPanel } from '@/features/teams/components/TeamStatsPanel.js';
 
 type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'chat' | 'invites' | 'settings';
 export function TeamPage() {
@@ -137,8 +138,14 @@ function Overview({ team }: { team: TeamDetail }) {
           {team.description || 'This Team has not added a description yet.'}
         </p>
       </div>
+      {/* CEO touch-up batch 4, item 2: results from final results only. */}
+      {team.stats && (
+        <div className="min-w-0 md:col-span-2 md:row-start-2">
+          <TeamStatsPanel stats={team.stats} />
+        </div>
+      )}
       {/* Gate 8 / TKT-810 (DEC-017): anonymous public reviews from opposing players. */}
-      <div className="md:col-span-2 md:row-start-2">
+      <div className="md:col-span-2 md:row-start-3">
         <TeamReviewsSection teamId={team.id} isMember={Boolean(team.viewerRole)} />
       </div>
       <aside className="rounded-2xl bg-surface-muted p-4 md:row-start-1">

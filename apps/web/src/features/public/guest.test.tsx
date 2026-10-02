@@ -26,7 +26,7 @@ const match: PublicMatchPreview = {
 const team = {
   id: 't1', name: 'Woodstock Wanderers', primaryFormat: 'FIVE_A_SIDE', closed: false, description: 'Sunday league',
   members: [{ userId: 'u1', displayName: 'Ayanda Mokoena', username: 'ayanda', role: 'OWNER', positions: ['MIDFIELDER'] }],
-  record: { played: 3, wins: 2, draws: 1, losses: 0 }, reviews: { enoughReviews: false, averageRating: null, reviewCount: null },
+  stats: { played: 3, wins: 2, draws: 1, losses: 0, goalsFor: 7, goalsAgainst: 3, goalDifference: 4, lastFive: [{ matchId: 'm1', startsAt: '2026-09-20T16:00:00.000Z', outcome: 'W', opponent: 'Rival FC', goalsFor: 3, goalsAgainst: 1, forfeit: false }] }, reviews: { enoughReviews: false, averageRating: null, reviewCount: null },
 };
 vi.mock('./hooks/usePublic.js', () => ({
   usePublicMatches: () => ({ data: [match], error: null, isPending: false }),

@@ -9,6 +9,7 @@ import { TeamHeroView, TeamTabs } from '@/features/teams/components/TeamHeroView
 import { GuestAction } from '../components/SignUpPrompt.js';
 import { usePublicTeam } from '../hooks/usePublic.js';
 import { plural } from '@/utils/plural.js';
+import { TeamStatsPanel } from '@/features/teams/components/TeamStatsPanel.js';
 
 const GUEST_TABS = ['overview', 'squad'] as const;
 type GuestTab = (typeof GUEST_TABS)[number];
@@ -57,14 +58,7 @@ function Overview({ team }: { team: PublicTeamView }) {
         <p className="mt-3 leading-7 text-content">{team.description || 'This Team has not added a description yet.'}</p>
       </div>
       <div className="grid gap-4 md:col-span-2 md:row-start-2">
-        <dl className="grid grid-cols-4 gap-3 text-center sm:max-w-md">
-          {([['Played', team.record.played], ['Won', team.record.wins], ['Drawn', team.record.draws], ['Lost', team.record.losses]] as const).map(([label, value]) => (
-            <div key={label} className="rounded-2xl bg-surface-muted p-3">
-              <dt className="text-[10px] font-black uppercase text-content-muted">{label}</dt>
-              <dd className="text-2xl font-black text-content-strong">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <TeamStatsPanel stats={team.stats} />
         <div>
           <h2 className="text-xl font-bold text-content-strong">Reviews</h2>
           <p className="mt-2 text-content-muted">

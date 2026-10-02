@@ -4,6 +4,7 @@ import { AppError } from '../../errors/app-error.js';
 import { TeamReviewsService } from '../team-reviews/team-reviews.service.js';
 import { playerAvatarUrl } from '../users/user.mapper.js';
 import { UsersService } from '../users/users.service.js';
+import { teamStats } from '../teams/team-stats.js';
 
 const notFoundTeam = () => new AppError(404, 'Team not found.', 'TEAM_NOT_FOUND');
 const notFoundPlayer = () => new AppError(404, 'Player profile not found.', 'PLAYER_NOT_FOUND');
@@ -40,7 +41,8 @@ export class PublicBrowseService {
       },
     });
     if (!team) throw notFoundTeam();
-    const [record, reviews] = await Promise.all([this.record(teamId), this.reviews.teamSummary(teamId)]);
+    // CEO touch-up batch 4, item 2: the same statistics members see (D6).
+    const [stats, reviews] = await Promise.all([teamStats(teamId), this.reviews.teamSummary(teamId)]);
     return {
       id: team.id,
       name: team.name,
@@ -62,33 +64,9 @@ export class PublicBrowseService {
           role,
           positions: user.profile?.preferredPositions.map(({ position }) => position) ?? [],
         })),
-      record,
+      stats,
       reviews: { enoughReviews: reviews.enoughReviews, averageRating: reviews.averageRating, reviewCount: reviews.reviewCount },
     };
-  }
-
-  /** Results record from final (referee or FootyFinder) results of played or forfeited team matches. */
-  private async record(teamId: string) {
-    const sides = await prisma.matchTeam.findMany({
-      where: { teamId, match: { status: 'COMPLETED', result: { finalSource: { in: ['REFEREE', 'ADMIN'] }, outcomeType: { in: ['PLAYED', 'FORFEIT'] } } } },
-      select: { side: true, match: { select: { result: { select: { outcomeType: true, homeScore: true, awayScore: true, forfeitWinner: true } } } } },
-    });
-    const record = { played: 0, wins: 0, draws: 0, losses: 0 };
-    for (const { side, match } of sides) {
-      const result = match.result!;
-      record.played += 1;
-      if (result.outcomeType === 'FORFEIT') {
-        if (result.forfeitWinner === side) record.wins += 1;
-        else record.losses += 1;
-        continue;
-      }
-      const ours = side === 'HOME' ? result.homeScore : result.awayScore;
-      const theirs = side === 'HOME' ? result.awayScore : result.homeScore;
-      if (ours > theirs) record.wins += 1;
-      else if (ours < theirs) record.losses += 1;
-      else record.draws += 1;
-    }
-    return record;
   }
 
   /** The guest profile: display name, username, photo, positions, city, bio, teams and stats only. */

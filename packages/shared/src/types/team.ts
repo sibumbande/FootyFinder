@@ -30,6 +30,8 @@ export interface TeamMember {
 
 export interface TeamDetail extends TeamSummary {
   description?: string | null;
+  /** CEO touch-up batch 4, item 2. */
+  stats?: TeamStats;
   ownerUserId: string;
   owner: PublicUser;
   members: TeamMember[];
@@ -82,4 +84,26 @@ export interface TeamFormation {
   formationKey: string;
   slots: TeamFormationSlot[];
   updatedAt: string;
+}
+
+/** CEO touch-up batch 4, item 2: a team's results from final results only (the same rules as player statistics). */
+export interface TeamFormEntry {
+  matchId: string;
+  startsAt: string;
+  outcome: 'W' | 'D' | 'L';
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  forfeit: boolean;
+}
+export interface TeamStats {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  /** The last five results, newest first. */
+  lastFive: TeamFormEntry[];
 }

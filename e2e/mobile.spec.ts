@@ -190,6 +190,8 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       await page.getByTestId('social-section-select').selectOption('leaderboards');
       await expect(page.getByTestId('leaderboard-goals')).toBeVisible();
       await page.goto(`/teams/${teamId}`);
+      // CEO touch-up batch 4, item 2: the team statistics strip sits on the Overview tab and fits.
+      await expect(page.getByTestId('team-stats')).toBeVisible();
       const firstTab = (await page.getByRole('tab', { name: 'overview' }).boundingBox())!;
       expect(firstTab.height).toBeGreaterThanOrEqual(43.5); // 44 px (2.75rem), allowing sub-pixel layout
       await expect(page.getByRole('button', { name: 'Show more team sections' })).toBeVisible();
