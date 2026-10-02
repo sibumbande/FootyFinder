@@ -78,7 +78,7 @@ function Lineup({ title, players }: { title: string; players: MatchLineupPlayer[
       <ul className="mt-2 grid gap-1 text-sm text-content">
         {players.map((player) => (
           <li key={player.userId} className="flex min-w-0 items-center gap-1">
-            <span className="min-w-0"><PlayerName name={player.displayName} revealOnTap /></span>
+            <span className="min-w-0 flex-1"><PlayerName name={player.displayName} revealOnTap /></span>
             {player.role === 'SUBSTITUTE' && <span className="shrink-0 text-content-muted"> (sub)</span>}
             {player.didNotPlay && <span className="shrink-0 text-content-muted"> (did not play)</span>}
           </li>

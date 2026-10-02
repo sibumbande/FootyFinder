@@ -128,7 +128,7 @@ export function ResultEntryForm({ sides, lineup, mode, onSubmit, pending, submit
         {match.lineup.map((player) => (
           <label key={player.userId} className="flex min-h-11 min-w-0 items-center gap-3 text-sm text-content">
             <input type="checkbox" className="shrink-0" checked={!draft.didNotPlayUserIds.includes(player.userId)} onChange={() => toggleDidNotPlay(player.userId)} />
-            <span className="min-w-0"><PlayerName name={player.displayName} /></span>
+            <span className="min-w-0 flex-1"><PlayerName name={player.displayName} /></span>
             <span className="shrink-0 text-content-muted">({match.sides[player.side]}{player.role === 'SUBSTITUTE' ? ', sub' : ''})</span>
           </label>
         ))}

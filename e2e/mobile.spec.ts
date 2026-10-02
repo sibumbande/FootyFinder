@@ -58,6 +58,7 @@ async function expectHeaderAligned(page: Page) {
 /**
  * CEO touch-up batch 4, item 5: player names and their "YOU" badge stay inside their own box (a reserves chip, a
  * lineup card, a leaderboard row), not just inside the screen. Returns the offenders.
+ * Batch 5 brief, B3: a shown name with no width (the leaderboard bug: names collapsed to 0px) is an offender too.
  */
 async function overflowingNames(page: Page) {
   return page.evaluate(() => {
@@ -70,6 +71,8 @@ async function overflowingNames(page: Page) {
     }
     for (const name of document.querySelectorAll<HTMLElement>('[data-testid="player-name"]')) {
       const box = name.parentElement;
+      // Inside a hidden panel (display: none) a name has no boxes at all; that is not a bug.
+      if (name.getClientRects().length > 0 && name.getBoundingClientRect().width <= 1) out.push(`name has no width: ${name.textContent}`);
       if (name.getBoundingClientRect().width > 1 && box && !inside(name.getBoundingClientRect(), box.getBoundingClientRect())) out.push(`name outside its box: ${name.textContent}`);
     }
     return out.slice(0, 6);
@@ -264,6 +267,17 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       expect(await overflowingNames(page)).toEqual([]);
       for (const path of [`/teams/${teamId}`, '/social?tab=leaderboards', '/social?tab=friends'])
         await page.goto(path).then(async () => expect.soft(await overflowingNames(page), path).toEqual([]));
+
+      // Batch 5 brief, B3: on phones the leaderboards are tabs, one board at a time, and nothing is cut off.
+      await page.goto('/social?tab=leaderboards');
+      await expect(page.getByRole('tab', { name: 'Matches' })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByTestId('leaderboard-matches')).toBeVisible();
+      await expect(page.getByTestId('leaderboard-goals')).toBeHidden();
+      await page.getByRole('tab', { name: 'Goals' }).click();
+      await expect(page.getByTestId('leaderboard-goals')).toBeVisible();
+      await expect(page.getByTestId('leaderboard-matches')).toBeHidden();
+      expect.soft(await offscreen(page), 'leaderboards cut off').toEqual([]);
+      expect.soft(await overflowingNames(page), 'leaderboard names').toEqual([]);
       await context.close();
     });
   }

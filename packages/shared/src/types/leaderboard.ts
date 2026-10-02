@@ -5,7 +5,7 @@ export const LEADERBOARD_PERIODS = ['month', 'all'] as const;
 export type LeaderboardPeriod = (typeof LEADERBOARD_PERIODS)[number];
 
 export interface LeaderboardRow {
-  /** Shared by tied players (1, 2, 2, 4). */
+  /** A strict place, 1, 2, 3… (ties are broken by the board's tie-breakers, batch 5 brief B3). */
   rank: number;
   userId: string;
   displayName: string;

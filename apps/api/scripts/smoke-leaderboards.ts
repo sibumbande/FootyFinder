@@ -71,10 +71,19 @@ try {
   assert((await place('assists', 'month', winger.id))?.value === 1, 'The assist was not counted.');
   assert((await place('matches', 'month', suspended.id)) === null, 'A suspended player appears on a leaderboard.');
 
+  // Batch 5 brief, B3: strict places. Striker, winger and keeper each played one match this month; on "matches"
+  // the tie goes to goals + assists (2, 1, 0), so the order is striker, winger, keeper with no shared place.
+  const [strikerPlace, wingerPlace, keeperPlace] = await Promise.all([striker.id, winger.id, keeper.id].map((id) => place('matches', 'month', id)));
+  assert(strikerPlace!.rank < wingerPlace!.rank && wingerPlace!.rank < keeperPlace!.rank, 'The matches tie-breaker (goals + assists) was not applied.');
+  for (const name of ['matches', 'goals', 'assists'] as const) {
+    const ranks = (await service.get({ board: name, period: 'all' }, null)).rows.map(({ rank }) => rank);
+    assert(ranks.every((rank, index) => rank === index + 1) && ranks.length <= 10, `The ${name} board is not a strict top-10 order.`);
+  }
+
   const board = await service.get({ board: 'goals', period: 'all' }, null);
   assert(board.viewer === null && board.since === null, 'A guest got a viewer row, or "all time" has a start date.');
   assert(!/price|venue|cents|wallet|email/i.test(JSON.stringify(board)), 'The leaderboard carries venue, money or contact data.');
-  console.log('Leaderboards smoke passed: only referee/admin-final results count (not-playing, abandoned, unrecorded and cancelled matches excluded, own goals credit nobody), this month starts on the 1st in SA time, assists count, suspended players never appear, and the board carries no venue, money or contact data.');
+  console.log('Leaderboards smoke passed: only referee/admin-final results count (not-playing, abandoned, unrecorded and cancelled matches excluded, own goals credit nobody), this month starts on the 1st in SA time, assists count, ties are broken into a strict top-10 order, suspended players never appear, and the board carries no venue, money or contact data.');
 } finally {
   await prisma.matchGoal.deleteMany({ where: { matchResult: { matchId: { in: world.matchIds } } } }).catch(() => undefined);
   await prisma.matchResult.deleteMany({ where: { matchId: { in: world.matchIds } } }).catch(() => undefined);
