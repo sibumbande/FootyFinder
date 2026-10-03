@@ -99,17 +99,10 @@ function BankDetailsForm({ refundId, onDone }: { refundId: string; onDone: () =>
 }
 
 export function FinancePage() {
-  const cache = useQueryClient();
   const [status, setStatus] = useState<AdminTopUpStatus | ''>('REVIEW');
-  const [liftReason, setLiftReason] = useState('');
   const report = useQuery({ queryKey: [...financeKey, 'reconciliation'], queryFn: async () => (await adminClient.walletReconciliation()).data });
   const topUps = useQuery({ queryKey: [...financeKey, 'top-ups', status], queryFn: async () => (await adminClient.topUps(status ? { status } : {})).data });
-  const restricted = useQuery({ queryKey: [...financeKey, 'restricted'], queryFn: async () => (await adminClient.restrictedWallets()).data });
   const attention = useQuery({ queryKey: [...financeKey, 'needs-attention'], queryFn: async () => (await adminClient.refundsNeedingAttention()).data });
-  const lift = useMutation({
-    mutationFn: (userId: string) => adminClient.liftRestriction(userId, liftReason),
-    onSuccess: () => { setLiftReason(''); void cache.invalidateQueries({ queryKey: financeKey }); },
-  });
   return <section><div><p className="eyebrow">Finance</p><h2>Finance & reconciliation</h2><p className="muted">Card top-ups are credited only after our server verifies them with Paystack. Refunds go back to the original card; a failed refund is never credited back automatically.</p></div>
     {report.isPending && <p>Running reconciliation…</p>}
     {report.error && <p className="error">{report.error.message}</p>}
@@ -130,16 +123,7 @@ export function FinancePage() {
     {topUps.data?.length === 0 && <p className="muted">No top-ups in this state.</p>}
     <div className="audit-list">{topUps.data?.map((topUp) => <TopUpCard key={topUp.id} topUp={topUp} />)}</div>
 
-    <h3>Restricted wallets</h3>
-    <p className="muted">A chargeback pauses spending. It lifts automatically once the wallet is repaid and no dispute is open.</p>
-    {restricted.error && <p className="error">{restricted.error.message}</p>}
-    {restricted.data?.length === 0 && <p className="muted">No restricted wallets.</p>}
-    <div className="audit-list">{restricted.data?.map((wallet) => <article key={wallet.userId}>
-      <strong>{wallet.username} · {rands(wallet.balanceCents)}</strong>
-      <span>Restricted {new Date(wallet.restrictedAt).toLocaleString()} · {wallet.reason ?? 'n/a'} · open disputes {wallet.openDisputes}</span>
-      {wallet.balanceCents >= 0 && <div className="row"><input aria-label="Reason for lifting" placeholder="Reason (required)" value={liftReason} onChange={(event) => setLiftReason(event.target.value)} /><button type="button" disabled={lift.isPending || liftReason.trim().length < 5} onClick={() => lift.mutate(wallet.userId)}>Lift restriction</button></div>}
-    </article>)}</div>
-    {lift.error && <p className="error">{lift.error.message}</p>}
+    <p className="muted">Payment disputes (chargebacks) and booking restrictions are on <Link to="/payment-disputes">Payment disputes</Link>.</p>
     <FreeMatchCosts />
   </section>;
 }

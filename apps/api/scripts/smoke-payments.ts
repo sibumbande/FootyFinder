@@ -5,7 +5,6 @@ import request from 'supertest';
 import { prisma } from '../src/database/prisma.js';
 import { serializableTransaction } from '../src/database/transaction.js';
 import { CardRefundsService } from '../src/modules/payments/card-refunds.service.js';
-import { ChargebacksService } from '../src/modules/payments/chargebacks.service.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
 import { createPaystackWebhookRouter } from '../src/modules/payments/paystack-webhook.js';
@@ -254,7 +253,6 @@ try {
   retainedAdmin = admin;
   await prisma.user.update({ where: { id: admin }, data: { platformRole: 'ADMIN' } });
   const refunds = new CardRefundsService(gateway);
-  const chargebacks = new ChargebacksService();
   const creditedTopUp = async (userId: string, amountCents: number, key: string) => {
     const started = await topUps.initiate(userId, amountCents, `${marker}-${key}`);
     fake.pay(started.reference);
@@ -307,50 +305,7 @@ try {
   await processAll(r3Payment.reference);
   assert((await refundRow(r3.id)).reviewReason === 'processed_after_restore', 'Card refund after restore was not flagged for finance.');
 
-  // --- TKT-606 chargebacks: reverse on open (may go negative), restore if won ---------------
-  const disputed = await createUser('e');
-  const d1Payment = await creditedTopUp(disputed, 16_000, 'd1');
-  await serializableTransaction((tx) => financial.debit(tx, { userId: disputed, amountCents: 8_000, type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}-fee`, referenceType: 'SMOKE', referenceId: marker }));
-  const open1 = fake.signedEvent('charge.dispute.create', { id: 555_001, refund_amount: 16_000, currency: 'ZAR', status: 'awaiting-merchant-feedback', transaction: { reference: d1Payment.reference, amount: 16_000 } });
-  await deliver(open1.raw, open1.signature);
-  await processAll(d1Payment.reference);
-  const replayOpen = fake.signedEvent('charge.dispute.create', { id: 555_001, refund_amount: 16_000, status: 'awaiting-merchant-feedback', transaction: { reference: d1Payment.reference }, replay: true });
-  await deliver(replayOpen.raw, replayOpen.signature);
-  await processAll(d1Payment.reference);
-  let wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputed } });
-  assert(wallet.balanceCents === -8_000 && wallet.spendingRestrictedAt, 'Chargeback did not reverse once, below zero, with a restriction.');
-  assert((await prisma.providerDispute.count({ where: { providerPaymentId: d1Payment.id } })) === 1, 'Replayed dispute created twice.');
-  assert((await code(serializableTransaction((tx) => financial.debit(tx, { userId: disputed, amountCents: 0, type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}-blocked`, referenceType: 'SMOKE', referenceId: marker })))) === 'WALLET_RESTRICTED', 'A restricted wallet could still spend.');
-  assert((await code(serializableTransaction((tx) => financial.createHold(tx, { userId: disputed, amountCents: 100, idempotencyKey: `${marker}-hold`, referenceType: 'SMOKE', referenceId: marker })))) === 'WALLET_RESTRICTED', 'A restricted wallet could still hold funds.');
-  assert((await code(refunds.initiate({ actorUserId: admin, providerPaymentId: d1Payment.id, amountCents: 1_000, reason: 'Refund during dispute', idempotencyKey: `${marker}-refund-d` }))) === 'REFUND_BLOCKED_BY_DISPUTE', 'Refund allowed on a disputed top-up.');
-  assert((await code(chargebacks.liftRestriction({ actorUserId: admin, userId: disputed, reason: 'Trying to lift early' }))) === 'WALLET_NEGATIVE', 'Restriction lifted on a negative wallet.');
-  await creditedTopUp(disputed, 10_000, 'd1-repay');
-  wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputed } });
-  assert(wallet.balanceCents === 2_000 && wallet.spendingRestrictedAt, 'Repaying while the dispute is open lifted the restriction.');
-  assert((await summaryOf(disputed)).spendingRestricted, 'Wallet summary does not show the restriction.');
-  const won = fake.signedEvent('charge.dispute.resolve', { id: 555_001, resolution: 'declined', status: 'resolved', transaction: { reference: d1Payment.reference } });
-  await deliver(won.raw, won.signature);
-  await processAll(d1Payment.reference);
-  await chargebacks.resolve({ id: 555_001, resolution: 'declined' });
-  wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputed } });
-  assert(wallet.balanceCents === 18_000 && !wallet.spendingRestrictedAt, 'Won dispute did not restore once and lift the restriction.');
-
-  const lost = await createUser('f');
-  const d2Payment = await creditedTopUp(lost, 8_000, 'd2');
-  await chargebacks.open(d2Payment.reference, { id: 555_002, transaction: { reference: d2Payment.reference, amount: 8_000 } });
-  assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId: lost } })).spendingRestrictedAt, 'Dispute on a zeroed wallet did not restrict.');
-  await chargebacks.resolve({ id: 555_002, resolution: 'merchant-accepted' });
-  wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: lost } });
-  assert(wallet.balanceCents === 0 && !wallet.spendingRestrictedAt, 'Lost dispute left the wrong balance or restriction.');
-  assert((await prisma.providerDispute.findUniqueOrThrow({ where: { providerDisputeId: '555002' } })).status === 'LOST', 'Lost dispute not recorded.');
-
-  let unrestrictedNegative = false;
-  try {
-    await prisma.walletAccount.update({ where: { userId: lost }, data: { balanceCents: -1 } });
-  } catch {
-    unrestrictedNegative = true;
-  }
-  assert(unrestrictedNegative, 'Database allowed a negative balance without a restriction.');
+  // (Payment disputes no longer touch a wallet: DEC-021 D9, covered by smoke:ticket-disputes.)
 
   // --- Reconciliation: balance equals the settled ledger ----------------------------------
   for (const userId of userIds) {
@@ -374,4 +329,4 @@ try {
   await fake.stop();
   await prisma.$disconnect();
 }
-console.log('Gate 6 payments smoke passed: idempotent initiation, throttled status check, authenticated deduplicated webhooks, single credit across webhook/expiry/status sources in every order, review and failure paths, card refunds (fail/retry/restore/out-of-order), chargebacks (negative balance, restriction, won/lost), reconciliation.');
+console.log('Gate 6 payments smoke passed: idempotent initiation, throttled status check, authenticated deduplicated webhooks, single credit across webhook/expiry/status sources in every order, review and failure paths, card refunds (fail/retry/restore/out-of-order), reconciliation.');

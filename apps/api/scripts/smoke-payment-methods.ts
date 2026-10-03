@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { PAYMENT_CHANNELS } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
 import { CardRefundsService } from '../src/modules/payments/card-refunds.service.js';
-import { ChargebacksService } from '../src/modules/payments/chargebacks.service.js';
+import { PaymentDisputesService } from '../src/modules/payments/payment-disputes.service.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
 import { TopUpService } from '../src/modules/payments/top-up.service.js';
 import { TopUpSettlementService } from '../src/modules/payments/top-up-settlement.service.js';
@@ -109,17 +109,17 @@ try {
   // Chargebacks are handled by payment reference, whatever the method.
   const disputer = await createUser('b');
   const disputed = await topUp(disputer, 30_000, 'capitec_pay');
-  const chargebacks = new ChargebacksService();
+  const chargebacks = new PaymentDisputesService();
   await chargebacks.open(disputed.reference, { id: `${marker}-dispute`, refund_amount: 30_000, transaction: { reference: disputed.reference, amount: 30_000 } });
   assert((await prisma.providerDispute.count({ where: { providerPaymentId: disputed.id } })) === 1, 'A Capitec Pay chargeback was not recorded.');
-  assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId: disputer } })).spendingRestrictedAt, 'A Capitec Pay chargeback did not restrict the wallet.');
+  assert((await prisma.user.findUniqueOrThrow({ where: { id: disputer } })).bookingRestrictedAt, 'A Capitec Pay chargeback did not restrict bookings.');
 
   for (const userId of userIds) {
     const wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
     const ledger = await prisma.walletTransaction.aggregate({ where: { walletAccountId: wallet.id, status: 'SUCCEEDED' }, _sum: { amountCents: true } });
     assert((ledger._sum.amountCents ?? 0) === wallet.balanceCents, 'A wallet does not reconcile to its ledger.');
   }
-  console.log('Payment methods smoke passed: checkout asks for exactly card, Apple Pay, Capitec Pay and Instant EFT; each is credited and QR is parked for review; history names the method; Undo only for card and Apple Pay; a needs-attention bank refund is completed with the customer\'s account (never stored, audit keeps last 4) or returned to the wallet; a Capitec Pay chargeback restricts the wallet; wallets reconcile.');
+  console.log('Payment methods smoke passed: checkout asks for exactly card, Apple Pay, Capitec Pay and Instant EFT; each is credited and QR is parked for review; history names the method; Undo only for card and Apple Pay; a needs-attention bank refund is completed with the customer\'s account (never stored, audit keeps last 4) or returned to the wallet; a Capitec Pay chargeback restricts bookings; wallets reconcile.');
 } finally {
   const payments = await prisma.providerPayment.findMany({ where: { userId: { in: userIds } }, select: { id: true } });
   for (const { id } of payments) await prisma.durableJob.deleteMany({ where: { dedupeKey: { startsWith: `paystack-topup-expire:${id}` } } });

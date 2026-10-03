@@ -2,7 +2,7 @@ import { prisma } from '../../database/prisma.js';
 import { registerDurableJobHandler } from '../../jobs/durable-jobs.js';
 import { PAYSTACK_WEBHOOK_JOB_TYPE } from './paystack-webhook.js';
 import { CardRefundsService } from './card-refunds.service.js';
-import { ChargebacksService } from './chargebacks.service.js';
+import { PaymentDisputesService } from './payment-disputes.service.js';
 import { TopUpSettlementService } from './top-up-settlement.service.js';
 import { TicketSettlementService } from '../tickets/ticket-settlement.service.js';
 
@@ -26,7 +26,7 @@ export class PaystackWebhookProcessor {
   constructor(
     settlement = new TopUpSettlementService(),
     refunds = new CardRefundsService(),
-    chargebacks = new ChargebacksService(),
+    disputes = new PaymentDisputesService(),
     tickets = new TicketSettlementService(),
   ) {
     this.on('charge.success', async ({ reference }) => {
@@ -38,12 +38,12 @@ export class PaystackWebhookProcessor {
       const result = await settlement.settleFromVerify(reference, 'webhook');
       return `charge_${result.outcome.toLowerCase()}`;
     });
-    // TKT-606: refunds to card and chargebacks.
+    // TKT-606: refunds to card. DEC-021 D9: payment disputes (chargebacks) restrict bookings; nothing is reversed.
     for (const type of ['refund.pending', 'refund.processing', 'refund.processed', 'refund.failed'])
       this.on(type, ({ eventType, reference, data }) => refunds.applyWebhook(eventType, reference, data));
-    this.on('charge.dispute.create', ({ reference, data }) => chargebacks.open(reference, data));
+    this.on('charge.dispute.create', ({ reference, data }) => disputes.open(reference, data));
     this.on('charge.dispute.remind', async () => 'dispute_reminder_noted');
-    this.on('charge.dispute.resolve', ({ data }) => chargebacks.resolve(data));
+    this.on('charge.dispute.resolve', ({ data }) => disputes.resolve(data));
   }
 
   on(eventType: string, handler: WebhookEventHandler) {

@@ -37,6 +37,7 @@ registerUuidRouteParams(adminRouter, [
   'userId',
   'enforcementId',
   'disputeId',
+  'paymentDisputeId',
   'paymentId',
   'refundId',
   'beneficiaryId',
@@ -117,7 +118,10 @@ adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, co
 // CEO touch-up batch 4, item 3 (D8): a bank refund Paystack marked "needs attention" gets the customer's account.
 adminRouter.post('/finance/refunds/:refundId/bank-details', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundBankDetails);
 adminRouter.get('/finance/banks', finance.paystackBanks);
-adminRouter.get('/finance/restricted-wallets', finance.restrictedWallets);
+// DEC-021 A8 / D9: payment disputes with their evidence packs; lifting a booking restriction needs fresh MFA.
+adminRouter.get('/finance/payment-disputes', finance.paymentDisputes);
+adminRouter.get('/finance/payment-disputes/:paymentDisputeId/evidence', finance.paymentDisputeEvidence);
+adminRouter.post('/finance/users/:userId/lift-booking-restriction', requireRecentAdminMfa, costlyMutationRateLimit, finance.liftBookingRestriction);
 // CEO batch 5, item 6: deletion requests (read-only; no speed-up or undo), the finance "needs attention" queue,
 // and finance recording that a deleted account's money is settled (fresh MFA).
 adminRouter.get('/account-deletions', accountDeletions.list);
@@ -136,7 +140,6 @@ adminRouter.post('/matches/:matchId/free', requireRecentAdminMfa, costlyMutation
 // CEO touch-up batch 4, item 1: girls-only switch (D3) and gender correction (D4), fresh MFA, audited.
 adminRouter.post('/matches/:matchId/girls-only', requireRecentAdminMfa, costlyMutationRateLimit, girlsOnly.setGirlsOnly);
 adminRouter.post('/moderation/users/:userId/gender', requireRecentAdminMfa, costlyMutationRateLimit, girlsOnly.correctGender);
-adminRouter.post('/finance/wallets/:userId/lift-restriction', costlyMutationRateLimit, finance.liftRestriction);
 // Gate 6 / TKT-607: venue beneficiaries (encrypted bank details) and payables. Admin-only.
 adminRouter.get('/venues/:venueId/beneficiaries', settlement.listBeneficiaries);
 adminRouter.post('/venues/:venueId/beneficiaries', costlyMutationRateLimit, settlement.createBeneficiary);

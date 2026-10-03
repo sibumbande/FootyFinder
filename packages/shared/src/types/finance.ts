@@ -90,13 +90,81 @@ export interface PaystackBankOption {
   name: string;
 }
 
-export interface AdminRestrictedWallet {
-  userId: string;
-  username: string;
-  balanceCents: number;
-  restrictedAt: string;
-  reason?: string;
-  openDisputes: number;
+/**
+ * DEC-021 A8 / D9: a payment the payer disputed with their bank. While it is open the payer can't buy tickets or use
+ * match credits (their tickets stay valid). Won: the restriction lifts by itself. Lost: an admin lifts it.
+ */
+export interface AdminPaymentDispute {
+  id: string;
+  providerDisputeId: string;
+  status: 'OPEN' | 'WON' | 'LOST';
+  amountCents: number;
+  reference: string;
+  purpose: 'TOP_UP' | 'TICKETS';
+  payer: {
+    userId: string;
+    username: string;
+    displayName?: string;
+    bookingRestrictedAt?: string;
+    bookingRestrictionReason?: string;
+  };
+  ticketCount: number;
+  matchName?: string;
+  matchStartsAt?: string;
+  openedAt: string;
+  dueAt?: string;
+  resolvedAt?: string;
+  resolution?: string;
+}
+
+export type EvidenceAttendance = 'PLAYED' | 'DID_NOT_PLAY' | 'NOT_RECORDED' | 'MATCH_NOT_PLAYED';
+
+/** DEC-021 A8: everything we hold about a disputed payment, to contest it with the bank (JSON and printable). */
+export interface PaymentDisputeEvidencePack {
+  generatedAt: string;
+  dispute: AdminPaymentDispute;
+  payment: {
+    reference: string;
+    amountCents: number;
+    currency: string;
+    channel?: string;
+    createdAt: string;
+    verifiedAt?: string;
+    confirmedBy?: string;
+  };
+  payer: { userId: string; username: string; displayName?: string; email: string };
+  policyAcceptance?: {
+    acceptedAt: string;
+    termsVersion: string;
+    policyText: string;
+    ipAddress?: string;
+    userAgent?: string;
+  };
+  tickets: Array<{
+    id: string;
+    playerDisplayName: string;
+    seat: string;
+    side: string;
+    status: string;
+    outcome?: string;
+    amountCents: number;
+    confirmedAt?: string;
+    closedAt?: string;
+    closedReason?: string;
+    attendance: EvidenceAttendance;
+    match: {
+      id: string;
+      name: string;
+      venueName: string;
+      startsAt: string;
+      status: string;
+      cancelledAt?: string;
+      cancellationReason?: string;
+    };
+  }>;
+  emails: Array<{ kind: string; subject: string; sentAt: string; recipientDisplayName?: string }>;
+  refunds: Array<{ id: string; amountCents: number; status: string; source: string; reason: string; createdAt: string; processedAt?: string }>;
+  creditEvents: Array<{ ticketId: string; type: string; at: string }>;
 }
 
 /** Gate 6 / TKT-607: venue bank details. Admin-only; returned in full only by the audited reveal. */

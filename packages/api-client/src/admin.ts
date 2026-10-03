@@ -57,7 +57,8 @@ import type {
   AdminTopUp,
   AdminTopUpStatus,
   AdminCardRefundInput,
-  AdminRestrictedWallet,
+  AdminPaymentDispute,
+  PaymentDisputeEvidencePack,
   AdminVenueBeneficiary,
   AdminVenuePayable,
   AdminSettlementBatch,
@@ -305,9 +306,12 @@ export const adminApi = (client: ApiClient) => ({
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
-  restrictedWallets: () => client.request<{ data: AdminRestrictedWallet[] }>('/admin/finance/restricted-wallets'),
-  liftRestriction: (userId: string, reason: string) =>
-    client.request<{ data: { changed: boolean } }>(`/admin/finance/wallets/${encodeURIComponent(userId)}/lift-restriction`, {
+  // DEC-021 A8 / D9: payment disputes, their evidence packs, and lifting a payer's booking restriction (fresh MFA).
+  paymentDisputes: () => client.request<{ data: AdminPaymentDispute[] }>('/admin/finance/payment-disputes'),
+  paymentDisputeEvidence: (disputeId: string) =>
+    client.request<{ data: PaymentDisputeEvidencePack }>(`/admin/finance/payment-disputes/${encodeURIComponent(disputeId)}/evidence`),
+  liftBookingRestriction: (userId: string, reason: string) =>
+    client.request<{ data: { changed: boolean } }>(`/admin/finance/users/${encodeURIComponent(userId)}/lift-booking-restriction`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),

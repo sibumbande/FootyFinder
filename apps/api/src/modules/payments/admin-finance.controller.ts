@@ -8,12 +8,12 @@ import type { Request, RequestHandler } from 'express';
 import { AppError } from '../../errors/app-error.js';
 import { AdminFinanceService } from './admin-finance.service.js';
 import { CardRefundsService } from './card-refunds.service.js';
-import { ChargebacksService } from './chargebacks.service.js';
+import { PaymentDisputesService } from './payment-disputes.service.js';
 import { PaystackClient } from './paystack.client.js';
 
 const finance = new AdminFinanceService();
 const refunds = new CardRefundsService();
-const chargebacks = new ChargebacksService();
+const disputes = new PaymentDisputesService();
 const actor = (locals: Record<string, unknown>) => String(locals.authUserId);
 const requestId = (locals: Record<string, unknown>) => String(locals.requestId);
 
@@ -76,13 +76,15 @@ export const restoreRefund = handle(async (req, locals) => {
   return finance.topUp(refund.providerPaymentId);
 });
 
-export const restrictedWallets = handle(() => finance.restrictedWallets());
 // CEO batch 5, item 6: the "Refunds needing attention" queue.
 export const refundsNeedingAttention = handle(() => finance.refundsNeedingAttention());
 
-export const liftRestriction = handle(async (req, locals) => {
+// DEC-021 A8 / D9: payment disputes, their evidence packs, and lifting a payer's booking restriction (fresh MFA).
+export const paymentDisputes = handle(() => disputes.list());
+export const paymentDisputeEvidence = handle((req) => disputes.evidence(String(req.params.paymentDisputeId)));
+export const liftBookingRestriction = handle(async (req, locals) => {
   const { reason } = adminFinanceReasonSchema.parse(req.body);
-  return chargebacks.liftRestriction({
+  return disputes.liftRestriction({
     actorUserId: actor(locals),
     userId: String(req.params.userId),
     reason,

@@ -993,3 +993,24 @@ th {
     justify-content: flex-end;
   }
 }
+
+/* DEC-021 A8: printing a payment dispute prints only its evidence pack. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .evidence-pack,
+  .evidence-pack * {
+    visibility: visible;
+  }
+  .evidence-pack {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #000;
+    background: #fff;
+  }
+  .no-print {
+    display: none;
+  }
+}

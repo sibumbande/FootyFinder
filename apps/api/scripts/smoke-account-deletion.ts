@@ -10,7 +10,7 @@ import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
 import { MessagingService } from '../src/modules/messaging/messaging.service.js';
 import { CardRefundsService } from '../src/modules/payments/card-refunds.service.js';
-import { ChargebacksService } from '../src/modules/payments/chargebacks.service.js';
+import { PaymentDisputesService } from '../src/modules/payments/payment-disputes.service.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
 import { TopUpService } from '../src/modules/payments/top-up.service.js';
 import { TopUpSettlementService } from '../src/modules/payments/top-up-settlement.service.js';
@@ -142,7 +142,7 @@ try {
 
   const disputer = await player('Disputer');
   const disputed = await topUp(disputer.id, 20_000, 'card');
-  await new ChargebacksService().open(disputed.reference, { id: `${marker}-dispute`, refund_amount: 20_000, transaction: { reference: disputed.reference, amount: 20_000 } });
+  await new PaymentDisputesService().open(disputed.reference, { id: `${marker}-dispute`, refund_amount: 20_000, transaction: { reference: disputed.reference, amount: 20_000 } });
   const disputeBlockers = await blockers(disputer.id);
   assert(disputeBlockers.includes('OPEN_DISPUTE'), 'A player with an open chargeback could self-delete.');
 

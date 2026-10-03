@@ -10,6 +10,7 @@ import { FinancePage } from './FinancePage.js';
 import { SettlementsPage } from './SettlementsPage.js';
 import { ModerationPage } from './ModerationPage.js';
 import { DisputesPage } from './DisputesPage.js';
+import { PaymentDisputesPage } from './PaymentDisputesPage.js';
 import { RefereesPage } from './RefereesPage.js';
 import { MatchesPage } from './MatchesPage.js';
 import { MatchPage } from './MatchPage.js';
@@ -156,7 +157,7 @@ function Dashboard() {
           `${data.workQueues.urgentSupportTickets} urgent`,
         ],
         ['Moderation queue', data.workQueues.openModerationReports, 'open reports'],
-        ['Disputes', data.workQueues.openDisputes, 'awaiting resolution'],
+        ['Booking disputes', data.workQueues.openDisputes, 'awaiting resolution'],
         ['Funding bookings', data.workQueues.fundingReservations, 'awaiting contributions'],
         [
           'Active accounts',
@@ -347,8 +348,8 @@ const NAV_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string
   ['Overview', [['/', 'Dashboard'], ['/waiting-list', 'Waiting list']]],
   ['Matches', [['/matches', 'Matches']]],
   ['Venues', [['/venues', 'Venues & fields']]],
-  ['Money', [['/finance', 'Finance'], ['/settlement', 'Venue settlement']]],
-  ['People and safety', [['/support', 'Support inbox'], ['/deletion-requests', 'Deletion requests'], ['/moderation', 'Moderation'], ['/disputes', 'Disputes'], ['/referees', 'Referees'], ['/team-reviews', 'Team reviews'], ['/recruitment', 'Recruitment']]],
+  ['Money', [['/finance', 'Finance'], ['/payment-disputes', 'Payment disputes'], ['/settlement', 'Venue settlement']]],
+  ['People and safety', [['/support', 'Support inbox'], ['/deletion-requests', 'Deletion requests'], ['/moderation', 'Moderation'], ['/disputes', 'Booking disputes'], ['/referees', 'Referees'], ['/team-reviews', 'Team reviews'], ['/recruitment', 'Recruitment']]],
   ['System', [['/test-data', 'Test data'], ['/retention', 'Data retention'], ['/audit', 'Audit log']]],
 ];
 
@@ -412,6 +413,7 @@ function AdminShell() {
           <Route path="matches/:matchId" element={<MatchPage />} />
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="disputes" element={<DisputesPage />} />
+          <Route path="payment-disputes" element={<PaymentDisputesPage />} />
           <Route path="referees" element={<RefereesPage />} />
           {/* CEO touch-up batch 3.5, item 5: the old pages now open the matching Matches filter. */}
           <Route path="match-referees" element={<Navigate to="/matches?needs=referee" replace />} />
