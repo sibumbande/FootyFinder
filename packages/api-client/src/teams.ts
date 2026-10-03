@@ -30,7 +30,7 @@ export const teamsApi = (client: ApiClient) => ({
     }),
   /** Gate 7 / D7: closes (archives) the team and returns each contributor's unspent money. */
   remove: (teamId: string) =>
-    client.request<{ data: { success: true; refunds?: Array<{ userId: string; amountCents: number }> } }>(`/teams/${teamId}`, { method: 'DELETE' }),
+    client.request<{ data: { success: true } }>(`/teams/${teamId}`, { method: 'DELETE' }),
   matches: (teamId: string) => client.request<{ data: Match[] }>(`/teams/${teamId}/matches`),
   uploadImage: (teamId: string, image: File) => {
     const body = new FormData();

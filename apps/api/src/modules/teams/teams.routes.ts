@@ -5,7 +5,6 @@ import { AppError } from '../../errors/app-error.js';
 import { requireAuth } from '../../middleware/require-auth.js';
 import { registerRouteParam, registerUuidRouteParams } from '../../middleware/route-params.js';
 import * as controller from './teams.controller.js';
-import * as teamWallet from '../team-wallet/team-wallet.controller.js';
 import * as teamChat from '../team-chat/team-chat.controller.js';
 import * as teamReviews from '../team-reviews/team-reviews.controller.js';
 import * as social from '../social/social.controller.js';
@@ -71,12 +70,6 @@ teamsRouter.post('/:teamId/invites', costlyMutationRateLimit, controller.createI
 teamsRouter.get('/:teamId/invites', controller.listInvites);
 teamsRouter.delete('/:teamId/invites/:inviteId', controller.revokeInvite);
 teamsRouter.get('/:teamId/formations/:format', controller.getFormation);
-// Gate 7 (TKT-702): Team Wallet.
-teamsRouter.get('/:teamId/wallet', teamWallet.summary);
-teamsRouter.get('/:teamId/wallet/transactions', teamWallet.transactions);
-teamsRouter.get('/:teamId/wallet/holds', teamWallet.holds);
-teamsRouter.post('/:teamId/wallet/contributions', costlyMutationRateLimit, teamWallet.contribute);
-teamsRouter.post('/:teamId/wallet/refunds', costlyMutationRateLimit, teamWallet.refund);
 // Gate 7 (TKT-710): team chat.
 teamsRouter.get('/:teamId/chat/messages', teamChat.history);
 teamsRouter.post('/:teamId/chat/messages', messageRateLimit, teamChat.send);

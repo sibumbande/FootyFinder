@@ -12,7 +12,7 @@ assert(origin, 'A configured browser origin is required.');
 
 for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
   const response = await request(app)
-    .options('/wallet/deposits/demo')
+    .options('/tickets/mine')
     .set('Origin', origin)
     .set('Access-Control-Request-Method', method)
     .set('Access-Control-Request-Headers', 'authorization,content-type,idempotency-key');

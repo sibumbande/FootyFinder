@@ -67,7 +67,7 @@ export class TeamsService {
     emitDomainEventBestEffort('team:details-updated', { teamId: id, team });
     return team;
   }
-  /** Gate 7 / D7: "Close team". The team is archived (never deleted) and unspent money returned. */
+  /** Gate 7 / D7: "Close team". The team is archived (never deleted). */
   async remove(id: string, userId: string) {
     await this.assertOwner(id, userId);
     const result = await this.teams.close(id, userId);
@@ -77,17 +77,8 @@ export class TeamsService {
         'This team has an upcoming team match. Cancel it or wait until it has been played before closing the team.',
         'TEAM_HAS_UPCOMING_MATCHES',
       );
-    if (result.outcome === 'HOLDS_ACTIVE')
-      throw new AppError(
-        409,
-        'Team wallet money is still held for a match. It is released or spent when that match is decided.',
-        'TEAM_WALLET_HOLDS_ACTIVE',
-      );
-    if (result.outcome === 'CLOSED') {
-      this.notifications.publishPersistedMany(result.notifications);
-      emitDomainEventBestEffort('team:deleted', { teamId: id });
-    }
-    return { refunds: result.refunds };
+    if (result.outcome === 'CLOSED') emitDomainEventBestEffort('team:deleted', { teamId: id });
+    return { closed: true };
   }
   /**
    * Gate 7 / N3: private free fixtures at a typed-in venue are retired. Team matches are created

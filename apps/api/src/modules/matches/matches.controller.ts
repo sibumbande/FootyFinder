@@ -103,41 +103,6 @@ export const ready: RequestHandler = async (req, res, next) => {
     next(error);
   }
 };
-export const join: RequestHandler = async (req, res, next) => {
-  try {
-    res.status(201).json({
-      data: await service.join(
-        matchId(req.params),
-        userId(res.locals),
-        joinMatchSchema.parse(req.body),
-        String(req.header('Idempotency-Key') ?? ''),
-      ),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-export const cancellationQuote: RequestHandler = async (req, res, next) => {
-  try {
-    res.json({ data: await service.cancellationQuote(matchId(req.params), userId(res.locals)) });
-  } catch (error) {
-    next(error);
-  }
-};
-export const cancellationStatus: RequestHandler = async (req, res, next) => {
-  try {
-    res.json({ data: await service.cancellationStatus(matchId(req.params), userId(res.locals)) });
-  } catch (error) {
-    next(error);
-  }
-};
-export const leave: RequestHandler = async (req, res, next) => {
-  try {
-    res.json({ data: await service.leave(matchId(req.params), userId(res.locals)) });
-  } catch (error) {
-    next(error);
-  }
-};
 export const formation: RequestHandler = async (req, res, next) => {
   try {
     res.json({

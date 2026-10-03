@@ -15,6 +15,7 @@ import { refereeUnassignedAlertDedupeKey } from '../src/modules/referees/referee
 import { RefereeJobs } from '../src/modules/referees/referee.jobs.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 /**
  * Gate 8 smoke (DEC-020): the FootyFinder referee role (TKT-801) and referee assignment (TKT-802):
@@ -211,7 +212,7 @@ async function assignmentSection(admin: { id: string }, fresh: string, stale: st
   assert(notARef.status === 409 && notARef.body.code === 'REFEREE_NOT_ACTIVE', 'A non-referee was assigned.');
 
   // D17 (reversed): a referee may also play in the match they referee.
-  await matchesRepository.join(m2.id, refB.id, { team: 'HOME' }, `${marker}:join:${m2.id}:${refB.id}`);
+  await buyTicket(m2.id, refB.id, 'HOME', `${marker}:join:${m2.id}:${refB.id}`);
   const assignB = await put(`/admin/matches/${m2.id}/referee`, fresh, { refereeUserId: refB.id });
   assert(assignB.status === 200 && assignB.body.data.referee.id === refB.id, 'A referee in the lineup could not be assigned.');
   assert(await prisma.matchParticipant.count({ where: { matchId: m2.id, userId: refB.id, status: 'JOINED' } }), 'Assigning the referee removed them from the lineup.');
@@ -265,7 +266,7 @@ async function assignmentSection(admin: { id: string }, fresh: string, stale: st
   const slots = await prisma.formationSlot.findMany({ where: { matchId: m5.id }, orderBy: [{ team: 'asc' }, { slotIndex: 'asc' }] });
   for (const [index, player] of players.entries()) {
     const slot = slots[index]!;
-    await matchesRepository.join(m5.id, player.id, { team: slot.team }, `${marker}:join:${m5.id}:${player.id}`);
+    await buyTicket(m5.id, player.id, slot.team, `${marker}:join:${m5.id}:${player.id}`);
     await matchesRepository.claimPosition(m5.id, slot.id, player.id);
   }
   const noReferee = await matchesService.decideGoNoGo(m5.id, m5.goNoGoAt!);

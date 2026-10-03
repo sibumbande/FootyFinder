@@ -2,13 +2,11 @@ import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import type { CreateMatchInput } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
-import { serializableTransaction } from '../src/database/transaction.js';
-import { MatchesRepository, OtherSideRefusedError, OwnTeamConflictError } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { TeamMatchesService } from '../src/modules/team-matches/team-matches.service.js';
 import { unmatchedCancelDedupeKey } from '../src/modules/team-matches/team-match-jobs.js';
-import { TeamWalletRepository } from '../src/modules/team-wallet/team-wallet.repository.js';
 import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
+import { buyTicket, leaveTicket } from './support/ticket-fixtures.js';
 
 /**
  * Gate 7 / TKT-707 on PostgreSQL (DEC-019 decisions B, C, N1, N2, N5): the other side of a team
@@ -18,15 +16,12 @@ import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
 const ROUNDS = 4;
 const world = teamMatchWorld(`gate7-race-${randomUUID()}`);
 const matches = new MatchesService();
-const repository = new MatchesRepository();
 const teamMatches = new TeamMatchesService();
-const teamWallets = new TeamWalletRepository();
 let homeIndex = 0;
 
 async function homeTeam() {
   const owner = await world.user(`Home owner ${homeIndex}`);
   const team = await world.team(`home-${homeIndex++}`, owner.id);
-  await world.contribute(team.id, owner.id, 100_000, `home-${team.id}`);
   return { owner, team };
 }
 async function publish(ownerId: string, teamId: string, otherSideMode: 'OPEN' | 'TEAMS_ONLY', subs = 1) {
@@ -45,7 +40,6 @@ const side = (matchId: string) => prisma.match.findUniqueOrThrow({
     otherSideTakenBy: true,
     teamSides: { where: { side: 'AWAY' }, select: { teamId: true, substituteCount: true, teamFeeCents: true, id: true } },
     participants: { where: { status: 'JOINED' }, select: { userId: true } },
-    payments: { select: { userId: true, status: true } },
   },
 });
 
@@ -56,7 +50,6 @@ async function main() {
   const awayMember = await world.user('Away A member');
   const teamA = await world.team('away-a', awayA.id, [{ userId: awayMember.id, role: 'MEMBER' }]);
   const teamB = await world.team('away-b', awayB.id);
-  await world.contribute(teamA.id, awayA.id, 50_000, 'away-a');
   const players = [];
   for (let index = 0; index < ROUNDS + 3; index += 1) players.push(await world.user(`Player ${index}`));
 
@@ -66,10 +59,9 @@ async function main() {
     const home = await homeTeam();
     const match = await publish(home.owner.id, home.team.id, 'OPEN');
     const player = players[round]!;
-    const before = (await prisma.walletAccount.findUniqueOrThrow({ where: { userId: player.id } })).balanceCents;
     // Alternate which request reaches the Match lock first so both outcomes are raced.
     const startLoad = () => teamMatches.loadTeam(match.id, awayA.id, { teamId: teamA.id, substituteCount: 2 });
-    const startJoin = () => repository.join(match.id, player.id, { team: 'AWAY' }, `${world.marker}:join:${match.id}`);
+    const startJoin = () => buyTicket(match.id, player.id, 'AWAY', `${world.marker}:join:${match.id}`);
     const [load, join] = round % 2 === 0
       ? await Promise.allSettled([startLoad(), startJoin()])
       : await Promise.allSettled([
@@ -81,10 +73,11 @@ async function main() {
     assert(teamWon !== (join.status === 'fulfilled'), `Round ${round}: expected exactly one winner.`);
     if (teamWon) {
       winners.team += 1;
-      assert(join.status === 'rejected' && join.reason instanceof OtherSideRefusedError, `Round ${round}: the losing join failed for the wrong reason.`);
-      assert(state.otherSideTakenBy === 'TEAM' && state.teamSides.length === 1 && state.participants.length === 0 && state.payments.length === 0,
-        `Round ${round}: a team won but an individual was left on the side or charged.`);
-      assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId: player.id } })).balanceCents === before, `Round ${round}: the losing player was charged.`);
+      assert(join.status === 'rejected' && (join.reason as { code?: string }).code === 'OTHER_SIDE_REFUSED', `Round ${round}: the losing join failed for the wrong reason.`);
+      assert(state.otherSideTakenBy === 'TEAM' && state.teamSides.length === 1 && state.participants.length === 0,
+        `Round ${round}: a team won but an individual was left on the side.`);
+      // DEC-021: a refused purchase never takes money (no confirmed ticket for the losing player).
+      assert(!(await prisma.matchTicket.count({ where: { matchId: match.id, playerId: player.id, status: 'CONFIRMED' } })), `Round ${round}: the losing player was charged.`);
       await teamMatches.withdrawTeam(match.id, awayA.id);
     } else {
       winners.individual += 1;
@@ -112,9 +105,7 @@ async function main() {
   assert(homeNotices === 1, 'The home team was not told once that an opponent was found.');
   assert(await prisma.durableJob.count({ where: { type: 'TEAM_MATCH_EMAIL', dedupeKey: { startsWith: `team-match-email:OPPONENT_FOUND:${teamsOnly.id}` } } }) === 1,
     'The home owner did not get one "opponent found" email.');
-  assert(await rejectsWith(() => repository.join(teamsOnly.id, players[ROUNDS]!.id, { team: 'AWAY' }, `${world.marker}:late`).catch((error) => {
-    throw error instanceof OtherSideRefusedError ? Object.assign(error, { code: error.reason }) : error;
-  }), 'TAKEN_BY_TEAM'), 'A player joined a side a team had taken.');
+  assert(await rejectsWith(() => buyTicket(teamsOnly.id, players[ROUNDS]!.id, 'AWAY', `${world.marker}:late`), 'OTHER_SIDE_REFUSED'), 'A player joined a side a team had taken.');
 
   // 3. N5: only the loading team withdraws, releasing its own held money; the side reopens.
   const loaderOwner = loadedTeam.teamId === teamA.id ? awayA : awayB;
@@ -144,20 +135,20 @@ async function main() {
   await teamMatches.loadTeam(openMatch.id, awayA.id, { teamId: teamA.id, substituteCount: 0 });
   await teamMatches.withdrawTeam(openMatch.id, awayA.id);
   const individual = players[ROUNDS + 1]!;
-  await repository.join(openMatch.id, individual.id, { team: 'AWAY' }, `${world.marker}:open-join`);
+  await buyTicket(openMatch.id, individual.id, 'AWAY', `${world.marker}:open-join`);
   assert((await side(openMatch.id)).otherSideTakenBy === 'INDIVIDUALS', 'Players could not join after a team withdrew.');
   assert(await rejectsWith(() => teamMatches.loadTeam(openMatch.id, awayB.id, { teamId: teamB.id, substituteCount: 0 }), 'OTHER_SIDE_TAKEN'),
     'A team loaded into a side players had joined.');
-  await repository.cancelParticipation(openMatch.id, individual.id, new Date());
+  await leaveTicket(openMatch.id, individual.id, 'REFUND');
   await teamMatches.loadTeam(openMatch.id, awayB.id, { teamId: teamB.id, substituteCount: 0 });
   assert((await side(openMatch.id)).otherSideTakenBy === 'TEAM', 'An emptied individuals side did not reopen to teams (N1).');
 
   // 5. N2: nobody plays against their own team; players never join the home side.
   const own = await homeTeam();
   const ownMatch = await publish(own.owner.id, own.team.id, 'OPEN');
-  assert(await repository.join(ownMatch.id, own.owner.id, { team: 'AWAY' }, `${world.marker}:own`).then(() => false, (error) => error instanceof OwnTeamConflictError),
+  assert(await rejectsWith(() => buyTicket(ownMatch.id, own.owner.id, 'AWAY', `${world.marker}:own`), 'OWN_TEAM_CONFLICT'),
     'A home team member joined the other side.');
-  assert(await repository.join(ownMatch.id, players[ROUNDS + 2]!.id, { team: 'HOME' }, `${world.marker}:home`).then(() => false, (error) => error instanceof OtherSideRefusedError && error.reason === 'HOME_IS_A_TEAM'),
+  assert(await rejectsWith(() => buyTicket(ownMatch.id, players[ROUNDS + 2]!.id, 'HOME', `${world.marker}:home`), 'NOT_A_QUICK_PLACE'),
     'A player joined the home team\'s side.');
   await prisma.teamMembership.create({ data: { teamId: own.team.id, userId: awayMember.id, role: 'MEMBER' } });
   assert(await rejectsWith(() => teamMatches.loadTeam(ownMatch.id, awayA.id, { teamId: teamA.id, substituteCount: 0 }), 'OWN_TEAM_CONFLICT'),
@@ -167,8 +158,6 @@ async function main() {
 
   const audit = await prisma.teamMatchAuditEvent.count({ where: { matchId: teamsOnly.id, command: { in: ['OTHER_SIDE_TEAM_LOADED', 'OTHER_SIDE_TEAM_WITHDRAWN'] } } });
   assert(audit === 3, `Side changes were not all audited (${audit}).`);
-  const issues = await world.ourIssues();
-  assert(issues.length === 0, `Reconciliation issues: ${JSON.stringify(issues)}`);
   console.log(`Gate 7 other-side race smoke passed (${ROUNDS} rounds: ${winners.team} team, ${winners.individual} individual; team-vs-team, N1, N2, N5).`);
 }
 

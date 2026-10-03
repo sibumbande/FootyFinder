@@ -11,6 +11,7 @@ import { logError } from '../../observability/logger.js';
 import { appendAdminAudit } from '../admin/admin-audit.js';
 import { createEmailProvider, type EmailProvider } from '../auth/email.provider.js';
 import { MatchesService } from '../matches/matches.service.js';
+import { TicketLeaveService } from '../tickets/ticket-leave.service.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { buildDeletionPreview } from './account-deletion.preview.js';
@@ -76,6 +77,7 @@ export class AccountDeletionService {
   constructor(
     private readonly emails: EmailProvider = createEmailProvider(),
     private readonly matches = new MatchesService(),
+    private readonly tickets = new TicketLeaveService(),
     private readonly notifications = new NotificationsService(),
   ) {}
 
@@ -167,7 +169,8 @@ export class AccountDeletionService {
     for (const plan of preview.matches) {
       try {
         if (plan.outcome === 'HOSTED_MATCH_CANCELLED') await this.matches.remove(plan.matchId, userId);
-        else if (plan.outcome !== 'LEFT_OUT_OF_SQUAD') await this.matches.leave(plan.matchId, userId);
+        // DEC-021 (D11): a ticket more than 24 hours out is refunded to the card or bank it was paid with.
+        else if (plan.outcome !== 'LEFT_OUT_OF_SQUAD') await this.tickets.leave(plan.matchId, userId, 'REFUND');
       } catch (error) {
         logError('account_deletion_match_plan_failed', error, { userId, matchId: plan.matchId, outcome: plan.outcome });
       }

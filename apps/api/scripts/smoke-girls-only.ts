@@ -10,6 +10,7 @@ import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { OnboardingService } from '../src/modules/onboarding/onboarding.service.js';
 import { toPublicUser } from '../src/modules/users/user.mapper.js';
 import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 /**
  * CEO touch-up batch 4, item 1 on PostgreSQL: girls-only matches. Only female players can join, claim, be selected,
@@ -40,11 +41,11 @@ async function main() {
   const quick = await bookings.createQuickMatch({ managedFieldId: world.fieldId, name: `${world.marker} girls quick`, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 2, rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', girlsOnly: true, startsAt: world.nextKickoff().toISOString() }, sipho!.id);
   world.matchIds.push(quick.id);
   assert(quick.girlsOnly, 'The quick match was not girls-only.');
-  assert(await rejectsWith(() => matches.join(quick.id, thabo!.id, { team: 'HOME' }, `${world.marker}-thabo`), 'GIRLS_ONLY'), 'A male player joined a girls-only match.');
-  await matches.join(quick.id, anele!.id, { team: 'HOME' }, `${world.marker}-anele`);
+  assert(await rejectsWith(() => buyTicket(quick.id, thabo!.id, 'HOME', `${world.marker}-thabo`), 'GIRLS_ONLY'), 'A male player joined a girls-only match.');
+  await buyTicket(quick.id, anele!.id, 'HOME', `${world.marker}-anele`);
   // A player with no gender saved yet is not eligible either.
   await setGender(buhle!.id, null);
-  assert(await rejectsWith(() => matches.join(quick.id, buhle!.id, { team: 'AWAY' }, `${world.marker}-buhle-none`), 'GIRLS_ONLY'), 'A player with no gender joined a girls-only match.');
+  assert(await rejectsWith(() => buyTicket(quick.id, buhle!.id, 'AWAY', `${world.marker}-buhle-none`), 'GIRLS_ONLY'), 'A player with no gender joined a girls-only match.');
   // The player saves it once; a second save is refused (only an admin corrects it).
   await onboarding.setGender(buhle!.id, 'FEMALE');
   assert(await rejectsWith(() => onboarding.setGender(buhle!.id, 'MALE'), 'GENDER_ALREADY_SET'), 'A player changed their own gender.');
@@ -53,7 +54,7 @@ async function main() {
   assert(await rejectsWith(() => admin.setMatch(quick.id, { girlsOnly: false, reason: 'Open it up please' }, adminUser.id, world.marker), 'GIRLS_ONLY_HAS_PLAYERS'), 'Girls-only was switched off after players joined.');
   const open = await bookings.createQuickMatch({ managedFieldId: world.fieldId, name: `${world.marker} open quick`, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 2, rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', startsAt: world.nextKickoff().toISOString() }, sipho!.id);
   world.matchIds.push(open.id);
-  await matches.join(open.id, thabo!.id, { team: 'HOME' }, `${world.marker}-thabo-open`);
+  await buyTicket(open.id, thabo!.id, 'HOME', `${world.marker}-thabo-open`);
   assert(await rejectsWith(() => admin.setMatch(open.id, { girlsOnly: true, reason: 'Women only night' }, adminUser.id, world.marker), 'GIRLS_ONLY_HAS_INELIGIBLE'), 'Girls-only was switched on after a male player joined.');
   const empty = await bookings.createQuickMatch({ managedFieldId: world.fieldId, name: `${world.marker} empty quick`, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 2, rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', startsAt: world.nextKickoff().toISOString() }, sipho!.id);
   world.matchIds.push(empty.id);
@@ -68,7 +69,6 @@ async function main() {
     const membership = await prisma.teamMembership.findUniqueOrThrow({ where: { teamId_userId: { teamId: team.id, userId } } });
     await prisma.teamFormationSlot.update({ where: { id: slots[index]!.id }, data: { membershipId: membership.id } });
   }
-  await world.contribute(team.id, owner!.id, 100_000, 'girls-wallet');
   const input: CreateMatchInput = { managedFieldId: world.fieldId, name: `${world.marker} girls team`, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 2, rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', girlsOnly: true, startsAt: world.nextKickoff().toISOString(), playAsTeamId: team.id, otherSideMode: 'OPEN', teamSubstituteCount: 2 };
   const teamMatch = await matches.create(input, owner!.id);
   world.matchIds.push(teamMatch.id);
@@ -84,7 +84,7 @@ async function main() {
   const asked = await prisma.teamMatchAvailability.findMany({ where: { matchTeamId: home.id }, select: { userId: true } });
   assert(!asked.some(({ userId }) => userId === sipho!.id) && asked.some(({ userId }) => userId === anele!.id), 'Availability was asked of a male member.');
   // An individual taking the other side is checked like any join.
-  assert(await rejectsWith(() => matches.join(teamMatch.id, thabo!.id, { team: 'AWAY' }, `${world.marker}-thabo-away`), 'GIRLS_ONLY'), 'A male player took a girls-only other side.');
+  assert(await rejectsWith(() => buyTicket(teamMatch.id, thabo!.id, 'AWAY', `${world.marker}-thabo-away`), 'GIRLS_ONLY'), 'A male player took a girls-only other side.');
 
   // D4: an admin correction is audited and lists the girls-only matches the player is now not eligible for.
   const corrected = await admin.correctGender(anele!.id, { gender: 'MALE', reason: 'Player asked support to correct it' }, adminUser.id, world.marker);

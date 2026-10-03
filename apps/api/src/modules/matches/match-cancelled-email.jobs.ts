@@ -10,11 +10,11 @@ const invalidPayload = () =>
 
 export const parseMatchCancelledEmailPayload = (payload: unknown) => {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw invalidPayload();
-  const { matchId, userId, refundedCents, teamMember, choiceSeats, choiceCents, creditsReturned } = payload as Record<string, unknown>;
-  if (typeof matchId !== 'string' || typeof userId !== 'string' || typeof refundedCents !== 'number')
-    throw invalidPayload();
+  // Jobs queued before DEC-021 may also carry refundedCents/teamMember; that wallet wording is no longer sent.
+  const { matchId, userId, choiceSeats, choiceCents, creditsReturned } = payload as Record<string, unknown>;
+  if (typeof matchId !== 'string' || typeof userId !== 'string') throw invalidPayload();
   const count = (value: unknown) => (typeof value === 'number' && value > 0 ? value : 0);
-  return { matchId, userId, refundedCents, teamMember: teamMember === true, choiceSeats: count(choiceSeats), choiceCents: count(choiceCents), creditsReturned: count(creditsReturned) };
+  return { matchId, userId, choiceSeats: count(choiceSeats), choiceCents: count(choiceCents), creditsReturned: count(creditsReturned) };
 };
 
 type MatchCancelledEmailStore = {
@@ -46,7 +46,7 @@ export const sendMatchCancelledEmail = async (
   emails: EmailProvider,
   store: MatchCancelledEmailStore = prismaStore,
 ) => {
-  const { matchId, userId, refundedCents, teamMember, choiceSeats, choiceCents, creditsReturned } = parseMatchCancelledEmailPayload(payload);
+  const { matchId, userId, choiceSeats, choiceCents, creditsReturned } = parseMatchCancelledEmailPayload(payload);
   const match = await store.findMatch(matchId);
   if (!match || match.status !== 'CANCELLED') return;
   const to = await store.findEmail(userId);
@@ -56,8 +56,6 @@ export const sendMatchCancelledEmail = async (
     venueName: match.venue.name,
     startsAt: match.startsAt,
     reason,
-    refundedCents,
-    teamMember,
     choiceSeats,
     choiceCents,
     creditsReturned,

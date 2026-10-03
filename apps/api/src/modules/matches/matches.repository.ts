@@ -3,19 +3,14 @@ import type {
   DiscoveryQuery,
   MatchCancellationReason,
   FormationSlotUpdateInput,
-  JoinMatchInput,
   ResultInput,
   UpdateMatchInput,
 } from '@footy-finder/shared';
 import {
-  CANCELLATION_CUTOFF_HOURS,
-  decideOtherSide,
   type OtherSideRefusal,
   createDefaultFormation,
-  getCancellationCreditCents,
   getMaxParticipantsPerTeam,
   isLobbyFrozen,
-  MATCH_FEE_CENTS,
 } from '@footy-finder/shared';
 import type { Notification, Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
@@ -30,26 +25,16 @@ import { matchCancelledMessage } from './cancellation-message.js';
 import { enqueueMatchCancelledEmail } from './match-cancelled-email.js';
 import { fillReminderMessage, openPositionsForReminder } from './fill-reminder.js';
 import { copySavedSquad } from '../team-matches/team-squad.js';
-import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from '../team-matches/team-match-audit.js';
 import { managedTeamSides } from '../team-matches/team-side-authority.js';
 import { hasActiveReferee } from '../referees/referee-assignment.js';
 import { appendAdminAudit } from '../admin/admin-audit.js';
-import {
-  FinancialInsufficientFundsError,
-  FinancialRepository,
-} from '../wallet/financial.repository.js';
-import { assertNoPlayerOverlap } from './player-overlap.js';
-import { hasPlayedAMatch, reversePromotionalCosts } from './free-matches.js';
-import { assertGirlsOnlyEligible } from './girls-only.js';
+import { reversePromotionalCosts } from './free-matches.js';
 import { hostAudience } from './host.js';
 import { settleTicketsOnCancellationInTx } from '../tickets/ticket-cancellation.js';
 
-export class InsufficientBalanceError extends Error {}
-export class AlreadyJoinedError extends Error {}
 export class TeamFullError extends Error {}
 /** CEO touch-up batch 3, item 5: this free match is for players who have never played a match. */
-export class FirstTimersOnlyError extends Error {}
 export class MatchClosedError extends Error {}
 /** DEC-018 (D1): the lobby is frozen from the go/no-go instant (T-30) until kickoff. */
 export class LineupLockedError extends Error {}
@@ -153,10 +138,6 @@ export const publicPreviewSelect = {
 } satisfies Prisma.MatchSelect;
 
 export class MatchesRepository {
-  constructor(
-    private readonly financial = new FinancialRepository(),
-    private readonly teamWallets = new TeamWalletRepository(),
-  ) {}
   listPublic(query: DiscoveryQuery) {
     return prisma.match.findMany({
       where: {
@@ -206,9 +187,6 @@ export class MatchesRepository {
       where: { matchId_userId: { matchId, userId } },
       select: { id: true },
     });
-  }
-  findCancellation(matchId: string, userId: string) {
-    return prisma.participantCancellation.findFirst({ where: { matchId, userId } });
   }
   /** Gate 7 / TKT-708: the sides of this match whose team the user owns or captains. */
   managedTeamSides(matchId: string, userId: string) {
@@ -321,328 +299,6 @@ export class MatchesRepository {
     return prisma.match.update({ where: { id }, data: { status: 'READY' }, include: matchInclude });
   }
 
-  join(matchId: string, userId: string, input: JoinMatchInput, idempotencyKey: string) {
-    return serializableTransaction(async (tx) => {
-      const replay = await tx.matchPayment.findUnique({
-        where: { idempotencyKey },
-        include: { participant: { include: participantInclude } },
-      });
-      if (replay) {
-        if (replay.matchId !== matchId || replay.userId !== userId || replay.team !== input.team)
-          throw new AlreadyJoinedError();
-        return {
-          participant: replay.participant,
-          replacement: null,
-          replayed: true,
-          notifications: [],
-        };
-      }
-      // Gate 7: a DEC-019 team match's other side is decided under the Match row lock, the same
-      // lock "Load my team" takes, so a team loading and a player joining can never both win.
-      const peek = await tx.match.findUniqueOrThrow({ where: { id: matchId }, select: { otherSideMode: true } });
-      if (peek.otherSideMode) await lockMatchForFormation(tx, matchId);
-      const match = await tx.match.findUniqueOrThrow({
-        where: { id: matchId },
-        include: { participants: { where: { status: 'JOINED' } } },
-      });
-      if (match.mode === 'TEAM_MATCH' && !match.otherSideMode) throw new TeamMatchPlanningError();
-      assertLobbyOpen(match, new Date());
-      // Gate 9 / TKT-908: not while already in another match whose window overlaps this one.
-      await assertNoPlayerOverlap(tx, userId, match);
-      if (match.otherSideMode) await this.takeOtherSideForIndividual(tx, match, userId, input.team);
-      const previousParticipation = await tx.matchParticipant.findUnique({
-        where: { matchId_userId: { matchId, userId } },
-        include: { payment: true },
-      });
-      // A player cannot buy a second place after leaving. This check runs before
-      // the wallet debit so a historical payment can never surface as a late
-      // unique-constraint failure.
-      if (previousParticipation?.payment) throw new AlreadyJoinedError();
-      if (match.participants.some((participant) => participant.userId === userId))
-        throw new AlreadyJoinedError();
-      if (
-        match.participants.filter((participant) => participant.team === input.team).length >=
-        getMaxParticipantsPerTeam(match.format, match.substituteCapacityPerTeam)
-      )
-        throw new TeamFullError();
-      // CEO touch-up batch 3, item 5: "first-time players only" free matches.
-      if (match.firstTimersOnly && (await hasPlayedAMatch(tx, userId))) throw new FirstTimersOnlyError();
-      // CEO touch-up batch 4, item 1: girls-only matches (also covers an individual taking a team match's other side).
-      await assertGirlsOnlyEligible(tx, match, [userId]);
-
-      let debit;
-      try {
-        debit = await this.financial.debit(tx, {
-          userId,
-          amountCents: match.feeCents,
-          type: 'MATCH_ENTRY_DEBIT',
-          idempotencyKey: `match-payment:${idempotencyKey}`,
-          referenceType: 'MATCH',
-          referenceId: matchId,
-          description: match.freeOnFootyFinder ? `Free match on FootyFinder: ${match.name}` : `Entry fee for ${match.name}`,
-        });
-      } catch (error) {
-        if (error instanceof FinancialInsufficientFundsError) throw new InsufficientBalanceError();
-        throw error;
-      }
-      const participant = await tx.matchParticipant.upsert({
-        where: { matchId_userId: { matchId, userId } },
-        create: { matchId, userId, team: input.team },
-        update: { status: 'JOINED', team: input.team, joinedAt: new Date(), leftAt: null },
-        include: participantInclude,
-      });
-      const walletTransaction = debit.transaction;
-      await tx.matchPayment.create({
-        data: {
-          matchId,
-          userId,
-          participantId: participant.id,
-          team: input.team,
-          amountCents: match.feeCents,
-          walletTransactionId: walletTransaction.id,
-          idempotencyKey,
-        },
-      });
-      // CEO touch-up batch 3, item 5: FootyFinder covers this player's fee in its own promotions ledger (no wallet).
-      if (match.freeOnFootyFinder)
-        await tx.promotionalCost.upsert({
-          where: { participantId: participant.id },
-          create: { matchId, participantId: participant.id, userId, amountCents: MATCH_FEE_CENTS, description: `Free match on FootyFinder: ${match.name}` },
-          update: { status: 'ACTIVE', reversedAt: null, reversalReason: null },
-        });
-
-      const cancellation = await tx.participantCancellation.findFirst({
-        where: {
-          matchId,
-          originalTeam: input.team,
-          replacementParticipantId: null,
-          replacementCreditCents: 0,
-          matchPayment: { status: { not: 'REFUNDED' } },
-        },
-        orderBy: { cancelledAt: 'asc' },
-      });
-      let replacement: { userId: string; amountCents: number } | null = null;
-      if (cancellation && cancellation.initialCreditCents < cancellation.originalAmountCents) {
-        const amountCents = cancellation.originalAmountCents - cancellation.initialCreditCents;
-        await this.financial.credit(tx, {
-          userId: cancellation.userId,
-          amountCents,
-          type: 'REPLACEMENT_CREDIT',
-          idempotencyKey: `replacement-credit:${cancellation.id}`,
-          referenceType: 'CANCELLATION',
-          referenceId: cancellation.id,
-          description: 'Remaining cancellation credit after replacement joined',
-        });
-        await tx.participantCancellation.update({
-          where: { id: cancellation.id },
-          data: { replacementParticipantId: participant.id, replacementCreditCents: amountCents },
-        });
-        await tx.matchPayment.update({
-          where: { id: cancellation.matchPaymentId },
-          data: { status: 'REFUNDED' },
-        });
-        replacement = { userId: cancellation.userId, amountCents };
-      }
-      const notificationDrafts: NotificationDraft[] = [
-        {
-          userId,
-          type: 'MATCH_JOINED',
-          title: 'Match joined',
-          message: `Your place on the ${input.team === 'HOME' ? 'Home' : 'Away'} team is confirmed.`,
-          targetPath: `/matches/${matchId}`,
-          dedupeKey: notificationDedupeKey(
-            'match',
-            matchId,
-            'participant',
-            participant.id,
-            'joined',
-            userId,
-          ),
-        },
-      ];
-      const audience = new Set([
-        ...hostAudience(match),
-        ...match.participants.map(({ userId: participantUserId }) => participantUserId),
-      ]);
-      audience.delete(userId);
-      const displayName = participant.user.profile?.displayName ?? participant.user.username;
-      for (const recipientId of audience)
-        notificationDrafts.push({
-          userId: recipientId,
-          type: 'INFO',
-          title: 'Player joined',
-          message: `${displayName} joined the ${input.team === 'HOME' ? 'Home' : 'Away'} team.`,
-          targetPath: `/matches/${matchId}`,
-          dedupeKey: notificationDedupeKey(
-            'match',
-            matchId,
-            'participant',
-            participant.id,
-            'joined-audience',
-            recipientId,
-          ),
-        });
-      if (replacement)
-        notificationDrafts.push(
-          {
-            userId: replacement.userId,
-            type: 'REPLACEMENT_FOUND',
-            title: 'Replacement found',
-            message: 'The remaining cancellation credit was added to your wallet.',
-            targetPath: `/matches/${matchId}`,
-            dedupeKey: notificationDedupeKey(
-              'cancellation',
-              cancellation!.id,
-              'replacement-found',
-              replacement.userId,
-            ),
-          },
-          {
-            userId: replacement.userId,
-            type: 'WALLET_CREDIT',
-            title: 'Wallet credited',
-            message: `R${(replacement.amountCents / 100).toFixed(2)} was added to your balance.`,
-            targetPath: `/matches/${matchId}`,
-            dedupeKey: notificationDedupeKey(
-              'cancellation',
-              cancellation!.id,
-              'wallet-credit',
-              replacement.userId,
-            ),
-          },
-        );
-      const notifications = await persistNotifications(tx, notificationDrafts);
-      return { participant, replacement, replayed: false, notifications };
-    });
-  }
-
-  /** DEC-021: the player holds a confirmed ticket for this match (they leave under the ticket rules). */
-  async hasConfirmedTicket(matchId: string, userId: string) {
-    return (await prisma.matchTicket.count({ where: { matchId, playerId: userId, status: 'CONFIRMED' } })) > 0;
-  }
-
-  cancelParticipation(matchId: string, userId: string, now: Date) {
-    return serializableTransaction(async (tx) => {
-      const peek = await tx.match.findUniqueOrThrow({ where: { id: matchId }, select: { otherSideMode: true } });
-      if (peek.otherSideMode) await lockMatchForFormation(tx, matchId);
-      const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
-      if (match.mode === 'TEAM_MATCH' && !match.otherSideMode) throw new TeamMatchPlanningError();
-      assertLobbyOpen(match, now);
-      const participant = await tx.matchParticipant.findUniqueOrThrow({
-        where: { matchId_userId: { matchId, userId } },
-        include: { payment: { include: { cancellation: true } } },
-      });
-      if (participant.payment?.cancellation)
-        return {
-          cancellation: participant.payment.cancellation,
-          replayed: true,
-          notifications: [],
-        };
-      if (participant.status !== 'JOINED') throw new AlreadyJoinedError();
-      const released = await tx.formationSlot.updateMany({
-        where: { participantId: participant.id },
-        data: { participantId: null },
-      });
-      if (released.count > 0) await bumpFormationVersion(tx, matchId);
-      await tx.matchParticipant.update({
-        where: { id: participant.id },
-        data: { status: 'LEFT', leftAt: now },
-      });
-      // CEO touch-up batch 3, item 5: a player leaving a free match is no longer covered by FootyFinder.
-      await reversePromotionalCosts(tx, { participantId: participant.id }, 'PLAYER_LEFT', now);
-      if (!participant.payment) return { cancellation: null, replayed: false, notifications: [] };
-      const initialCreditCents = getCancellationCreditCents(
-        participant.payment.amountCents,
-        match.startsAt,
-        now,
-      );
-      if (initialCreditCents === null) throw new MatchClosedError();
-      if (initialCreditCents > 0) {
-        await this.financial.credit(tx, {
-          userId,
-          amountCents: initialCreditCents,
-          type:
-            initialCreditCents === participant.payment.amountCents
-              ? 'PLAYER_CANCELLATION_FULL_CREDIT'
-              : 'PLAYER_CANCELLATION_PARTIAL_CREDIT',
-          idempotencyKey: `player-cancellation:${participant.payment.id}`,
-          referenceType: 'MATCH_PAYMENT',
-          referenceId: participant.payment.id,
-          description: 'Player cancellation wallet credit',
-        });
-      }
-      await tx.matchPayment.update({
-        where: { id: participant.payment.id },
-        data: {
-          status:
-            initialCreditCents === participant.payment.amountCents
-              ? 'REFUNDED'
-              : initialCreditCents > 0
-                ? 'PARTIALLY_REFUNDED'
-                : 'SUCCEEDED',
-        },
-      });
-      const cancellation = await tx.participantCancellation.create({
-        data: {
-          matchId,
-          userId,
-          matchPaymentId: participant.payment.id,
-          originalTeam: participant.team,
-          originalAmountCents: participant.payment.amountCents,
-          initialCreditCents,
-        },
-      });
-      const notifications = await persistNotifications(tx, [
-        {
-          userId,
-          type: 'PLAYER_CANCELLED',
-          title: 'Place cancelled',
-          message:
-            match.freeOnFootyFinder
-              ? 'You left the free match. Nothing was paid, so nothing is refunded.'
-              : cancellation.initialCreditCents > 0
-              ? `R${(cancellation.initialCreditCents / 100).toFixed(2)} was credited to your wallet.`
-              : `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. Your fee will be credited if a replacement joins.`,
-          targetPath: `/matches/${matchId}`,
-          dedupeKey: notificationDedupeKey(
-            'cancellation',
-            cancellation.id,
-            'player-cancelled',
-            userId,
-          ),
-        },
-      ]);
-      return { cancellation, replayed: false, notifications };
-    });
-  }
-
-  /**
-   * Gate 7 (decisions B, C, N1, N2): an individual may join only the away side of an "Open to both"
-   * team match that no team has taken, and never against their own team. The first individual
-   * marks the side as taken by individuals. Called under the Match row lock.
-   */
-  private async takeOtherSideForIndividual(
-    tx: Prisma.TransactionClient,
-    match: { id: string; otherSideMode: 'TEAMS_ONLY' | 'OPEN' | null; otherSideTakenBy: 'TEAM' | 'INDIVIDUALS' | null; participants: Array<{ userId: string }> },
-    userId: string,
-    side: 'HOME' | 'AWAY',
-  ) {
-    if (side !== 'AWAY') throw new OtherSideRefusedError('HOME_IS_A_TEAM');
-    const decision = decideOtherSide(
-      { mode: match.otherSideMode!, takenBy: match.otherSideTakenBy, joinedIndividuals: match.participants.length },
-      'INDIVIDUAL',
-    );
-    if ('reason' in decision) throw new OtherSideRefusedError(decision.reason);
-    const ownTeam = await tx.teamMembership.count({
-      where: { userId, team: { matchSides: { some: { matchId: match.id, side: 'HOME' } } } },
-    });
-    if (ownTeam) throw new OwnTeamConflictError();
-    if (match.otherSideTakenBy !== 'INDIVIDUALS') {
-      await tx.match.update({ where: { id: match.id }, data: { otherSideTakenBy: 'INDIVIDUALS' } });
-      await appendTeamMatchAudit(tx, { matchId: match.id, command: 'OTHER_SIDE_INDIVIDUALS_OPENED', side: 'AWAY', actorUserId: userId });
-    }
-  }
-
   /**
    * Organiser cancellation (D3: allowed until the go/no-go instant; enforced by the service), or
    * (Gate 7) the home team cancelling a team match, audited with its actor.
@@ -658,10 +314,9 @@ export class MatchesRepository {
 
   /**
    * CEO Q4: an admin cancels a match for the weather or a venue problem, through the same
-   * cancelInTx core (full refunds, held team money released, in-app + email notices, nothing owed
+   * cancelInTx core (every payer chooses a match credit or a full refund, in-app + email notices, nothing owed
    * to the venue), audited with the admin's written reason. Only before kick-off; a team match only
-   * before its T-30 check, because its team fees are taken from the team wallets at T-30 and this
-   * path returns only held money (split window, CEO decision). The referee is told in the app.
+   * before its T-30 check (the split window stays, CEO Q4). The referee is told in the app.
    */
   cancelByFootyFinder(matchId: string, adminUserId: string, reason: string, requestId: string, now = new Date()) {
     return serializableTransaction(async (tx) => {
@@ -685,14 +340,14 @@ export class MatchesRepository {
         entityType: 'MATCH',
         entityId: matchId,
         requestId,
-        metadata: { reason, refundedUserCount: cancelled.refundedUserIds.length, teamMatch: Boolean(match.otherSideMode) },
+        metadata: { reason, payersAskedToChoose: cancelled.payerIds.length, teamMatch: Boolean(match.otherSideMode) },
       });
       const refereeNotice = match.refereeUserId
         ? await persistNotifications(tx, [{
             userId: match.refereeUserId,
             type: 'MATCH_CANCELLED',
             title: 'Match cancelled',
-            message: matchCancelledMessage({ venueName: match.venue.name, startsAt: match.startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 0 }),
+            message: matchCancelledMessage({ venueName: match.venue.name, startsAt: match.startsAt, reason: 'FOOTYFINDER_CANCELLED' }),
             targetPath: `/referee/matches/${matchId}`,
             dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', match.refereeUserId),
           }])
@@ -827,10 +482,9 @@ export class MatchesRepository {
 
   /**
    * Shared cancellation core for organiser cancellation, the T-30 auto-cancel and (Gate 7) every
-   * team-match cancellation. Every ACTIVE team-wallet hold for the match is released to its own
-   * team wallet, and every SUCCEEDED individual payment gets a full MATCH_CANCELLATION_CREDIT with
-   * the stable key match-cancellation:<paymentId>, so two cancellation paths can never refund the
-   * same fee twice. Nothing is owed to the venue. Members of attached teams are notified too.
+   * team-match cancellation. DEC-021 A3: every paid ticket's payer chooses a match credit or a full refund (refunded
+   * automatically after 7 days); credit-paid tickets get their credit back; free places owe nothing. Nothing is owed
+   * to the venue. Members of attached teams are notified too.
    */
   async cancelInTx(
     tx: Prisma.TransactionClient,
@@ -841,72 +495,28 @@ export class MatchesRepository {
     const match = await tx.match.findUniqueOrThrow({
       where: { id: matchId },
       include: {
-        payments: { where: { status: 'SUCCEEDED' } },
         fieldReservation: true,
         venue: { select: { name: true } },
         participants: { where: { status: 'JOINED' }, select: { userId: true } },
       },
     });
     if (match.status === 'CANCELLED')
-      return { match, refundedUserIds: [] as string[], notifications: [] as Notification[] };
-    const refundDescription: Partial<Record<MatchCancellationReason, string>> = {
-      POSITIONS_UNFILLED: 'Full refund: not all positions were filled 30 minutes before kickoff',
-      NO_REFEREE: 'Full refund: no FootyFinder referee was available',
-      FOOTYFINDER_CANCELLED: 'Full refund: cancelled by FootyFinder (weather or venue)',
-    };
-    // Gate 7 (D2): release held fill-meter money first (team wallets lock before personal wallets).
-    const teamHolds = await tx.teamWalletHold.findMany({
-      where: { matchId, status: 'ACTIVE' },
-      select: { id: true, account: { select: { teamId: true } } },
-    });
-    await this.teamWallets.lockAccounts(tx, teamHolds.map(({ account }) => account.teamId));
-    for (const hold of teamHolds) await this.teamWallets.releaseHold(tx, hold.id, `match-cancelled:${reason}`);
+      return { match, payerIds: [] as string[], notifications: [] as Notification[] };
     const memberships = await tx.teamMembership.findMany({
       where: { team: { matchSides: { some: { matchId } } } },
-      select: { userId: true, teamId: true },
+      select: { userId: true },
     });
     const teamMemberIds = new Set(memberships.map(({ userId }) => userId));
-    // CEO Q4: a FootyFinder cancellation tells team members about their team's fee only when that
-    // team actually had fill-meter money released.
-    const heldTeamIds = new Set(teamHolds.map(({ account }) => account.teamId));
-    const feeReturnedIds = new Set(memberships.filter(({ teamId }) => heldTeamIds.has(teamId)).map(({ userId }) => userId));
-    const teamNotice = (userId: string) =>
-      reason === 'FOOTYFINDER_CANCELLED' ? feeReturnedIds.has(userId) : teamMemberIds.has(userId);
-    const refundedUserIds: string[] = [];
-    const refundedCentsByUser = new Map<string, number>();
-    // CEO touch-up batch 3, item 5: free-match players paid nothing, so nothing is credited; FootyFinder's
-    // promotional cover for them is reversed instead.
+    // CEO touch-up batch 3, item 5: free-match players paid nothing; FootyFinder's promotional cover is reversed.
     await reversePromotionalCosts(tx, { matchId }, `MATCH_CANCELLED:${reason}`, new Date());
-    for (const payment of match.payments) {
-      if (payment.amountCents === 0) {
-        await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
-        continue;
-      }
-      await this.financial.credit(tx, {
-        userId: payment.userId,
-        amountCents: payment.amountCents,
-        type: 'MATCH_CANCELLATION_CREDIT',
-        idempotencyKey: `match-cancellation:${payment.id}`,
-        referenceType: 'MATCH_PAYMENT',
-        referenceId: payment.id,
-        description: refundDescription[reason] ?? 'Full credit for cancelled match',
-      });
-      await tx.matchPayment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
-      refundedUserIds.push(payment.userId);
-      refundedCentsByUser.set(
-        payment.userId,
-        (refundedCentsByUser.get(payment.userId) ?? 0) + payment.amountCents,
-      );
-    }
     // DEC-021 A3: every ticket holder (the payer) chooses a match credit or a full refund; credit-paid tickets get
     // their credit back; free places owe nothing.
     const tickets = await settleTicketsOnCancellationInTx(tx, matchId, new Date());
-    // One alert per person: every joined player, every refunded payer, every ticket payer and the host. Each gets
+    // One alert per person: every joined player, every ticket payer, the teams' members and the host. Each gets
     // one in-app notification (realtime toast after commit) and one transactional email job.
     const recipients = [
       ...new Set([
         ...match.participants.map(({ userId }) => userId),
-        ...refundedCentsByUser.keys(),
         ...tickets.byPayer.keys(),
         ...teamMemberIds,
         ...hostAudience(match),
@@ -914,7 +524,6 @@ export class MatchesRepository {
     ];
     const notificationDrafts: NotificationDraft[] = [];
     for (const userId of recipients) {
-      const refundedCents = refundedCentsByUser.get(userId) ?? 0;
       const ticketFacts = tickets.byPayer.get(userId);
       notificationDrafts.push({
         userId,
@@ -924,23 +533,15 @@ export class MatchesRepository {
           venueName: match.venue.name,
           startsAt: match.startsAt,
           reason,
-          refundedCents,
-          teamMember: teamNotice(userId),
           ...ticketFacts,
         }),
         targetPath: `/matches/${matchId}`,
         dedupeKey: notificationDedupeKey('match', matchId, 'match-cancelled', userId),
       });
-      await enqueueMatchCancelledEmail(tx, { matchId, userId, refundedCents, teamMember: teamNotice(userId), ...ticketFacts });
+      await enqueueMatchCancelledEmail(tx, { matchId, userId, ...ticketFacts });
     }
     if (match.fieldReservation && match.fieldReservation.status !== 'CANCELLED') {
-      // DEC-018: nothing is owed to the venue for a cancelled match and the host is never
-      // charged. A legacy (pre-DEC-018) organiser hold is simply released.
-      if (
-        match.fieldReservation.organizerGuaranteeHoldId &&
-        !match.fieldReservation.organizerGuaranteeSettledAt
-      )
-        await this.financial.releaseHold(tx, match.fieldReservation.organizerGuaranteeHoldId);
+      // DEC-018: nothing is owed to the venue for a cancelled match and the host is never charged.
       await tx.fieldReservation.update({
         where: { id: match.fieldReservation.id },
         data: {
@@ -956,7 +557,7 @@ export class MatchesRepository {
       data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason },
     });
     const notifications = await persistNotifications(tx, notificationDrafts);
-    return { match: cancelled, refundedUserIds, notifications };
+    return { match: cancelled, payerIds: [...tickets.byPayer.keys()], notifications };
   }
 
   changeTeam(

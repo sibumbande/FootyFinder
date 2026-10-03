@@ -1,6 +1,5 @@
 import { MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FinancialRepository } from '../wallet/financial.repository.js';
 
 // Run the service's transactional work against an in-memory transaction client so the test can
 // capture exactly what each create path writes, without a database.
@@ -114,11 +113,6 @@ const input = {
   startsAt: kickoff.toISOString(),
 };
 
-const financial = () =>
-  ({
-    createHold: vi.fn(async () => ({ hold: { id: 'hold-1' }, replayed: false })),
-  }) as unknown as FinancialRepository & { createHold: ReturnType<typeof vi.fn> };
-
 beforeEach(() => {
   tx.adminAuditLog.create.mockClear();
   captured.match.length = 0;
@@ -128,7 +122,7 @@ beforeEach(() => {
 
 describe('Quick Match creation fee (DEC-018)', () => {
   it('sets the platform-fixed R80 fee on a host-created match, ignoring any host-sent fee', async () => {
-    const service = new BookingsService(financial());
+    const service = new BookingsService();
     await expect(
       service.createQuickMatch({ ...input, feeCents: 45_000 } as typeof input, 'host-1'),
     ).rejects.toBe(STOP);
@@ -137,14 +131,14 @@ describe('Quick Match creation fee (DEC-018)', () => {
   });
 
   it('sets the platform-fixed R80 fee on an admin-created match, hosted by FootyFinder (CEO batch 3.5, item 5)', async () => {
-    const service = new BookingsService(financial());
+    const service = new BookingsService();
     await service.createAdminMatch({ ...input, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1', 'request-1');
     expect(captured.match[0]).toMatchObject({ feeCents: MATCH_FEE_CENTS, hostedByFootyFinder: true, freeOnFootyFinder: false, status: 'OPEN' });
     expect(captured.reservation[0]).toMatchObject({ source: 'ADMIN_LOADED', status: 'CONFIRMED', priceCentsSnapshot: 50_000 });
   });
 
   it('creates an admin match free "On FootyFinder" (R0) and for first-time players only, booked as normal', async () => {
-    const service = new BookingsService(financial());
+    const service = new BookingsService();
     const created = await service.createAdminMatch({ ...input, freeOnFootyFinder: true, firstTimersOnly: true }, 'admin-1', 'request-1');
     expect(captured.match[0]).toMatchObject({ feeCents: 0, freeOnFootyFinder: true, firstTimersOnly: true, hostedByFootyFinder: true });
     expect(captured.reservation[0]).toMatchObject({ source: 'ADMIN_LOADED', priceCentsSnapshot: 50_000 });
@@ -155,16 +149,14 @@ describe('Quick Match creation fee (DEC-018)', () => {
   });
 
   it('gives a private admin match an invite link, shown once', async () => {
-    const created = await new BookingsService(financial()).createAdminMatch({ ...input, visibility: 'PRIVATE', freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1');
+    const created = await new BookingsService().createAdminMatch({ ...input, visibility: 'PRIVATE', freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1');
     expect(created.inviteUrl).toMatch(/\/matches\/invite\/[A-Za-z0-9_-]{40,}$/);
     expect(captured.match[0]).toMatchObject({ inviteTokenHash: expect.any(String), publicSlug: undefined });
   });
 
-  it('places no host wallet hold and queues no guarantee settlement (DEC-018)', async () => {
-    const ledger = financial();
-    const service = new BookingsService(ledger);
-    await expect(service.createQuickMatch(input, 'host-with-empty-wallet')).rejects.toBe(STOP);
-    expect(ledger.createHold).not.toHaveBeenCalled();
+  it('takes no host guarantee and queues no guarantee settlement (DEC-018)', async () => {
+    const service = new BookingsService();
+    await expect(service.createQuickMatch(input, 'host-1')).rejects.toBe(STOP);
     expect(captured.reservation[0]).toMatchObject({ organizerGuaranteeCents: 0 });
     expect(captured.reservation[0]).not.toHaveProperty('organizerGuaranteeHoldId');
     expect(captured.jobs.map(({ type }) => type)).not.toContain('QUICK_MATCH_GUARANTEE_SETTLE');
@@ -173,7 +165,7 @@ describe('Quick Match creation fee (DEC-018)', () => {
   it.each(['host', 'admin'] as const)(
     'schedules the T-30 go/no-go check in the same transaction (%s-created match)',
     async (creator) => {
-      const service = new BookingsService(financial());
+      const service = new BookingsService();
       if (creator === 'host') await expect(service.createQuickMatch(input, 'host-1')).rejects.toBe(STOP);
       else await service.createAdminMatch({ ...input, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1', 'request-1');
       const goNoGoAt = new Date(kickoff.getTime() - 30 * 60_000);
@@ -203,7 +195,7 @@ describe('Quick Match creation fee (DEC-018)', () => {
   it.each([20, 90])('applies the players\' booking window to admin matches: %i minutes ahead is refused (D4)', async (minutes) => {
     const soon = new Date(Date.now() + minutes * 60_000).toISOString();
     await expect(
-      new BookingsService(financial()).createAdminMatch({ ...input, startsAt: soon, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1'),
+      new BookingsService().createAdminMatch({ ...input, startsAt: soon, freeOnFootyFinder: false, firstTimersOnly: false }, 'admin-1'),
     ).rejects.toMatchObject({ statusCode: 400, code: 'MATCH_START_TIME_INVALID' });
     expect(captured.match).toHaveLength(0);
   });

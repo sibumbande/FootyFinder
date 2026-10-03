@@ -19,8 +19,6 @@ import { useMyTeams } from '@/features/teams/hooks/useTeams.js';
 import { formatRands } from '@/utils/format-currency.js';
 import {
   useClaimPosition,
-  useJoinMatch,
-  useLeaveMatch,
   useLoadTeamIntoMatch,
   useWithdrawTeamFromMatch,
 } from '../hooks/useMatches.js';
@@ -42,8 +40,6 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
   const myTeams = useMyTeams();
   const load = useLoadTeamIntoMatch(match.id);
   const withdraw = useWithdrawTeamFromMatch(match.id);
-  const join = useJoinMatch(match.id);
-  const leave = useLeaveMatch(match.id);
   const claim = useClaimPosition(match.id);
   const [loading, setLoading] = useState(false);
   const [teamId, setTeamId] = useState('');
@@ -230,18 +226,11 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
                 ))}
               </ul>
               {!locked && (
-                <Button variant="ghost" loading={leave.isPending} onClick={() => ticketContext.data?.ticket?.status === 'CONFIRMED' ? setLeaving(true) : void confirm({
-                  title: 'Leave this match?',
-                  message: <p>More than 12 hours before kickoff your R80 comes back to your wallet; after that, only if a paid player takes your place.</p>,
-                  confirmLabel: 'Leave match',
-                  cancelLabel: 'Stay in match',
-                  destructive: true,
-                  action: () => leave.mutateAsync(undefined),
-                })}>
+                <Button variant="ghost" disabled={!ticketContext.data?.ticket} onClick={() => setLeaving(true)}>
                   Leave the match
                 </Button>
               )}
-              <FormError message={claim.error?.message ?? leave.error?.message} />
+              <FormError message={claim.error?.message} />
             </div>
           )}
         </div>

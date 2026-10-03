@@ -8,7 +8,7 @@ import { GuestMatchLobby, joinMessage } from '@/features/public/components/Guest
 import { PublicResult } from '@/features/public/components/PublicResult.js';
 import { formatCurrency } from '@/utils/format-currency.js';
 import { formatDate } from '@/utils/format-date.js';
-import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
+import { JoinMatchSheet } from '../components/JoinMatchSheet.js';
 import { GoNoGoBanner } from '../components/GoNoGoBanner.js';
 import { ShareMatchActions } from '../components/ShareMatchActions.js';
 import { useMatchByPublicSlug, usePublicMatchPreview } from '../hooks/useMatches.js';
@@ -125,7 +125,7 @@ export function PublicMatchPreviewPage() {
         </section>
       </div>
       {match && (
-        <JoinTeamDialog match={match} open={joinOpen} onClose={() => setJoinOpen(false)} />
+        <JoinMatchSheet match={match} open={joinOpen} onClose={() => setJoinOpen(false)} />
       )}
     </>
   );

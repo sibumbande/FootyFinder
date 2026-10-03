@@ -8,7 +8,7 @@ import { AppError } from '../../errors/app-error.js';
 import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
 import { logError } from '../../observability/logger.js';
 import { FinancialRepository } from '../wallet/financial.repository.js';
-import { demoDepositsEnabled } from '../wallet/payment-config.js';
+import { demoDepositsEnabled } from './payment-config.js';
 import {
   isPaystackCheckoutUrl,
   PaystackClient,

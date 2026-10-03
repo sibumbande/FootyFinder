@@ -2,11 +2,10 @@ import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
-import { MatchesRepository, TeamFullError } from '../src/modules/matches/matches.repository.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
+import { buyTicket, removeTicketRows } from './support/ticket-fixtures.js';
 
 const marker = `phase-1a-${randomUUID()}`;
-const repository = new MatchesRepository();
 const bookings = new BookingsService();
 const venueFixture = managedVenueFixture(marker);
 
@@ -20,7 +19,9 @@ async function createUser(index: number) {
       email: `${marker}-${index}@smoke.invalid`,
       username: `${marker.slice(0, 18)}-${index}`,
       passwordHash: 'smoke-test-only',
-      walletAccount: { create: { balanceCents: 100_000, currency: 'ZAR' } },
+      emailVerifiedAt: new Date(),
+      onboardingCompletedAt: new Date(),
+      profile: { create: { displayName: `Capacity ${index}`, onboardingStatus: 'COMPLETE', gender: 'MALE' } },
     },
   });
 }
@@ -45,12 +46,8 @@ async function createMatch(hostId: string, suffix: string, startsAt: Date, subst
   );
 }
 
-async function walletBalance(userId: string) {
-  return (await prisma.walletAccount.findUniqueOrThrow({ where: { userId } })).balanceCents;
-}
-
 async function main() {
-  const users = await Promise.all(Array.from({ length: 9 }, (_, index) => createUser(index)));
+  const users = await Promise.all(Array.from({ length: 6 }, (_, index) => createUser(index)));
   const host = users[0];
   await venueFixture.create();
 
@@ -91,66 +88,10 @@ async function main() {
       team: 'HOME',
     })),
   });
-  let fullTeamRejected = false;
-  try {
-    await repository.join(fullMatch.id, users[5].id, { team: 'HOME' }, randomUUID());
-  } catch (error) {
-    fullTeamRejected = error instanceof TeamFullError;
-  }
-  assert(fullTeamRejected, 'A player joined a full zero-substitute team.');
-
-  // Kickoffs must sit on the venue's 30-minute grid, so the leave policy is evaluated at an
-  // explicit instant: 13 hours before kickoff (full credit) and exactly 12 hours (none).
-  const earlyKickoff = venueFixture.nextKickoff();
-  const policyNow = new Date(earlyKickoff.getTime() - 13 * 60 * 60 * 1_000);
-  const earlyMatch = await createMatch(host.id, 'early-cancellation', earlyKickoff);
-  await repository.join(earlyMatch.id, users[6].id, { team: 'HOME' }, randomUUID());
-  const earlyDebitBalance = await walletBalance(users[6].id);
-  const earlyCancellation = await repository.cancelParticipation(
-    earlyMatch.id,
-    users[6].id,
-    policyNow,
-  );
-  assert(
-    earlyCancellation.cancellation?.initialCreditCents === 8_000,
-    'Early credit was not full.',
-  );
-  assert((await walletBalance(users[6].id)) === earlyDebitBalance + 8_000, 'Early credit missing.');
-  await repository.cancelParticipation(earlyMatch.id, users[6].id, policyNow);
-  assert(
-    (await walletBalance(users[6].id)) === earlyDebitBalance + 8_000,
-    'Cancellation replay credited the wallet twice.',
-  );
-
-  const boundaryKickoff = venueFixture.nextKickoff();
-  const boundaryNow = new Date(boundaryKickoff.getTime() - 12 * 60 * 60 * 1_000);
-  const boundaryMatch = await createMatch(host.id, 'boundary-cancellation', boundaryKickoff);
-  await repository.join(boundaryMatch.id, users[7].id, { team: 'AWAY' }, randomUUID());
-  const boundaryDebitBalance = await walletBalance(users[7].id);
-  const boundaryCancellation = await repository.cancelParticipation(
-    boundaryMatch.id,
-    users[7].id,
-    boundaryNow,
-  );
-  assert(
-    boundaryCancellation.cancellation?.initialCreditCents === 0,
-    'Exactly twelve hours should not issue an initial credit.',
-  );
-  assert(
-    (await walletBalance(users[7].id)) === boundaryDebitBalance,
-    'Boundary cancellation changed the wallet before replacement.',
-  );
-  const replacementKey = randomUUID();
-  await repository.join(boundaryMatch.id, users[8].id, { team: 'AWAY' }, replacementKey);
-  assert(
-    (await walletBalance(users[7].id)) === boundaryDebitBalance + 8_000,
-    'Confirmed replacement did not release the withheld credit.',
-  );
-  await repository.join(boundaryMatch.id, users[8].id, { team: 'AWAY' }, replacementKey);
-  assert(
-    (await walletBalance(users[7].id)) === boundaryDebitBalance + 8_000,
-    'Replacement replay credited the original player twice.',
-  );
+  // DEC-021: a full side refuses a ticket before any payment starts.
+  const fullTeam = await buyTicket(fullMatch.id, users[5].id, 'HOME').then(() => 'OK', (error: { code?: string }) => error.code);
+  assert(fullTeam === 'SIDE_FULL', `A player bought a place on a full zero-substitute team (${fullTeam}).`);
+  assert((await buyTicket(fullMatch.id, users[5].id, 'AWAY')).participant.team === 'AWAY', 'The other side did not take the player.');
 
   console.log('Phase 1A PostgreSQL smoke test passed.');
 }
@@ -162,12 +103,12 @@ async function cleanup() {
   });
   const matchIds = matches.map(({ id }) => id);
   const venueIds = matches.map(({ venueId }) => venueId);
+  await removeTicketRows(matchIds);
   await venueFixture.cleanupMatches(matchIds);
   if (matchIds.length) await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
   if (venueIds.length) await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
   await venueFixture.cleanupVenue();
   await prisma.notification.deleteMany({ where: { user: { email: { startsWith: marker } } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { user: { email: { startsWith: marker } } } } });
   await prisma.user.deleteMany({ where: { email: { startsWith: marker } } });
   const [remainingMatches, remainingVenues, remainingUsers] = await Promise.all([
     prisma.match.count({ where: { name: { startsWith: marker } } }),

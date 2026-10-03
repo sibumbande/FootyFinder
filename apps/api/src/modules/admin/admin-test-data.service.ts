@@ -71,7 +71,6 @@ export class AdminTestDataService {
               preferredPositions: { create: [{ position: 'MIDFIELDER', sortOrder: 0 }] },
               photo: { create: { fileKey: `${randomUUID()}.webp`, mimeType: 'image/webp', byteSize: 1, width: 512, height: 512 } },
             } },
-            walletAccount: { create: { currency: 'ZAR' } },
           },
         });
       }

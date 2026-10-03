@@ -1,5 +1,5 @@
 import { ticketCancellationPolicy, TICKET_POLICY_TICK, type Match, type TeamSide } from '@footy-finder/shared';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Sheet } from '@/components/ui/Sheet.js';
@@ -23,9 +23,12 @@ export function TicketConfirmSheet({
   sides = ['HOME', 'AWAY'],
   onClose,
   onConfirmed,
+  notice,
 }: {
   match: Match;
   place: TicketPlace;
+  /** Shown above the policy (e.g. the go/no-go rule when joining from an invitation). */
+  notice?: ReactNode;
   /** Sides a substitute place may be bought on (an "Open to both" team match: the away side only). */
   sides?: TeamSide[];
   onClose: () => void;
@@ -85,6 +88,7 @@ export function TicketConfirmSheet({
           </div>
         </fieldset>
       )}
+      {notice}
       <section className="mt-4" aria-labelledby="ticket-policy-heading">
         <h3 id="ticket-policy-heading" className="text-sm font-bold text-content-strong">Cancellation policy</h3>
         <ul className="mt-2 grid list-disc gap-1 pl-5 text-sm text-content" data-testid="ticket-policy">

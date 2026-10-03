@@ -1,5 +1,4 @@
 import {
-  CANCELLATION_CUTOFF_HOURS,
   isLobbyFrozen,
   getMaxMatchParticipants,
   MATCH_FORMAT_CONFIG,
@@ -24,7 +23,6 @@ import { MatchRefereeLine } from '../components/MatchRefereeLine.js';
 import { MatchResultPanel } from '../components/MatchResultPanel.js';
 import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
 import { PlayedWithPanel } from '@/features/social/components/PlayedWithPanel.js';
-import { rands } from '../utils/go-no-go-format.js';
 import { TeamMatchDayLobby } from '../components/TeamMatchDayLobby.js';
 import { MatchTimer } from '../components/MatchTimer.js';
 import { ResultForm } from '../components/ResultForm.js';
@@ -32,13 +30,10 @@ import { FreeMatchBadge, GirlsOnlyBadge, HostedByFootyFinderBadge } from '../com
 import { MatchVenuePhoto } from '../components/MatchVenuePhoto.js';
 import { ShareMatchActions } from '../components/ShareMatchActions.js';
 import {
-  useCancellationQuote,
-  useCancellationStatus,
   useChangeTeam,
   useClaimPosition,
   useDeleteMatch,
   useFormationUpdate,
-  useLeaveMatch,
   useMatch,
   useReadyMatch,
   useRotateMatchInvite,
@@ -58,7 +53,6 @@ export function MatchLobbyPage() {
   const navigate = useNavigate();
   const { notify } = useNotifications();
   const matchQuery = useMatch(matchId);
-  const leave = useLeaveMatch(matchId);
   const deletion = useDeleteMatch(matchId);
   const ready = useReadyMatch(matchId);
   const rotateInvite = useRotateMatchInvite(matchId);
@@ -104,11 +98,6 @@ export function MatchLobbyPage() {
   );
   const currentParticipant = participants.find((item) => item.userId === user?.id);
   const isHost = match?.createdById === user?.id;
-  const quote = useCancellationQuote(matchId, Boolean(currentParticipant));
-  const cancellationStatus = useCancellationStatus(
-    matchId,
-    Boolean(match) && match?.mode !== 'TEAM_MATCH',
-  );
   const { confirm, confirmDialog } = useConfirm();
   if (matchQuery.isPending)
     return <div className="h-[42rem] animate-pulse rounded-3xl bg-surface" />;
@@ -128,7 +117,7 @@ export function MatchLobbyPage() {
   const cancelMatch = async () => {
     const { confirmed } = await confirm({
       title: 'Cancel this match?',
-      message: <p>Every player gets their {rands(match.feeCents)} refunded to their wallet and is notified by email.</p>,
+      message: <p>Every player who paid chooses a match credit or a full refund, and everyone is notified by email.</p>,
       confirmLabel: 'Cancel match',
       cancelLabel: 'Keep match',
       destructive: true,
@@ -138,35 +127,12 @@ export function MatchLobbyPage() {
     notify({
       variant: 'info',
       title: 'Match cancelled',
-      message: 'Every player was refunded and notified.',
+      message: 'Every player was notified.',
     });
     navigate('/matches', { replace: true });
   };
-  const leaveMatch = () => {
-    // DEC-021 A2: a ticket holder leaves through the leave sheet (credit or refund, or nothing within 24 hours).
-    if (ticketContext.data?.ticket?.status === 'CONFIRMED') {
-      setLeaving(true);
-      return;
-    }
-    const initial = quote.data?.initialCreditCents ?? 0;
-    const replacement = quote.data?.possibleReplacementCreditCents ?? 0;
-    const detail =
-      initial === 0 && replacement > 0
-        ? `No credit is issued within ${CANCELLATION_CUTOFF_HOURS} hours of kickoff. ${formatCurrency(replacement)} will be credited if a replacement joins.`
-        : replacement > 0
-          ? `${formatCurrency(initial)} now, and ${formatCurrency(replacement)} if a replacement joins.`
-          : `${formatCurrency(initial)} will be credited.`;
-    void confirm({
-      title: 'Leave this match?',
-      message: <p>{detail}</p>,
-      confirmLabel: 'Leave match',
-      cancelLabel: 'Stay in match',
-      destructive: true,
-      action: () => leave.mutateAsync(undefined),
-    }).then(({ confirmed }) => {
-      if (confirmed) notify({ variant: 'info', title: 'Place cancelled', message: detail });
-    });
-  };
+  // DEC-021 A2: leaving goes through the leave sheet (credit or refund, or nothing within 24 hours).
+  const leaveMatch = () => setLeaving(true);
   const canClaim = mutable && Boolean(currentParticipant) && !isHost;
   const bookedSlotIds = match.bookingHolds?.slotIds ?? [];
   const claimableSlotIds = canClaim
@@ -278,7 +244,7 @@ export function MatchLobbyPage() {
             <Button onClick={() => setBuying({ seat: 'SUBSTITUTE' })}>Join as a sub</Button>
           )}
           {currentParticipant && mutable && (
-            <Button variant="secondary" onClick={leaveMatch} loading={leave.isPending}>
+            <Button variant="secondary" onClick={leaveMatch} disabled={!ticketContext.data?.ticket}>
               Leave match
             </Button>
           )}
@@ -329,34 +295,8 @@ export function MatchLobbyPage() {
       />
       <MatchRefereeLine referee={match.referee} goNoGoAt={match.goNoGoAt} status={match.status} />
       <FormError
-        message={leave.error?.message ?? deletion.error?.message ?? ready.error?.message}
+        message={deletion.error?.message ?? ready.error?.message}
       />
-      {cancellationStatus.data && (
-        <section className="grid gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-5 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-black uppercase tracking-wider text-brand-700">
-              Cancellation credit
-            </p>
-            <p className="mt-1 text-xl font-black text-content-strong">
-              {formatCurrency(
-                cancellationStatus.data.initialCreditCents +
-                  cancellationStatus.data.replacementCreditCents,
-              )}{' '}
-              received
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-black uppercase tracking-wider text-brand-700">
-              Replacement
-            </p>
-            <p className="mt-1 text-xl font-black text-content-strong">
-              {cancellationStatus.data.replacementFound
-                ? `Found - additional ${formatCurrency(cancellationStatus.data.replacementCreditCents)} credited`
-                : 'Waiting for a player'}
-            </p>
-          </div>
-        </section>
-      )}
       <nav className="grid grid-cols-3 gap-1 rounded-xl bg-surface-muted p-1 md:hidden">
         {(['formation', 'players', 'chat'] as const).map((item) => (
           <button

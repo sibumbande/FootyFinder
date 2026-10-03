@@ -22,11 +22,10 @@ const results = new RefereeResultsService();
 const reviews = new TeamReviewsService();
 
 async function newTeam(label: string) {
-  const owner = await world.user(`${label} owner`, 300_000);
+  const owner = await world.user(`${label} owner`);
   const captain = await world.user(`${label} captain`);
   const member = await world.user(`${label} member`);
   const team = await world.team(label, owner.id, [{ userId: captain.id, role: 'CAPTAIN' }, { userId: member.id, role: 'MEMBER' }]);
-  await world.contribute(team.id, owner.id, 100_000, `${label}-fund`);
   return { owner, captain, member, team };
 }
 

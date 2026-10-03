@@ -8,6 +8,7 @@ import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { createVenuePayableForStartedMatch } from '../src/modules/settlement/venue-payables.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { socialWorld } from './social-fixtures.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 /**
  * CEO touch-up batch 3.5, item 5 on PostgreSQL: an admin creates a Quick Match that FootyFinder hosts. It is booked
@@ -56,8 +57,8 @@ try {
   assert((audit.metadata as { freeOnFootyFinder?: boolean }).freeOnFootyFinder === true, 'Creating the match was not audited with its free flag.');
 
   // Players: the veteran is refused, the rookie joins for R0. Nobody sees the admin; the admin has no host powers.
-  assert(await rejectsWith(() => matches.join(created.matchId, veteran.id, { team: 'HOME' }, `${world.marker}-vet`), 'FIRST_TIMERS_ONLY'), 'A player who has played joined a first-timers match.');
-  await matches.join(created.matchId, rookie.id, { team: 'HOME' }, `${world.marker}-rookie`);
+  assert(await rejectsWith(() => buyTicket(created.matchId, veteran.id, 'HOME', `${world.marker}-vet`), 'FIRST_TIMERS_ONLY'), 'A player who has played joined a first-timers match.');
+  await buyTicket(created.matchId, rookie.id, 'HOME', `${world.marker}-rookie`);
   assert((await prisma.matchPayment.findFirstOrThrow({ where: { matchId: created.matchId, userId: rookie.id } })).amountCents === 0, 'The player did not join for R0.');
   const seen = await matches.get(created.matchId, rookie.id);
   assert(seen.hostedByFootyFinder && seen.createdById === FOOTYFINDER_HOST_ID && !seen.createdBy, 'Players can see who created a FootyFinder match.');

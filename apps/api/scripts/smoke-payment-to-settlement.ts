@@ -22,6 +22,7 @@ import { settlementWeekOf } from '../src/modules/settlement/settlement-week.js';
 import { VenueSettlementService } from '../src/modules/settlement/venue-settlement.service.js';
 import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconciliation.service.js';
 import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-server.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 /**
  * TKT-609 payment-to-settlement E2E on real PostgreSQL with a fake Paystack over HTTP:
@@ -135,7 +136,7 @@ async function main() {
   const slots = await prisma.formationSlot.findMany({ where: { matchId: match.id }, orderBy: [{ team: 'asc' }, { slotIndex: 'asc' }] });
   for (const [index, player] of players.entries()) {
     const team = index % 2 === 0 ? 'HOME' : 'AWAY';
-    await matches.join(match.id, player, { team }, `${marker}:join:${player}`);
+    await buyTicket(match.id, player, team, `${marker}:join:${player}`);
     await matches.claimPosition(match.id, slots.filter((slot) => slot.team === team)[Math.floor(index / 2)]!.id, player);
   }
   const record = await prisma.match.findUniqueOrThrow({ where: { id: match.id } });

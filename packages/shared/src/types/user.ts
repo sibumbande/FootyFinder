@@ -64,8 +64,6 @@ export interface PublicUser extends PublicPlayerProfile {
 
 export interface AuthenticatedUser extends PublicUser {
   email: string;
-  balanceCents: number;
-  currency: 'ZAR';
   accountStatus: AccountStatus;
   platformRole: PlatformRole;
   /** Gate 8 / DEC-020: holds an active FootyFinder referee role (granted by an admin). */

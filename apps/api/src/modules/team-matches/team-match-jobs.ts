@@ -87,7 +87,7 @@ export const teamMatchMessage = (
 ) => {
   switch (kind) {
     case 'OPPONENT_FOUND':
-      return `${match.otherTeamName ?? 'A team'} took the other side of ${match.name} at ${match.venueName} on ${when(match.startsAt)}. Fill your team's meter from the team wallet before the 30-minute check.`;
+      return `${match.otherTeamName ?? 'A team'} took the other side of ${match.name} at ${match.venueName} on ${when(match.startsAt)}. Pay for your players' match tickets by 2 hours before kick-off, or the match is cancelled.`;
     case 'NO_OPPONENT_WARNING':
       return `No team has taken the other side of ${match.name} (${when(match.startsAt)}) yet. If nobody takes it by ${when(unmatchedCancelAt(match.startsAt))}, the match is cancelled. Share the match link with other teams.`;
     case 'OPPONENT_WITHDRAWN':

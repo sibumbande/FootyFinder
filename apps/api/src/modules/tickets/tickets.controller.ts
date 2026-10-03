@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { AppError } from '../../errors/app-error.js';
 import { TicketCheckoutService } from './ticket-checkout.service.js';
 import { TicketLeaveService } from './ticket-leave.service.js';
+import { MyTicketsService } from './my-tickets.service.js';
 
 const service = new TicketCheckoutService();
 const leaving = new TicketLeaveService();
+const mineService = new MyTicketsService();
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 
 /** DEC-021 A1: buy a ticket for one place (a position or a substitute place). Needs an Idempotency-Key. */
@@ -47,6 +49,15 @@ export const choose: RequestHandler = async (req, res, next) => {
 export const context: RequestHandler = async (req, res, next) => {
   try {
     res.json({ data: await service.context(String(req.params.id), userId(res.locals)) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** DEC-021 "Tickets & credits": upcoming and past tickets, credits with expiry, refunds and their status. */
+export const mine: RequestHandler = async (_req, res, next) => {
+  try {
+    res.json({ data: await mineService.overview(userId(res.locals)) });
   } catch (error) {
     next(error);
   }

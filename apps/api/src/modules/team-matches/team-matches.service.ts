@@ -28,7 +28,6 @@ import { assertPlayerSlotWindow, BookingsService, rethrowReservationConflict } f
 import { toMatch } from '../matches/match.mapper.js';
 import { matchInclude } from '../matches/match.query.js';
 import { createPublicMatchSlug } from '../matches/public-match.js';
-import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
 import { assertTeamMatchCommand } from './team-side-authority.js';
 import { enqueueTeamGoNoGoJobs } from './team-match-meters.js';
@@ -68,14 +67,12 @@ export async function countTeamMatchesAwaitingOpponent(tx: Prisma.TransactionCli
 /**
  * Gate 7 / TKT-704 (DEC-019): a team owner or captain publishes a team match at a managed venue
  * slot. It is always public; the captain chooses who can take the other side and how many subs
- * their team brings. Publishing needs the team wallet's AVAILABLE balance to cover the home fee
- * (a check, not a hold) and at most two published matches may be waiting for an opponent (D12).
- * No money moves at publication.
+ * their team brings. At most two published matches may be waiting for an opponent (D12). No money moves at
+ * publication (DEC-021 D7): the team pays for its places as match tickets by the T-2h cutoff.
  */
 export class TeamMatchesService {
   constructor(
     private readonly bookings = new BookingsService(),
-    private readonly teamWallets = new TeamWalletRepository(),
     private readonly matches = new MatchesRepository(),
     private readonly notifications = new NotificationsService(),
   ) {}
@@ -261,7 +258,7 @@ export class TeamMatchesService {
         })),
         ...team.memberships.map((member) => ({
           userId: member.userId, type: 'TEAM_MATCH_OPPONENT_FOUND' as const, title: 'Your team is in',
-          message: `${team.name} took the other side of ${match.name} against ${home?.teamNameSnapshot ?? 'the home team'}. Fill your team's meter from the team wallet before the 30-minute check.`,
+          message: `${team.name} took the other side of ${match.name} against ${home?.teamNameSnapshot ?? 'the home team'}. Pay for your players' match tickets by 2 hours before kick-off, or the match is cancelled.`,
           targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'team-loaded', away.id, member.userId),
         })),
       ]);

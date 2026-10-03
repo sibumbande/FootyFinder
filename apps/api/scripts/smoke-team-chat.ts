@@ -50,10 +50,10 @@ async function listen(url: string, userId: string, teamId: string) {
 const notices = (userId: string) => prisma.notification.findMany({ where: { userId, type: 'TEAM_CHAT_UNREAD' }, orderBy: { createdAt: 'asc' } });
 
 async function main() {
-  const owner = await world.user('Chat owner', 0);
-  const member = await world.user('Chat member', 0);
-  const leaver = await world.user('Chat leaver', 0);
-  const outsider = await world.user('Chat outsider', 0);
+  const owner = await world.user('Chat owner');
+  const member = await world.user('Chat member');
+  const leaver = await world.user('Chat leaver');
+  const outsider = await world.user('Chat outsider');
   const team = await world.team('chat', owner.id, [{ userId: member.id, role: 'MEMBER' }, { userId: leaver.id, role: 'MEMBER' }]);
 
   for (let index = 0; index < 35; index += 1) await chat.send(team.id, owner.id, `Message ${index}`);
@@ -81,7 +81,7 @@ async function main() {
   assert(await prisma.teamMessage.count({ where: { teamId: team.id, senderId: leaver.id } }) === 1, 'The retained history lost a removed member\'s message.');
 
   // A new member's unread count starts when they joined.
-  const joiner = await world.user('Chat joiner', 0);
+  const joiner = await world.user('Chat joiner');
   await prisma.teamMembership.create({ data: { teamId: team.id, userId: joiner.id, role: 'MEMBER' } });
   await chat.send(team.id, owner.id, 'Welcome!');
   const joinerPage = await chat.history(team.id, joiner.id, { limit: 50 });

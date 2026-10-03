@@ -10,7 +10,6 @@ export const safeUserInclude = {
       photo: true,
     },
   },
-  walletAccount: true,
   // Gate 8 / TKT-801: whether the account currently holds the referee role.
   refereeGrants: { where: { revokedAt: null }, select: { id: true }, take: 1 },
   teamMemberships: {
@@ -48,7 +47,6 @@ export class UsersRepository {
         username: input.username,
         passwordHash,
         profile: { create: { displayName, onboardingStatus: 'IN_PROGRESS' } },
-        walletAccount: { create: { currency: 'ZAR' } },
       },
       include: safeUserInclude,
     });

@@ -31,7 +31,7 @@ import { TICKET_HOLD_EXPIRE_JOB_TYPE, TicketCheckoutService } from './ticket-che
 import { refusal } from './ticket-placement.js';
 import { notifyPlayersPaidFor, placeTeamTicketInTx, sideSelect, teamPaidSeats, teamSeats, type SideRecord } from './team-ticket-placement.js';
 import { OnboardingService } from '../onboarding/onboarding.service.js';
-import { demoDepositsEnabled } from '../wallet/payment-config.js';
+import { demoDepositsEnabled } from '../payments/payment-config.js';
 
 type Tx = Prisma.TransactionClient;
 const LINEUP = ['SELECTED_STARTER', 'OPEN_SLOT_CLAIMED', 'SELECTED_SUBSTITUTE'] as const;

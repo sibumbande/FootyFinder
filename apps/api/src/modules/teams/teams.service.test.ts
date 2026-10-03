@@ -147,26 +147,14 @@ describe('TeamsService', () => {
     };
 
     it('refuses while a public team match is upcoming', async () => {
-      const { service } = closeWith({ outcome: 'UPCOMING_MATCHES', refunds: [], notifications: [] });
+      const { service } = closeWith({ outcome: 'UPCOMING_MATCHES' });
       await expect(service.remove('team-1', 'owner')).rejects.toMatchObject({ statusCode: 409, code: 'TEAM_HAS_UPCOMING_MATCHES' });
     });
 
-    it('refuses while fill-meter money is held', async () => {
-      const { service } = closeWith({ outcome: 'HOLDS_ACTIVE', refunds: [], notifications: [] });
-      await expect(service.remove('team-1', 'owner')).rejects.toMatchObject({ statusCode: 409, code: 'TEAM_WALLET_HOLDS_ACTIVE' });
-    });
-
-    it('archives the team, returns unspent money and publishes the refund notices after commit', async () => {
-      const persisted = [{ id: 'n-1' }] as unknown as Notification[];
-      const publish = vi.fn();
-      const repository = {
-        findById: vi.fn().mockResolvedValue(team),
-        close: vi.fn().mockResolvedValue({ outcome: 'CLOSED', refunds: [{ userId: 'member', amountCents: 5_000 }], notifications: persisted }),
-      } as unknown as TeamsRepository;
-      const service = new TeamsService(repository, { publishPersistedMany: publish } as unknown as NotificationsService, images);
-      await expect(service.remove('team-1', 'owner')).resolves.toEqual({ refunds: [{ userId: 'member', amountCents: 5_000 }] });
+    it('archives the team (DEC-021: there is no team money to return)', async () => {
+      const { repository, service } = closeWith({ outcome: 'CLOSED' });
+      await expect(service.remove('team-1', 'owner')).resolves.toEqual({ closed: true });
       expect(repository.close).toHaveBeenCalledWith('team-1', 'owner');
-      expect(publish).toHaveBeenCalledWith(persisted);
     });
 
     it('treats a closed team as read-only', async () => {

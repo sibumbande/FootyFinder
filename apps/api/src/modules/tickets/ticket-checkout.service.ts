@@ -20,7 +20,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { OnboardingService } from '../onboarding/onboarding.service.js';
 import { lockMatchForFormation } from '../matches/matches.repository.js';
 import { isPaystackCheckoutUrl, PaystackClient, PaystackError, type PaystackGateway } from '../payments/paystack.client.js';
-import { demoDepositsEnabled } from '../wallet/payment-config.js';
+import { demoDepositsEnabled } from '../payments/payment-config.js';
 import { assertTicketPlaceable, placeableMatchSelect, placeTicketInTx, refusal, releaseExpiredHolds } from './ticket-placement.js';
 import { TicketSettlementService } from './ticket-settlement.service.js';
 import { useOldestCreditInTx } from './match-credits.js';

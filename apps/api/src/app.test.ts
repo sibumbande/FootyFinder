@@ -28,7 +28,7 @@ describe('CORS policy', () => {
     'handles %s preflight requests for the configured origin',
     async (method) => {
       const response = await request(app)
-        .options('/wallet/deposits/demo')
+        .options('/tickets/mine')
         .set('Origin', allowedOrigins[0])
         .set('Access-Control-Request-Method', method)
         .set('Access-Control-Request-Headers', 'authorization,content-type,idempotency-key');

@@ -1,11 +1,12 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
-import { getGoNoGoAt, MATCH_FEE_CENTS, type MatchFormat } from '@footy-finder/shared';
+import { MATCH_FEE_CENTS, type MatchFormat } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
-import { serializableTransaction } from '../src/database/transaction.js';
 import { runOneDurableJob } from '../src/jobs/durable-jobs.js';
-import { registerBookingJobHandlers } from '../src/modules/bookings/booking.jobs.js';
+import { registerRetiredJobHandlers } from '../src/jobs/retired-jobs.js';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { goNoGoJobDedupeKey } from '../src/modules/matches/go-no-go.js';
 import { registerGoNoGoJobHandlers } from '../src/modules/matches/go-no-go.jobs.js';
@@ -26,14 +27,14 @@ import {
 } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { registerModerationJobHandlers } from '../src/modules/moderation/moderation.jobs.js';
-import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
-import { registerWalletHoldJobHandlers } from '../src/modules/wallet/wallet-hold.jobs.js';
-import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconciliation.service.js';
+import { registerTicketEmailJobHandlers } from '../src/modules/tickets/ticket-emails.js';
+import { buyTicket, leaveTicket, removeTicketRows } from './support/ticket-fixtures.js';
 
-// DEC-018 money-path proof against real PostgreSQL (disposable database only):
-// fixed R80 join, no host hold, format-scoped venue cost snapshot, T-30 cancel + refund exactly
-// once (including a second run, the durable queue path and a crashed/stale job), full lineup
-// confirmed, the race between the last claim and the T-30 job, the T-30 freeze, and host cancel.
+// DEC-018 / DEC-021 money-path proof against real PostgreSQL (disposable database only):
+// fixed R80 ticket, nothing charged to the host, format-scoped venue cost snapshot, T-30 cancel with every paid
+// ticket given the credit-or-refund choice exactly once (including a second run, the durable queue path and a
+// crashed/stale job), full lineup confirmed, the race between the last claim and the T-30 job, the T-30 freeze,
+// host cancel, and a late leaver who forfeited still getting the choice when the match is cancelled (D4).
 const marker = `dec-018-${randomUUID()}`;
 // Gate 8: a match also needs an active referee to be confirmed at T-30 (DEC-020).
 const referee = refereeFixture(marker);
@@ -43,7 +44,6 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
 const bookings = new BookingsService();
 const matches = new MatchesRepository();
 const service = new MatchesService();
-const financial = new FinancialRepository();
 const PLAYER_COUNT = 12;
 const RACE_ROUNDS = 4;
 const userIds: string[] = [];
@@ -62,7 +62,7 @@ const emailsFor = (matchId: string) => emails.messages.filter(({ text }) => text
 
 /** Run the queue until every cancellation email job for the match has succeeded. */
 async function drainCancellationEmails(matchId: string) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
     const jobs = await emailJobsFor(matchId);
     if (jobs.every(({ status }) => status === 'SUCCEEDED')) return jobs;
     if (!(await runOneDurableJob(new Date()))) break;
@@ -71,8 +71,8 @@ async function drainCancellationEmails(matchId: string) {
 }
 
 /**
- * Each recipient has exactly one MATCH_CANCELLED notification, one email job and, after the queue is
- * drained twice, exactly one email, all with the expected wording.
+ * Each recipient has exactly one cancellation notification (TICKET_CHOICE_REQUIRED for a payer), one email job and,
+ * after the queue is drained twice, exactly one email, all with the expected wording.
  */
 async function assertCancellationAlertsOnce(
   matchId: string,
@@ -81,7 +81,7 @@ async function assertCancellationAlertsOnce(
   label: string,
 ) {
   const notifications = await prisma.notification.findMany({
-    where: { type: 'MATCH_CANCELLED', targetPath: `/matches/${matchId}` },
+    where: { type: { in: ['MATCH_CANCELLED', 'TICKET_CHOICE_REQUIRED'] }, targetPath: `/matches/${matchId}` },
   });
   for (const userId of recipients) {
     const mine = notifications.filter((item) => item.userId === userId);
@@ -111,16 +111,18 @@ async function expectedCancellation(matchId: string, reason: 'POSITIONS_UNFILLED
       venueName: match.venue.name,
       startsAt: match.startsAt,
       reason,
-      refundedCents: paid ? MATCH_FEE_CENTS : 0,
+      ...(paid ? { choiceSeats: 1, choiceCents: MATCH_FEE_CENTS } : {}),
     });
 }
 
-const balanceOf = async (userId: string) =>
-  (await prisma.walletAccount.findUniqueOrThrow({ where: { userId } })).balanceCents;
-const creditsFor = (paymentIds: string[]) =>
-  prisma.walletTransaction.count({
-    where: { type: 'MATCH_CANCELLATION_CREDIT', referenceId: { in: paymentIds } },
-  });
+/** DEC-021 A3: tickets now waiting for the payer's credit-or-refund choice; each has exactly one 7-day auto-refund. */
+async function choicesFor(ticketIds: string[]) {
+  const pending = await prisma.matchTicket.count({ where: { id: { in: ticketIds }, status: 'CHOICE_PENDING' } });
+  const autoRefunds = await prisma.durableJob.count({ where: { dedupeKey: { in: ticketIds.map((id) => `ticket-choice-auto-refund:${id}`) } } });
+  assert(autoRefunds === pending, `Expected one automatic refund per pending choice (${autoRefunds} for ${pending}).`);
+  return pending;
+}
+const paidBy = (userId: string) => prisma.ticketCheckout.count({ where: { payerId: userId } });
 
 /** Kickoff at 12:00 Africa/Johannesburg on a distinct day per match (10:00Z), 3+ days ahead. */
 const nextKickoff = () => {
@@ -159,18 +161,17 @@ async function joinAndClaim(
   });
   const home = slots.filter((slot) => slot.team === 'HOME');
   const away = slots.filter((slot) => slot.team === 'AWAY');
-  const payments: string[] = [];
+  const tickets: string[] = [];
   for (const [index, userId] of players.entries()) {
     const team = index % 2 === 0 ? 'HOME' : 'AWAY';
-    await matches.join(matchId, userId, { team }, `${marker}:join:${matchId}:${userId}`);
-    const payment = await prisma.matchPayment.findFirstOrThrow({ where: { matchId, userId } });
-    payments.push(payment.id);
+    const { result } = await buyTicket(matchId, userId, team, `${marker}:join:${matchId}:${userId}`);
+    tickets.push(...result.ticketIds);
     const sideIndex = Math.floor(index / 2);
     const target = team === 'HOME' ? home[sideIndex] : away[sideIndex];
     if (target && sideIndex < (team === 'HOME' ? claim.home : claim.away))
       await matches.claimPosition(matchId, target.id, userId);
   }
-  return { payments, home, away };
+  return { tickets, home, away };
 }
 
 async function runQueuedGoNoGo(matchId: string, now: Date) {
@@ -196,12 +197,13 @@ async function reachGoNoGo(matchId: string) {
 }
 
 async function main() {
-  registerWalletHoldJobHandlers();
-  registerBookingJobHandlers();
+  registerRetiredJobHandlers();
   registerModerationJobHandlers();
   registerGoNoGoJobHandlers();
   registerMatchCancelledEmailJobHandlers(emails);
   registerFillReminderJobHandlers();
+  // Ticket receipts go to their own test inbox so they never mix with the cancellation emails checked here.
+  registerTicketEmailJobHandlers(new TestEmailProvider());
 
   // Fixtures: one physical field supporting 5/7/11-a-side with admin-only format-scoped costs
   // R500 / R600 / R800 (Italian Club example), all-week availability, and an effective policy.
@@ -212,25 +214,15 @@ async function main() {
           email: `${marker}-${index}@smoke.invalid`,
           username: `${marker.slice(-18)}_${index}`,
           passwordHash: 'smoke',
-          profile: { create: { displayName: `Go/no-go ${index}` } },
-          walletAccount: { create: {} },
+          emailVerifiedAt: new Date(),
+          onboardingCompletedAt: new Date(),
+          profile: { create: { displayName: `Go/no-go ${index}`, onboardingStatus: 'COMPLETE', gender: 'MALE' } },
         },
       }),
     ),
   );
   hostId = users[0]!.id;
   userIds.push(...users.map(({ id }) => id));
-  for (const [index, userId] of userIds.entries())
-    await serializableTransaction((tx) =>
-      financial.credit(tx, {
-        userId,
-        amountCents: index === 0 ? 0 : 200_000,
-        type: 'DEPOSIT_CREDIT',
-        idempotencyKey: `${marker}:seed:${index}`,
-        referenceType: 'SMOKE',
-        referenceId: marker,
-      }),
-    );
   const priceFrom = new Date(Date.now() - 86_400_000);
   const venue = await prisma.managedVenue.create({
     data: {
@@ -289,40 +281,25 @@ async function main() {
     assert(reservation.priceCentsSnapshot === cents, `${format} did not snapshot its format-scoped venue cost.`);
   }
 
-  // 2. Fixed R80 join and no host hold. The host (empty wallet) created every match above.
-  assert((await balanceOf(hostId)) === 0, 'Host wallet changed by creating matches.');
-  assert(
-    (await prisma.walletHold.count({ where: { walletAccount: { userId: hostId } } })) === 0,
-    'Host has a wallet hold.',
-  );
+  // 2. A fixed R80 ticket per player; the host, who created every match above, paid nothing.
+  assert((await paidBy(hostId)) === 0, 'The host paid for creating matches.');
   const unfilled = await createMatch();
-  const before = await Promise.all(players.slice(0, 3).map(balanceOf));
-  const { payments: unfilledPayments } = await joinAndClaim(unfilled.id, players.slice(0, 3), {
-    home: 1,
-    away: 1,
-  });
-  const afterJoin = await Promise.all(players.slice(0, 3).map(balanceOf));
+  const { tickets: unfilledTickets } = await joinAndClaim(unfilled.id, players.slice(0, 3), { home: 1, away: 1 });
+  const bought = await prisma.matchTicket.findMany({ where: { id: { in: unfilledTickets } }, include: { checkout: true } });
   assert(
-    afterJoin.every((balance, index) => balance === before[index]! - MATCH_FEE_CENTS),
-    'Join did not debit exactly R80.',
-  );
-  const entryDebits = await prisma.walletTransaction.findMany({
-    where: { type: 'MATCH_ENTRY_DEBIT', referenceId: unfilled.id },
-  });
-  assert(
-    entryDebits.length === 3 && entryDebits.every(({ amountCents }) => amountCents === -MATCH_FEE_CENTS),
-    'Entry debits were not exactly -R80 each.',
+    bought.length === 3 && bought.every((ticket) => ticket.amountCents === MATCH_FEE_CENTS && ticket.status === 'CONFIRMED' && ticket.checkout.amountCents === MATCH_FEE_CENTS),
+    'A ticket was not exactly R80.',
   );
 
-  // 3. Not full at T-30: auto-cancelled, every R80 refunded exactly once, venue owed nothing.
+  // 3. Not full at T-30: auto-cancelled, every paid ticket given the credit-or-refund choice exactly once, venue
+  //    owed nothing.
   const unfilledRecord = await prisma.match.findUniqueOrThrow({ where: { id: unfilled.id } });
   const first = await service.decideGoNoGo(unfilled.id, unfilledRecord.goNoGoAt!);
   const second = await service.decideGoNoGo(unfilled.id, new Date(unfilledRecord.goNoGoAt!.getTime() + 60_000));
   assert(first.outcome === 'CANCELLED' && first.filled === 2 && first.total === 10, 'Unfilled match was not cancelled.');
   assert(second.outcome === 'ALREADY_DECIDED', 'Second go/no-go run was not idempotent.');
-  assert((await creditsFor(unfilledPayments)) === 3, 'Refunds were not issued exactly once per payment.');
-  const refunded = await Promise.all(players.slice(0, 3).map(balanceOf));
-  assert(refunded.every((balance, index) => balance === before[index]), 'Refund did not restore R80.');
+  assert((await choicesFor(unfilledTickets)) === 3, 'The choice was not given exactly once per ticket.');
+  assert(!(await prisma.providerRefund.count({ where: { ticketId: { in: unfilledTickets } } })), 'A refund was sent before the payer chose.');
   const cancelledMatch = await prisma.match.findUniqueOrThrow({
     where: { id: unfilled.id },
     include: { fieldReservation: true },
@@ -332,12 +309,8 @@ async function main() {
     'Cancelled match does not record POSITIONS_UNFILLED.',
   );
   assert(cancelledMatch.fieldReservation?.status === 'CANCELLED', 'Cancelled match left its reservation active.');
-  assert(
-    (await prisma.walletTransaction.count({ where: { referenceId: cancelledMatch.fieldReservation!.id } })) === 0,
-    'A cancelled match created a venue-related ledger entry.',
-  );
   const notified = await prisma.notification.findMany({
-    where: { type: 'MATCH_CANCELLED', targetPath: `/matches/${unfilled.id}` },
+    where: { type: { in: ['MATCH_CANCELLED', 'TICKET_CHOICE_REQUIRED'] }, targetPath: `/matches/${unfilled.id}` },
     select: { userId: true },
   });
   assert(
@@ -345,14 +318,14 @@ async function main() {
     'Not every joined player and the host were notified of the cancellation.',
   );
   // Part 4a: one in-app alert and one email per joined player and the host, even though the
-  // decision ran twice; the host did not play, so their message has no refund sentence.
+  // decision ran twice; the host did not pay, so their message has no choice sentence.
   const unfilledWording = await expectedCancellation(unfilled.id, 'POSITIONS_UNFILLED');
   await assertCancellationAlertsOnce(unfilled.id, [...players.slice(0, 3), hostId], (userId) => unfilledWording(userId), 'Auto-cancel');
 
   // 4. The durable queue path, including a job whose worker crashed mid-run (stale RUNNING lock).
   for (const crashed of [false, true]) {
     const queued = await createMatch();
-    const { payments } = await joinAndClaim(queued.id, players.slice(3, 5), { home: 1, away: 0 });
+    const { tickets } = await joinAndClaim(queued.id, players.slice(3, 5), { home: 1, away: 0 });
     const now = await reachGoNoGo(queued.id);
     if (crashed)
       await prisma.durableJob.update({
@@ -363,21 +336,21 @@ async function main() {
     assert(job.status === 'SUCCEEDED', `Queued go/no-go job did not succeed (crashed=${crashed}).`);
     assert((await prisma.match.findUniqueOrThrow({ where: { id: queued.id } })).status === 'CANCELLED', 'Queued job did not cancel the unfilled match.');
     await runOneDurableJob(new Date(now.getTime() + 60_000));
-    assert((await creditsFor(payments)) === 2, `Queued job refunded more or less than once (crashed=${crashed}).`);
+    assert((await choicesFor(tickets)) === 2, `Queued job gave the choice more or less than once (crashed=${crashed}).`);
     const queuedWording = await expectedCancellation(queued.id, 'POSITIONS_UNFILLED');
     await assertCancellationAlertsOnce(queued.id, [...players.slice(3, 5), hostId], (userId) => queuedWording(userId), `Queued auto-cancel (crashed=${crashed})`);
   }
 
-  // 5. Full at T-30: confirmed, no refunds, reservation still owed to the venue after the match.
+  // 5. Full at T-30: confirmed, nothing given back, reservation still owed to the venue after the match.
   const full = await createMatch();
-  const { payments: fullPayments } = await joinAndClaim(full.id, players.slice(0, 10), { home: 5, away: 5 });
+  const { tickets: fullTickets } = await joinAndClaim(full.id, players.slice(0, 10), { home: 5, away: 5 });
   const fullRecord = await prisma.match.findUniqueOrThrow({ where: { id: full.id } });
   const confirmed = await service.decideGoNoGo(full.id, fullRecord.goNoGoAt!);
   assert(confirmed.outcome === 'CONFIRMED' && confirmed.filled === 10, 'Full lineup was not confirmed.');
   const confirmedMatch = await prisma.match.findUniqueOrThrow({ where: { id: full.id }, include: { fieldReservation: true } });
   assert(confirmedMatch.confirmedAt && confirmedMatch.status === 'OPEN', 'Confirmed match state is wrong.');
   assert(confirmedMatch.fieldReservation?.status === 'CONFIRMED', 'Confirmed match lost its reservation.');
-  assert((await creditsFor(fullPayments)) === 0, 'A confirmed match refunded players.');
+  assert((await choicesFor(fullTickets)) === 0 && (await prisma.matchTicket.count({ where: { id: { in: fullTickets }, status: 'CONFIRMED' } })) === 10, 'A confirmed match gave tickets back.');
   assert(
     (await service.decideGoNoGo(full.id, new Date(fullRecord.goNoGoAt!.getTime() + 1))).outcome === 'ALREADY_DECIDED',
     'Re-running a confirmed decision was not idempotent.',
@@ -388,7 +361,7 @@ async function main() {
   for (let round = 0; round < RACE_ROUNDS; round += 1) {
     const race = await createMatch();
     const lineup = players.slice(0, 10);
-    const { payments, home } = await joinAndClaim(race.id, lineup, { home: 4, away: 5 });
+    const { tickets, home } = await joinAndClaim(race.id, lineup, { home: 4, away: 5 });
     const record = await prisma.match.findUniqueOrThrow({ where: { id: race.id } });
     const lastSlot = home[4]!;
     const lastPlayer = lineup[8]!;
@@ -401,7 +374,7 @@ async function main() {
     const after = await prisma.match.findUniqueOrThrow({ where: { id: race.id } });
     if (claim.status === 'fulfilled') {
       assert(decision.value.outcome === 'CONFIRMED' && after.confirmedAt && slot.participantId, `Round ${round}: claim won but match not confirmed.`);
-      assert((await creditsFor(payments)) === 0, `Round ${round}: confirmed match refunded.`);
+      assert((await choicesFor(tickets)) === 0, `Round ${round}: a confirmed match gave tickets back.`);
       outcomes.confirmed += 1;
     } else {
       assert(
@@ -409,7 +382,7 @@ async function main() {
         `Round ${round}: unexpected claim failure ${String(claim.reason)}`,
       );
       assert(decision.value.outcome === 'CANCELLED' && after.status === 'CANCELLED' && !slot.participantId, `Round ${round}: claim lost but match not cancelled cleanly.`);
-      assert((await creditsFor(payments)) === 10, `Round ${round}: cancelled match did not refund all ten players once.`);
+      assert((await choicesFor(tickets)) === 10, `Round ${round}: the cancelled match did not give all ten payers the choice once.`);
       outcomes.cancelled += 1;
     }
   }
@@ -439,28 +412,29 @@ async function main() {
       return (error as { code?: string }).code === code;
     }
   };
-  assert(await rejects(() => service.join(frozen.id, players[5]!, { team: 'HOME' }, `${marker}:late-join`), 'LINEUP_LOCKED'), 'Join after T-30 was not rejected.');
-  assert(await rejects(() => service.leave(frozen.id, players[0]!), 'LINEUP_LOCKED'), 'Leave after T-30 was not rejected.');
+  assert(await rejects(() => buyTicket(frozen.id, players[5]!, 'HOME', `${marker}:late-join`), 'LINEUP_LOCKED'), 'Join after T-30 was not rejected.');
+  assert(await rejects(() => leaveTicket(frozen.id, players[0]!), 'LINEUP_LOCKED'), 'Leave after T-30 was not rejected.');
   assert(await rejects(() => service.updateFormation(frozen.id, frozenHome[0]!.id, { participantId: null }, hostId), 'LINEUP_LOCKED'), 'Organiser move after T-30 was not rejected.');
   assert(await rejects(() => service.remove(frozen.id, hostId), 'LINEUP_LOCKED'), 'Host cancel after T-30 was not rejected.');
 
-  // 9. Host cancel before T-30 (D3): full refunds, host never charged, and a later T-30 run is a no-op.
+  // 9. Host cancel before T-30 (D3): both payers choose, host never charged, and a later T-30 run is a no-op.
   const hostCancelled = await createMatch();
-  const { payments: hostCancelPayments } = await joinAndClaim(hostCancelled.id, players.slice(0, 2), { home: 1, away: 1 });
+  const { tickets: hostCancelTickets } = await joinAndClaim(hostCancelled.id, players.slice(0, 2), { home: 1, away: 1 });
   await service.remove(hostCancelled.id, hostId);
-  assert((await balanceOf(hostId)) === 0, 'Host cancellation charged the host.');
-  assert((await creditsFor(hostCancelPayments)) === 2, 'Host cancellation did not refund both players.');
+  assert((await paidBy(hostId)) === 0, 'Host cancellation charged the host.');
+  assert((await choicesFor(hostCancelTickets)) === 2, 'Host cancellation did not give both payers the choice.');
   const hostCancelRecord = await prisma.match.findUniqueOrThrow({ where: { id: hostCancelled.id } });
   assert(hostCancelRecord.cancellationReason === 'ORGANISER_CANCELLED', 'Host cancellation reason not recorded.');
   assert((await service.decideGoNoGo(hostCancelled.id, hostCancelRecord.goNoGoAt!)).outcome === 'ALREADY_DECIDED', 'T-30 ran again after host cancel.');
-  assert((await creditsFor(hostCancelPayments)) === 2, 'Host cancel plus T-30 refunded twice.');
+  assert((await choicesFor(hostCancelTickets)) === 2, 'Host cancel plus T-30 gave the choice twice.');
   // Part 4a: host cancel alerts both players and the host once each, including after the T-30 re-run.
   const hostCancelWording = await expectedCancellation(hostCancelled.id, 'ORGANISER_CANCELLED');
   await assertCancellationAlertsOnce(hostCancelled.id, [...players.slice(0, 2), hostId], (userId) => hostCancelWording(userId), 'Host cancel');
 
-  // 10. D2: a player who left within 12 hours (no credit) is refunded if the match is auto-cancelled.
+  // 10. DEC-021 D4: a player who left within 24 hours (ticket forfeited) still gets the choice if the match is
+  //     auto-cancelled before kick-off.
   let lateMatch: Awaited<ReturnType<typeof createMatch>> | undefined;
-  for (let offset = 150; offset <= 11 * 60 && !lateMatch; offset += 30) {
+  for (let offset = 150; offset <= 23 * 60 && !lateMatch; offset += 30) {
     const candidate = new Date(Date.now() + offset * 60_000);
     candidate.setUTCMinutes(candidate.getUTCMinutes() >= 30 ? 30 : 0, 0, 0);
     try {
@@ -469,15 +443,12 @@ async function main() {
       // Not bookable (for example crossing local midnight); try the next half hour.
     }
   }
-  assert(lateMatch, 'Could not create a match within 12 hours of kickoff.');
-  const { payments: latePayments } = await joinAndClaim(lateMatch.id, [players[11]!], { home: 0, away: 0 });
-  await matches.cancelParticipation(lateMatch.id, players[11]!, new Date());
-  const lateBefore = await balanceOf(players[11]!);
-  const latePayment = await prisma.matchPayment.findUniqueOrThrow({ where: { id: latePayments[0]! } });
-  assert(latePayment.status === 'SUCCEEDED', 'A late leaver should have received no initial credit.');
+  assert(lateMatch, 'Could not create a match within 24 hours of kickoff.');
+  const { tickets: lateTickets } = await joinAndClaim(lateMatch.id, [players[11]!], { home: 0, away: 0 });
+  assert((await leaveTicket(lateMatch.id, players[11]!)).outcome === 'FORFEITED', 'A late leaver was given something back.');
   const lateRecord = await prisma.match.findUniqueOrThrow({ where: { id: lateMatch.id } });
   await service.decideGoNoGo(lateMatch.id, lateRecord.goNoGoAt!);
-  assert((await balanceOf(players[11]!)) === lateBefore + MATCH_FEE_CENTS, 'Late leaver was not refunded on auto-cancel.');
+  assert((await choicesFor(lateTickets)) === 1, 'The late leaver did not get the choice when the match was cancelled.');
 
   // 10b. TKT-319 "not full yet" reminder: scheduled 2h before kickoff at creation; fires once per
   // host and joined player when positions are open (a second run adds nothing), no-op when full.
@@ -519,17 +490,13 @@ async function main() {
   assert((await runReminder(fullForReminder.id)).status === 'SUCCEEDED', 'Full-match reminder job did not succeed.');
   assert((await remindersFor(fullForReminder.id)).length === 0, 'A full match sent a fill reminder.');
 
-  // 11. The ledger still reconciles for every smoke wallet.
-  const report = await new WalletReconciliationService().report();
-  const ours = report.issues.filter((issue) => issue.userId && userIds.includes(issue.userId));
-  assert(ours.length === 0, `Wallet reconciliation found issues: ${JSON.stringify(ours)}`);
-
   console.log(
     `DEC-018 go/no-go smoke test passed (race rounds: ${outcomes.confirmed} confirmed, ${outcomes.cancelled} cancelled).`,
   );
 }
 
 async function cleanup() {
+  await removeTicketJobsSince(smokeStartedAt);
   await referee.cleanupJobs(matchIds);
   const reservationIds = (
     await prisma.fieldReservation.findMany({ where: { matchId: { in: matchIds } }, select: { id: true } })
@@ -546,13 +513,12 @@ async function cleanup() {
   });
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.fieldReservation.deleteMany({ where: { id: { in: reservationIds } } });
+  await removeTicketRows(matchIds);
   const venueIds = (
     await prisma.match.findMany({ where: { id: { in: matchIds } }, select: { venueId: true } })
   ).map(({ venueId: id }) => id);
   await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
   await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
-  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
   if (venueId) {
     await prisma.managedFieldPrice.deleteMany({ where: { field: { venueId } } });
     await prisma.venueCancellationPolicy.deleteMany({ where: { venueId } });

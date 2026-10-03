@@ -104,3 +104,59 @@ export interface TeamPaymentRoster {
   viewerCanManage: boolean;
   members: TeamPaymentMember[];
 }
+
+/** DEC-021 "Tickets & credits": one ticket the viewer holds or paid for. */
+export interface MyTicketRow {
+  id: string;
+  matchId: string;
+  matchName: string;
+  venueName: string;
+  startsAt: string;
+  matchStatus: string;
+  seat: MatchTicketSeat;
+  side: TeamSide;
+  status: MatchTicketStatus;
+  method: TicketMethod;
+  amountCents: number;
+  outcome?: MatchTicketOutcome;
+  /** The ticket is for this player (a teammate, when the viewer paid for them). */
+  playerDisplayName: string;
+  isMine: boolean;
+  paidByMe: boolean;
+  payerDisplayName?: string;
+  /** "Card", "Instant EFT", … for a paid ticket. */
+  paymentMethodLabel?: string;
+  choiceDeadlineAt?: string;
+}
+
+export interface MyMatchCredit {
+  id: string;
+  status: 'AVAILABLE' | 'USED' | 'EXPIRED' | 'FORFEITED' | 'REFUNDED';
+  reason: 'LEFT_MATCH' | 'MATCH_CANCELLED' | 'CREDIT_RETURNED' | 'DEV_SEED' | 'GOODWILL';
+  issuedAt: string;
+  /** "Valid until 2 Oct 2029". */
+  expiresAt: string;
+  usedAt?: string;
+  usedOnMatchName?: string;
+}
+
+export interface MyTicketRefund {
+  id: string;
+  amountCents: number;
+  /** In progress, refunded, or (needs bank details / failed) being handled by support. */
+  state: 'IN_PROGRESS' | 'REFUNDED' | 'NEEDS_BANK_DETAILS' | 'HANDLED_BY_SUPPORT';
+  matchName?: string;
+  paymentMethodLabel?: string;
+  createdAt: string;
+  processedAt?: string;
+}
+
+/** DEC-021 "Tickets & credits": upcoming and past tickets, credits with expiry, refunds and their status. */
+export interface MyTicketsOverview {
+  upcoming: MyTicketRow[];
+  past: MyTicketRow[];
+  creditsAvailable: number;
+  credits: MyMatchCredit[];
+  refunds: MyTicketRefund[];
+  bookingRestricted: boolean;
+}

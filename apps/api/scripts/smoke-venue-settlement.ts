@@ -14,6 +14,7 @@ import { VenueSettlementService } from '../src/modules/settlement/venue-settleme
 import { SettlementBatchesService } from '../src/modules/settlement/settlement-batches.service.js';
 import { settlementWeekOf } from '../src/modules/settlement/settlement-week.js';
 import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 /**
  * Gate 6 venue settlement smoke (real PostgreSQL). DEC-012 + DEC-018: a payable exists only for a
@@ -80,7 +81,7 @@ async function joinPlayers(matchId: string, players: string[], fill: boolean) {
   const away = slots.filter((slot) => slot.team === 'AWAY');
   for (const [index, userId] of players.entries()) {
     const team = index % 2 === 0 ? 'HOME' : 'AWAY';
-    await matches.join(matchId, userId, { team }, `${marker}:join:${matchId}:${userId}`);
+    await buyTicket(matchId, userId, team, `${marker}:join:${matchId}:${userId}`);
     const target = (team === 'HOME' ? home : away)[Math.floor(index / 2)];
     if (fill && target) await matches.claimPosition(matchId, target.id, userId);
   }

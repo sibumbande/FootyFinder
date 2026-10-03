@@ -10,6 +10,7 @@ import {
 } from '../src/modules/matches/matches.repository.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
 import { deleteTeamWalletFixtures } from './team-wallet-fixtures.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 const marker = `phase-1b-${randomUUID()}`;
 const matches = new MatchesRepository();
@@ -145,7 +146,7 @@ async function main() {
 
   let quickJoinBlocked = false;
   try {
-    await matches.join(ownerFixture.id, member.id, { team: 'HOME' }, randomUUID());
+    await buyTicket(ownerFixture.id, member.id, 'HOME', randomUUID());
   } catch (error) {
     quickJoinBlocked = error instanceof TeamMatchPlanningError;
   }

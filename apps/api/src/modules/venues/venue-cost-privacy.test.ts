@@ -112,35 +112,22 @@ vi.mock('../../database/prisma.js', () => {
     },
     managedVenueSlugAlias: { findUnique: vi.fn(async () => null) },
     fieldReservation: { findMany: vi.fn(async () => []) },
-    walletAccount: {
-      findUnique: vi.fn(async () => ({ id: 'wallet-1', userId: 'payer', balanceCents: 8_000 })),
-    },
-    walletHold: { aggregate: vi.fn(async () => ({ _sum: { amountCents: null } })) },
-    providerPayment: { findMany: vi.fn(async () => [{ walletTransactionId: '00000000-0000-4000-8000-000000000001', channel: 'capitec_pay', refunds: [] }]) },
-    walletTransaction: {
-      findMany: vi.fn(async () => [
-        { id: '00000000-0000-4000-8000-000000000001', type: 'DEPOSIT_CREDIT', amountCents: 16_000, status: 'SUCCEEDED', referenceType: 'DEPOSIT', referenceId: null, createdAt: now },
-        { id: '00000000-0000-4000-8000-000000000002', type: 'MATCH_ENTRY_DEBIT', amountCents: -8_000, status: 'SUCCEEDED', referenceType: 'MATCH', referenceId: '11111111-1111-4111-8111-111111111111', createdAt: now },
-      ]),
-    },
-    matchPayment: { findMany: vi.fn(async () => []) },
-    participantCancellation: { findMany: vi.fn(async () => []) },
-    // Gate 7: team wallet rows. The hold's match carries a R1000 reservation it must not expose.
     team: { findUnique: vi.fn(async () => ({ name: 'Privacy FC', archivedAt: null })) },
     teamMembership: { findUnique: vi.fn(async () => ({ role: 'OWNER' })) },
-    teamWalletAccount: { findUnique: vi.fn(async () => ({ id: 'team-wallet-1', teamId: 'team-1', balanceCents: 112_000 })) },
-    teamWalletHold: {
-      aggregate: vi.fn(async () => ({ _sum: { amountCents: 88_000 } })),
-      findMany: vi.fn(async () => [
-        { id: 'hold-1', side: 'HOME', amountCents: 88_000, createdAt: now, match: { id: '11111111-1111-4111-8111-111111111111', name: 'Privacy match', startsAt: now, fieldReservation: { priceCentsSnapshot: 100_000 } } },
-      ]),
+    // DEC-021 "Tickets & credits": the ticket's match carries a R1000 reservation it must not expose.
+    matchTicket: {
+      findMany: vi.fn(async () => [{
+        id: 'ticket-1', matchId: '11111111-1111-4111-8111-111111111111', playerId: 'payer', payerId: 'payer', side: 'HOME', seat: 'POSITION',
+        status: 'CONFIRMED', method: 'PAYMENT', amountCents: 8_000, outcome: null, choiceDeadlineAt: null,
+        match: { id: '11111111-1111-4111-8111-111111111111', name: 'Privacy match', startsAt: new Date('2099-01-01T10:00:00Z'), status: 'OPEN', venue: { name: 'Italian Club' }, fieldReservation: { priceCentsSnapshot: 100_000 } },
+        player: { username: 'payer', profile: { displayName: 'Payer' } },
+        payer: { username: 'payer', profile: { displayName: 'Payer' } },
+        checkout: { providerPayment: { channel: 'card' } },
+      }]),
     },
-    teamWalletTransaction: {
-      findMany: vi.fn(async () => [
-        { id: '00000000-0000-4000-8000-000000000011', type: 'CONTRIBUTION_CREDIT', amountCents: 200_000, createdAt: now, contributorUserId: 'payer', referenceType: 'TEAM', referenceId: 'team-1', contributor: { username: 'payer', profile: { displayName: 'Payer' } }, spentBy: [{ amountCents: 88_000 }] },
-        { id: '00000000-0000-4000-8000-000000000012', type: 'TEAM_MATCH_FEE_DEBIT', amountCents: -88_000, createdAt: now, contributorUserId: null, referenceType: 'MATCH', referenceId: '11111111-1111-4111-8111-111111111111', contributor: null, spentBy: [] },
-      ]),
-    },
+    matchCredit: { findMany: vi.fn(async () => [{ id: 'credit-1', status: 'AVAILABLE', reason: 'LEFT_MATCH', issuedAt: now, expiresAt: new Date('2099-01-01T00:00:00Z'), usedAt: null, usedTicket: null }]) },
+    providerRefund: { findMany: vi.fn(async () => []) },
+    user: { findUniqueOrThrow: vi.fn(async () => ({ bookingRestrictedAt: null })) },
     // Gate 9 / TKT-910 guest views.
     matchTeam: { findMany: vi.fn(async () => []) },
     teamReview: { findMany: vi.fn(async () => []) },
@@ -193,8 +180,7 @@ const { playerBookingDto, adminBookingDto } = await import('../bookings/bookings
 const { toMatch } = await import('../matches/match.mapper.js');
 const { bookingsRouter } = await import('../bookings/bookings.routes.js');
 const { errorHandler } = await import('../../middleware/error-handler.js');
-const { WalletHistoryService } = await import('../wallet/wallet-history.service.js');
-const { toTopUpStatus } = await import('../payments/top-up.service.js');
+const { MyTicketsService } = await import('../tickets/my-tickets.service.js');
 const { toAdminBeneficiary, toAdminPayable } = await import('../settlement/venue-settlement.service.js');
 
 const user = (id: string) => ({
@@ -385,28 +371,15 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     }
   });
 
-  it('wallet summary and history DTOs carry no venue cost (Gate 6)', async () => {
-    const service = new WalletHistoryService();
-    const summary = await service.summary('payer');
-    const history = await service.history('payer', { limit: 20 });
-    expectNoVenueCostInMoneyDto(summary);
-    expectNoVenueCostInMoneyDto(history);
-    expect(history.entries[1]).toMatchObject({ amountCents: -8_000, related: { name: 'Privacy match' } });
+  it('the Tickets & credits overview carries no venue cost and no wallet (DEC-021)', async () => {
+    const overview = await new MyTicketsService().overview('payer', now);
+    // The venue's name is shown (where the match is); its cost never is.
+    expectNoVenueCostInMoneyDto({ ...overview, upcoming: overview.upcoming.map(({ venueName: _venueName, ...row }) => row) });
+    expect(overview.upcoming[0]).toMatchObject({ amountCents: 8_000, matchName: 'Privacy match', venueName: 'Italian Club', paymentMethodLabel: 'Card' });
+    expect(overview.creditsAvailable).toBe(1);
+    expect(JSON.stringify(overview)).not.toMatch(/wallet|balance|fieldReservation/i);
     // Negative control for the money-DTO detector.
     expect(() => expectNoVenueCostInMoneyDto({ entries: [{ priceCentsSnapshot: 1 }] })).toThrow();
-  });
-
-  it('team wallet summary, history and hold DTOs carry no venue cost (Gate 7, TKT-702)', async () => {
-    const { TeamWalletService } = await import('../team-wallet/team-wallet.service.js');
-    const service = new TeamWalletService();
-    const summary = await service.summary('team-1', 'payer');
-    const history = await service.history('team-1', 'payer', { limit: 20 });
-    const holds = await service.holds('team-1', 'payer');
-    for (const dto of [summary, history, holds]) expectNoVenueCostInMoneyDto(dto);
-    expect(summary).toMatchObject({ balanceCents: 112_000, heldCents: 88_000, availableCents: 24_000, viewerUnspentCents: 112_000 });
-    expect(history.entries[1]).toMatchObject({ kind: 'TEAM_MATCH_FEE', related: { name: 'Privacy match' } });
-    expect(holds[0]).toMatchObject({ amountCents: 88_000, match: { name: 'Privacy match' } });
-    expect(JSON.stringify(holds)).not.toContain('fieldReservation');
   });
 
   it('venue payables and bank details stay admin-only (Gate 6, TKT-607)', () => {
@@ -449,34 +422,6 @@ describe('venue costs never reach players or hosts (DEC-018)', () => {
     });
     expect(Object.keys(beneficiary)).not.toEqual(expect.arrayContaining(['encryptedDetails']));
     expect(JSON.stringify(beneficiary)).not.toMatch(/accountNumber|branchCode|accountHolder|v1\.fake/);
-  });
-
-  it('card top-up DTOs carry no venue cost or provider internals (Gate 6)', () => {
-    const topUp = toTopUpStatus({
-      id: 'payment-1',
-      userId: 'payer',
-      purpose: 'TOP_UP',
-      walletTransactionId: 'tx-1',
-      provider: 'paystack',
-      reference: 'ff_topup_0123456789abcdef0123456789abcdef',
-      amountCents: 16_000,
-      currency: 'ZAR',
-      status: 'REVIEW',
-      authorizationUrl: 'https://checkout.paystack.com/x',
-      initializeStartedAt: now,
-      providerTransactionId: '42',
-      providerStatus: 'success',
-      channel: 'card',
-      lastVerifiedAt: now,
-      verifiedAt: null,
-      creditedBy: null,
-      failureReason: null,
-      reviewReason: 'amount_mismatch',
-      createdAt: now,
-      updatedAt: now,
-    });
-    expectNoVenueCostInMoneyDto(topUp);
-    expect(JSON.stringify(topUp)).not.toMatch(/amount_mismatch|providerTransactionId|walletTransactionId/);
   });
 
   describe('guest browsing: what anyone can see without an account (Gate 9 / TKT-910)', () => {

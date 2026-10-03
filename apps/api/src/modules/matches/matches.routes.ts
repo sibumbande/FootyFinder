@@ -19,7 +19,6 @@ matchesRouter.post('/:id/invite', costlyMutationRateLimit, controller.rotateInvi
 matchesRouter.patch('/:id', controller.update);
 matchesRouter.delete('/:id', controller.remove);
 matchesRouter.post('/:id/ready', controller.ready);
-matchesRouter.post('/:id/join', costlyMutationRateLimit, controller.join);
 // DEC-021 A1: buy a ticket for one place; the viewer's ticket, credits and the cancellation policy.
 matchesRouter.get('/:id/tickets/context', tickets.context);
 matchesRouter.post('/:id/tickets/checkout', costlyMutationRateLimit, tickets.checkout);
@@ -34,9 +33,6 @@ matchesRouter.patch('/:id/team-sides/:side/substitutes', teamMatches.changeSubst
 // DEC-021 A5: a team's payment checklist, and paying for named teammates.
 matchesRouter.get('/:id/team-sides/:side/tickets', teamMatches.paymentRoster);
 matchesRouter.post('/:id/team-sides/:side/tickets/checkout', costlyMutationRateLimit, teamMatches.payForTeammates);
-matchesRouter.get('/:id/cancellation-quote', controller.cancellationQuote);
-matchesRouter.get('/:id/cancellation-status', controller.cancellationStatus);
-matchesRouter.post('/:id/leave', controller.leave);
 matchesRouter.patch('/:id/formation/slots/:slotId', controller.formation);
 matchesRouter.post('/:id/formation/slots/:slotId/claim', controller.claimPosition);
 matchesRouter.patch('/:id/participants/:participantId/team', controller.changeTeam);

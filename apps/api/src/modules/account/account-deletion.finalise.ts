@@ -85,11 +85,11 @@ export class AccountDeletionFinaliser {
     });
     if (walletHolds) return this.wait(request.id, attempt, 'WALLET_HOLD', now);
 
-    // An empty team they own is closed through the normal close path (its money comes back to the Wallet).
+    // An empty team they own is closed through the normal close path.
     const owned = await prisma.team.findMany({ where: { ownerUserId: request.userId, archivedAt: null }, select: { id: true } });
     for (const team of owned) {
       const closed = await this.teams.close(team.id, request.userId);
-      if (closed.outcome === 'UPCOMING_MATCHES' || closed.outcome === 'HOLDS_ACTIVE')
+      if (closed.outcome === 'UPCOMING_MATCHES')
         return this.wait(request.id, attempt, 'OWNED_TEAM_NOT_CLOSABLE', now);
     }
 

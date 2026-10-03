@@ -9,59 +9,32 @@ describe('matchCancelledMessage', () => {
     expect(formatKickoffTime(startsAt)).toBe('14:00');
   });
 
-  it('explains a T-30 auto-cancel and the refund', () => {
-    expect(
-      matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'POSITIONS_UNFILLED', refundedCents: 8000 }),
-    ).toBe(
-      'Your match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. Your R80 has been refunded to your FootyFinder wallet.',
+  it('explains a T-30 auto-cancel and asks the payer to choose a credit or a refund (DEC-021 A3)', () => {
+    expect(matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'POSITIONS_UNFILLED', choiceSeats: 1, choiceCents: 8000 })).toBe(
+      "Your match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. You paid R80 for this match: choose 1 match credit or a full refund to the card or bank account you paid with. If you don't choose within 7 days, you're refunded automatically.",
     );
   });
 
-  it('explains a host cancellation and the refund', () => {
-    expect(
-      matchCancelledMessage({ venueName: 'Queens Park', startsAt, reason: 'ORGANISER_CANCELLED', refundedCents: 8000 }),
-    ).toBe(
-      'Your match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled by the host. Your R80 has been refunded to your FootyFinder wallet.',
+  it('asks a payer of several places to choose for each one', () => {
+    expect(matchCancelledMessage({ venueName: 'Queens Park', startsAt, reason: 'TEAM_UNPAID', choiceSeats: 3, choiceCents: 24_000 })).toBe(
+      "Your match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled because a team wasn't fully paid 2 hours before kickoff. You paid R240 for 3 places: choose a match credit or a full refund for each one. If you don't choose within 7 days, you're refunded automatically.",
     );
   });
 
-  it('leaves out the refund sentence for someone who paid nothing, like a host who did not play', () => {
-    expect(
-      matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'POSITIONS_UNFILLED', refundedCents: 0 }),
-    ).toBe(
+  it('tells a credit payer their credit came back, and says nothing about money to someone who paid nothing', () => {
+    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'ORGANISER_CANCELLED', creditsReturned: 1 })).toBe(
+      'Your match at X on Fri 30 Oct 2026 at 14:00 was cancelled by the host. Your match credit has been returned to you.',
+    );
+    expect(matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'POSITIONS_UNFILLED' })).toBe(
       'Your match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff.',
     );
   });
 
-  it('shows cents only when a legacy fee needs them', () => {
-    expect(
-      matchCancelledMessage({ venueName: 'X', startsAt, reason: 'ORGANISER_CANCELLED', refundedCents: 4550 }),
-    ).toContain('Your R45.50 has been refunded');
-  });
-
-  it('explains team-match cancellations and tells team members their held money went back (Gate 7)', () => {
-    expect(
-      matchCancelledMessage({ venueName: 'Queens Park', startsAt, reason: 'TEAM_FEES_UNFUNDED', refundedCents: 0, teamMember: true }),
-    ).toBe(
-      "Your match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled because a team fee wasn't fully paid 30 minutes before kickoff. Any money held for this match has gone back to your team wallet.",
-    );
-    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'NO_OPPONENT', refundedCents: 0 })).toContain("because the other side wasn't taken in time.");
-    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'TEAM_CANCELLED', refundedCents: 8_000 })).toContain('cancelled by the home team. Your R80 has been refunded');
-  });
-
-  it('explains a FootyFinder cancellation (CEO Q4) without mentioning money the person did not pay', () => {
-    expect(
-      matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 8_000 }),
-    ).toBe(
-      'Your match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled by FootyFinder because of the weather or a problem at the venue. Your R80 has been refunded to your FootyFinder wallet.',
-    );
-    expect(
-      matchCancelledMessage({ venueName: 'Queens Park', startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 0, teamMember: true }),
-    ).toBe(
-      "Your match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled by FootyFinder because of the weather or a problem at the venue. Your team's fee has been returned to your team wallet.",
-    );
-    expect(
-      matchCancelledMessage({ venueName: 'X', startsAt, reason: 'FOOTYFINDER_CANCELLED', refundedCents: 0 }),
-    ).toBe('Your match at X on Fri 30 Oct 2026 at 14:00 was cancelled by FootyFinder because of the weather or a problem at the venue.');
+  it('explains team-match and FootyFinder cancellations without any wallet wording', () => {
+    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'NO_OPPONENT' })).toContain("because the other side wasn't taken in time.");
+    expect(matchCancelledMessage({ venueName: 'X', startsAt, reason: 'TEAM_CANCELLED' })).toContain('cancelled by the home team.');
+    const footyFinder = matchCancelledMessage({ venueName: 'Italian Club', startsAt, reason: 'FOOTYFINDER_CANCELLED', choiceSeats: 1, choiceCents: 8000 });
+    expect(footyFinder).toContain('cancelled by FootyFinder because of the weather or a problem at the venue. You paid R80');
+    expect(footyFinder).not.toMatch(/wallet/i);
   });
 });

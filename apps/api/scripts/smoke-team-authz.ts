@@ -57,7 +57,6 @@ async function main() {
     { userId: users['away-captain']!.id, role: 'CAPTAIN' },
     { userId: users['away-member']!.id, role: 'MEMBER' },
   ]);
-  await world.contribute(home.id, users['home-owner']!.id, 100_000, 'home');
   const input: CreateMatchInput = {
     managedFieldId: world.fieldId, name: `${world.marker}-match`, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 1,
     rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', startsAt: world.nextKickoff().toISOString(),

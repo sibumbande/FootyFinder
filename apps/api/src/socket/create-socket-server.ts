@@ -113,9 +113,6 @@ export function createSocketServer(server: HttpServer) {
   domainEvents.on('notification:created', (payload) =>
     io.to(`user:${payload.userId}`).emit(SocketEvents.notificationCreated, payload.notification),
   );
-  domainEvents.on('wallet:updated', (payload) =>
-    io.to(`user:${payload.userId}`).emit(SocketEvents.walletUpdated, { userId: payload.userId }),
-  );
   domainEvents.on('team:member-joined', (payload) =>
     io.to(`team:${payload.teamId}`).emit(SocketEvents.teamMemberJoined, payload.member),
   );
@@ -134,9 +131,6 @@ export function createSocketServer(server: HttpServer) {
       teamId: payload.teamId,
       userId: payload.userId,
     }),
-  );
-  domainEvents.on('team:wallet-updated', (payload) =>
-    io.to(`team:${payload.teamId}`).emit(SocketEvents.teamWalletUpdated, { teamId: payload.teamId }),
   );
   // Gate 7 / TKT-711: team chat reaches current members only (removed members leave the room).
   domainEvents.on('team-chat:message-created', (payload) =>

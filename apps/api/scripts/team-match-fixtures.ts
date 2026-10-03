@@ -1,10 +1,6 @@
 import { getDefaultFormationKey, type MatchFormat } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
-import { serializableTransaction } from '../src/database/transaction.js';
-import { TeamWalletService } from '../src/modules/team-wallet/team-wallet.service.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
-import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
-import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconciliation.service.js';
 import { deleteTeamWalletFixtures } from './team-wallet-fixtures.js';
 
 /**
@@ -25,9 +21,7 @@ export const rejectsWith = async (work: () => Promise<unknown>, code: string) =>
 };
 
 export function teamMatchWorld(marker: string) {
-  const financial = new FinancialRepository();
   const teams = new TeamsRepository();
-  const teamWallet = new TeamWalletService();
   const userIds: string[] = [];
   const teamIds: string[] = [];
   const matchIds: string[] = [];
@@ -50,7 +44,7 @@ export function teamMatchWorld(marker: string) {
       day.setUTCHours(10, 0, 0, 0);
       return day;
     },
-    async user(label: string, depositCents = 200_000) {
+    async user(label: string) {
       // Reserved synchronously so concurrent calls never share an index.
       const index = userIndex++;
       const created = await prisma.user.create({
@@ -58,22 +52,18 @@ export function teamMatchWorld(marker: string) {
           email: `${marker}-${index}@smoke.invalid`,
           username: `g7_${marker.slice(-10)}_${index}`,
           passwordHash: 'smoke-test-only',
-          profile: { create: { displayName: label } },
-          walletAccount: { create: {} },
+          emailVerifiedAt: new Date(),
+          onboardingCompletedAt: new Date(),
+          profile: { create: { displayName: label, onboardingStatus: 'COMPLETE', gender: 'MALE' } },
         },
       });
       userIds.push(created.id);
-      if (depositCents)
-        await serializableTransaction((tx) => financial.credit(tx, {
-          userId: created.id, amountCents: depositCents, type: 'DEPOSIT_CREDIT',
-          idempotencyKey: `${marker}:seed:${index}`, referenceType: 'SMOKE', referenceId: marker,
-        }));
       return created;
     },
     async venue() {
       const priceFrom = new Date(Date.now() - 86_400_000);
-      const submitter = await world.user('Venue submitter', 0);
-      const approver = await world.user('Venue approver', 0);
+      const submitter = await world.user('Venue submitter');
+      const approver = await world.user('Venue approver');
       const created = await prisma.managedVenue.create({
         data: {
           slug: `${marker}-venue`, name: `${marker} Park`, addressLine1: '1 Team Road', city: 'Cape Town', region: 'Western Cape', countryCode: 'ZA',
@@ -107,17 +97,6 @@ export function teamMatchWorld(marker: string) {
       teamIds.push(team.id);
       if (members.length) await prisma.teamMembership.createMany({ data: members.map((member) => ({ teamId: team.id, ...member })) });
       return team;
-    },
-    contribute: (teamId: string, userId: string, amountCents: number, key: string) =>
-      teamWallet.contribute(teamId, userId, amountCents, `${marker}:${key}`),
-    /** Reconciliation issues that concern this run's own fixtures. */
-    async ourIssues() {
-      const report = await new WalletReconciliationService().report();
-      const accounts = new Set((await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } })).map(({ id }) => id));
-      return report.issues.filter((issue) =>
-        (issue.userId && userIds.includes(issue.userId))
-        || (issue.walletAccountId && accounts.has(issue.walletAccountId))
-        || (issue.referenceId && (teamIds.includes(issue.referenceId) || matchIds.includes(issue.referenceId))));
     },
     async cleanup() {
       const allMatchIds = [

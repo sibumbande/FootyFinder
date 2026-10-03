@@ -32,7 +32,8 @@ export const formatRands = (cents: number) =>
 
 /**
  * Player-facing cancellation wording shared by the in-app notification and the email, so both
- * always say the same thing. The refund sentence is only added when this user was refunded.
+ * always say the same thing. DEC-021: money is mentioned only to the person who paid (the credit-or-refund
+ * choice, or a returned match credit).
  */
 const CANCELLED_BECAUSE: Record<MatchCancellationReason, string> = {
   POSITIONS_UNFILLED: 'because not every position was filled 30 minutes before kickoff',
@@ -57,12 +58,6 @@ export const matchCancelledMessage = (input: {
   venueName: string;
   startsAt: Date;
   reason: MatchCancellationReason;
-  refundedCents: number;
-  /**
-   * Gate 7: the recipient is on a team of the match. For FOOTYFINDER_CANCELLED it is set only when
-   * that team actually had fill-meter money released, so nobody is told about money they didn't pay.
-   */
-  teamMember?: boolean;
   /** DEC-021 A3: places this person paid for, to choose a match credit or a full refund for (and their total). */
   choiceSeats?: number;
   choiceCents?: number;
@@ -70,14 +65,6 @@ export const matchCancelledMessage = (input: {
   creditsReturned?: number;
 }) => {
   const first = `Your match at ${input.venueName} on ${formatMatchDate(input.startsAt)} at ${formatKickoffTime(input.startsAt)} was cancelled ${CANCELLED_BECAUSE[input.reason]}.`;
-  const refund = input.refundedCents > 0
-    ? ` Your ${formatRands(input.refundedCents)} has been refunded to your FootyFinder wallet.`
-    : '';
-  const team = !input.teamMember
-    ? ''
-    : input.reason === 'FOOTYFINDER_CANCELLED'
-      ? " Your team's fee has been returned to your team wallet."
-      : ' Any money held for this match has gone back to your team wallet.';
   const seats = input.choiceSeats ?? 0;
   const choice = seats === 0
     ? ''
@@ -85,5 +72,5 @@ export const matchCancelledMessage = (input: {
       ? ` You paid ${formatRands(input.choiceCents ?? 0)} for this match: choose 1 match credit or a full refund to the card or bank account you paid with. If you don't choose within 7 days, you're refunded automatically.`
       : ` You paid ${formatRands(input.choiceCents ?? 0)} for ${seats} places: choose a match credit or a full refund for each one. If you don't choose within 7 days, you're refunded automatically.`;
   const credits = input.creditsReturned ? ` Your ${input.creditsReturned === 1 ? 'match credit has' : `${input.creditsReturned} match credits have`} been returned to you.` : '';
-  return `${first}${refund}${choice}${credits}${team}`;
+  return `${first}${choice}${credits}`;
 };

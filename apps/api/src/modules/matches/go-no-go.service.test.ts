@@ -125,13 +125,10 @@ describe('lineup freeze from T-30 (D1)', () => {
   });
 
   it.each([
-    ['join', (service: MatchesService) => service.join('match-1', 'u', { team: 'HOME' }, 'key-1'), 'join'],
-    ['leave', (service: MatchesService) => service.leave('match-1', 'u'), 'cancelParticipation'],
     ['claim', (service: MatchesService) => service.claimPosition('match-1', 'slot-1', 'u'), 'claimPosition'],
   ])('maps a frozen %s to LINEUP_LOCKED', async (_label, act, method) => {
     const repository = {
       [method]: vi.fn().mockRejectedValue(new LineupLockedError()),
-      hasConfirmedTicket: vi.fn().mockResolvedValue(false),
     } as unknown as MatchesRepository;
 
     await expect(act(new MatchesService(repository, notificationsStub()))).rejects.toMatchObject({

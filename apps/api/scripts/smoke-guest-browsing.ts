@@ -88,9 +88,9 @@ async function main() {
 
   // Everything that needs a profile still needs a session.
   for (const [method, path] of [
-    ['get', '/matches'], ['get', `/matches/${upcoming.id}`], ['post', `/matches/${upcoming.id}/join`], ['get', `/players/${scorer!.id}`],
+    ['get', '/matches'], ['get', `/matches/${upcoming.id}`], ['post', `/matches/${upcoming.id}/tickets/checkout`], ['get', `/players/${scorer!.id}`],
     ['get', '/social/friends'], ['get', '/social/search?q=gate'], ['post', '/social/friend-requests'], ['get', '/conversations'],
-    ['get', '/wallet/summary'], ['get', `/teams/${team.id}`], ['post', `/social/recruitment/posts/${post.id}/join-requests`], ['get', `/matches/${finished.id}/result-context`],
+    ['get', '/tickets/mine'], ['get', `/teams/${team.id}`], ['post', `/social/recruitment/posts/${post.id}/join-requests`], ['get', `/matches/${finished.id}/result-context`],
   ] as const) {
     const response = await (method === 'get' ? guest().get(path) : guest().post(path).send({}));
     assert(response.status === 401, `${method.toUpperCase()} ${path} answered ${response.status} to a guest.`);

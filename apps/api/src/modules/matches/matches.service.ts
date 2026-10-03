@@ -6,7 +6,6 @@ import type {
   FormationSlot,
   FormationSlotUpdateInput,
   FormationSnapshot,
-  JoinMatchInput,
   ResultInput,
   UpdateMatchInput,
   MatchFormat, PublicMatchPreview,
@@ -14,7 +13,6 @@ import type {
 import {
   canChangeLobby,
   isLobbyFrozen,
-  getCancellationCreditCents,
   getEffectiveMatchStatus,
   isMatchAtCapacity,
   MATCH_DURATION_MINUTES,
@@ -27,15 +25,12 @@ import {
 import { AppError } from '../../errors/app-error.js';
 import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { TicketLeaveService } from '../tickets/ticket-leave.service.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { logInfo } from '../../observability/logger.js';
 import { goNoGoFacts, toFormationSlot, toMatch, toMatchParticipant, venuePhotoFacts } from './match.mapper.js';
 import { createMatchInviteToken, hashMatchInviteToken } from './invite-token.js';
 import {
-  AlreadyJoinedError,
   FormationSlotNotFoundError,
-  InsufficientBalanceError,
   GoNoGoNotDueError,
   LineupLockedError,
   MatchClosedError,
@@ -45,7 +40,6 @@ import {
   PositionBeingBookedError,
   PositionWrongSideError,
   TeamFullError,
-  FirstTimersOnlyError,
   TeamMatchPlanningError,
   OtherSideRefusedError,
   OwnTeamConflictError,
@@ -54,7 +48,6 @@ import { BookingsService } from '../bookings/bookings.service.js';
 import { TeamMatchesService } from '../team-matches/team-matches.service.js';
 import { assertCanRunTeamMatchCommand, type TeamMatchCommand } from '../team-matches/team-side-authority.js';
 import { publicMatchUrl } from './public-match.js';
-import { PlayerOverlapError, playerOverlapAppError } from './player-overlap.js';
 import { playerHostId } from './host.js';
 
 /** Gate 7: stable API errors for taking the other side of a team match. */
@@ -321,80 +314,6 @@ export class MatchesService {
     emitDomainEventBestEffort('match:cancelled', { matchId: id });
   }
 
-  async join(id: string, userId: string, input: JoinMatchInput, idempotencyKey: string) {
-    if (!idempotencyKey || idempotencyKey.length > 200)
-      throw new AppError(
-        400,
-        'A valid Idempotency-Key header is required.',
-        'IDEMPOTENCY_KEY_REQUIRED',
-      );
-    try {
-      const result = await this.matches.join(id, userId, input, idempotencyKey);
-      const participant = toMatchParticipant(result.participant);
-      if (!result.replayed) {
-        emitDomainEventBestEffort('participant:joined', {
-          matchId: id,
-          participant,
-        });
-      }
-      this.notifications.publishPersistedMany(result.notifications);
-      return participant;
-    } catch (error) {
-      this.rethrowJoinError(error);
-    }
-  }
-
-  async cancellationQuote(id: string, userId: string) {
-    const match = await this.load(id);
-    if (match.mode === 'TEAM_MATCH') this.throwTeamPlanningOnly();
-    const participant = match.participants.find((item) => item.userId === userId);
-    if (!participant) throw new AppError(409, 'You have not joined this match.', 'NOT_JOINED');
-    const now = new Date();
-    const hoursUntilKickoff = (match.startsAt.getTime() - now.getTime()) / 3_600_000;
-    const initialCreditCents = getCancellationCreditCents(match.feeCents, match.startsAt, now);
-    if (initialCreditCents === null)
-      throw new AppError(409, 'You cannot leave once kickoff has arrived.', 'MATCH_STARTED');
-    return {
-      initialCreditCents,
-      possibleReplacementCreditCents: match.feeCents - initialCreditCents,
-      hoursUntilKickoff,
-    };
-  }
-  async cancellationStatus(id: string, userId: string) {
-    const cancellation = await this.matches.findCancellation(id, userId);
-    if (!cancellation) return null;
-    return {
-      matchId: cancellation.matchId,
-      originalTeam: cancellation.originalTeam,
-      originalAmountCents: cancellation.originalAmountCents,
-      initialCreditCents: cancellation.initialCreditCents,
-      replacementCreditCents: cancellation.replacementCreditCents,
-      replacementFound: cancellation.replacementParticipantId !== null,
-      cancelledAt: cancellation.cancelledAt.toISOString(),
-    };
-  }
-  async leave(id: string, userId: string) {
-    // DEC-021 A2: a place bought with a ticket is left under the ticket rules (24 hours, credit or refund).
-    if (await this.matches.hasConfirmedTicket(id, userId))
-      return new TicketLeaveService().leave(id, userId, undefined);
-    try {
-      const { cancellation, replayed, notifications } = await this.matches.cancelParticipation(
-        id,
-        userId,
-        new Date(),
-      );
-      if (!replayed) emitDomainEventBestEffort('participant:left', { matchId: id, userId });
-      this.notifications.publishPersistedMany(notifications);
-      return cancellation;
-    } catch (error) {
-      if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
-      if (error instanceof LineupLockedError) this.throwLineupLocked();
-      if (error instanceof MatchClosedError)
-        throw new AppError(409, 'You cannot leave once kickoff has arrived.', 'MATCH_STARTED');
-      throw error;
-    }
-  }
-
   async updateFormation(
     id: string,
     slotId: string,
@@ -624,30 +543,6 @@ export class MatchesService {
       'The lineup locked 30 minutes before kickoff for the go/no-go check.',
       'LINEUP_LOCKED',
     );
-  }
-  private rethrowJoinError(error: unknown): never {
-    if (error instanceof PlayerOverlapError) throw playerOverlapAppError(error);
-    if (error instanceof InsufficientBalanceError)
-      throw new AppError(
-        402,
-        'Your wallet does not have enough funds for this match.',
-        'INSUFFICIENT_BALANCE',
-      );
-    if (error instanceof AlreadyJoinedError)
-      throw new AppError(
-        409,
-        'You have already joined this match or the request conflicts with an earlier payment.',
-        'ALREADY_JOINED',
-      );
-    if (error instanceof TeamFullError) throw new AppError(409, 'That team is full.', 'TEAM_FULL');
-    if (error instanceof FirstTimersOnlyError)
-      throw new AppError(409, 'This free match is for players who have never played a match on FootyFinder.', 'FIRST_TIMERS_ONLY');
-    rethrowOtherSideError(error);
-    if (error instanceof TeamMatchPlanningError) this.throwTeamPlanningOnly();
-    if (error instanceof LineupLockedError) this.throwLineupLocked();
-    if (error instanceof MatchClosedError)
-      throw new AppError(409, 'This match is no longer accepting players.', 'MATCH_CLOSED');
-    throw error;
   }
   private throwTeamPlanningOnly(): never {
     throw new AppError(

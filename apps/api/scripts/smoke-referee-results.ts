@@ -22,6 +22,7 @@ import { SessionsService } from '../src/modules/auth/sessions.service.js';
 import { UsersService } from '../src/modules/users/users.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { refereeFixture } from './referee-fixture.js';
+import { buyTicket } from './support/ticket-fixtures.js';
 
 /**
  * Gate 8 smoke (DEC-020): the kickoff lineup record (TKT-803; team sides are covered in
@@ -86,7 +87,7 @@ async function playedQuickMatch(label: string, host: { id: string }, players: Ar
   for (const [index, player] of players.entries()) {
     const slot = slots[index];
     const team = slot?.team ?? (index % 2 === 0 ? 'HOME' : 'AWAY');
-    await repository.join(created.id, player.id, { team }, `${marker}:join:${created.id}:${player.id}`);
+    await buyTicket(created.id, player.id, team, `${marker}:join:${created.id}:${player.id}`);
     if (slot) await repository.claimPosition(created.id, slot.id, player.id);
   }
   const record = await prisma.match.findUniqueOrThrow({ where: { id: created.id } });

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { matchClient } from '@/api/client.js';
 import { FormError } from '@/components/ui/FormError.js';
-import { JoinTeamDialog } from '../components/JoinTeamDialog.js';
+import { JoinMatchSheet } from '../components/JoinMatchSheet.js';
 export function InviteMatchPage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
@@ -21,9 +21,9 @@ export function InviteMatchPage() {
         {match.data.venue.name} · {match.data.venue.city}
       </p>
       <p className="mt-5 text-content">
-        Choose a team to accept this invitation. Normal payment and capacity rules still apply.
+        Buy a match ticket to accept this invitation. Normal payment and capacity rules still apply.
       </p>
-      <JoinTeamDialog
+      <JoinMatchSheet
         match={match.data}
         open
         onClose={() => navigate(`/matches/${match.data!.id}`, { replace: true })}

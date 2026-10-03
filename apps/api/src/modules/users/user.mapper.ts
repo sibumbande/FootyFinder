@@ -38,7 +38,6 @@ type SafeUserSource = {
     updatedAt: Date;
     preferredPositions: Array<{ position: FootballPosition }>;
   } | null;
-  walletAccount?: { balanceCents: number; currency: string } | null;
   teamMemberships?: Array<{
     role: 'OWNER' | 'CAPTAIN' | 'MEMBER';
     team: {
@@ -125,8 +124,6 @@ export function toAuthenticatedUser(user: SafeUserSource): AuthenticatedUser {
   return {
     ...toPublicUser(user),
     email: user.email,
-    balanceCents: user.walletAccount?.balanceCents ?? 0,
-    currency: user.walletAccount?.currency === 'ZAR' ? 'ZAR' : 'ZAR',
     accountStatus: user.accountStatus ?? 'ACTIVE',
     platformRole: user.platformRole ?? 'USER',
     isReferee: Boolean(user.refereeGrants?.length),

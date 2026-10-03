@@ -202,9 +202,9 @@ try {
     'Session verification did not surface the current account restriction.',
   );
   // /users/me stays readable for a restricted account (its own status); protected routes such
-  // as /wallet must refuse it.
+  // as /tickets/mine must refuse it.
   const restricted = await request(app)
-    .get('/wallet')
+    .get('/tickets/mine')
     .set('Cookie', `footy_finder_session=${bannedSession.token}`);
   assert(
     restricted.status === 403 && restricted.body.code === 'ACCOUNT_RESTRICTED',

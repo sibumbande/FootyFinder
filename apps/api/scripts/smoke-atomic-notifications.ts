@@ -1,4 +1,6 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { randomUUID } from 'node:crypto';
 import { getDefaultFormationKey } from '@footy-finder/shared';
 import type { Notification } from '../src/generated/prisma/client.js';
@@ -13,9 +15,9 @@ import {
 } from '../src/modules/notifications/notification-writer.js';
 import type { NotificationsService } from '../src/modules/notifications/notifications.service.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
-import { WalletRepository } from '../src/modules/wallet/wallet.repository.js';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
+import { buyTicket, leaveTicket, removeTicketRows } from './support/ticket-fixtures.js';
 
 const marker = `atomic-notifications-${randomUUID()}`;
 const markerPrefix = marker;
@@ -33,8 +35,9 @@ async function createUser(index: number) {
       email: `${marker}-${index}@smoke.invalid`,
       username: `${marker.slice(0, 22)}-${index}`,
       passwordHash: 'smoke-test-only',
-      profile: { create: { displayName: `Atomic Player ${index}` } },
-      walletAccount: { create: { balanceCents: 100_000, currency: 'ZAR' } },
+      emailVerifiedAt: new Date(),
+      onboardingCompletedAt: new Date(),
+      profile: { create: { displayName: `Atomic Player ${index}`, onboardingStatus: 'COMPLETE', gender: 'MALE' } },
     },
   });
   return user;
@@ -93,30 +96,9 @@ async function main() {
     'A failed notification write did not roll back domain state.',
   );
 
-  const wallet = new WalletRepository();
-  const pending = await wallet.createPending(owner.id, 50_000, marker, `${marker}-deposit`);
-  const firstSettlement = await wallet.succeed(pending.transaction.id, owner.id, `${marker}-provider-ref`);
-  const replayedSettlement = await wallet.succeed(pending.transaction.id, owner.id, `${marker}-provider-ref`);
-  assert(
-    firstSettlement.notifications.length === 1,
-    'Deposit success notification was not atomic.',
-  );
-  assert(
-    replayedSettlement.notifications.length === 0,
-    'Deposit replay created a duplicate notification.',
-  );
-  assert(
-    (await prisma.walletAccount.findUniqueOrThrow({ where: { userId: owner.id } })).balanceCents ===
-      150_000,
-    'Deposit replay credited the wallet more than once.',
-  );
-
   const matches = new MatchesRepository();
   await venueFixture.create();
-  // Kickoffs sit on the venue's 30-minute grid, so the leave policy is evaluated exactly 12 hours
-  // before kickoff (no initial credit; the credit follows only when a paid replacement joins).
   const cancellationKickoff = venueFixture.nextKickoff();
-  const policyNow = new Date(cancellationKickoff.getTime() - 12 * 60 * 60 * 1_000);
   const cancellationMatch = await bookings.createQuickMatch(
     {
       managedFieldId: venueFixture.fieldId,
@@ -130,47 +112,25 @@ async function main() {
     },
     owner.id,
   );
+  // DEC-021: buying a ticket with a replayed idempotency key places the player once and notifies nobody again.
   const joinKey = `${marker}-join`;
-  const firstJoin = await matches.join(cancellationMatch.id, member.id, { team: 'AWAY' }, joinKey);
-  const replayedJoin = await matches.join(
-    cancellationMatch.id,
-    member.id,
-    { team: 'AWAY' },
-    joinKey,
-  );
-  assert(firstJoin.notifications.length === 2, 'Match join notifications were not atomic.');
-  assert(replayedJoin.notifications.length === 0, 'Match join replay created notifications.');
-  const cancellation = await matches.cancelParticipation(
-    cancellationMatch.id,
-    member.id,
-    policyNow,
-  );
-  const cancellationReplay = await matches.cancelParticipation(
-    cancellationMatch.id,
-    member.id,
-    policyNow,
-  );
-  assert(cancellation.notifications.length === 1, 'Cancellation notification was not atomic.');
-  assert(
-    cancellationReplay.notifications.length === 0,
-    'Cancellation replay created a duplicate notification.',
-  );
-  const replacement = await matches.join(
-    cancellationMatch.id,
-    third.id,
-    { team: 'AWAY' },
-    `${marker}-replacement`,
-  );
-  assert(
-    replacement.replacement?.userId === member.id &&
-      replacement.notifications.some(({ type }) => type === 'REPLACEMENT_FOUND') &&
-      replacement.notifications.some(({ type }) => type === 'WALLET_CREDIT'),
-    'Replacement credit notifications were not committed with the replacement.',
-  );
+  const noticesFor = () => prisma.notification.count({ where: { targetPath: { contains: cancellationMatch.id } } });
+  const firstJoin = await buyTicket(cancellationMatch.id, member.id, 'AWAY', joinKey);
+  const afterJoin = await noticesFor();
+  const replayedJoin = await buyTicket(cancellationMatch.id, member.id, 'AWAY', joinKey);
+  assert(replayedJoin.result.checkoutId === firstJoin.result.checkoutId, 'A replayed purchase started a second checkout.');
+  assert((await noticesFor()) === afterJoin, 'A replayed purchase created notifications.');
+  // Leaving more than 24 hours out with a refund is recorded once; leaving again is refused and changes nothing.
+  assert((await leaveTicket(cancellationMatch.id, member.id, 'REFUND')).outcome === 'REFUNDED', 'Leaving did not refund.');
+  const afterLeave = await noticesFor();
+  const leftAgain = await leaveTicket(cancellationMatch.id, member.id, 'REFUND').then(() => 'OK', (error: { code?: string }) => error.code);
+  assert(leftAgain === 'NOT_IN_MATCH' && (await noticesFor()) === afterLeave, 'Leaving twice was not refused cleanly.');
+  assert((await prisma.providerRefund.count({ where: { ticketId: { in: firstJoin.result.ticketIds } } })) === 1, 'The leave refund was not recorded exactly once.');
+  await buyTicket(cancellationMatch.id, third.id, 'AWAY', `${marker}-third`);
   const cancelled = await matches.cancelMatch(cancellationMatch.id);
   const cancelledReplay = await matches.cancelMatch(cancellationMatch.id);
-  // DEC-018 / TKT-316: a host cancellation notifies every joined player, every refunded payer and
-  // the host, once each (here the replacement player and the host).
+  // DEC-018 / TKT-316 / DEC-021: a host cancellation notifies every joined player, every payer still holding a ticket
+  // and the host, once each (here the third player and the host).
   assert(
     cancelled.notifications.length === 2 &&
       new Set(cancelled.notifications.map(({ userId }) => userId)).size === 2 &&
@@ -195,12 +155,7 @@ async function main() {
     },
     owner.id,
   );
-  const resultParticipant = await matches.join(
-    resultMatch.id,
-    member.id,
-    { team: 'HOME' },
-    `${marker}-result-join`,
-  );
+  const resultParticipant = await buyTicket(resultMatch.id, member.id, 'HOME', `${marker}-result-join`,);
   await prisma.match.update({
     where: { id: resultMatch.id },
     data: {
@@ -308,6 +263,7 @@ async function main() {
 }
 
 async function cleanup() {
+  await removeTicketJobsSince(smokeStartedAt);
   const markedUsers = await prisma.user.findMany({
     where: { email: { startsWith: markerPrefix } },
     select: { id: true },
@@ -332,6 +288,7 @@ async function cleanup() {
     : [];
   const markedConversationIds = markedConversations.map(({ id }) => id);
 
+  await removeTicketRows(markedMatchIds);
   await venueFixture.cleanupMatches(markedMatchIds);
   if (markedMatchIds.length) {
     await prisma.matchScorer.deleteMany({

@@ -34,6 +34,6 @@ export class AdminMatchCancelService {
     }
     this.notifications.publishPersistedMany(cancelled.notifications);
     emitDomainEventBestEffort('match:cancelled', { matchId });
-    return { matchId, status: 'CANCELLED' as const, refundedUserCount: cancelled.refundedUserIds.length };
+    return { matchId, status: 'CANCELLED' as const, payersAskedToChoose: cancelled.payerIds.length };
   }
 }

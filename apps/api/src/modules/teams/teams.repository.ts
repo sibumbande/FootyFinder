@@ -16,9 +16,6 @@ import {
   persistNotifications,
 } from '../notifications/notification-writer.js';
 import { safeUserInclude } from '../users/users.repository.js';
-import { formatRands } from '../matches/cancellation-message.js';
-import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
-import { TeamWalletTransfers } from '../team-wallet/team-wallet.transfers.js';
 
 const memberInclude = { user: { include: safeUserInclude } } as const;
 export const teamInclude = {
@@ -65,8 +62,6 @@ export async function joinTeamAsMember(tx: Prisma.TransactionClient, teamId: str
 
 export class TeamsRepository {
   constructor(
-    private readonly teamWallets = new TeamWalletRepository(),
-    private readonly transfers = new TeamWalletTransfers(),
   ) {}
 
   create(input: CreateTeamInput, ownerUserId: string) {
@@ -127,16 +122,15 @@ export class TeamsRepository {
     return prisma.team.update({ where: { id }, data: input, include: teamInclude });
   }
   /**
-   * Gate 7 / D7: closing a team archives it; it is never deleted, so its money history is kept.
-   * Blocked while fill-meter money is held or a public team match is still upcoming or running.
-   * Every contributor's own unspent contributions go back to their personal wallet (no cash-out),
-   * the team's private planning drafts are cancelled and its open invitations revoked.
+   * Gate 7 / D7: closing a team archives it; it is never deleted, so its history is kept. Blocked while a public team
+   * match is still upcoming or running (DEC-021: team places are match tickets, so there is no team money to return).
+   * The team's private planning drafts are cancelled and its open invitations revoked.
    */
   close(id: string, actorUserId: string) {
     return serializableTransaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Team" WHERE "id" = ${id}::uuid FOR UPDATE`;
       const team = await tx.team.findUniqueOrThrow({ where: { id } });
-      if (team.archivedAt) return { outcome: 'ALREADY_CLOSED' as const, refunds: [], notifications: [] };
+      if (team.archivedAt) return { outcome: 'ALREADY_CLOSED' as const };
       const blockingMatches = await tx.match.count({
         where: {
           teamSides: { some: { teamId: id } },
@@ -144,23 +138,7 @@ export class TeamsRepository {
           status: { in: ['OPEN', 'READY', 'IN_PROGRESS', 'AWAITING_RESULT'] },
         },
       });
-      if (blockingMatches) return { outcome: 'UPCOMING_MATCHES' as const, refunds: [], notifications: [] };
-      const account = await this.teamWallets.lockAccount(tx, id);
-      if (await this.teamWallets.heldCents(tx, account.id))
-        return { outcome: 'HOLDS_ACTIVE' as const, refunds: [], notifications: [] };
-      const refunds: Array<{ userId: string; amountCents: number }> = [];
-      for (const [contributorUserId, amountCents] of await this.teamWallets.unspentByContributor(tx, account.id)) {
-        await this.transfers.refundContributor(tx, {
-          teamId: id,
-          teamName: team.name,
-          contributorUserId,
-          amountCents,
-          type: 'CLOSURE_REFUND_DEBIT',
-          idempotencyKey: `team-closure:${id}:${contributorUserId}`,
-          actorUserId,
-        });
-        refunds.push({ userId: contributorUserId, amountCents });
-      }
+      if (blockingMatches) return { outcome: 'UPCOMING_MATCHES' as const };
       const now = new Date();
       await tx.match.updateMany({
         where: {
@@ -172,18 +150,7 @@ export class TeamsRepository {
       });
       await tx.teamInvite.updateMany({ where: { teamId: id, revokedAt: null }, data: { revokedAt: now } });
       await tx.team.update({ where: { id }, data: { archivedAt: now, shortName: null } });
-      const notifications = await persistNotifications(
-        tx,
-        refunds.map(({ userId, amountCents }) => ({
-          userId,
-          type: 'WALLET_CREDIT' as const,
-          title: 'Team contributions returned',
-          message: `${team.name} was closed. Your unspent ${formatRands(amountCents)} was returned to your FootyFinder wallet.`,
-          targetPath: '/wallet',
-          dedupeKey: notificationDedupeKey('team', id, 'closure-refund', userId),
-        })),
-      );
-      return { outcome: 'CLOSED' as const, refunds, notifications };
+      return { outcome: 'CLOSED' as const, closedBy: actorUserId };
     });
   }
   updateMemberRole(teamId: string, userId: string, role: Exclude<TeamRole, 'OWNER'>) {
