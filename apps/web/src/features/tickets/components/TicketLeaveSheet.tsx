@@ -11,6 +11,8 @@ import { useLeaveTicket } from '../hooks/useTickets.js';
  *   on any match") or a refund of the ticket price to the card or bank account they paid with.
  * - 24 hours or less: no refund and no credit; the place is released for someone else.
  * - A credit-paid place gets its credit back; a free place gives nothing back.
+ * - A place a teammate paid for (A5): the player just leaves; more than 24 hours out the teammate who paid chooses
+ *   the credit or refund, and both are told.
  */
 export function TicketLeaveSheet({ matchId, context, onClose, onLeft }: { matchId: string; context: MatchTicketContext; onClose: () => void; onLeft: (message: string) => void }) {
   const leave = useLeaveTicket(matchId);
@@ -27,18 +29,23 @@ export function TicketLeaveSheet({ matchId, context, onClose, onLeft }: { matchI
               ? `Your ${price} refund is on its way to the card or bank account you paid with.`
               : outcome === 'CREDIT_RETURNED'
                 ? 'Your match credit was returned to you.'
-                : 'You left the match.',
+                : outcome === 'PAYER_CHOOSES'
+                  ? `You left the match. ${payer} paid for your place, so they choose a match credit or a refund.`
+                  : 'You left the match.',
         ),
     });
-  const notMine = ticket && !ticket.paidByMe;
+  const notMine = Boolean(ticket && !ticket.paidByMe && !free);
+  const payer = ticket?.payerDisplayName ?? 'The teammate who paid';
   return (
     <Sheet title="Leave this match?" onClose={onClose} busy={leave.isPending} testId="ticket-leave-sheet">
-      {notMine && (
-        <p className="mt-3 rounded-xl bg-surface-muted p-3 text-sm text-content">
-          {ticket.payerDisplayName ?? 'A teammate'} paid for your place, so the credit or refund goes to them.
-        </p>
-      )}
-      {free ? (
+      {notMine && context.leave.outcome === 'CHOICE' ? (
+        <>
+          <p className="mt-4 rounded-xl bg-surface-muted p-3 text-sm text-content" data-testid="leave-payer-chooses">
+            {payer} paid for your place, so they choose what comes back: 1 match credit or a refund of {price} to the card or bank account they paid with. Your place is released for someone else.
+          </p>
+          <Button className="mt-5 w-full !border-danger-700 !bg-danger-600" onClick={() => submit()} loading={leave.isPending}>Leave match</Button>
+        </>
+      ) : free ? (
         <>
           <p className="mt-4 text-sm text-content">This is a free match: nothing was paid, so nothing is refunded. Your place is released for someone else.</p>
           <Button className="mt-5 w-full !border-danger-700 !bg-danger-600" onClick={() => submit()} loading={leave.isPending}>Leave match</Button>

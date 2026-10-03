@@ -54,12 +54,7 @@ async function main() {
   const ownerMembership = await prisma.teamMembership.findUniqueOrThrow({ where: { teamId_userId: { teamId: home.id, userId: owner.id } } });
   await prisma.teamFormationSlot.update({ where: { id: [...formation.slots].sort((a, b) => a.slotIndex - b.slotIndex)[0]!.id }, data: { membershipId: ownerMembership.id } });
 
-  // D12: available team money must cover the fee (5 players + 3 subs = R640). No money moves.
-  await world.contribute(home.id, owner.id, 50_000, 'c1');
-  const shortfall = await publish(teamMatchInput(home.id), owner.id).then(() => null, (error: { code?: string; message: string }) => error);
-  assert(shortfall?.code === 'TEAM_WALLET_TOP_UP_REQUIRED', 'A team match was published without enough available team money.');
-  assert(shortfall.message === 'Top up your team wallet to at least R640 to publish this match.', `Wrong top-up message: ${shortfall.message}`);
-  await world.contribute(home.id, member.id, 20_000, 'c2');
+  // DEC-021 D7: publishing needs no money (the T-4h alert and T-2h cutoff enforce payment). No money moves.
   const first = await publish(teamMatchInput(home.id), owner.id);
   assert(first.mode === 'TEAM_MATCH' && first.visibility === 'PUBLIC' && first.status === 'OPEN', 'A team match was not published as a public open match.');
   assert(first.otherSideMode === 'TEAMS_ONLY' && first.otherSideTakenBy === null && first.goNoGoAt, 'Team match side facts or go/no-go time missing.');
@@ -71,8 +66,9 @@ async function main() {
   assert(reservation.status === 'CONFIRMED' && reservation.priceCentsSnapshot === 50_000, 'The venue slot was not reserved with its admin-only cost.');
   const lineup = await prisma.teamMatchLineupSlot.findMany({ where: { matchTeamId: homeSide.id }, include: { selection: true } });
   assert(lineup.length === 5 && lineup.some((slot) => slot.selection?.userId === owner.id), 'The saved HOME squad was not loaded.');
-  const wallet = await prisma.teamWalletAccount.findUniqueOrThrow({ where: { teamId: home.id }, include: { holds: true } });
-  assert(wallet.balanceCents === 70_000 && wallet.holds.length === 0, 'Publishing moved or held team money.');
+  assert(!(await prisma.matchTicket.count({ where: { matchId: first.id } })) && !(await prisma.teamWalletHold.count({ where: { matchId: first.id } })), 'Publishing took or held money.');
+  // DEC-021 D1: the T-4h payment alert and the T-2h cutoff are scheduled with the match.
+  assert((await prisma.durableJob.count({ where: { dedupeKey: { in: [`team-payment-alert:${first.id}`, `team-payment-cutoff:${first.id}`] } } })) === 2, 'The team payment deadlines were not scheduled.');
   const json = JSON.stringify(first);
   assert(!/price|50000|100000|priceCentsSnapshot/i.test(json), 'The team match DTO exposed a venue cost.');
 

@@ -32,6 +32,8 @@ import { TeamWalletRepository } from '../team-wallet/team-wallet.repository.js';
 import { appendTeamMatchAudit } from './team-match-audit.js';
 import { assertTeamMatchCommand } from './team-side-authority.js';
 import { enqueueTeamGoNoGoJobs } from './team-match-meters.js';
+import { settleTicketsOnCancellationInTx } from '../tickets/ticket-cancellation.js';
+import { enqueueWithdrawalChoiceEmail } from '../tickets/ticket-emails.js';
 import { onRefereedMatchPublished } from '../referees/referee-assignment.js';
 import {
   enqueueTeamMatchEmail,
@@ -105,14 +107,7 @@ export class TeamMatchesService {
             `Your team already has ${MAX_TEAM_MATCHES_AWAITING_OPPONENT} matches waiting for an opponent. Wait for one to fill or cancel one before publishing another.`,
             'TEAM_MATCHES_AWAITING_OPPONENT_LIMIT',
           );
-        const account = await this.teamWallets.lockAccount(tx, teamId);
-        const available = account.balanceCents - (await this.teamWallets.heldCents(tx, account.id));
-        if (available < fee.totalCents)
-          throw new AppError(
-            409,
-            `Top up your team wallet to at least ${formatRandAmount(fee.totalCents)} to publish this match.`,
-            'TEAM_WALLET_TOP_UP_REQUIRED',
-          );
+        // DEC-021 D7: no money check at publish; the T-4h alert and the T-2h cutoff enforce payment.
         const slot = await this.bookings.playerSlot(tx, input.managedFieldId, input.format, startsAt);
         const { formationKey } = await savedFormation(tx, teamId, input.format);
         const created = await tx.match.create({
@@ -301,16 +296,15 @@ export class TeamMatchesService {
       await assertTeamMatchCommand(tx, { matchId, userId, command: 'WITHDRAW_TEAM' });
       if (isLobbyFrozen(match, now) || now >= match.startsAt)
         throw new AppError(409, 'The lineup is locked 30 minutes before kickoff.', 'LINEUP_LOCKED');
-      const holds = await tx.teamWalletHold.findMany({ where: { matchId, side: 'AWAY', status: 'ACTIVE' }, select: { id: true, amountCents: true } });
-      await this.teamWallets.lockAccount(tx, away.teamId);
-      for (const hold of holds) await this.teamWallets.releaseHold(tx, hold.id, 'team-withdrew');
+      // DEC-021 A5: every place the withdrawing team paid for gets the A3 choice (credit or refund, to the payer).
+      const payers = await settleTicketsOnCancellationInTx(tx, matchId, now, { matchTeamId: away.id });
       await tx.matchTeam.delete({ where: { id: away.id } });
       await tx.match.update({ where: { id: matchId }, data: { otherSideTakenBy: null } });
       const audit = await appendTeamMatchAudit(tx, {
         matchId, command: 'OTHER_SIDE_TEAM_WITHDRAWN', teamId: away.teamId, side: 'AWAY', actorUserId: userId,
         payload: {
           teamName: away.teamNameSnapshot, substituteCount: away.substituteCount, teamFeeCents: away.teamFeeCents,
-          releasedCents: holds.reduce((sum, hold) => sum + hold.amountCents, 0),
+          paidPlaces: [...payers.byPayer.values()].reduce((sum, item) => sum + item.choiceSeats, 0),
         },
       });
       if (match.otherSideMode === 'TEAMS_ONLY') await enqueueUnmatchedCancelAfterWithdrawal(tx, match, audit.id, now);
@@ -322,15 +316,29 @@ export class TeamMatchesService {
       for (const member of homeMembers.filter(({ role }) => role === 'OWNER' || role === 'CAPTAIN'))
         await enqueueTeamMatchEmail(tx, { matchId, userId: member.userId, kind: 'OPPONENT_WITHDRAWN', eventKey: audit.id, otherTeamName: away.teamNameSnapshot });
       const message = teamMatchMessage('OPPONENT_WITHDRAWN', { name: match.name, startsAt: match.startsAt, venueName: match.venue.name, otherTeamName: away.teamNameSnapshot });
-      const notifications = await persistNotifications(tx, homeMembers.map((member) => ({
-        userId: member.userId, type: 'TEAM_MATCH_OPPONENT_WITHDRAWN' as const, title: 'Opponent withdrew', message,
-        targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'opponent-withdrew', audit.id, member.userId),
-      })));
-      return { notifications, releasedCents: holds.reduce((sum, hold) => sum + hold.amountCents, 0) };
+      const choiceDrafts = [];
+      for (const [payerId, facts] of payers.byPayer) {
+        const choice = facts.choiceSeats
+          ? `${away.teamNameSnapshot} withdrew from ${match.name}. You paid ${formatRandAmount(facts.choiceCents)} for ${facts.choiceSeats === 1 ? '1 place' : `${facts.choiceSeats} places`}: choose a match credit or a full refund for each. If you don't choose within 7 days, you're refunded automatically.`
+          : `${away.teamNameSnapshot} withdrew from ${match.name}. Your match credit has been returned to you.`;
+        choiceDrafts.push({
+          userId: payerId, type: 'TICKET_CHOICE_REQUIRED' as const, title: 'Your team withdrew: choose a credit or a refund', message: choice,
+          targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'withdrawal-choice', audit.id, payerId),
+        });
+        if (facts.choiceSeats) await enqueueWithdrawalChoiceEmail(tx, { userId: payerId, matchId, message: choice });
+      }
+      const notifications = await persistNotifications(tx, [
+        ...homeMembers.map((member) => ({
+          userId: member.userId, type: 'TEAM_MATCH_OPPONENT_WITHDRAWN' as const, title: 'Opponent withdrew', message,
+          targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('team-match', matchId, 'opponent-withdrew', audit.id, member.userId),
+        })),
+        ...choiceDrafts,
+      ]);
+      return { notifications };
     });
     this.notifications.publishPersistedMany(result.notifications);
     emitDomainEventBestEffort('match:updated', { matchId });
-    return { releasedCents: result.releasedCents };
+    return { withdrawn: true };
   }
 
   /**

@@ -132,6 +132,13 @@ export function teamMatchWorld(marker: string) {
       await prisma.teamMessage.deleteMany({ where: { teamId: { in: teamIds } } });
       await deleteTeamWalletFixtures(teamIds);
       await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+      // DEC-021: ticket rows (refunds first; tickets and checkouts restrict match deletion).
+      const checkouts = await prisma.ticketCheckout.findMany({ where: { matchId: { in: allMatchIds } }, select: { providerPaymentId: true } });
+      await prisma.ticketEmail.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.providerRefund.deleteMany({ where: { ticket: { matchId: { in: allMatchIds } } } });
+      await prisma.matchTicket.deleteMany({ where: { matchId: { in: allMatchIds } } });
+      await prisma.ticketCheckout.deleteMany({ where: { matchId: { in: allMatchIds } } });
+      await prisma.providerPayment.deleteMany({ where: { id: { in: checkouts.flatMap(({ providerPaymentId }) => (providerPaymentId ? [providerPaymentId] : [])) } } });
       await prisma.venuePayable.deleteMany({ where: { matchId: { in: allMatchIds } } });
       await prisma.fieldReservation.deleteMany({ where: { matchId: { in: allMatchIds } } });
       const venueRows = await prisma.match.findMany({ where: { id: { in: allMatchIds } }, select: { venueId: true } });

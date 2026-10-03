@@ -18,6 +18,7 @@ import {
 import { safeUserInclude } from '../users/users.repository.js';
 import { assertNoPlayerOverlap } from '../matches/player-overlap.js';
 import { assertGirlsOnlyEligible } from '../matches/girls-only.js';
+import { AppError } from '../../errors/app-error.js';
 
 export class LineupTeamSideNotFoundError extends Error {}
 export class LineupForbiddenError extends Error {}
@@ -202,6 +203,12 @@ async function saveSelection(
     | 'REMOVED',
   selectedByUserId: string | null,
 ) {
+  // DEC-021 D6: a paid place is the player's. The captain cannot take a paid player out of the lineup, and the
+  // player leaves through the ticket rules (24 hours; the credit or refund goes to whoever paid), not by declining.
+  if ((status === 'REMOVED' || status === 'DECLINED') && (await tx.matchTicket.count({ where: { matchTeamId: context.id, playerId: userId, status: 'CONFIRMED' } })))
+    throw status === 'DECLINED'
+      ? new AppError(409, 'Your place is paid for. Leave the match instead (the 24-hour rule applies).', 'TICKET_LEAVE_REQUIRED')
+      : new AppError(409, 'This player is paid for. They must leave the match themselves (the 24-hour rule applies) before you can replace them.', 'PAID_PLAYER_IN_LINEUP');
   return tx.teamMatchSelection.upsert({
     where: { matchTeamId_userId: { matchTeamId: context.id, userId } },
     create: { matchTeamId: context.id, userId, status, selectedByUserId },

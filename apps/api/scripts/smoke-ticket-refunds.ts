@@ -1,4 +1,6 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
 import { AdminFinanceService } from '../src/modules/payments/admin-finance.service.js';
@@ -92,6 +94,7 @@ try {
   assert((await codeOf(() => refunds.initiate({ actorUserId: admin.id, providerPaymentId: payment.id, amountCents: 8_000, reason: 'manual', idempotencyKey: randomUUID() }))) === 'TICKET_PAYMENT_NOT_REFUNDABLE_HERE', 'An admin could refund a ticket payment outside the ticket rules.');
   console.log('Ticket refunds smoke passed: once per ticket, partial R80 refunds of one shared payment to the payer, ambiguous events never guessed, events with ids exact and idempotent, needs-attention bank refunds completed with details never stored (audit keeps last 4), failed refunds stay for finance and are retried (never a credit or wallet money), and ticket payments are only refunded by the ticket rules.');
 } finally {
+  await removeTicketJobsSince(smokeStartedAt);
   await prisma.notification.deleteMany({ where: { userId: { in: world.userIds } } });
   await prisma.providerRefund.deleteMany({ where: { providerPaymentId: { in: created.paymentIds } } });
   await prisma.matchTicket.deleteMany({ where: { checkoutId: { in: created.checkoutIds } } });

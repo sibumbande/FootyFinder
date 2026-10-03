@@ -30,7 +30,7 @@ import {
 } from '../hooks/useTeamMatchDay.js';
 import { useDeleteMatch } from '../hooks/useMatches.js';
 import { TeamMatchOtherSide } from './TeamMatchOtherSide.js';
-import { TeamMeter } from './TeamMeter.js';
+import { TeamPaymentChecklist } from '@/features/tickets/components/TeamPaymentChecklist.js';
 import { MatchRefereeLine } from './MatchRefereeLine.js';
 import { MatchResultPanel } from './MatchResultPanel.js';
 import { MatchReviewPanel } from '@/features/team-reviews/components/MatchReviewPanel.js';
@@ -120,7 +120,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
                 const { confirmed } = await confirm({
                   title: publicTeamMatch ? 'Cancel this team match for both sides?' : 'Cancel this private Team fixture?',
                   message: publicTeamMatch
-                    ? <p>Held team money goes back to each team wallet and every player is refunded. Everyone is notified by email.</p>
+                    ? <p>Everyone who paid chooses a match credit or a full refund. Everyone is notified by email.</p>
                     : <p>The fixture is cancelled for your team.</p>,
                   confirmLabel: 'Cancel match',
                   cancelLabel: 'Keep match',
@@ -142,7 +142,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
       <MatchReviewPanel match={match} />
       <PlayedWithPanel match={match} />
       <FormError message={deletion.error?.message} />
-      {publicTeamMatch && <TeamMeter match={match} />}
+      {publicTeamMatch && <TeamPaymentChecklist match={match} />}
       {publicTeamMatch && <TeamMatchOtherSide match={match} />}
       {match.teamSides.length > 1 && (
         <nav className="grid grid-cols-2 gap-1 rounded-xl bg-surface-muted p-1" aria-label="Team sides">

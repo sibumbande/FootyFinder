@@ -117,13 +117,13 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
               onClick={async () => {
                 const { confirmed } = await confirm({
                   title: `Withdraw ${away.teamNameSnapshot}?`,
-                  message: <p>Any money held from your team wallet is released, and the other side opens again.</p>,
+                  message: <p>Anyone who paid for your team’s places chooses a match credit or a full refund, and the other side opens again.</p>,
                   confirmLabel: 'Withdraw my team',
                   cancelLabel: 'Stay in match',
                   destructive: true,
                   action: () => withdraw.mutateAsync(undefined),
                 });
-                if (confirmed) notify({ variant: 'info', title: 'Team withdrawn', message: 'Your team left the match. Held money went back to your team wallet.' });
+                if (confirmed) notify({ variant: 'info', title: 'Team withdrawn', message: 'Your team left the match. Anyone who paid chooses a match credit or a full refund.' });
               }}
             >
               Withdraw my team
@@ -147,7 +147,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
                 load.mutate({ teamId, substituteCount: subs }, {
                   onSuccess: () => {
                     setLoading(false);
-                    notify({ variant: 'success', title: 'Your team is in', message: 'Fill your team meter from the team wallet before the 30-minute check.' });
+                    notify({ variant: 'success', title: 'Your team is in', message: 'Pay for your players’ places by 2 hours before kick-off.' });
                   },
                 });
               }}
@@ -171,7 +171,7 @@ export function TeamMatchOtherSide({ match }: { match: Match }) {
               </label>
               <p data-testid="load-team-fee" className="rounded-xl bg-brand-50 p-3 text-sm font-black text-brand-700">{formatTeamFeeBreakdown(fee)}</p>
               <p className="text-xs text-content-muted">
-                Your team takes the side straight away. Nothing is taken now: a captain fills your team meter from the team wallet, and it is taken only if the match goes ahead.
+                Your team takes the side straight away. Your squad then pays R80 per player as match tickets, by 2 hours before kick-off.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" loading={load.isPending}>Confirm and load my team</Button>

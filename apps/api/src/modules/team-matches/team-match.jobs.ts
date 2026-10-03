@@ -9,6 +9,8 @@ import { TeamMatchesService } from './team-matches.service.js';
 import {
   TEAM_MATCH_GO_NO_GO_JOB_TYPE,
   TEAM_METER_REMINDER_JOB_TYPE,
+  TEAM_PAYMENT_ALERT_JOB_TYPE,
+  TEAM_PAYMENT_CUTOFF_JOB_TYPE,
   TeamGoNoGoNotDueError,
   TeamMatchMetersService,
 } from './team-match-meters.js';
@@ -37,8 +39,16 @@ export const registerTeamMatchJobHandlers = (
       throw error;
     }
   });
+  // Retired with the team wallet (DEC-021 D10): jobs already queued finish without doing anything.
   registerDurableJobHandler(TEAM_METER_REMINDER_JOB_TYPE, async (payload) => {
     await meters.remindUnfilledMeters(matchIdOf(payload));
+  });
+  // DEC-021 D1: T-4h payment alert and T-2h payment cutoff (an early cutoff run is retried).
+  registerDurableJobHandler(TEAM_PAYMENT_ALERT_JOB_TYPE, async (payload) => {
+    await meters.paymentAlert(matchIdOf(payload));
+  });
+  registerDurableJobHandler(TEAM_PAYMENT_CUTOFF_JOB_TYPE, async (payload) => {
+    await meters.paymentCutoff(matchIdOf(payload));
   });
   registerDurableJobHandler(TEAM_MATCH_UNMATCHED_CANCEL_JOB_TYPE, async (payload) => {
     await service.cancelUnmatched(matchIdOf(payload));

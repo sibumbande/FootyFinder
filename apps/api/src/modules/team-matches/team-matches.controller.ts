@@ -1,10 +1,12 @@
-import { changeTeamSubstitutesSchema, fillTeamMeterSchema, loadTeamIntoMatchSchema, teamSideRouteParamSchema } from '@footy-finder/shared';
+import { changeTeamSubstitutesSchema, loadTeamIntoMatchSchema, teamSideRouteParamSchema, teamTicketCheckoutSchema } from '@footy-finder/shared';
 import type { RequestHandler } from 'express';
 import { TeamMatchesService } from './team-matches.service.js';
 import { TeamMatchMetersService } from './team-match-meters.js';
+import { TeamTicketsService } from '../tickets/team-tickets.service.js';
 
 const service = new TeamMatchesService();
 const meters = new TeamMatchMetersService();
+const teamTickets = new TeamTicketsService();
 const side = (params: Record<string, unknown>) => teamSideRouteParamSchema.parse(params.side);
 const userId = (locals: Record<string, unknown>) => String(locals.authUserId);
 const matchId = (params: Record<string, unknown>) => String(params.id);
@@ -20,7 +22,7 @@ export const loadTeam: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** DEC-019: a team's own fill meter ("R0 / R1,120"); members of that side only. */
+/** Retired with the team wallet (DEC-021): 410 TEAM_METER_RETIRED. */
 export const meter: RequestHandler = async (req, res, next) => {
   try {
     res.json({ data: await meters.meter(matchId(req.params), side(req.params), userId(res.locals)) });
@@ -29,23 +31,46 @@ export const meter: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** D3: an owner/captain fills their side's meter from the team wallet (a hold). */
-export const fillMeter: RequestHandler = async (req, res, next) => {
+/** Retired with the team wallet (DEC-021): 410 TEAM_METER_RETIRED. */
+export const fillMeter: RequestHandler = async (_req, _res, next) => {
   try {
-    const { amountCents } = fillTeamMeterSchema.parse(req.body ?? {});
-    const result = await meters.fill(matchId(req.params), side(req.params), userId(res.locals), amountCents, String(req.header('Idempotency-Key') ?? ''));
-    res.status(result.replayed ? 200 : 201).json({ data: result.view });
+    await meters.fill();
   } catch (error) {
     next(error);
   }
 };
 
-/** D5: an owner/captain changes their side's subs until T-30. */
+/** DEC-021 A5: a team's named payment checklist ("11 of 14 paid · R240 still needed"); members of that team only. */
+export const paymentRoster: RequestHandler = async (req, res, next) => {
+  try {
+    res.json({ data: await teamTickets.roster(matchId(req.params), side(req.params), userId(res.locals)) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** DEC-021 A5: a squad member pays for named teammates (Idempotency-Key). */
+export const payForTeammates: RequestHandler = async (req, res, next) => {
+  try {
+    const result = await teamTickets.checkout(
+      matchId(req.params),
+      side(req.params),
+      userId(res.locals),
+      teamTicketCheckoutSchema.parse(req.body),
+      String(req.header('Idempotency-Key') ?? ''),
+      { ip: req.ip, userAgent: req.get('User-Agent') ?? undefined },
+    );
+    res.status(result.state === 'CONFIRMED' ? 201 : 202).json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** D5 (DEC-021 D1): an owner/captain changes their side's subs until the T-2h payment cutoff. */
 export const changeSubstitutes: RequestHandler = async (req, res, next) => {
   try {
     const { substituteCount } = changeTeamSubstitutesSchema.parse(req.body);
-    const result = await meters.changeSubstitutes(matchId(req.params), side(req.params), userId(res.locals), substituteCount);
-    res.json({ data: { ...result.view, releasedCents: result.releasedCents } });
+    res.json({ data: await meters.changeSubstitutes(matchId(req.params), side(req.params), userId(res.locals), substituteCount) });
   } catch (error) {
     next(error);
   }

@@ -90,28 +90,9 @@ export const useLeaveMatch = (id: string) => lobbyMutation<void>(id, () => match
 export const useLoadTeamIntoMatch = (id: string) =>
   lobbyMutation<{ teamId: string; substituteCount: number }>(id, (input) => matchApi.loadTeam(id, input));
 export const useWithdrawTeamFromMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.withdrawTeam(id));
-export const teamMeterKey = (id: string, side: 'HOME' | 'AWAY') => [...matchKey(id), 'meter', side] as const;
-export const useTeamMeter = (id: string, side: 'HOME' | 'AWAY' | null | undefined) =>
-  useQuery({
-    queryKey: teamMeterKey(id, side ?? 'HOME'),
-    queryFn: async () => (await matchApi.teamMeter(id, side!)).data,
-    enabled: Boolean(id && side),
-  });
-function useMeterMutation<T>(id: string, side: 'HOME' | 'AWAY', action: (input: T) => Promise<unknown>) {
-  const cache = useQueryClient();
-  return useMutation({
-    mutationFn: action,
-    onSuccess: () => {
-      void cache.invalidateQueries({ queryKey: matchKey(id) });
-      void cache.invalidateQueries({ queryKey: teamMeterKey(id, side) });
-    },
-  });
-}
-export const useFillTeamMeter = (id: string, side: 'HOME' | 'AWAY') =>
-  useMeterMutation<{ amountCents?: number; idempotencyKey: string }>(id, side, ({ amountCents, idempotencyKey }) =>
-    matchApi.fillTeamMeter(id, side, amountCents, idempotencyKey));
+/** DEC-021 D1: a team's subs; the payment checklist (under the match key) refreshes with it. */
 export const useChangeTeamSubstitutes = (id: string, side: 'HOME' | 'AWAY') =>
-  useMeterMutation<number>(id, side, (substituteCount) => matchApi.changeTeamSubstitutes(id, side, substituteCount));
+  lobbyMutation<number>(id, (substituteCount) => matchApi.changeTeamSubstitutes(id, side, substituteCount));
 export const useReadyMatch = (id: string) => lobbyMutation<void>(id, () => matchApi.ready(id));
 export function useRotateMatchInvite(id: string) {
   const cache = useQueryClient();

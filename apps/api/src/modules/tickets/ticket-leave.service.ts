@@ -1,4 +1,4 @@
-import { ticketLeaveOutcome } from '@footy-finder/shared';
+import { ticketChoiceDeadline, ticketLeaveOutcome } from '@footy-finder/shared';
 import type { MatchTicketOutcome, Notification, Prisma } from '../../generated/prisma/client.js';
 import { serializableTransaction } from '../../database/transaction.js';
 import { AppError } from '../../errors/app-error.js';
@@ -10,6 +10,9 @@ import { assertLobbyOpen, bumpFormationVersion, LineupLockedError, lockMatchForF
 import { issueCreditInTx, returnCreditForTicketInTx } from './match-credits.js';
 import { requestTicketRefundInTx } from './ticket-refunds.js';
 import { refusal } from './ticket-placement.js';
+import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
+import { TICKET_CHOICE_AUTO_REFUND_JOB_TYPE } from './ticket-cancellation.js';
+import { enqueueSeatLeftEmail } from './ticket-emails.js';
 
 export type TicketChoice = 'CREDIT' | 'REFUND';
 
@@ -43,8 +46,11 @@ export class TicketLeaveService {
       });
       if (!match) throw new AppError(404, 'Match not found.', 'MATCH_NOT_FOUND');
       const ticket = await tx.matchTicket.findFirst({ where: { matchId, playerId: userId, status: 'CONFIRMED' } });
-      if (!ticket || !ticket.participantId) throw new AppError(409, 'You do not have a place in this match.', 'NOT_IN_MATCH');
-      if (ticket.seat === 'TEAM') throw new AppError(409, 'Team places are left from the team lineup.', 'TEAM_SEAT');
+      const team = ticket?.seat === 'TEAM';
+      if (!ticket || (!team && !ticket.participantId)) throw new AppError(409, 'You do not have a place in this match.', 'NOT_IN_MATCH');
+      // A5: a teammate paid for this place. More than 24 hours out, the payer (not the leaver) chooses a credit or
+      // a refund, with the 7-day automatic refund: money never silently becomes credit.
+      const payerChooses = team && ticket.payerId !== userId && ticket.method === 'PAYMENT';
       try {
         assertLobbyOpen(match, now);
       } catch (error) {
@@ -53,13 +59,35 @@ export class TicketLeaveService {
         throw error;
       }
       const timing = ticketLeaveOutcome(match.startsAt, now);
-      if (ticket.method === 'PAYMENT' && timing === 'CHOICE' && !choice)
+      if (ticket.method === 'PAYMENT' && timing === 'CHOICE' && !choice && !payerChooses)
         throw new AppError(400, 'Choose a match credit or a refund.', 'TICKET_CHOICE_REQUIRED');
 
-      const released = await tx.formationSlot.updateMany({ where: { participantId: ticket.participantId }, data: { participantId: null } });
-      if (released.count) await bumpFormationVersion(tx, matchId);
-      await tx.matchParticipant.update({ where: { id: ticket.participantId }, data: { status: 'LEFT', leftAt: now } });
-      await reversePromotionalCosts(tx, { participantId: ticket.participantId }, 'PLAYER_LEFT', now);
+      if (team && ticket.matchTeamId) {
+        // The player drops out of the team's lineup for this match; their position opens for the captain.
+        const selection = await tx.teamMatchSelection.findUnique({ where: { matchTeamId_userId: { matchTeamId: ticket.matchTeamId, userId } }, include: { lineupSlot: true } });
+        if (selection?.lineupSlot) await tx.teamMatchLineupSlot.update({ where: { id: selection.lineupSlot.id }, data: { selectionId: null, isOpen: true } });
+        if (selection) await tx.teamMatchSelection.update({ where: { id: selection.id }, data: { status: 'DECLINED', selectedByUserId: null } });
+      } else if (ticket.participantId) {
+        const released = await tx.formationSlot.updateMany({ where: { participantId: ticket.participantId }, data: { participantId: null } });
+        if (released.count) await bumpFormationVersion(tx, matchId);
+        await tx.matchParticipant.update({ where: { id: ticket.participantId }, data: { status: 'LEFT', leftAt: now } });
+        await reversePromotionalCosts(tx, { participantId: ticket.participantId }, 'PLAYER_LEFT', now);
+      }
+
+      if (payerChooses && timing === 'CHOICE') {
+        const deadline = ticketChoiceDeadline(now);
+        await tx.matchTicket.update({ where: { id: ticket.id }, data: { status: 'CHOICE_PENDING', choiceDeadlineAt: deadline, participantId: null, closedReason: 'The player left the match' } });
+        await enqueueDurableJob(tx, { type: TICKET_CHOICE_AUTO_REFUND_JOB_TYPE, dedupeKey: `ticket-choice-auto-refund:${ticket.id}`, payload: { ticketId: ticket.id }, runAt: deadline });
+        const payerMessage = `${await displayName(tx, userId)} left ${match.name}. You paid for their place: choose a match credit or a refund in the app. If you don't choose within 7 days, you're refunded automatically.`;
+        const leaverMessage = 'You left the match. The teammate who paid for your place chooses a match credit or a refund.';
+        await enqueueSeatLeftEmail(tx, { userId: ticket.payerId, ticketId: ticket.id, message: payerMessage });
+        await enqueueSeatLeftEmail(tx, { userId, ticketId: ticket.id, message: leaverMessage });
+        const notifications = await persistNotifications(tx, [
+          { userId, type: 'PLAYER_CANCELLED', title: 'You left the match', message: leaverMessage, targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('ticket', ticket.id, 'left', userId) },
+          { userId: ticket.payerId, type: 'TICKET_CHOICE_REQUIRED', title: 'A player you paid for left', message: payerMessage, targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('ticket', ticket.id, 'left-payer', ticket.payerId) },
+        ]);
+        return { outcome: 'PAYER_CHOOSES' as const, notifications };
+      }
 
       let outcome: MatchTicketOutcome;
       if (ticket.method === 'FREE') outcome = 'NOTHING_DUE';
@@ -78,16 +106,24 @@ export class TicketLeaveService {
         where: { id: ticket.id },
         data: { status: 'CLOSED', closedAt: now, outcome, participantId: null, closedReason: 'Left the match' },
       });
-      const notifications = await persistNotifications(tx, [
+      const drafts = [
         {
           userId,
-          type: 'PLAYER_CANCELLED',
+          type: 'PLAYER_CANCELLED' as const,
           title: 'You left the match',
           message: LEFT_MESSAGE[outcome],
           targetPath: `/matches/${matchId}`,
           dedupeKey: notificationDedupeKey('ticket', ticket.id, 'left', userId),
         },
-      ]);
+      ];
+      // A5: a teammate paid for the place: both the payer and the player hear what happens to the money.
+      if (ticket.payerId !== userId) {
+        const payerMessage = `${await displayName(tx, userId)} left ${match.name}. ${outcome === 'FORFEITED' ? 'It was 24 hours or less before kick-off, so nothing is refunded.' : outcome === 'CREDIT_RETURNED' ? 'Your match credit was returned to you.' : 'Nothing was paid, so nothing is refunded.'}`;
+        await enqueueSeatLeftEmail(tx, { userId: ticket.payerId, ticketId: ticket.id, message: payerMessage });
+        await enqueueSeatLeftEmail(tx, { userId, ticketId: ticket.id, message: LEFT_MESSAGE[outcome] });
+        drafts.push({ userId: ticket.payerId, type: 'PLAYER_CANCELLED' as const, title: 'A player you paid for left', message: payerMessage, targetPath: `/matches/${matchId}`, dedupeKey: notificationDedupeKey('ticket', ticket.id, 'left-payer', ticket.payerId) });
+      }
+      const notifications = await persistNotifications(tx, drafts);
       return { outcome, notifications };
     });
     this.notifications.publishPersistedMany(result.notifications);
@@ -153,3 +189,8 @@ export class TicketLeaveService {
     });
   }
 }
+
+const displayName = async (tx: Prisma.TransactionClient, userId: string) => {
+  const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { username: true, profile: { select: { displayName: true } } } });
+  return user.profile?.displayName ?? user.username;
+};

@@ -1,4 +1,6 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { randomUUID } from 'node:crypto';
 import { MATCH_CREDIT_VALID_YEARS } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
@@ -136,6 +138,7 @@ try {
   assert((await ticketOf(free.id, f)).outcome === 'NOTHING_DUE', 'A free place had something to choose.');
   console.log('Ticket leave smoke passed: more than 24 hours before kick-off a paid place is left for 1 match credit (3 years, ledgered, linked to its ticket) or a refund of the ticket price, a choice is required, a player can rejoin; 24 hours or less gives nothing back and frees the place; nobody leaves after the T-30 lock; a cancellation (safe twice) gives each payer, late leavers included, one alert to choose a credit or a refund within 7 days, then refunds automatically exactly once (never a silent credit); credit-paid places get their credit back and free places owe nothing.');
 } finally {
+  await removeTicketJobsSince(smokeStartedAt);
   const matchFilter = { matchId: { in: matchIds } };
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.providerRefund.deleteMany({ where: { ticket: matchFilter } });

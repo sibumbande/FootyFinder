@@ -48,10 +48,16 @@ describe('TicketLeaveSheet (DEC-021 A2)', () => {
     expect(mocks.leave).toHaveBeenCalledWith(undefined, expect.anything());
   });
 
-  it('a place paid for by a teammate: the credit or refund goes to them', () => {
+  it('a place paid for by a teammate (A5): the player just leaves and the teammate who paid chooses', () => {
     const ticket = { ...context().ticket!, paidByMe: false, payerDisplayName: 'Thabo' };
-    render(<TicketLeaveSheet matchId="m1" context={context({ ticket })} onClose={vi.fn()} onLeft={vi.fn()} />);
-    expect(screen.getByRole('dialog')).toHaveTextContent('Thabo paid for your place, so the credit or refund goes to them.');
+    const onLeft = vi.fn();
+    mocks.leave.mockImplementation((_choice, options: { onSuccess: (result: { outcome: string }) => void }) => options.onSuccess({ outcome: 'PAYER_CHOOSES' }));
+    render(<TicketLeaveSheet matchId="m1" context={context({ ticket })} onClose={vi.fn()} onLeft={onLeft} />);
+    expect(screen.getByTestId('leave-payer-chooses')).toHaveTextContent('Thabo paid for your place, so they choose what comes back');
+    expect(screen.queryByRole('button', { name: /Get 1 match credit/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave match' }));
+    expect(mocks.leave).toHaveBeenCalledWith(undefined, expect.anything());
+    expect(onLeft).toHaveBeenCalledWith('You left the match. Thabo paid for your place, so they choose a match credit or a refund.');
   });
 });
 

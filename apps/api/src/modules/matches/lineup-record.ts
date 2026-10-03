@@ -5,7 +5,8 @@ import type { Prisma } from '../../generated/prisma/client.js';
  * scorers and assisters from, what statistics count and who may review (DEC-017).
  * - Quick Matches and the individuals' side of an "Open to both" team match: every JOINED
  *   participant; a participant holding a formation position is a starter, anyone else a substitute.
- * - A team side: the team's selected starters (including claimed open positions) and substitutes.
+ * - A team side: the team's selected starters (including claimed open positions) and substitutes. DEC-021 D6: on a
+ *   side that pays with match tickets, only players whose place is paid for (a confirmed ticket) are recorded.
  * A player appears once per match. The record is written in the kickoff transaction, once.
  */
 export type LineupEntryDraft = {
@@ -26,7 +27,7 @@ type SelectionSource = {
   user: Named;
   lineupSlot: { slotIndex: number } | null;
 };
-type TeamSideSource = { side: 'HOME' | 'AWAY'; teamId: string | null; selections: SelectionSource[] };
+type TeamSideSource = { side: 'HOME' | 'AWAY'; teamId: string | null; selections: SelectionSource[]; tickets?: Array<{ playerId: string; status: string }> };
 
 const LINEUP_SELECTION_STATUSES = ['SELECTED_STARTER', 'OPEN_SLOT_CLAIMED', 'SELECTED_SUBSTITUTE'] as const;
 const nameOf = (user: Named) => user.profile?.displayName ?? user.username;
@@ -35,8 +36,12 @@ const nameOf = (user: Named) => user.profile?.displayName ?? user.username;
 export function toLineupEntryDrafts(participants: ParticipantSource[], teamSides: TeamSideSource[]): LineupEntryDraft[] {
   const drafts: LineupEntryDraft[] = [];
   for (const teamSide of teamSides) {
+    // A side with ticket records pays per player; a legacy side (before match tickets) has none.
+    const ticketed = Boolean(teamSide.tickets?.length);
+    const paid = new Set(teamSide.tickets?.filter(({ status }) => status === 'CONFIRMED').map(({ playerId }) => playerId));
     for (const selection of teamSide.selections) {
       if (!(LINEUP_SELECTION_STATUSES as readonly string[]).includes(selection.status)) continue;
+      if (ticketed && !paid.has(selection.userId)) continue;
       const starter = Boolean(selection.lineupSlot) || selection.status !== 'SELECTED_SUBSTITUTE';
       drafts.push({
         side: teamSide.side,
@@ -88,6 +93,7 @@ export async function buildLineup(tx: Prisma.TransactionClient, matchId: string)
             where: { status: { in: [...LINEUP_SELECTION_STATUSES] } },
             select: { userId: true, status: true, user: named, lineupSlot: { select: { slotIndex: true } } },
           },
+          tickets: { select: { playerId: true, status: true } },
         },
       },
     },

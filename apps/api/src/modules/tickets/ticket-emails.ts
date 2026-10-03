@@ -11,11 +11,14 @@ export const TICKET_EMAIL_JOB_TYPE = 'TICKET_EMAIL';
  * key) and logged in TicketEmail when sent, so a payment dispute's evidence pack can list them (A8).
  *   RECEIPT              the ticket receipt, straight after a confirmed purchase (A8)
  *   LATE_PAYMENT_REFUND  the payment arrived after the place or the match was gone: full refund (A1.4)
+ *   TEAM_PAYMENT_DUE     T-4h: the team isn't fully paid; what is still needed and by when (A5 / D1)
+ *   SEAT_LEFT            a team player left; the payer and the player both hear what happens to the money (A5)
+ *   WITHDRAWAL_CHOICE    the team that took the other side withdrew: choose a credit or a refund (A5 / A3)
  */
-export type TicketEmailKind = 'RECEIPT' | 'LATE_PAYMENT_REFUND';
-type Payload = { kind: TicketEmailKind; userId: string; checkoutId: string };
+export type TicketEmailKind = 'RECEIPT' | 'LATE_PAYMENT_REFUND' | 'TEAM_PAYMENT_DUE' | 'SEAT_LEFT' | 'WITHDRAWAL_CHOICE';
+type Payload = { kind: TicketEmailKind; userId: string; checkoutId?: string; matchId?: string; ticketId?: string; side?: string; message?: string };
 
-export const enqueueTicketEmail = (tx: Prisma.TransactionClient, input: Payload) =>
+export const enqueueTicketEmail = (tx: Prisma.TransactionClient, input: Payload & { checkoutId: string }) =>
   enqueueDurableJob(tx, {
     type: TICKET_EMAIL_JOB_TYPE,
     dedupeKey: `ticket-email:${input.kind}:${input.checkoutId}:${input.userId}`,
@@ -23,12 +26,67 @@ export const enqueueTicketEmail = (tx: Prisma.TransactionClient, input: Payload)
     runAt: new Date(),
   });
 
+/** D1: the T-4h team payment alert email (one per person, team side and match). */
+export const enqueueTeamPaymentDueEmail = (tx: Prisma.TransactionClient, input: { userId: string; matchId: string; side: string; message: string }) =>
+  enqueueDurableJob(tx, {
+    type: TICKET_EMAIL_JOB_TYPE,
+    dedupeKey: `ticket-email:TEAM_PAYMENT_DUE:${input.matchId}:${input.side}:${input.userId}`,
+    payload: { kind: 'TEAM_PAYMENT_DUE', ...input },
+    runAt: new Date(),
+  });
+
+/** A5: a team player left; the payer and the player are both told (one email each). */
+export const enqueueSeatLeftEmail = (tx: Prisma.TransactionClient, input: { userId: string; ticketId: string; message: string }) =>
+  enqueueDurableJob(tx, {
+    type: TICKET_EMAIL_JOB_TYPE,
+    dedupeKey: `ticket-email:SEAT_LEFT:${input.ticketId}:${input.userId}`,
+    payload: { kind: 'SEAT_LEFT', ...input },
+    runAt: new Date(),
+  });
+
+/** A5: the loading team withdrew; each of its payers chooses a credit or a refund (one email per payer). */
+export const enqueueWithdrawalChoiceEmail = (tx: Prisma.TransactionClient, input: { userId: string; matchId: string; message: string }) =>
+  enqueueDurableJob(tx, {
+    type: TICKET_EMAIL_JOB_TYPE,
+    dedupeKey: `ticket-email:WITHDRAWAL_CHOICE:${input.matchId}:${input.userId}`,
+    payload: { kind: 'WITHDRAWAL_CHOICE', ...input },
+    runAt: new Date(),
+  });
+
 const parse = (payload: unknown): Payload => {
   const record = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : {};
-  if (typeof record.kind !== 'string' || typeof record.userId !== 'string' || typeof record.checkoutId !== 'string')
+  const text = (key: string) => (typeof record[key] === 'string' ? (record[key] as string) : undefined);
+  if (!text('kind') || !text('userId'))
     throw Object.assign(new Error('Invalid ticket email payload.'), { code: 'JOB_PAYLOAD_INVALID' });
-  return { kind: record.kind as TicketEmailKind, userId: record.userId, checkoutId: record.checkoutId };
+  return { kind: text('kind') as TicketEmailKind, userId: text('userId')!, checkoutId: text('checkoutId'), matchId: text('matchId'), ticketId: text('ticketId'), side: text('side'), message: text('message') };
 };
+
+/** The emails that carry a ready-made sentence (deadlines, leaving, a withdrawal), with the match link. */
+async function composeNotice(payload: Payload) {
+  const ticket = payload.ticketId ? await prisma.matchTicket.findUnique({ where: { id: payload.ticketId }, select: { matchId: true, checkoutId: true } }) : null;
+  const matchId = payload.matchId ?? ticket?.matchId;
+  if (!matchId || !payload.message) return null;
+  const match = await prisma.match.findUnique({ where: { id: matchId }, select: { id: true, name: true, startsAt: true, venue: { select: { name: true } } } });
+  if (!match) return null;
+  const link = `${env.CLIENT_URL.replace(/\/$/, '')}/matches/${match.id}`;
+  const subject = payload.kind === 'TEAM_PAYMENT_DUE'
+    ? 'Your team isn’t fully paid yet'
+    : payload.kind === 'SEAT_LEFT'
+      ? 'A player left your FootyFinder team match'
+      : 'A team withdrew: choose a match credit or a refund';
+  const lines = [
+    payload.message,
+    '',
+    `Match: ${match.name}`,
+    `Venue: ${match.venue.name}`,
+    `Kick-off: ${kickoff(match.startsAt)}`,
+    '',
+    ...(payload.kind === 'TEAM_PAYMENT_DUE' ? [`Pay for your team: ${link}?pay=${(payload.side ?? 'home').toLowerCase()}`] : []),
+    ...(payload.kind === 'WITHDRAWAL_CHOICE' ? [`Get a match credit (use it on any match): ${link}?choice=credit`, `Refund to my card / bank: ${link}?choice=refund`] : []),
+    `View the match: ${link}`,
+  ];
+  return { subject, text: lines.join('\n'), matchId: match.id, checkoutId: ticket?.checkoutId ?? null, ticketId: payload.ticketId ?? null };
+}
 
 const kickoff = (date: Date) =>
   new Intl.DateTimeFormat('en-ZA', { timeZone: 'Africa/Johannesburg', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
@@ -36,6 +94,7 @@ const rands = (cents: number) => `R${Math.round(cents / 100).toLocaleString('en-
 const sideName = (side: string) => (side === 'HOME' ? 'Home' : 'Away');
 
 async function compose(payload: Payload) {
+  if (!payload.checkoutId) return null;
   const checkout = await prisma.ticketCheckout.findUnique({
     where: { id: payload.checkoutId },
     include: {
@@ -90,6 +149,13 @@ export async function sendTicketEmail(payload: unknown, emails: EmailProvider) {
   const input = parse(payload);
   const to = (await prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } }))?.email;
   if (!to) return;
+  if (input.kind === 'TEAM_PAYMENT_DUE' || input.kind === 'SEAT_LEFT' || input.kind === 'WITHDRAWAL_CHOICE') {
+    const notice = await composeNotice(input);
+    if (!notice) return;
+    await emails.send({ to, subject: notice.subject, text: notice.text });
+    await prisma.ticketEmail.create({ data: { userId: input.userId, kind: input.kind, subject: notice.subject, matchId: notice.matchId, checkoutId: notice.checkoutId, ticketId: notice.ticketId } });
+    return;
+  }
   const email = await compose(input);
   if (!email) return;
   await emails.send({ to, subject: email.subject, text: email.text });

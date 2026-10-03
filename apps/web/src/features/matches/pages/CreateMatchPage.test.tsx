@@ -3,10 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CREATE_MATCH_DRAFT_KEY, CreateMatchPage } from './CreateMatchPage.js';
 
-const mocks = vi.hoisted(() => ({ mutate: vi.fn(), teams: [] as unknown[], wallet: undefined as unknown }));
+const mocks = vi.hoisted(() => ({ mutate: vi.fn(), teams: [] as unknown[] }));
 
 vi.mock('@/features/teams/hooks/useTeams.js', () => ({ useMyTeams: () => ({ data: mocks.teams }) }));
-vi.mock('@/features/teams/hooks/useTeamWallet.js', () => ({ useTeamWalletSummary: () => ({ data: mocks.wallet, refetch: vi.fn() }) }));
 
 vi.mock('../hooks/useMatches.js', () => ({
   useCreateMatch: () => ({
@@ -41,7 +40,6 @@ afterEach(() => {
   sessionStorage.clear();
   mocks.mutate.mockReset();
   mocks.teams = [];
-  mocks.wallet = undefined;
 });
 
 describe('CreateMatchPage', () => {
@@ -160,14 +158,12 @@ describe('CreateMatchPage', () => {
 describe('CreateMatchPage: team matches (Gate 7 / DEC-019)', () => {
   const slot = '/matches/new?venue=approved-arena&field=f03d12a0-9855-4a03-8948-739bad35e733&format=ELEVEN_A_SIDE&startsAt=2026-10-30T12%3A00%3A00.000Z';
   const team = { id: 'team-1', name: 'Rondebosch FC', viewerRole: 'CAPTAIN', archivedAt: null };
-  const wallet = (availableCents: number) => ({ availableCents, balanceCents: availableCents, heldCents: 0 });
   const continueTimes = (count: number) => {
     for (let index = 0; index < count; index += 1) fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
   };
 
   it('offers "Play as" only to owners/captains, then asks who can take the other side and shows the fee', () => {
     mocks.teams = [team, { id: 'team-2', name: 'Member Only FC', viewerRole: 'MEMBER', archivedAt: null }];
-    mocks.wallet = wallet(150_000);
     render(<MemoryRouter initialEntries={[slot]}><CreateMatchPage /></MemoryRouter>);
     expect(screen.getByRole('button', { name: /Myself \(quick match\)/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Member Only FC/ })).not.toBeInTheDocument();
@@ -181,7 +177,7 @@ describe('CreateMatchPage: team matches (Gate 7 / DEC-019)', () => {
     continueTimes(1);
     expect(screen.getByTestId('team-fee-breakdown')).toHaveTextContent('R880 (11 players) + R240 (3 subs) = R1,120');
     continueTimes(1);
-    expect(screen.getByTestId('team-wallet-check')).toHaveTextContent(/Team wallet available: R1,500/);
+    expect(screen.getByTestId('team-payment-note')).toHaveTextContent('Nothing is paid to publish. Your team pays R1,120 in match tickets once an opponent is found');
     expect(screen.getByTestId('team-go-no-go-notice')).toHaveTextContent(/by 13:30/);
     fireEvent.click(screen.getByRole('button', { name: 'Publish team match' }));
     expect(mocks.mutate).toHaveBeenCalledWith(
@@ -193,17 +189,15 @@ describe('CreateMatchPage: team matches (Gate 7 / DEC-019)', () => {
     );
   });
 
-  it('starts locked to the team from the team page and blocks publishing until the team wallet covers the fee', () => {
+  it('starts locked to the team from the team page and publishes with no money check (DEC-021 D7)', () => {
     mocks.teams = [team];
-    mocks.wallet = wallet(30_000);
     render(<MemoryRouter initialEntries={[`${slot}&playAs=team%3Ateam-1&lock=1`]}><CreateMatchPage /></MemoryRouter>);
     expect(screen.queryByRole('button', { name: /Myself \(quick match\)/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Match name'), { target: { value: 'Derby day' } });
     continueTimes(3);
     fireEvent.click(screen.getByRole('button', { name: /Teams only/ }));
     continueTimes(2);
-    expect(screen.getByTestId('team-wallet-check')).toHaveTextContent('Top up your team wallet to at least R1,120 to publish this match.');
-    expect(screen.getByRole('link', { name: 'Open the team wallet' })).toHaveAttribute('href', '/teams/team-1?tab=wallet');
-    expect(screen.getByRole('button', { name: 'Publish team match' })).toBeDisabled();
+    expect(screen.queryByText(/wallet/i)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Publish team match' })).toBeEnabled();
   });
 });

@@ -10,6 +10,7 @@ import { PaystackClient, PaystackError, type PaystackGateway, type PaystackVerif
 import { evaluateVerification, type SettlementSource } from '../payments/top-up-settlement.service.js';
 import { enqueueTicketEmail } from './ticket-emails.js';
 import { placeTicketInTx } from './ticket-placement.js';
+import { notifyPlayersPaidFor, placeTeamTicketInTx } from './team-ticket-placement.js';
 import { requestTicketRefundInTx } from './ticket-refunds.js';
 
 /** A ticket payment Paystack has not confirmed within this long is closed (and a later success is refunded). */
@@ -25,7 +26,12 @@ const LATE_REASONS: Record<string, string> = {
   OTHER_SIDE_REFUSED: 'A team took that side of the match while you were paying.',
   ALREADY_IN_MATCH: 'You already had a place in this match, so this second payment is refunded.',
   PLAYER_MATCH_OVERLAP: 'You joined another match at the same time while you were paying.',
+  // DEC-021 A5: team places.
+  TEAM_PAYMENTS_CLOSED: 'Team payments closed 2 hours before kick-off, before your payment came through.',
+  TEAM_WITHDRAWN: 'The team withdrew from the match before your payment came through.',
+  NOT_IN_TEAM: 'The player is no longer in the team.',
 };
+const duplicateReasons = new Set(['ALREADY_IN_MATCH', 'SIDE_FULL']);
 const lateReason = (code: string) => LATE_REASONS[code] ?? 'The place was no longer available when your payment came through.';
 
 export type TicketSettlementResult = { status: string; outcome: 'PLACED' | 'REFUNDED' | 'FAIL' | 'WAIT' | 'REVIEW' | 'REPLAYED' };
@@ -103,14 +109,15 @@ export class TicketSettlementService {
           continue;
         }
         if (!['HELD', 'RELEASED'].includes(ticket.status)) continue;
-        const placement = ticket.seat === 'TEAM' ? { placed: false as const, reason: 'TEAM_SEAT' } : await placeTicketInTx(tx, ticket.id, now);
+        const placement = ticket.seat === 'TEAM' ? await placeTeamTicketInTx(tx, ticket.id, now) : await placeTicketInTx(tx, ticket.id, now);
         if (placement.placed) {
           placed += 1;
           notifications.push(...placement.notifications);
           continue;
         }
         const reason = 'reason' in placement ? placement.reason : 'NOT_PLACEABLE';
-        const duplicate = reason === 'ALREADY_IN_MATCH';
+        // A5: a team place already paid for (or no place left) is the "double payment that slips through".
+        const duplicate = ticket.seat === 'TEAM' ? duplicateReasons.has(reason) : reason === 'ALREADY_IN_MATCH';
         const closedReason = lateReason(reason);
         await tx.matchTicket.update({
           where: { id: ticket.id },
@@ -121,6 +128,7 @@ export class TicketSettlementService {
       }
       if (placed) {
         await tx.ticketCheckout.update({ where: { id: checkoutId }, data: { status: 'COMPLETED', completedAt: now } });
+        notifications.push(...(await notifyPlayersPaidFor(tx, checkoutId)));
         await enqueueTicketEmail(tx, { kind: 'RECEIPT', userId: current.userId, checkoutId });
       } else await tx.ticketCheckout.updateMany({ where: { id: checkoutId, status: 'PENDING' }, data: { status: 'EXPIRED' } });
       if (refunded) await enqueueTicketEmail(tx, { kind: 'LATE_PAYMENT_REFUND', userId: current.userId, checkoutId });

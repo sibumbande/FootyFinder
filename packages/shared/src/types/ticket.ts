@@ -10,6 +10,10 @@ export type MatchTicketOutcome =
   | 'NOTHING_DUE'
   | 'LATE_PAYMENT_REFUNDED'
   | 'DUPLICATE_REFUNDED';
+/** Leaving: what happened to the place. PAYER_CHOOSES: a teammate paid, and they choose a credit or a refund. */
+export interface TicketLeaveResult {
+  outcome: MatchTicketOutcome | 'PAYER_CHOOSES';
+}
 export type MatchTicketSeat = 'POSITION' | 'SUBSTITUTE' | 'TEAM';
 export type TicketMethod = 'PAYMENT' | 'CREDIT' | 'FREE';
 
@@ -64,4 +68,39 @@ export interface MatchTicketContext {
 export interface MatchBookingHolds {
   slotIds: string[];
   substitutes: Record<TeamSide, number>;
+}
+
+/** DEC-021 A5: one squad member on a team's payment checklist. */
+export interface TeamPaymentMember {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  /** Picked in the team's lineup for this match (starters and subs are listed first). */
+  lineupRole: 'STARTER' | 'SUBSTITUTE' | null;
+  status: 'PAID' | 'BEING_PAID' | 'UNPAID';
+  /** Who paid (shown as "Paid by Thabo"). */
+  paidByDisplayName?: string;
+  paidByMe?: boolean;
+  isMe: boolean;
+}
+
+/** DEC-021 A5: a team's payment checklist for one match ("11 of 14 paid · R240 still needed"). */
+export interface TeamPaymentRoster {
+  matchId: string;
+  side: TeamSide;
+  teamName: string;
+  /** Places to pay for: the format's starters plus the team's chosen subs. */
+  seats: number;
+  paidSeats: number;
+  placeFeeCents: number;
+  stillNeededCents: number;
+  /** T-4h: the captain is alerted if the team isn't fully paid. T-2h: the fixture is cancelled if it still isn't (D1). */
+  alertAt: string;
+  cutoffAt: string;
+  /** Payments are open (the other side is taken, before the T-2h cutoff, match open). */
+  open: boolean;
+  closedReason?: 'OPPONENT_NOT_FOUND' | 'CUTOFF_PASSED' | 'MATCH_CLOSED';
+  viewerCreditsAvailable: number;
+  viewerCanManage: boolean;
+  members: TeamPaymentMember[];
 }

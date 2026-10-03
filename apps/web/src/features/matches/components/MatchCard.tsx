@@ -15,7 +15,7 @@ const feeLabel = (match: Pick<Match, 'otherSideMode' | 'otherSideTakenBy' | 'fee
   match.otherSideMode
     ? match.otherSideMode === 'OPEN' && match.otherSideTakenBy !== 'TEAM'
       ? `Players ${formatCurrency(match.feeCents, match.currency)} each`
-      : 'Team fee from the team wallet'
+      : 'Team fee: R80 match tickets'
     : match.feeCents === 0 ? 'Free' : formatCurrency(match.feeCents, match.currency);
 
 type MatchCardViewProps = {

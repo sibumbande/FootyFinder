@@ -1,4 +1,4 @@
-import type { TicketCheckoutInput, TicketCheckoutResult } from '@footy-finder/shared';
+import type { TeamSide, TeamTicketCheckoutInput, TicketCheckoutInput, TicketCheckoutResult } from '@footy-finder/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ticketsClient } from '@/api/client.js';
 import { matchKey } from '@/features/matches/hooks/useMatches.js';
@@ -27,6 +27,16 @@ export const useTicketContext = (matchId: string, enabled = true) =>
     enabled: enabled && Boolean(matchId),
   });
 
+export const teamRosterKey = (matchId: string, side: TeamSide) => [...matchKey(matchId), 'team-tickets', side] as const;
+
+/** DEC-021 A5: the viewer's team checklist for one match ("Paid by Thabo", "11 of 14 paid · R240 still needed"). */
+export const useTeamPaymentRoster = (matchId: string, side: TeamSide | null | undefined) =>
+  useQuery({
+    queryKey: teamRosterKey(matchId, side ?? 'HOME'),
+    queryFn: async () => (await ticketsClient.teamRoster(matchId, side!)).data,
+    enabled: Boolean(matchId && side),
+  });
+
 export type TicketPurchase = { kind: 'confirmed'; result: TicketCheckoutResult } | { kind: 'redirected' };
 
 /**
@@ -36,19 +46,31 @@ export type TicketPurchase = { kind: 'confirmed'; result: TicketCheckoutResult }
 export function useBuyTicket(matchId: string) {
   const cache = useQueryClient();
   return useMutation({
-    mutationFn: async ({ input, idempotencyKey }: { input: TicketCheckoutInput; idempotencyKey: string }): Promise<TicketPurchase> => {
-      const { data } = await ticketsClient.checkout(matchId, input, idempotencyKey);
-      if (data.state === 'CONFIRMED') return { kind: 'confirmed', result: data };
-      if (data.state === 'PROCESSING' && data.authorizationUrl) {
-        if (!isPaystackCheckoutUrl(data.authorizationUrl)) throw new Error('Checkout could not be started. Please try again.');
-        checkoutNavigation.go(data.authorizationUrl);
-        return { kind: 'redirected' };
-      }
-      throw new Error('Checkout could not be started. Please try again.');
-    },
+    mutationFn: async ({ input, idempotencyKey }: { input: TicketCheckoutInput; idempotencyKey: string }): Promise<TicketPurchase> =>
+      settleCheckout((await ticketsClient.checkout(matchId, input, idempotencyKey)).data),
     onSettled: () => {
       void cache.invalidateQueries({ queryKey: matchKey(matchId) });
     },
+  });
+}
+
+const settleCheckout = (data: TicketCheckoutResult): TicketPurchase => {
+  if (data.state === 'CONFIRMED') return { kind: 'confirmed', result: data };
+  if (data.state === 'PROCESSING' && data.authorizationUrl) {
+    if (!isPaystackCheckoutUrl(data.authorizationUrl)) throw new Error('Checkout could not be started. Please try again.');
+    checkoutNavigation.go(data.authorizationUrl);
+    return { kind: 'redirected' };
+  }
+  throw new Error('Checkout could not be started. Please try again.');
+};
+
+/** DEC-021 A5: pay for named teammates in one payment (or use the viewer's own match credit for their own seat). */
+export function usePayForTeammates(matchId: string, side: TeamSide) {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ input, idempotencyKey }: { input: TeamTicketCheckoutInput; idempotencyKey: string }) =>
+      settleCheckout((await ticketsClient.teamCheckout(matchId, side, input, idempotencyKey)).data),
+    onSettled: () => void cache.invalidateQueries({ queryKey: matchKey(matchId) }),
   });
 }
 

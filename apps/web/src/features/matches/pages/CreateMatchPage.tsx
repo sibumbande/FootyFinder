@@ -3,6 +3,7 @@ import {
   formatRandAmount,
   formatTeamFeeBreakdown,
   getGoNoGoAt,
+  teamPaymentCutoffAt,
   getMaxMatchParticipants,
   getTeamFee,
   MATCH_FORMAT_CONFIG,
@@ -18,13 +19,12 @@ import {
   type TeamMatchOtherSideMode,
 } from '@footy-finder/shared';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { formatRands } from '@/utils/format-currency.js';
 import { useMyTeams } from '@/features/teams/hooks/useTeams.js';
-import { useTeamWalletSummary } from '@/features/teams/hooks/useTeamWallet.js';
 import { useCreateMatch } from '../hooks/useMatches.js';
 import { useVenue } from '@/features/venues/hooks/useVenues.js';
 import { formatClock, rands } from '../utils/go-no-go-format.js';
@@ -74,15 +74,16 @@ function GoNoGoNotice({ startsAt }: { startsAt: string }) {
   );
 }
 
-/** Gate 7 / DEC-019: the go/no-go rule for a team match, in the words the Terms use. */
+/** Gate 7 / DEC-021 D1: the go/no-go rule for a team match (T-2h payment cutoff, T-30 check), in the words the Terms use. */
 export function TeamGoNoGoNotice({ startsAt, mode }: { startsAt: string; mode: TeamMatchOtherSideMode | null }) {
   if (!startsAt || Number.isNaN(new Date(startsAt).getTime()) || !mode) return null;
   const at = formatClock(getGoNoGoAt(startsAt).toISOString());
+  const cutoff = formatClock(teamPaymentCutoffAt(new Date(startsAt)).toISOString());
   return (
     <p data-testid="team-go-no-go-notice" className="rounded-2xl border border-warning-300 bg-warning-50 p-4 text-sm font-semibold text-content">
       {mode === 'TEAMS_ONLY'
-        ? `Heads up: this match goes ahead only if both teams' fill meters are full by ${at} (30 minutes before kickoff). Otherwise it's cancelled and all held money goes back to each team wallet. If no team has taken the other side ${TEAM_MATCH_UNMATCHED_CANCEL_HOURS} hours before kickoff, it's cancelled then. A FootyFinder referee must also be assigned by ${at}.`
-        : `Heads up: this match goes ahead only if, by ${at} (30 minutes before kickoff), your team's fill meter is full and the other side is ready: either the other team's meter is full, or players have claimed every starting position. Otherwise it's cancelled, held money goes back to each team wallet and every player's ${rands(MATCH_FEE_CENTS)} is refunded. A FootyFinder referee must also be assigned by ${at}.`}
+        ? `Heads up: this match goes ahead only if both teams are fully paid by ${cutoff} (2 hours before kickoff). Otherwise it's cancelled and everyone who paid chooses a match credit or a full refund. If no team has taken the other side ${TEAM_MATCH_UNMATCHED_CANCEL_HOURS} hours before kickoff, it's cancelled then. A FootyFinder referee must also be assigned by ${at} (30 minutes before kickoff).`
+        : `Heads up: this match goes ahead only if your team is fully paid by ${cutoff} (2 hours before kickoff) and the other side is ready: either the other team is fully paid by ${cutoff}, or players have claimed every starting position by ${at} (30 minutes before kickoff). Otherwise it's cancelled and everyone who paid chooses a match credit or a full refund. A FootyFinder referee must also be assigned by ${at}.`}
     </p>
   );
 }
@@ -148,19 +149,12 @@ export function CreateMatchPage() {
   const selectedField = venueQuery.data?.venue.fields.find((item) => item.id === fieldId);
   const navigate = useNavigate();
   const creation = useCreateMatch();
-  const teamWallet = useTeamWalletSummary(playAsTeamId ?? '', teamMode);
   const matchFormat = teamMode ? (selectedFormat ?? 'FIVE_A_SIDE') : format;
   const config = MATCH_FORMAT_CONFIG[matchFormat];
   const teamFee = getTeamFee(matchFormat, teamSubs);
-  const walletShort = teamMode && teamWallet.data ? teamWallet.data.availableCents < teamFee.totalCents : false;
   const showPlayAs = !playAsLocked && manageableTeams.length > 0;
   const steps: StepKey[] = [...(showPlayAs ? (['playAs'] as const) : []), ...(teamMode ? TEAM_STEPS : QUICK_STEPS)];
   const current = steps[Math.min(step, steps.length - 1)]!;
-  // Re-check the team wallet each time the review opens (members may have just topped it up).
-  const refetchTeamWallet = teamWallet.refetch;
-  useEffect(() => {
-    if (teamMode && current === 'review') void refetchTeamWallet();
-  }, [current, teamMode, refetchTeamWallet]);
   const pickSlot = (slot: { venue: string; fieldId: string; format: MatchFormat; startsAt: string }) => {
     const next = new URLSearchParams(search);
     next.set('venue', slot.venue);
@@ -216,7 +210,7 @@ export function CreateMatchPage() {
         </h1>
         <p className="mt-2 text-content-muted">
           {teamMode
-            ? 'Team matches are always public. Your team pays R80 for every starting position plus every sub you bring, from the team wallet.'
+            ? 'Team matches are always public. Your team pays R80 for every starting position plus every sub you bring, paid as match tickets once an opponent is found.'
             : 'Choose the format, squad rules, privacy, venue and schedule. Every player pays a fixed R80 to join.'}
         </p>
       </div>
@@ -245,7 +239,7 @@ export function CreateMatchPage() {
               {manageableTeams.map((team) => (
                 <Choice key={team.id} selected={playAsTeamId === team.id} onClick={() => choosePlayAs(team.id)}>
                   <strong className="text-lg text-content-strong">My team {team.name}</strong>
-                  <span className="mt-2 block text-sm text-content-muted">A public team match paid from the team wallet.</span>
+                  <span className="mt-2 block text-sm text-content-muted">A public team match: every player’s place is a match ticket.</span>
                 </Choice>
               ))}
             </div>
@@ -464,8 +458,8 @@ export function CreateMatchPage() {
               {formatTeamFeeBreakdown(teamFee)}
             </p>
             <p className="text-sm text-content-muted">
-              Nothing is taken now. Once the other side is taken, your fill meter starts at {formatRandAmount(0)} / {formatRandAmount(teamFee.totalCents)} and a captain fills it from the team wallet. The money is held, and taken only if the match goes ahead.
-              {otherSideMode === 'OPEN' && ' Individual players on the other side pay R80 each from their own wallets.'}
+              Nothing is paid now. Once the other side is taken, your squad pays {formatRandAmount(teamFee.placeFeeCents)} per player as match tickets. If your team isn’t fully paid 2 hours before kick-off, the match is cancelled and everyone who paid chooses a match credit or a full refund.
+              {otherSideMode === 'OPEN' && ' Individual players on the other side buy their own match tickets.'}
             </p>
           </Step>
         )}
@@ -513,17 +507,13 @@ export function CreateMatchPage() {
               {!teamMode && <Summary label="Player fee" value={`${formatRands(MATCH_FEE_CENTS)} per player (fixed)`} />}
             </dl>
             {teamMode ? (
-              <div data-testid="team-wallet-check" className={`rounded-2xl border p-4 text-sm font-semibold ${walletShort ? 'border-danger-200 bg-danger-50 text-danger-700' : 'border-brand-200 bg-brand-50 text-brand-700'}`}>
-                {teamWallet.data
-                  ? walletShort
-                    ? <>Top up your team wallet to at least {formatRandAmount(teamFee.totalCents)} to publish this match. Available now: {formatRandAmount(teamWallet.data.availableCents)}. <Link className="underline" to={`/teams/${playAsTeamId}?tab=wallet`} target="_blank" rel="noreferrer">Open the team wallet</Link>{' '}<button type="button" className="font-bold underline" onClick={() => void teamWallet.refetch()}>Check again</button></>
-                    : <>Team wallet available: {formatRandAmount(teamWallet.data.availableCents)} ✓ Nothing is taken until the match goes ahead.</>
-                  : 'Checking the team wallet…'}
+              <div data-testid="team-payment-note" className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm font-semibold text-brand-700">
+                Nothing is paid to publish. Your team pays {formatRandAmount(teamFee.totalCents)} in match tickets once an opponent is found, by 2 hours before kick-off.
               </div>
             ) : (
               <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700">
                 <strong>You remain host-only after creation.</strong> Hosting does not consume
-                capacity or charge your wallet. Join Home or Away from the lobby if you also want to
+                capacity or cost anything. Join Home or Away from the lobby if you also want to
                 play.
               </div>
             )}
@@ -544,7 +534,7 @@ export function CreateMatchPage() {
               Continue
             </Button>
           ) : (
-            <Button disabled={!selectedField || !startsAt || walletShort} loading={creation.isPending} onClick={submit}>
+            <Button disabled={!selectedField || !startsAt} loading={creation.isPending} onClick={submit}>
               {teamMode ? 'Publish team match' : 'Create match'}
             </Button>
           )}

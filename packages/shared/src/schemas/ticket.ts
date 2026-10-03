@@ -23,3 +23,14 @@ export const ticketLeaveSchema = z.object({ choice: z.enum(['CREDIT', 'REFUND'])
 export const ticketChoiceSchema = z.object({ choice: z.enum(['CREDIT', 'REFUND']), ticketIds: z.array(z.string().uuid()).max(30).optional() });
 export type TicketLeaveInput = z.infer<typeof ticketLeaveSchema>;
 export type TicketChoiceInput = z.infer<typeof ticketChoiceSchema>;
+
+/**
+ * DEC-021 A5: a squad member pays for named teammates (themselves included). A match credit can only pay for the
+ * payer's own seat, so a credit checkout names exactly the payer.
+ */
+export const teamTicketCheckoutSchema = z.object({
+  playerIds: z.array(z.string().uuid()).min(1).max(30),
+  method: z.enum(['PAYMENT', 'CREDIT']).default('PAYMENT'),
+  acceptPolicy: z.literal(true, { errorMap: () => ({ message: 'Tick "I understand the cancellation policy" to continue.' }) }),
+});
+export type TeamTicketCheckoutInput = z.infer<typeof teamTicketCheckoutSchema>;

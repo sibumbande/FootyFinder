@@ -1,4 +1,6 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
 import type { CreateMatchInput } from '@footy-finder/shared';
@@ -9,7 +11,7 @@ import { MATCH_CANCELLED_EMAIL_JOB_TYPE } from '../src/modules/matches/match-can
 import { sendMatchCancelledEmail } from '../src/modules/matches/match-cancelled-email.jobs.js';
 import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
-import { TeamMatchMetersService } from '../src/modules/team-matches/team-match-meters.js';
+import { TeamTicketsService } from '../src/modules/tickets/team-tickets.service.js';
 import { TeamMatchesService } from '../src/modules/team-matches/team-matches.service.js';
 import { assert, rejectsWith, teamMatchWorld } from './team-match-fixtures.js';
 
@@ -25,7 +27,8 @@ const referee = refereeFixture(`ref-${world.marker}`);
 const matches = new MatchesService();
 const repository = new MatchesRepository();
 const teamMatches = new TeamMatchesService();
-const meters = new TeamMatchMetersService();
+// DEC-021: team places are paid as match tickets (the demo operator confirms instantly).
+const teamTickets = new TeamTicketsService(undefined, undefined, { demo: () => true, termsVersion: async () => '2.4' });
 const cancel = new AdminMatchCancelService();
 const emails = new TestEmailProvider();
 let keyIndex = 0;
@@ -36,7 +39,7 @@ const TEAM_SENTENCE = "Your team's fee has been returned to your team wallet.";
 const balance = async (userId: string) => (await prisma.walletAccount.findUniqueOrThrow({ where: { userId } })).balanceCents;
 const teamBalance = async (teamId: string) => (await prisma.teamWalletAccount.findUniqueOrThrow({ where: { teamId } })).balanceCents;
 const notice = (matchId: string, userId: string) =>
-  prisma.notification.findMany({ where: { userId, type: 'MATCH_CANCELLED', targetPath: { contains: matchId } } });
+  prisma.notification.findMany({ where: { userId, type: { in: ['MATCH_CANCELLED', 'TICKET_CHOICE_REQUIRED'] }, targetPath: { contains: matchId } } });
 
 async function quickMatch(hostId: string) {
   const input: CreateMatchInput = {
@@ -130,23 +133,21 @@ async function main() {
   await cancel.cancel(late.id, admin.id, { reason: 'Floodlights failed' }, world.marker, new Date(startsAt.getTime() - 10 * 60_000));
   assert(await balance(latePlayer.id) === lateBefore, 'A confirmed quick match cancelled after T-30 did not refund the player.');
 
-  // 3. Team match ("Teams only") before T-30: the home team's held fee goes back; the away team, which
-  //    held nothing, is not told about a fee.
+  // 3. Team match ("Teams only") before T-30: the captain who paid for their own place chooses a match credit or a
+  //    refund (DEC-021 A3); the owner, who paid nothing, and the away team are not told about money.
   const home = await newTeam('home');
   const away = await newTeam('away');
   const tm = await teamMatch(home, 'TEAMS_ONLY');
   await teamMatches.loadTeam(tm.id, away.owner.id, { teamId: away.team.id, substituteCount: 0 });
-  const homeBefore = await teamBalance(home.team.id);
-  await meters.fill(tm.id, 'HOME', home.captain.id, 20_000, key());
+  await teamTickets.checkout(tm.id, 'HOME', home.captain.id, { playerIds: [home.captain.id], method: 'PAYMENT', acceptPolicy: true }, key());
   await cancel.cancel(tm.id, admin.id, { reason: 'Venue closed by the city' }, world.marker);
-  assert(await teamBalance(home.team.id) === homeBefore, 'The home team wallet did not get its held fee back.');
-  assert(await prisma.teamWalletHold.count({ where: { matchId: tm.id, status: 'ACTIVE' } }) === 0, 'Team money is still held.');
+  assert((await prisma.matchTicket.findFirstOrThrow({ where: { matchId: tm.id, payerId: home.captain.id } })).status === 'CHOICE_PENDING', 'The paid team place was not given the credit-or-refund choice.');
   const tmEmails = await sendEmails(tm.id);
-  for (const userId of [home.owner.id, home.captain.id]) {
-    const [inApp] = await notice(tm.id, userId);
-    assert(inApp?.message.includes(SENTENCE) && inApp.message.includes(TEAM_SENTENCE), `Wrong home team notice: ${inApp?.message}`);
-    assert(tmEmails.get(userId)?.includes(TEAM_SENTENCE), 'A home team member was not emailed about the fee.');
-  }
+  const [captainNotice] = await notice(tm.id, home.captain.id);
+  assert(captainNotice?.message.includes(SENTENCE) && captainNotice.message.includes('choose 1 match credit or a full refund') && !captainNotice.message.includes(TEAM_SENTENCE), `Wrong paying captain notice: ${captainNotice?.message}`);
+  assert(tmEmails.get(home.captain.id)?.includes('choice=refund'), 'The paying captain was not emailed both choices.');
+  const [ownerNotice] = await notice(tm.id, home.owner.id);
+  assert(ownerNotice?.message.includes(SENTENCE) && !/R\d/.test(ownerNotice.message), `The owner was told about money they didn't pay: ${ownerNotice?.message}`);
   for (const userId of [away.owner.id, away.captain.id]) {
     const [inApp] = await notice(tm.id, userId);
     assert(inApp?.message.includes(SENTENCE) && !inApp.message.includes('fee') && !/R\d/.test(inApp.message),`The away team was told about money it didn't pay: ${inApp?.message}`);
@@ -172,13 +173,20 @@ async function main() {
 
   const issues = await world.ourIssues();
   assert(issues.length === 0, `Reconciliation issues: ${JSON.stringify(issues)}`);
-  console.log('Admin match cancel smoke passed: quick match refunds once (also between T-30 and kick-off), audited reason kept from players, host/player/referee/team notices and emails with the fixed sentence, team fee returned only to teams that held money, individuals refunded, refused after kick-off and for team matches from T-30.');
+  console.log('Admin match cancel smoke passed: quick match refunds once (also between T-30 and kick-off), audited reason kept from players, host/player/referee/team notices and emails with the fixed sentence, a paying team member chooses a match credit or a refund while others hear nothing about money, individuals refunded, refused after kick-off and for team matches from T-30.');
 }
 
 try {
   await main();
 } finally {
+  await removeTicketJobsSince(smokeStartedAt);
   await referee.cleanupJobs(world.matchIds);
+  // DEC-021: ticket rows for these matches (refunds first; tickets and checkouts restrict match deletion).
+  const checkouts = await prisma.ticketCheckout.findMany({ where: { matchId: { in: world.matchIds } }, select: { providerPaymentId: true } });
+  await prisma.providerRefund.deleteMany({ where: { ticket: { matchId: { in: world.matchIds } } } });
+  await prisma.matchTicket.deleteMany({ where: { matchId: { in: world.matchIds } } });
+  await prisma.ticketCheckout.deleteMany({ where: { matchId: { in: world.matchIds } } });
+  await prisma.providerPayment.deleteMany({ where: { id: { in: checkouts.flatMap(({ providerPaymentId }) => (providerPaymentId ? [providerPaymentId] : [])) } } });
   await world.cleanup();
   await referee.cleanup();
   await prisma.$disconnect();

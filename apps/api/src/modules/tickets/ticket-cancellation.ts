@@ -23,7 +23,7 @@ export type TicketCancellationOutcome = {
  * - Free (R0) tickets: nothing is due.
  * - Places still being paid for: released (a payment that arrives later is refunded in full, A1.4).
  */
-export async function settleTicketsOnCancellationInTx(tx: Tx, matchId: string, now: Date): Promise<TicketCancellationOutcome> {
+export async function settleTicketsOnCancellationInTx(tx: Tx, matchId: string, now: Date, scope: { matchTeamId?: string } = {}): Promise<TicketCancellationOutcome> {
   const byPayer: TicketCancellationOutcome['byPayer'] = new Map();
   const add = (payerId: string, change: { choiceSeats?: number; choiceCents?: number; creditsReturned?: number }) => {
     const current = byPayer.get(payerId) ?? { choiceSeats: 0, choiceCents: 0, creditsReturned: 0 };
@@ -33,9 +33,10 @@ export async function settleTicketsOnCancellationInTx(tx: Tx, matchId: string, n
       creditsReturned: current.creditsReturned + (change.creditsReturned ?? 0),
     });
   };
-  await tx.matchTicket.updateMany({ where: { matchId, status: 'HELD' }, data: { status: 'RELEASED', releasedAt: now } });
+  const where = { matchId, ...(scope.matchTeamId ? { matchTeamId: scope.matchTeamId } : {}) };
+  await tx.matchTicket.updateMany({ where: { ...where, status: 'HELD' }, data: { status: 'RELEASED', releasedAt: now } });
   const tickets = await tx.matchTicket.findMany({
-    where: { matchId, OR: [{ status: 'CONFIRMED' }, { status: 'CLOSED', outcome: 'FORFEITED' }] },
+    where: { ...where, OR: [{ status: 'CONFIRMED' }, { status: 'CLOSED', outcome: 'FORFEITED' }] },
     orderBy: { createdAt: 'asc' },
   });
   const deadline = ticketChoiceDeadline(now);

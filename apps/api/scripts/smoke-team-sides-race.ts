@@ -120,15 +120,10 @@ async function main() {
   const loaderOwner = loadedTeam.teamId === teamA.id ? awayA : awayB;
   const otherOwner = loadedTeam.teamId === teamA.id ? awayB : awayA;
   const otherTeam = loadedTeam.teamId === teamA.id ? teamB : teamA;
-  if (loadedTeam.teamId === teamB.id) await world.contribute(teamB.id, awayB.id, 70_000, 'away-b');
-  const held = await serializableTransaction((tx) => teamWallets.createHold(tx, {
-    teamId: loadedTeam.teamId!, matchId: teamsOnly.id, side: 'AWAY', amountCents: 10_000,
-    idempotencyKey: `${world.marker}:away-hold`, createdByUserId: loaderOwner.id,
-  }));
+  // (A withdrawing team's paid places get the credit-or-refund choice: smoke:team-tickets.)
   assert(await rejectsWith(() => teamMatches.withdrawTeam(teamsOnly.id, duel.owner.id), 'TEAM_FORBIDDEN'), 'The home owner withdrew the other team.');
   const withdrawn = await teamMatches.withdrawTeam(teamsOnly.id, loaderOwner.id);
-  assert(withdrawn.releasedCents === 10_000, 'Withdrawing did not release the team\'s held money.');
-  assert((await prisma.teamWalletHold.findUniqueOrThrow({ where: { id: held.hold.id } })).status === 'RELEASED', 'The away hold is still active.');
+  assert(withdrawn.withdrawn, 'The team did not withdraw.');
   assert(await rejectsWith(() => teamMatches.withdrawTeam(teamsOnly.id, loaderOwner.id), 'OTHER_SIDE_NOT_TEAM'), 'A team withdrew twice.');
   state = await side(teamsOnly.id);
   assert(state.otherSideTakenBy === null && state.teamSides.length === 0, 'The side did not reopen after the withdrawal.');

@@ -14,7 +14,6 @@ import type {
   JoinMatchInput,
   LobbyMessage,
   Match,
-  TeamMeterView,
   MatchParticipant,
   PublicMatchPreview,
   ParticipantCancellationStatus,
@@ -97,18 +96,10 @@ export const matchesApi = (client: ApiClient) => ({
     client.request<{ data: Match }>(`/matches/${id}/other-side/team`, { method: 'POST', body: JSON.stringify(input) }),
   /** Gate 7 / N5: the team that took the other side withdraws itself before T-30. */
   withdrawTeam: (id: string) =>
-    client.request<{ data: { releasedCents: number } }>(`/matches/${id}/other-side/team/withdraw`, { method: 'POST' }),
-  /** Gate 7 / DEC-019: a team's own fill meter, filling it from the team wallet, and its subs. */
-  teamMeter: (id: string, side: 'HOME' | 'AWAY') =>
-    client.request<{ data: TeamMeterView }>(`/matches/${id}/team-sides/${side}/meter`),
-  fillTeamMeter: (id: string, side: 'HOME' | 'AWAY', amountCents: number | undefined, idempotencyKey: string) =>
-    client.request<{ data: TeamMeterView }>(`/matches/${id}/team-sides/${side}/meter/fill`, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify(amountCents ? { amountCents } : {}),
-    }),
+    client.request<{ data: { withdrawn: boolean } }>(`/matches/${id}/other-side/team/withdraw`, { method: 'POST' }),
+  /** DEC-021 D1: a team's subs (until the T-2h payment cutoff; never below the places already paid for). */
   changeTeamSubstitutes: (id: string, side: 'HOME' | 'AWAY', substituteCount: number) =>
-    client.request<{ data: TeamMeterView & { releasedCents: number } }>(`/matches/${id}/team-sides/${side}/substitutes`, {
+    client.request<{ data: { teamId: string; substituteCount: number; teamFeeCents: number } }>(`/matches/${id}/team-sides/${side}/substitutes`, {
       method: 'PATCH',
       body: JSON.stringify({ substituteCount }),
     }),

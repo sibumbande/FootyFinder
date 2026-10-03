@@ -1,4 +1,6 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { randomUUID } from 'node:crypto';
 import { getMaxParticipantsPerTeam } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
@@ -230,6 +232,7 @@ try {
 
   console.log('Tickets smoke passed: a paid place is held for 10 minutes (Being booked, nobody else can buy or claim it, the lobby never says who), placed only once paid, one checkout per double tap, one hold per raced position, released by the job when unpaid (safe twice, never early), the policy acceptance is recorded with Terms version, IP and browser, the payment is a ticket payment (no wallet), free matches give R0 tickets with the promotions ledger unchanged, full sides, the lineup lock and payment disputes refuse a purchase, the webhook, status check and expiry job place a paid player exactly once in any order (one receipt), a late payment is placed if the position is still free and otherwise refunded in full to the original method (never a credit, sent to Paystack once, with an email saying why), sent emails are logged, and an abandoned checkout releases the place.');
 } finally {
+  await removeTicketJobsSince(smokeStartedAt);
   const checkoutIds = (await prisma.ticketCheckout.findMany({ where: { matchId: { in: matchIds } }, select: { id: true, providerPaymentId: true } }));
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.paymentWebhookEvent.deleteMany({ where: { id: { in: webhookIds } } });

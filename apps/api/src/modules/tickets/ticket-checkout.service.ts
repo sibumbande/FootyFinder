@@ -186,10 +186,11 @@ export class TicketCheckoutService {
   }
 
   /**
-   * Asks Paystack for the hosted checkout page. One Paystack transaction = one ticket, with the match facts in its
-   * metadata and on the customer's receipt ("FootyFinder match ticket: <venue>, <date time>", A1.5).
+   * Asks Paystack for the hosted checkout page. One Paystack transaction = one ticket (A1.5), or, for a team, the
+   * named teammates' tickets (A5), with the match facts in its metadata and on the customer's receipt
+   * ("FootyFinder match ticket: <venue>, <date time>").
    */
-  private async initializePaystack(checkoutId: string, userId: string): Promise<TicketCheckoutResult> {
+  async initializePaystack(checkoutId: string, userId: string): Promise<TicketCheckoutResult> {
     const checkout = await prisma.ticketCheckout.findUniqueOrThrow({
       where: { id: checkoutId },
       include: { ...checkoutInclude, match: { select: { id: true, startsAt: true, venue: { select: { name: true } } } } },
@@ -200,7 +201,8 @@ export class TicketCheckoutService {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
     const kickoff = new Intl.DateTimeFormat('en-ZA', { timeZone: 'Africa/Johannesburg', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(checkout.match.startsAt);
     const ticket = checkout.tickets[0]!;
-    const description = `FootyFinder match ticket: ${checkout.match.venue.name}, ${kickoff}`;
+    const count = checkout.tickets.length;
+    const description = `FootyFinder match ticket${count > 1 ? `s (${count} players)` : ''}: ${checkout.match.venue.name}, ${kickoff}`;
     try {
       const started = await this.gateway.initialize({
         email: user.email,
@@ -211,8 +213,8 @@ export class TicketCheckoutService {
           providerPaymentId: payment.id,
           checkoutId: checkout.id,
           matchId: checkout.matchId,
-          ticketId: ticket.id,
-          positionId: ticket.slotId ?? 'substitute',
+          ticketId: count === 1 ? ticket.id : checkout.tickets.map(({ id }) => id).join(','),
+          positionId: ticket.seat === 'TEAM' ? 'team' : ticket.slotId ?? 'substitute',
           venue: checkout.match.venue.name,
           kickoff: checkout.match.startsAt.toISOString(),
           custom_fields: [{ display_name: 'Item', variable_name: 'item', value: description }],

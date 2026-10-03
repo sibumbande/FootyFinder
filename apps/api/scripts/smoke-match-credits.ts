@@ -1,4 +1,6 @@
 import './assert-disposable-test-database.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+const smokeStartedAt = new Date();
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
@@ -93,6 +95,7 @@ try {
   assert((await codeOf(() => buy.start(m2.id, c, withCredit(), randomUUID()))) === 'NO_MATCH_CREDIT', 'An expired credit was usable.');
   console.log('Match credits smoke passed: 1 credit = 1 ticket placed without any payment, oldest credit first, the last credit used exactly once when two checkouts race, free matches never spend one, a disputed payment blocks credits, leaving a credit-paid place returns the credit (never cash), credits expire after 3 years once with a ledger entry, and every use is ledgered against its ticket.');
 } finally {
+  await removeTicketJobsSince(smokeStartedAt);
   // Credits and their ledger are append-only, so the credit holders, their tickets and these matches stay (marked) in
   // the disposable database. Jobs are removed so later smokes do not run them.
   await prisma.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });

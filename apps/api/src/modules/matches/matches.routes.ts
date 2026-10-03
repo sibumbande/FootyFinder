@@ -31,6 +31,9 @@ matchesRouter.post('/:id/other-side/team/withdraw', teamMatches.withdrawTeam);
 matchesRouter.get('/:id/team-sides/:side/meter', teamMatches.meter);
 matchesRouter.post('/:id/team-sides/:side/meter/fill', costlyMutationRateLimit, teamMatches.fillMeter);
 matchesRouter.patch('/:id/team-sides/:side/substitutes', teamMatches.changeSubstitutes);
+// DEC-021 A5: a team's payment checklist, and paying for named teammates.
+matchesRouter.get('/:id/team-sides/:side/tickets', teamMatches.paymentRoster);
+matchesRouter.post('/:id/team-sides/:side/tickets/checkout', costlyMutationRateLimit, teamMatches.payForTeammates);
 matchesRouter.get('/:id/cancellation-quote', controller.cancellationQuote);
 matchesRouter.get('/:id/cancellation-status', controller.cancellationStatus);
 matchesRouter.post('/:id/leave', controller.leave);

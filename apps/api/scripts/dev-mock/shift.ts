@@ -12,7 +12,8 @@ import {
   noOpponentWarningAt,
   unmatchedCancelAt,
 } from '../../src/modules/team-matches/team-match-jobs.js';
-import { TEAM_MATCH_GO_NO_GO_JOB_TYPE, TEAM_METER_REMINDER_JOB_TYPE } from '../../src/modules/team-matches/team-match-meters.js';
+import { TEAM_MATCH_GO_NO_GO_JOB_TYPE, TEAM_METER_REMINDER_JOB_TYPE, TEAM_PAYMENT_ALERT_JOB_TYPE, TEAM_PAYMENT_CUTOFF_JOB_TYPE } from '../../src/modules/team-matches/team-match-meters.js';
+import { teamPaymentAlertAt, teamPaymentCutoffAt } from '@footy-finder/shared';
 import { DEV_SEED, DEV_SEED_BATCH_LABEL, isDevSeedMatchName } from './world.js';
 
 /**
@@ -30,6 +31,11 @@ export function kickoffRelativeRunAt(type: string, dedupeKey: string, startsAt: 
       return getFillReminderAt(startsAt);
     case TEAM_MATCH_NO_OPPONENT_WARNING_JOB_TYPE:
       return noOpponentWarningAt(startsAt);
+    // DEC-021 D1: the team payment alert (T-4h) and cutoff (T-2h).
+    case TEAM_PAYMENT_ALERT_JOB_TYPE:
+      return teamPaymentAlertAt(startsAt);
+    case TEAM_PAYMENT_CUTOFF_JOB_TYPE:
+      return teamPaymentCutoffAt(startsAt);
     case TEAM_MATCH_UNMATCHED_CANCEL_JOB_TYPE: {
       // After a withdrawal the app schedules max(now, kickoff - 24h); the first one is kickoff - 24h.
       const at = unmatchedCancelAt(startsAt);

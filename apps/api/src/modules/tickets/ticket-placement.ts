@@ -152,6 +152,11 @@ export async function placeTicketInTx(tx: Tx, ticketId: string, now: Date): Prom
     throw error;
   }
 
+  // Gate 7: the side is marked as taken by individuals before the first one joins (a DB trigger requires it).
+  if (match.otherSideMode && match.otherSideTakenBy !== 'INDIVIDUALS') {
+    await tx.match.update({ where: { id: match.id }, data: { otherSideTakenBy: 'INDIVIDUALS' } });
+    await appendTeamMatchAudit(tx, { matchId: match.id, command: 'OTHER_SIDE_INDIVIDUALS_OPENED', side: 'AWAY', actorUserId: ticket.playerId });
+  }
   const participant = await tx.matchParticipant.upsert({
     where: { matchId_userId: { matchId: match.id, userId: ticket.playerId } },
     create: { matchId: match.id, userId: ticket.playerId, team: ticket.side },
@@ -167,10 +172,6 @@ export async function placeTicketInTx(tx: Tx, ticketId: string, now: Date): Prom
     await tx.matchFormationEvent.create({
       data: { matchId: match.id, slotId: ticket.slotId, actorUserId: ticket.playerId, action: 'SELF_CLAIM', participantId: participant.id, previousParticipantId: null, formationVersion },
     });
-  }
-  if (match.otherSideMode && match.otherSideTakenBy !== 'INDIVIDUALS') {
-    await tx.match.update({ where: { id: match.id }, data: { otherSideTakenBy: 'INDIVIDUALS' } });
-    await appendTeamMatchAudit(tx, { matchId: match.id, command: 'OTHER_SIDE_INDIVIDUALS_OPENED', side: 'AWAY', actorUserId: ticket.playerId });
   }
   // A free match: FootyFinder covers the fee in its promotions ledger (CEO batch 3, item 5; unchanged).
   if (ticket.method === 'FREE')
