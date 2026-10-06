@@ -294,6 +294,14 @@ test.describe('public join and position claim', () => {
 
     // Race: both players claim position 1 at the same moment.
     await Promise.all([claimButton(alphaPage, 1).click(), claimButton(bravoPage, 1).click()]);
+    // Each player's toast lasts 4 seconds, so both are read straight away (under load the database check below
+    // can outlast them); which one won is matched against the database afterwards.
+    const toast = async (page: Page) => {
+      const title = page.getByText(/^Position (claimed|taken)$/).first();
+      await expect(title).toBeVisible();
+      return title.textContent();
+    };
+    const [alphaToast, bravoToast] = await Promise.all([toast(alphaPage), toast(bravoPage)]);
 
     await expect
       .poll(async () =>
@@ -316,8 +324,7 @@ test.describe('public join and position claim', () => {
     const winnerName = `${winner.firstName} Claim Test`;
     const loserName = `${loser.firstName} Claim Test`;
 
-    await expect(winnerPage.getByText('Position claimed')).toBeVisible();
-    await expect(loserPage.getByText('Position taken')).toBeVisible();
+    expect(winner === alpha ? [alphaToast, bravoToast] : [bravoToast, alphaToast]).toEqual(['Position claimed', 'Position taken']);
     expect(
       await prisma.matchFormationEvent.count({ where: { matchId, action: 'SELF_CLAIM' } }),
     ).toBe(1);
