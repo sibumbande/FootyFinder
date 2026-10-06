@@ -76,7 +76,7 @@ Lock order: Match row, then Team row, then team wallets (sorted by id), then per
 | `TEAM_MATCH_EMAIL` | per kind, match, event and user | Straight away (opponent found / no opponent yet / opponent withdrew) |
 | `QUICK_MATCH_FILL_REMINDER` | reused for "Open to both" | Kick-off −2h |
 
-- **Reconciliation** (`GET /admin/finance/reconciliation`, `wallet:reconcile`) now also reports:
+- **Reconciliation** (`GET /admin/finance/reconciliation`, `wallet:reconcile`; since DEC-021 `tickets:reconcile`, which replaces these wallet checks) now also reports:
   - `TEAM_BALANCE_LEDGER_MISMATCH`
   - `TEAM_NEGATIVE_AVAILABLE_BALANCE`
   - `TEAM_CONTRIBUTION_LINK_MISMATCH`

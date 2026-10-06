@@ -8,7 +8,10 @@ import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { createVenuePayableForStartedMatch } from '../src/modules/settlement/venue-payables.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { socialWorld } from './social-fixtures.js';
-import { buyTicket } from './support/ticket-fixtures.js';
+import { buyTicket, removeTicketRows } from './support/ticket-fixtures.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
+
+const smokeStartedAt = new Date();
 
 /**
  * CEO touch-up batch 3.5, item 5 on PostgreSQL: an admin creates a Quick Match that FootyFinder hosts. It is booked
@@ -59,7 +62,8 @@ try {
   // Players: the veteran is refused, the rookie joins for R0. Nobody sees the admin; the admin has no host powers.
   assert(await rejectsWith(() => buyTicket(created.matchId, veteran.id, 'HOME', `${world.marker}-vet`), 'FIRST_TIMERS_ONLY'), 'A player who has played joined a first-timers match.');
   await buyTicket(created.matchId, rookie.id, 'HOME', `${world.marker}-rookie`);
-  assert((await prisma.matchPayment.findFirstOrThrow({ where: { matchId: created.matchId, userId: rookie.id } })).amountCents === 0, 'The player did not join for R0.');
+  const rookieTicket = await prisma.matchTicket.findFirstOrThrow({ where: { matchId: created.matchId, playerId: rookie.id } });
+  assert(rookieTicket.method === 'FREE' && rookieTicket.amountCents === 0, 'The player did not join for R0.');
   const seen = await matches.get(created.matchId, rookie.id);
   assert(seen.hostedByFootyFinder && seen.createdById === FOOTYFINDER_HOST_ID && !seen.createdBy, 'Players can see who created a FootyFinder match.');
   assert(!JSON.stringify(seen).includes(adminUser.id), 'The admin\'s id reached a player.');
@@ -98,8 +102,9 @@ try {
   console.log('Admin matches smoke passed: an admin creates a FootyFinder-hosted match on a real slot (2-hour window, closures, reservation), free and first-time only from the start (R0, veterans refused), audited, never joined, the admin hidden from players and without host powers, private invite links work and can be replaced, the list and match page show players and money, and the venue payable is raised at kick-off.');
 } finally {
   await prisma.managedFieldClosure.deleteMany({ where: { fieldId: venue.fieldId || undefined, reason: 'Smoke closure' } }).catch(() => undefined);
+  await removeTicketJobsSince(smokeStartedAt).catch(() => undefined);
+  await removeTicketRows(world.matchIds).catch((error) => console.error('ticket cleanup failed', error));
   await venue.cleanupMatches(world.matchIds);
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: world.userIds } } } }).catch(() => undefined);
   await venue.cleanupVenue().catch((error) => console.error('venue cleanup failed', error));
   await world.cleanup().catch((error) => console.error('cleanup failed', error));
   await prisma.$disconnect();

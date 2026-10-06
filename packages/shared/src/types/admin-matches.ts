@@ -39,8 +39,9 @@ export interface AdminMatchPlayer {
   status: 'JOINED' | 'LEFT' | 'REMOVED';
   joinedAt: string;
   leftAt: string | null;
-  /** What the player paid from their wallet (0 in a free match). */
+  /** DEC-021: what the player's confirmed tickets cost in money (0 for a free match or a match credit). */
   paidCents: number;
+  /** Refunded to the original payment method (to whoever paid). */
   refundedCents: number;
 }
 
@@ -50,7 +51,7 @@ export interface AdminMatchMoney {
   refundedCents: number;
   /** Free "On FootyFinder" matches: the R80 per player FootyFinder covers (active records only). */
   promotionalCostCents: number;
-  /** Team match fees are held and charged in team wallets, so they are not in feesTakenCents. */
+  /** DEC-021: team match places are tickets for named players, so they are in feesTakenCents too. */
   teamMatch: boolean;
   venue: { kind: 'PAYABLE' | 'EXPECTED' | 'NONE'; amountCents: number; payableStatus?: string };
 }

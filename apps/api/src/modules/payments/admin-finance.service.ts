@@ -1,4 +1,4 @@
-import { paymentChannelLabel, type AdminTopUp } from '@footy-finder/shared';
+import { paymentChannelLabel, type AdminPayment } from '@footy-finder/shared';
 import type { ProviderDispute, ProviderPayment, ProviderRefund } from '../../generated/prisma/client.js';
 import { prisma } from '../../database/prisma.js';
 
@@ -6,13 +6,18 @@ type PaymentRow = ProviderPayment & {
   user: { id: string; username: string; email: string };
   refunds: Array<ProviderRefund & { ticket?: { matchId: string } | null }>;
   disputes: ProviderDispute[];
+  checkout?: { match: { id: string; name: string; startsAt: Date }; _count: { tickets: number } } | null;
 };
 
+const paymentInclude = {
+  user: { select: { id: true, username: true, email: true } },
+  refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
+  disputes: { orderBy: { openedAt: 'asc' } },
+  checkout: { select: { match: { select: { id: true, name: true, startsAt: true } }, _count: { select: { tickets: true } } } },
+} as const;
+
 /** Admin-only DTO: provider references are visible to platform admins only (DEC-014 pattern). */
-export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
-  const committed = row.refunds
-    .filter((refund) => refund.status !== 'RESTORED_TO_WALLET')
-    .reduce((sum, refund) => sum + refund.amountCents, 0);
+export const toAdminPayment = (row: PaymentRow): AdminPayment => {
   return {
     id: row.id,
     reference: row.reference,
@@ -24,9 +29,11 @@ export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
     providerTransactionId: row.providerTransactionId ?? undefined,
     failureReason: row.failureReason ?? undefined,
     reviewReason: row.reviewReason ?? undefined,
-    // DEC-021: a ticket payment is refunded per ticket by the ticket rules, never by a free-form admin refund.
-    refundableCents: row.purpose === 'TOP_UP' && row.status === 'SUCCEEDED' && !row.disputes.length ? row.amountCents - committed : 0,
     purpose: row.purpose,
+    ...(row.checkout && {
+      match: { id: row.checkout.match.id, name: row.checkout.match.name, startsAt: row.checkout.match.startsAt.toISOString() },
+      ticketCount: row.checkout._count.tickets,
+    }),
     ...(row.channel && { paymentMethod: paymentChannelLabel(row.channel)! }),
     refunds: row.refunds.map((refund) => ({
       id: refund.id,
@@ -57,40 +64,29 @@ export const toAdminTopUp = (row: PaymentRow): AdminTopUp => {
 };
 
 export class AdminFinanceService {
-  async topUps(query: { status?: AdminTopUp['status']; reference?: string }) {
+  async payments(query: { status?: AdminPayment['status']; reference?: string }) {
     const rows = await prisma.providerPayment.findMany({
       where: {
         ...(query.status && { status: query.status }),
         ...(query.reference && { reference: query.reference }),
       },
-      include: {
-        user: { select: { id: true, username: true, email: true } },
-        refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
-        disputes: { orderBy: { openedAt: 'asc' } },
-      },
+      include: paymentInclude,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return rows.map(toAdminTopUp);
+    return rows.map(toAdminPayment);
   }
 
-  async topUp(id: string) {
-    const row = await prisma.providerPayment.findUnique({
-      where: { id },
-      include: {
-        user: { select: { id: true, username: true, email: true } },
-        refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
-        disputes: { orderBy: { openedAt: 'asc' } },
-      },
-    });
-    return row ? toAdminTopUp(row) : null;
+  async payment(id: string) {
+    const row = await prisma.providerPayment.findUnique({ where: { id }, include: paymentInclude });
+    return row ? toAdminPayment(row) : null;
   }
 
   /**
    * CEO batch 5, item 6: one queue of refunds finance must act on (NEEDS_ATTENTION, FAILED or flagged for review),
    * with the contact email of a deleted account's closure refund (D2).
    */
-  async refundsNeedingAttention(): Promise<AdminTopUp[]> {
+  async refundsNeedingAttention(): Promise<AdminPayment[]> {
     const rows = await prisma.providerPayment.findMany({
       where: {
         refunds: {
@@ -102,11 +98,7 @@ export class AdminFinanceService {
           },
         },
       },
-      include: {
-        user: { select: { id: true, username: true, email: true } },
-        refunds: { orderBy: { createdAt: 'asc' }, include: { ticket: { select: { matchId: true } } } },
-        disputes: { orderBy: { openedAt: 'asc' } },
-      },
+      include: paymentInclude,
       orderBy: { createdAt: 'asc' },
       take: 200,
     });
@@ -116,7 +108,7 @@ export class AdminFinanceService {
     });
     return rows.map((row) => {
       const closure = closures.find(({ userId }) => userId === row.userId);
-      return { ...toAdminTopUp(row), ...(closure && { accountClosure: { requestId: closure.id, contactEmail: closure.contactEmail } }) };
+      return { ...toAdminPayment(row), ...(closure && { accountClosure: { requestId: closure.id, contactEmail: closure.contactEmail } }) };
     });
   }
 }

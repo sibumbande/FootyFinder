@@ -1,7 +1,7 @@
-import type { CardRefundState } from './wallet.js';
+import type { CardRefundState } from './payments.js';
 
 /** Gate 6 admin-only finance views. Never returned by player or host APIs. */
-export type AdminTopUpStatus = 'INITIALIZED' | 'SUCCEEDED' | 'FAILED' | 'REVIEW';
+export type AdminPaymentStatus = 'INITIALIZED' | 'SUCCEEDED' | 'FAILED' | 'REVIEW';
 
 export interface AdminCardRefund {
   id: string;
@@ -34,22 +34,28 @@ export interface AdminCardDispute {
   resolvedAt?: string;
 }
 
-export interface AdminTopUp {
+/**
+ * A provider payment as finance sees it: a match ticket payment (DEC-021; one payment can cover several tickets and
+ * is refunded per ticket by the ticket rules), or an earlier payment record from before DEC-021 (read-only).
+ */
+export interface AdminPayment {
   id: string;
   reference: string;
   player: { id: string; username: string; email: string };
   amountCents: number;
-  status: AdminTopUpStatus;
+  status: AdminPaymentStatus;
   creditedBy?: string;
   providerStatus?: string;
   providerTransactionId?: string;
   failureReason?: string;
   reviewReason?: string;
-  refundableCents: number;
   /** CEO touch-up batch 4, item 3: how it was paid (Paystack channel), e.g. "Capitec Pay". */
   paymentMethod?: string;
-  /** DEC-021: a legacy wallet top-up, or a match ticket payment (refunded per ticket, never "to the wallet"). */
-  purpose?: 'TOP_UP' | 'TICKETS';
+  /** DEC-021: TICKETS, or TOP_UP for an earlier payment record from before DEC-021. */
+  purpose: 'TOP_UP' | 'TICKETS';
+  /** The match a ticket payment was for. */
+  match?: { id: string; name: string; startsAt: string };
+  ticketCount?: number;
   refunds: AdminCardRefund[];
   disputes: AdminCardDispute[];
   createdAt: string;
@@ -244,4 +250,63 @@ export interface AdminSettlementBatch {
   cancelledByUserId?: string;
   cancelReason?: string;
   payables: AdminVenuePayable[];
+}
+
+/**
+ * DEC-021 A6: ticket reconciliation (replaces wallet reconciliation). Read-only; every issue is for finance review.
+ * Every confirmed ticket has a verified provider payment, a used match credit or an R0 free-match reason; every
+ * refund matches a provider refund event; credits issued = used + expired + forfeited + refunded + outstanding.
+ * Venue payables and settlement batches are checked as before.
+ */
+export type TicketReconciliationIssueCode =
+  | 'TICKET_PAYMENT_UNVERIFIED'
+  | 'TICKET_CREDIT_MISSING'
+  | 'TICKET_FREE_NOT_ZERO'
+  | 'CHECKOUT_AMOUNT_MISMATCH'
+  | 'PAID_TICKET_NOT_PLACED_OR_REFUNDED'
+  | 'TICKET_PAYMENT_UNDER_REVIEW'
+  | 'TICKET_HOLD_OVERDUE'
+  | 'TICKET_CHOICE_OVERDUE'
+  | 'TICKET_REFUND_MISSING'
+  | 'REFUND_AMOUNT_MISMATCH'
+  | 'REFUND_WITHOUT_PROVIDER_EVENT'
+  | 'REFUND_PENDING_TOO_LONG'
+  | 'REFUND_NEEDS_FINANCE'
+  | 'REFUNDS_EXCEED_PAYMENT'
+  | 'CREDIT_LEDGER_MISMATCH'
+  | 'CREDIT_SOURCE_MISSING'
+  | 'CREDIT_EXPIRY_OVERDUE'
+  | 'FREE_MATCH_COVER_MISSING'
+  | 'FREE_MATCH_COVER_WITHOUT_PLAYER'
+  /** CEO batch 5, item 6: money of a deleted account that finance still has to return (ToS 20.2). */
+  | 'ACCOUNT_CLOSURE_UNREFUNDED'
+  | 'PAYABLE_NOT_ELIGIBLE'
+  | 'PAYABLE_AMOUNT_MISMATCH'
+  | 'STARTED_MATCH_WITHOUT_PAYABLE'
+  | 'LEGACY_RESERVATION_UNSETTLED'
+  | 'SETTLEMENT_TOTAL_MISMATCH'
+  | 'SETTLEMENT_PAYABLE_STATE_MISMATCH';
+
+export interface TicketReconciliationIssue {
+  code: TicketReconciliationIssueCode;
+  userId?: string;
+  /** The ticket, payment, refund, credit, match, payable or batch the issue is about. */
+  referenceId?: string;
+  expectedCents?: number;
+  actualCents?: number;
+  /** Short machine-readable hint, never card or bank data. */
+  detail?: string;
+}
+
+export interface TicketReconciliationReport {
+  generatedAt: string;
+  ticketCount: number;
+  paymentCount: number;
+  refundCount: number;
+  /** Counted in matches, never rands: issued = used + expired + forfeited + refunded + outstanding. */
+  credits: { issued: number; used: number; expired: number; forfeited: number; refunded: number; outstanding: number };
+  payableCount: number;
+  settlementBatchCount: number;
+  issueCount: number;
+  issues: TicketReconciliationIssue[];
 }

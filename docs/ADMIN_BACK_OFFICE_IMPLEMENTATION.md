@@ -93,7 +93,7 @@ The original system audit remains a historical report of commit `aa03e5b`. Its p
 - PostgreSQL rejects negative wallet balances, infeasible ledger signs, financial-identity edits, and reversals from terminal transaction states.
 - Wallet holds support active, captured, released, and expired states. Expiring holds enqueue a deduplicated durable job in the same transaction.
 - The durable worker claims jobs with `FOR UPDATE SKIP LOCKED`, recovers stale locks, retries with bounded exponential backoff, records safe error codes, and has terminal failure state.
-- The Admin Finance page and `wallet:reconcile` command compare wallet balances, settled ledger totals, active holds, and Match payment ledgers without mutating or repairing data.
+- The Admin Finance page and `tickets:reconcile` command (DEC-021 ticket reconciliation) check tickets against verified payments, credits and refunds, the credit ledger, venue payables and settlement batches without mutating or repairing data.
 - `smoke:financial-integrity` uses real simultaneous holds and deposit creation, proves one hold winner, terminal-state and nonnegative database constraints, idempotent capture, reconciliation, durable execution, and exact cleanup.
 
 ## Slice 6 reservation and funding boundary

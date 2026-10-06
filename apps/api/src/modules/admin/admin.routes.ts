@@ -107,14 +107,14 @@ adminRouter.delete(
   costlyMutationRateLimit,
   controller.removeTestData,
 );
-adminRouter.get('/finance/reconciliation', controller.walletReconciliation);
-// Gate 6 / TKT-606: card top-ups, refunds to card, chargebacks and wallet restrictions.
-adminRouter.get('/finance/top-ups', finance.listTopUps);
-adminRouter.get('/finance/top-ups/:paymentId', finance.getTopUp);
-// CEO touch-up batch 3, item 6c (D9): card refunds (full or partial), retries and restores need fresh MFA.
-adminRouter.post('/finance/top-ups/:paymentId/refunds', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundTopUp);
+// DEC-021 A6: ticket reconciliation (replaces wallet reconciliation).
+adminRouter.get('/finance/reconciliation', controller.ticketReconciliation);
+// Gate 6 / TKT-606, DEC-021: provider payments (match ticket payments and earlier records) and their refunds.
+adminRouter.get('/finance/payments', finance.listPayments);
+adminRouter.get('/finance/payments/:paymentId', finance.getPayment);
+// CEO touch-up batch 3, item 6c (D9): refund retries need fresh MFA. DEC-021 A7: no admin top-up refunds, no
+// "return to wallet".
 adminRouter.post('/finance/refunds/:refundId/retry', requireRecentAdminMfa, costlyMutationRateLimit, finance.retryRefund);
-adminRouter.post('/finance/refunds/:refundId/restore', requireRecentAdminMfa, costlyMutationRateLimit, finance.restoreRefund);
 // CEO touch-up batch 4, item 3 (D8): a bank refund Paystack marked "needs attention" gets the customer's account.
 adminRouter.post('/finance/refunds/:refundId/bank-details', requireRecentAdminMfa, costlyMutationRateLimit, finance.refundBankDetails);
 adminRouter.get('/finance/banks', finance.paystackBanks);

@@ -197,12 +197,6 @@ export const adminCancelMatchSchema = z.object({
 });
 export type AdminCancelMatchInput = z.infer<typeof adminCancelMatchSchema>;
 
-/** Gate 6 / TKT-606: admin card refund of a top-up (whole cents, reason required). */
-export const adminCardRefundSchema = z.object({
-  amountCents: z.number().int().positive().max(500_000),
-  reason: z.string().trim().min(5).max(500),
-});
-export type AdminCardRefundInput = z.infer<typeof adminCardRefundSchema>;
 export const adminFinanceReasonSchema = z.object({ reason: z.string().trim().min(5).max(500) });
 /**
  * CEO touch-up batch 4, item 3 (D8): the customer's bank account for a refund Paystack marked "needs attention".
@@ -214,7 +208,8 @@ export const adminRefundBankDetailsSchema = z.object({
   accountNumber: z.string().trim().regex(/^\d{6,16}$/, 'Enter the account number (digits only).'),
 });
 export type AdminRefundBankDetailsInput = z.infer<typeof adminRefundBankDetailsSchema>;
-export const adminTopUpQuerySchema = z.object({
+/** Finance: provider payments (DEC-021 match ticket payments, and earlier payment records). */
+export const adminPaymentQuerySchema = z.object({
   status: z.enum(['INITIALIZED', 'SUCCEEDED', 'FAILED', 'REVIEW']).optional(),
   reference: z.string().trim().max(120).optional(),
 });

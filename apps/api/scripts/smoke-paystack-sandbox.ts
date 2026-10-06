@@ -2,11 +2,11 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { env } from '../src/config/env.js';
 import { isPaystackCheckoutUrl, PaystackClient, PaystackError } from '../src/modules/payments/paystack.client.js';
 import { verifyPaystackSignature } from '../src/modules/payments/paystack-webhook.js';
-import { evaluateVerification } from '../src/modules/payments/top-up-settlement.service.js';
+import { evaluateVerification } from '../src/modules/payments/payment-verification.js';
 
 /**
  * TKT-609: optional check against the real Paystack TEST API (no database). It initialises a
- * ZAR hosted checkout with the configured channels (PAYSTACK_CHANNELS) and verifies it is NOT paid, so nothing
+ * ZAR match ticket checkout with the configured channels (PAYSTACK_CHANNELS) and verifies it is NOT paid, so nothing
  * could be credited. CEO touch-up batch 4, item 3: it also asks for each new channel (Capitec Pay, Instant EFT,
  * Apple Pay) on its own and reports exactly what Paystack answers. It
  * never prints, logs or returns the secret key, and refuses to run with anything but a test key.
@@ -23,12 +23,12 @@ assert(secret.startsWith('sk_test_'), 'Refusing to run the sandbox smoke without
 assert(env.PAYSTACK_BASE_URL === 'https://api.paystack.co', 'Sandbox smoke must call the real Paystack API.');
 
 const client = new PaystackClient({ secretKey: secret, baseUrl: env.PAYSTACK_BASE_URL });
-const reference = `ff_topup_${randomUUID().replaceAll('-', '')}`;
+const reference = `ff_ticket_${randomUUID().replaceAll('-', '')}`;
 const checkout = await client.initialize({
   email: 'gate6-sandbox@example.com',
   amountCents: 5_000,
   reference,
-  callbackUrl: `${env.CLIENT_URL.replace(/\/$/, '')}/wallet/top-up/return`,
+  callbackUrl: `${env.CLIENT_URL.replace(/\/$/, '')}/tickets/return`,
   metadata: { providerPaymentId: 'sandbox-smoke', userId: 'sandbox-smoke' },
 });
 assert(isPaystackCheckoutUrl(checkout.authorizationUrl), 'Paystack did not return a hosted checkout URL.');
@@ -44,7 +44,7 @@ const outcome = evaluateVerification(
 );
 assert(outcome.kind === 'WAIT', 'An unpaid checkout would have been acted on.');
 
-const missing = await client.verify(`ff_topup_${'0'.repeat(32)}`).catch((error: unknown) => error);
+const missing = await client.verify(`ff_ticket_${'0'.repeat(32)}`).catch((error: unknown) => error);
 assert(missing instanceof PaystackError && ['PAYSTACK_NOT_FOUND', 'PAYSTACK_REJECTED'].includes(missing.code), 'Unknown reference did not fail cleanly.');
 assert(!String((missing as Error).message).includes(secret), 'A Paystack error message contained the secret key.');
 
@@ -61,8 +61,8 @@ for (const channel of ['capitec_pay', 'eft', 'apple_pay'] as const) {
     .initialize({
       email: 'gate6-sandbox@example.com',
       amountCents: 5_000,
-      reference: `ff_topup_${randomUUID().replaceAll('-', '')}`,
-      callbackUrl: `${env.CLIENT_URL.replace(/\/$/, '')}/wallet/top-up/return`,
+      reference: `ff_ticket_${randomUUID().replaceAll('-', '')}`,
+      callbackUrl: `${env.CLIENT_URL.replace(/\/$/, '')}/tickets/return`,
       metadata: { providerPaymentId: 'sandbox-smoke', userId: 'sandbox-smoke' },
     })
     .then(
@@ -73,4 +73,4 @@ for (const channel of ['capitec_pay', 'eft', 'apple_pay'] as const) {
 }
 console.log(`Paystack sandbox channel probes (test mode): ${probes.join('; ')}`);
 
-console.log(`Paystack sandbox smoke passed: ZAR checkout with channels ${JSON.stringify(env.PAYSTACK_CHANNELS)} initialised, verify status "${verified.status}" (not credited), unknown reference rejected, signature check correct.`);
+console.log(`Paystack sandbox smoke passed: ZAR checkout with channels ${JSON.stringify(env.PAYSTACK_CHANNELS)} initialised, verify status "${verified.status}" (no ticket confirmed), unknown reference rejected, signature check correct.`);

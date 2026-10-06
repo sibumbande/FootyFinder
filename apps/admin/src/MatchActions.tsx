@@ -134,13 +134,13 @@ export function CancelPanel({ match }: { match: AdminMatchDetail }) {
       {confirmDialog}
       <h3>Cancel match (weather/venue)</h3>
       <p className="muted">
-        Before kick-off only. Every player gets a full refund to their wallet, held team money goes back to each team wallet, and
-        everyone is told in the app and by email. Your reason is kept in the audit log; players see a fixed sentence.
+        Before kick-off only. Everyone who paid chooses a match credit or a full refund to their card or bank (refunded
+        automatically after 7 days), match credits used are returned, and everyone is told in the app and by email. Your reason is kept in the audit log; players see a fixed sentence.
       </p>
       {!match.cancellable ? (
         <p className="muted">
           {match.mode === 'TEAM_MATCH' && !match.started
-            ? 'Team fees have been taken at the 30-minute check, so this team match can no longer be cancelled here.'
+            ? 'The 30-minute check has passed, so this team match can no longer be cancelled here.'
             : 'The match has kicked off, so it can no longer be cancelled.'}
         </p>
       ) : (

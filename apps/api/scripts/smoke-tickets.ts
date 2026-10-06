@@ -46,7 +46,7 @@ const settlement = new TicketSettlementService(gateway, undefined, ['card']);
 const paystack = new TicketCheckoutService(gateway, undefined, settlement, {
   clientUrl: 'http://localhost:5173', demo: () => false, paystackEnabled: () => true, termsVersion,
 });
-const processor = new PaystackWebhookProcessor(undefined, undefined, undefined, settlement);
+const processor = new PaystackWebhookProcessor(undefined, undefined, settlement);
 const refunds = new CardRefundsService(gateway);
 const emails = new TestEmailProvider();
 const webhookIds: string[] = [];

@@ -6,7 +6,6 @@ import { MatchesService } from '../src/modules/matches/matches.service.js';
 import {
   MatchesRepository,
   TeamFixtureForbiddenError,
-  TeamMatchPlanningError,
 } from '../src/modules/matches/matches.repository.js';
 import { TeamsRepository } from '../src/modules/teams/teams.repository.js';
 import { deleteTeamWalletFixtures } from './team-wallet-fixtures.js';
@@ -148,7 +147,8 @@ async function main() {
   try {
     await buyTicket(ownerFixture.id, member.id, 'HOME', randomUUID());
   } catch (error) {
-    quickJoinBlocked = error instanceof TeamMatchPlanningError;
+    // DEC-021: a planning fixture has no quick places, so the ticket checkout refuses it.
+    quickJoinBlocked = (error as { code?: string }).code === 'NOT_A_QUICK_PLACE';
   }
   assert(quickJoinBlocked, 'Team fixture entered the Quick Game payment/join path.');
   assert((await balances(userIds)) === balancesBefore, 'Blocked join mutated a wallet.');

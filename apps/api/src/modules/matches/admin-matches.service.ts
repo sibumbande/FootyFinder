@@ -116,16 +116,22 @@ export class AdminMatchesService {
             userId: true, team: true, status: true, joinedAt: true, leftAt: true,
             user: userSelect,
             formationSlot: { select: { slotIndex: true } },
-            payment: { select: { amountCents: true, status: true, cancellation: { select: { initialCreditCents: true, replacementCreditCents: true } } } },
           },
+        },
+        // DEC-021: what each player's places cost is in their match tickets (paid by them or by a teammate).
+        tickets: {
+          where: { confirmedAt: { not: null } },
+          select: { playerId: true, method: true, amountCents: true, refunds: { where: { creditId: null, status: { not: 'RESTORED_TO_WALLET' } }, select: { amountCents: true } } },
         },
       },
     });
-    const refunded = (payment: (typeof match.participants)[number]['payment']) =>
-      !payment ? 0
-        : payment.status === 'REFUNDED' ? payment.amountCents
-          : payment.status === 'PARTIALLY_REFUNDED' ? (payment.cancellation?.initialCreditCents ?? 0) + (payment.cancellation?.replacementCreditCents ?? 0)
-            : 0;
+    const paidBy = new Map<string, { paid: number; refunded: number }>();
+    for (const ticket of match.tickets) {
+      const entry = paidBy.get(ticket.playerId) ?? { paid: 0, refunded: 0 };
+      if (ticket.method === 'PAYMENT') entry.paid += ticket.amountCents;
+      entry.refunded += ticket.refunds.reduce((sum, refund) => sum + refund.amountCents, 0);
+      paidBy.set(ticket.playerId, entry);
+    }
     const players = match.participants.map((participant) => ({
       userId: participant.userId,
       displayName: nameOf(participant.user),
@@ -134,8 +140,8 @@ export class AdminMatchesService {
       status: participant.status,
       joinedAt: participant.joinedAt.toISOString(),
       leftAt: participant.leftAt?.toISOString() ?? null,
-      paidCents: participant.payment?.amountCents ?? 0,
-      refundedCents: refunded(participant.payment),
+      paidCents: paidBy.get(participant.userId)?.paid ?? 0,
+      refundedCents: paidBy.get(participant.userId)?.refunded ?? 0,
     }));
     const cancelled = match.status === 'CANCELLED';
     const money: AdminMatchMoney = {

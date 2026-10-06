@@ -3,7 +3,6 @@ import { registerDurableJobHandler } from '../../jobs/durable-jobs.js';
 import { PAYSTACK_WEBHOOK_JOB_TYPE } from './paystack-webhook.js';
 import { CardRefundsService } from './card-refunds.service.js';
 import { PaymentDisputesService } from './payment-disputes.service.js';
-import { TopUpSettlementService } from './top-up-settlement.service.js';
 import { TicketSettlementService } from '../tickets/ticket-settlement.service.js';
 
 export type WebhookEventHandler = (event: {
@@ -24,7 +23,6 @@ export class PaystackWebhookProcessor {
   private readonly handlers = new Map<string, WebhookEventHandler>();
 
   constructor(
-    settlement = new TopUpSettlementService(),
     refunds = new CardRefundsService(),
     disputes = new PaymentDisputesService(),
     tickets = new TicketSettlementService(),
@@ -34,9 +32,9 @@ export class PaystackWebhookProcessor {
       const known = await prisma.providerPayment.findUnique({ where: { reference }, select: { id: true, purpose: true } });
       if (!known) return 'unknown_reference';
       // DEC-021: a match ticket payment is applied by the ticket settlement path (verify, then place or refund).
-      if (known.purpose === 'TICKETS') return `ticket_${(await tickets.settleFromVerify(reference, 'webhook')).outcome.toLowerCase()}`;
-      const result = await settlement.settleFromVerify(reference, 'webhook');
-      return `charge_${result.outcome.toLowerCase()}`;
+      // Wallet top-ups are retired: an earlier top-up's late event is recorded and left for finance.
+      if (known.purpose !== 'TICKETS') return 'retired_top_up_ignored';
+      return `ticket_${(await tickets.settleFromVerify(reference, 'webhook')).outcome.toLowerCase()}`;
     });
     // TKT-606: refunds to card. DEC-021 D9: payment disputes (chargebacks) restrict bookings; nothing is reversed.
     for (const type of ['refund.pending', 'refund.processing', 'refund.processed', 'refund.failed'])

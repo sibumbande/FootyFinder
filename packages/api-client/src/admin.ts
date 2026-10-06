@@ -40,7 +40,7 @@ import type {
   AdminTestDataStatus,
   AdminTestDataBatch,
   CreateAdminTestDataBatchInput,
-  WalletReconciliationReport,
+  TicketReconciliationReport,
   ModerationReport,
   AdminModerationReportQuery,
   UpdateModerationReportInput,
@@ -54,9 +54,8 @@ import type {
   ReviewDisputeInput,
   ResolveDisputeInput,
   OperationsSummary,
-  AdminTopUp,
-  AdminTopUpStatus,
-  AdminCardRefundInput,
+  AdminPayment,
+  AdminPaymentStatus,
   AdminPaymentDispute,
   PaymentDisputeEvidencePack,
   AdminVenueBeneficiary,
@@ -282,30 +281,20 @@ export const adminApi = (client: ApiClient) => ({
       `/admin/test-data/batches/${batchId}`,
       { method: 'DELETE' },
     ),
-  walletReconciliation: () =>
-    client.request<{ data: WalletReconciliationReport }>('/admin/finance/reconciliation'),
-  // Gate 6 / TKT-606: card top-ups, refunds to card, chargebacks and wallet restrictions.
-  topUps: (query: { status?: AdminTopUpStatus; reference?: string } = {}) => {
+  /** DEC-021 A6: ticket reconciliation (replaces wallet reconciliation). */
+  ticketReconciliation: () =>
+    client.request<{ data: TicketReconciliationReport }>('/admin/finance/reconciliation'),
+  // Gate 6 / TKT-606, DEC-021: provider payments (match ticket payments and earlier records) and their refunds.
+  payments: (query: { status?: AdminPaymentStatus; reference?: string } = {}) => {
     const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value) as Array<[string, string]>).toString();
-    return client.request<{ data: AdminTopUp[] }>(`/admin/finance/top-ups${search ? `?${search}` : ''}`);
+    return client.request<{ data: AdminPayment[] }>(`/admin/finance/payments${search ? `?${search}` : ''}`);
   },
-  refundTopUp: (paymentId: string, input: AdminCardRefundInput, idempotencyKey: string) =>
-    client.request<{ data: AdminTopUp }>(`/admin/finance/top-ups/${encodeURIComponent(paymentId)}/refunds`, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify(input),
-    }),
   retryRefund: (refundId: string) =>
-    client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/retry`, { method: 'POST' }),
+    client.request<{ data: AdminPayment }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/retry`, { method: 'POST' }),
   // CEO touch-up batch 4, item 3 (D8): a bank refund Paystack marked "needs attention".
   refundBankDetails: (refundId: string, input: AdminRefundBankDetailsInput) =>
-    client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${id(refundId)}/bank-details`, post(input)),
+    client.request<{ data: AdminPayment }>(`/admin/finance/refunds/${id(refundId)}/bank-details`, post(input)),
   paystackBanks: () => client.request<{ data: PaystackBankOption[] }>('/admin/finance/banks'),
-  restoreRefund: (refundId: string, reason: string) =>
-    client.request<{ data: AdminTopUp }>(`/admin/finance/refunds/${encodeURIComponent(refundId)}/restore`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
   // DEC-021 A8 / D9: payment disputes, their evidence packs, and lifting a payer's booking restriction (fresh MFA).
   paymentDisputes: () => client.request<{ data: AdminPaymentDispute[] }>('/admin/finance/payment-disputes'),
   paymentDisputeEvidence: (disputeId: string) =>
@@ -403,5 +392,5 @@ export const adminApi = (client: ApiClient) => ({
       method: 'POST',
       body: JSON.stringify({ note }),
     }),
-  refundsNeedingAttention: () => client.request<{ data: AdminTopUp[] }>('/admin/finance/refunds-needing-attention'),
+  refundsNeedingAttention: () => client.request<{ data: AdminPayment[] }>('/admin/finance/refunds-needing-attention'),
 });

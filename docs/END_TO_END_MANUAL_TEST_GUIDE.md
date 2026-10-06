@@ -418,7 +418,7 @@ Stop and repair unexpected environment failures before continuing. Every configu
 ### WAL-006 — Admin financial reconciliation
 
 1. In the MFA-verified Admin app, open **Finance** after completing the deposit, paid join, cancellation, and replacement cases.
-2. Run `npm run wallet:reconcile --workspace=@footy-finder/api` against the same QA database.
+2. Run `npm run tickets:reconcile --workspace=@footy-finder/api` against the same QA database.
 3. Compare the wallet, transaction, and active-hold counts and retain the JSON output with the test evidence.
 
 **Expected:** Both read-only reports show zero issues and do not change balances, ledger rows, payments, holds, or timestamps. A clean command exits zero. Any mismatch identifies only safe record IDs and cent values, exits nonzero, and requires investigation rather than automatic repair.

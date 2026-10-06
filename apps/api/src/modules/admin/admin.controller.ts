@@ -20,7 +20,7 @@ import { AdminService } from './admin.service.js';
 import { AdminCatalogService } from './admin-catalog.service.js';
 import { SupportService } from '../support/support.service.js';
 import { AdminTestDataService } from './admin-test-data.service.js';
-import { WalletReconciliationService } from '../wallet/wallet-reconciliation.service.js';
+import { TicketReconciliationService } from '../tickets/ticket-reconciliation.service.js';
 import { OperationsService } from './operations.service.js';
 
 const auth = new AdminAuthService();
@@ -28,7 +28,7 @@ const admin = new AdminService();
 const catalog = new AdminCatalogService();
 const support = new SupportService();
 const testData = new AdminTestDataService();
-const reconciliation = new WalletReconciliationService();
+const reconciliation = new TicketReconciliationService();
 const operations = new OperationsService();
 const actor = (locals: Record<string, unknown>) => String(locals.authUserId);
 const requestId = (locals: Record<string, unknown>) => String(locals.requestId);
@@ -299,7 +299,7 @@ export const removeTestData: RequestHandler = async (req, res, next) => {
     next(error);
   }
 };
-export const walletReconciliation: RequestHandler = async (_req, res, next) => {
+export const ticketReconciliation: RequestHandler = async (_req, res, next) => {
   try {
     res.json({ data: await reconciliation.report() });
   } catch (error) {

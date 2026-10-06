@@ -2,7 +2,7 @@
  * DEC-021 Match Ticketing (batch 5 brief, Part A). Every payment is a ticket for one named match; there is no
  * wallet. These are fixed product rules (approved smaller choice: constants, not environment settings).
  */
-import { MATCH_FEE_CENTS } from '../types/wallet.js';
+import { MATCH_FEE_CENTS } from '../types/payments.js';
 
 /** A place is held for this long while its checkout runs ("Being booked", A1.2). */
 export const TICKET_HOLD_MINUTES = 10;

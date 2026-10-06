@@ -8,7 +8,7 @@ const REFUSALS = {
   MATCH_NOT_FOUND: [404, 'Match not found.'],
   ALREADY_CANCELLED: [409, 'This match is already cancelled.'],
   MATCH_STARTED: [409, 'A match can be cancelled by FootyFinder only before kick-off.'],
-  TEAM_MATCH_LOCKED: [409, 'A team match can be cancelled by FootyFinder only before its 30-minute check, because the team fees have been taken.'],
+  TEAM_MATCH_LOCKED: [409, 'A team match can be cancelled by FootyFinder only before its 30-minute check, because its 30-minute check has passed.'],
 } as const;
 
 /**

@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateVerification } from './top-up-settlement.service.js';
+import { evaluateVerification } from './payment-verification.js';
 
 const payment = {
   id: 'payment-1',
   userId: 'user-1',
-  reference: 'ff_topup_1',
+  reference: 'ff_ticket_1',
   amountCents: 16_000,
   createdAt: new Date('2026-10-01T10:00:00Z'),
 };
 const verified = (overrides: Record<string, unknown> = {}) => ({
   id: '42',
-  reference: 'ff_topup_1',
+  reference: 'ff_ticket_1',
   status: 'success',
   amountCents: 16_000,
   currency: 'ZAR',

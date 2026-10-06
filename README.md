@@ -232,7 +232,7 @@ npm run smoke:disputes-results --workspace=@footy-finder/api
 npm run smoke:operations --workspace=@footy-finder/api
 npm run gate3:preflight --workspace=@footy-finder/api
 npm run gate4:preflight --workspace=@footy-finder/api
-npm run wallet:reconcile --workspace=@footy-finder/api
+npm run tickets:reconcile --workspace=@footy-finder/api
 ```
 
 `npm run test:e2e:install` is a one-time Chromium download on each machine or CI image. The E2E command starts player-web and API development servers, exercises real browser CORS/cookie behavior, and removes only its uniquely tagged PostgreSQL fixtures.

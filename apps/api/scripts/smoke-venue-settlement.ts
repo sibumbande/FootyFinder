@@ -3,7 +3,6 @@ import { refereeFixture } from './referee-fixture.js';
 import { randomUUID } from 'node:crypto';
 import type { MatchFormat } from '@footy-finder/shared';
 import { prisma } from '../src/database/prisma.js';
-import { serializableTransaction } from '../src/database/transaction.js';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { goNoGoJobDedupeKey } from '../src/modules/matches/go-no-go.js';
 import { fillReminderJobDedupeKey } from '../src/modules/matches/fill-reminder.js';
@@ -13,8 +12,8 @@ import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { VenueSettlementService } from '../src/modules/settlement/venue-settlement.service.js';
 import { SettlementBatchesService } from '../src/modules/settlement/settlement-batches.service.js';
 import { settlementWeekOf } from '../src/modules/settlement/settlement-week.js';
-import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
-import { buyTicket } from './support/ticket-fixtures.js';
+import { buyTicket, removeTicketRows } from './support/ticket-fixtures.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
 
 /**
  * Gate 6 venue settlement smoke (real PostgreSQL). DEC-012 + DEC-018: a payable exists only for a
@@ -38,7 +37,7 @@ const code = async (promise: Promise<unknown>) => {
 const bookings = new BookingsService();
 const matches = new MatchesRepository();
 const service = new MatchesService();
-const financial = new FinancialRepository();
+const smokeStartedAt = new Date();
 const settlement = new VenueSettlementService();
 const userIds: string[] = [];
 const matchIds: string[] = [];
@@ -101,17 +100,12 @@ async function main() {
           username: `${marker.slice(-16)}_${index}`,
           passwordHash: 'smoke',
           profile: { create: { displayName: `Settlement ${index}` } },
-          walletAccount: { create: {} },
         },
       }),
     ),
   );
   userIds.push(...users.map(({ id }) => id));
   hostId = userIds[0]!;
-  for (const [index, userId] of userIds.entries())
-    await serializableTransaction((tx) =>
-      financial.credit(tx, { userId, amountCents: 100_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:seed:${index}`, referenceType: 'SMOKE', referenceId: marker }),
-    );
   for (const label of ['a', 'b']) {
     const admin = await prisma.user.create({
       data: { email: `${marker}-admin-${label}@smoke.invalid`, username: `${marker.slice(-14)}_adm_${label}`, passwordHash: 'smoke', platformRole: 'ADMIN' },
@@ -302,15 +296,14 @@ async function cleanup() {
     },
   });
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+  await removeTicketJobsSince(smokeStartedAt);
+  await removeTicketRows(matchIds);
   await prisma.fieldReservation.deleteMany({ where: { id: { in: reservationIds } } });
   const venueIds = (await prisma.match.findMany({ where: { id: { in: removableMatchIds } }, select: { venueId: true } })).map(({ venueId: id }) => id);
   await prisma.match.deleteMany({ where: { id: { in: removableMatchIds } } });
   await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
   const retainedUserIds = paidMatchIds.length ? [hostId] : [];
   const removableUserIds = userIds.filter((id) => !retainedUserIds.includes(id));
-  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: removableUserIds } } } });
-  await prisma.matchPayment.deleteMany({ where: { userId: { in: removableUserIds } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: removableUserIds } } } });
   if (venueId && !paidMatchIds.length) {
     await prisma.managedFieldPrice.deleteMany({ where: { field: { venueId } } });
     await prisma.venueCancellationPolicy.deleteMany({ where: { venueId } });

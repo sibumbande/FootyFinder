@@ -76,7 +76,7 @@ try {
   assert(notice?.title === 'Refund needs your bank details', 'The payer was not told the refund needs bank details.');
   const queue = await finance.refundsNeedingAttention();
   const listed = queue.find(({ id }) => id === payment.id);
-  assert(listed?.purpose === 'TICKETS' && listed.refundableCents === 0 && listed.refunds.some((item) => item.ticketId === t1.id && item.matchId === match.id), 'The ticket refund is not in the finance queue as a ticket refund.');
+  assert(listed?.purpose === 'TICKETS' && listed.refunds.some((item) => item.ticketId === t1.id && item.matchId === match.id), 'The ticket refund is not in the finance queue as a ticket refund.');
   assert((await codeOf(() => refunds.restoreToWallet({ actorUserId: admin.id, refundId: r1.id, reason: 'never allowed' }))) === 'REFUND_NOT_RESTORABLE', 'A ticket refund could be returned to a wallet.');
   await refunds.retryWithCustomerDetails({ actorUserId: admin.id, refundId: r1.id, accountNumber: '1234567890', bankId: '140', bankName: 'Capitec Bank' });
   const retried = await prisma.providerRefund.findUniqueOrThrow({ where: { id: r1.id } });

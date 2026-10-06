@@ -7,7 +7,7 @@ import { logInfo } from '../../observability/logger.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { PaystackClient, PaystackError, type PaystackGateway, type PaystackVerifiedTransaction } from '../payments/paystack.client.js';
-import { evaluateVerification, type SettlementSource } from '../payments/top-up-settlement.service.js';
+import { evaluateVerification, type SettlementSource } from '../payments/payment-verification.js';
 import { enqueueTicketEmail } from './ticket-emails.js';
 import { placeTicketInTx } from './ticket-placement.js';
 import { notifyPlayersPaidFor, placeTeamTicketInTx } from './team-ticket-placement.js';

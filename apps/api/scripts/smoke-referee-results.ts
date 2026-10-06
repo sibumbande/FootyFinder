@@ -7,7 +7,6 @@ import { recordKickoffLineup } from '../src/modules/matches/lineup-record.js';
 import { transitionMatchToStarted } from '../src/modules/matches/match-lifecycle.scheduler.js';
 import { MatchesRepository } from '../src/modules/matches/matches.repository.js';
 import { MatchesService } from '../src/modules/matches/matches.service.js';
-import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
 import { RefereeJobs } from '../src/modules/referees/referee.jobs.js';
 import { RefereeResultsService } from '../src/modules/referees/referee-results.service.js';
@@ -22,7 +21,8 @@ import { SessionsService } from '../src/modules/auth/sessions.service.js';
 import { UsersService } from '../src/modules/users/users.service.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
 import { refereeFixture } from './referee-fixture.js';
-import { buyTicket } from './support/ticket-fixtures.js';
+import { buyTicket, removeTicketRows } from './support/ticket-fixtures.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
 
 /**
  * Gate 8 smoke (DEC-020): the kickoff lineup record (TKT-803; team sides are covered in
@@ -35,7 +35,7 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
 const bookings = new BookingsService();
 const repository = new MatchesRepository();
 const matches = new MatchesService();
-const financial = new FinancialRepository();
+const smokeStartedAt = new Date();
 const venue = managedVenueFixture(marker);
 const referee = refereeFixture(marker);
 const results = new RefereeResultsService();
@@ -62,13 +62,9 @@ const user = async (label: string) => {
       emailVerifiedAt: new Date(),
       onboardingCompletedAt: new Date(),
       profile: { create: { displayName: `Player ${label}` } },
-      walletAccount: { create: { currency: 'ZAR' } },
     },
   });
   userIds.push(created.id);
-  await serializableTransaction((tx) =>
-    financial.credit(tx, { userId: created.id, amountCents: 50_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:seed:${label}`, referenceType: 'SMOKE', referenceId: marker }),
-  );
   return created;
 };
 
@@ -367,15 +363,14 @@ async function statisticsSection(players: Array<{ id: string }>) {
 async function cleanup() {
   await referee.cleanupJobs(matchIds);
   await venue.cleanupMatches(matchIds);
-  await prisma.matchPayment.deleteMany({ where: { matchId: { in: matchIds } } });
+  await removeTicketJobsSince(smokeStartedAt);
+  await removeTicketRows(matchIds);
   const venueIds = (await prisma.match.findMany({ where: { id: { in: matchIds } }, select: { venueId: true } })).map(({ venueId }) => venueId);
   await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
   await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
   await venue.cleanupVenue();
   await referee.cleanup();
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
-  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 }
 

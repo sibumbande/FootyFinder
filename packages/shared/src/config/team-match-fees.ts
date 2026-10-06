@@ -1,5 +1,5 @@
 import { getPlayersPerTeam, MAX_SUBSTITUTES_PER_TEAM, type MatchFormat } from './match-formats.js';
-import { MATCH_FEE_CENTS } from '../types/wallet.js';
+import { MATCH_FEE_CENTS } from '../types/payments.js';
 
 /**
  * Gate 7 / DEC-019: a team pays a fixed fee of R80 (set by FootyFinder; teams cannot change it)

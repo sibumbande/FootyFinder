@@ -114,7 +114,7 @@ function PlayersAndMoney({ match }: { match: AdminMatchDetail }) {
       <h3>Money</h3>
       <dl className="account-grid">
         <div><dt className="muted">Player fees taken</dt><dd data-testid="fees-taken">{rands(match.money.feesTakenCents)}</dd></div>
-        <div><dt className="muted">Refunded to wallets</dt><dd>{rands(match.money.refundedCents)}</dd></div>
+        <div><dt className="muted">Refunded</dt><dd>{rands(match.money.refundedCents)}</dd></div>
         {match.freeOnFootyFinder && <div><dt className="muted">Covered by FootyFinder (free match)</dt><dd>{rands(match.money.promotionalCostCents)}</dd></div>}
         <div>
           <dt className="muted">Venue</dt>
@@ -125,7 +125,7 @@ function PlayersAndMoney({ match }: { match: AdminMatchDetail }) {
           </dd>
         </div>
       </dl>
-      {match.money.teamMatch && <p className="muted">Team match fees are held and charged in the team wallets, so they are not in the fees above.</p>}
+      {match.money.teamMatch && <p className="muted">Team places are match tickets for named players, so they are in the fees above.</p>}
     </div>
   );
 }

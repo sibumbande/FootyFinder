@@ -1,9 +1,4 @@
-import {
-  adminCardRefundSchema,
-  adminFinanceReasonSchema,
-  adminRefundBankDetailsSchema,
-  adminTopUpQuerySchema,
-} from '@footy-finder/shared';
+import { adminFinanceReasonSchema, adminPaymentQuerySchema, adminRefundBankDetailsSchema } from '@footy-finder/shared';
 import type { Request, RequestHandler } from 'express';
 import { AppError } from '../../errors/app-error.js';
 import { AdminFinanceService } from './admin-finance.service.js';
@@ -27,53 +22,34 @@ const handle =
     }
   };
 
-export const listTopUps = handle((req) => finance.topUps(adminTopUpQuerySchema.parse(req.query)));
+export const listPayments = handle((req) => finance.payments(adminPaymentQuerySchema.parse(req.query)));
 
-export const getTopUp = handle(async (req) => {
-  const topUp = await finance.topUp(String(req.params.paymentId));
-  if (!topUp) throw new AppError(404, 'Top-up not found.', 'TOP_UP_NOT_FOUND');
-  return topUp;
+export const getPayment = handle(async (req) => {
+  const payment = await finance.payment(String(req.params.paymentId));
+  if (!payment) throw new AppError(404, 'Payment not found.', 'PAYMENT_NOT_FOUND');
+  return payment;
 });
 
-export const refundTopUp = handle(async (req, locals) => {
-  const input = adminCardRefundSchema.parse(req.body);
-  await refunds.initiate({
-    actorUserId: actor(locals),
-    providerPaymentId: String(req.params.paymentId),
-    amountCents: input.amountCents,
-    reason: input.reason,
-    idempotencyKey: String(req.header('Idempotency-Key') ?? ''),
-    requestId: requestId(locals),
-  });
-  return finance.topUp(String(req.params.paymentId));
-});
-
+/**
+ * DEC-021 A7: refunds are made by the ticket rules (leaving, cancellation, late or double payment), never as a
+ * free-form admin amount, and never back "to the wallet". Finance retries a failed refund, or retries a bank refund
+ * with the customer's account (NEEDS_ATTENTION).
+ */
 export const retryRefund = handle(async (req, locals) => {
   const refund = await refunds.retry({ actorUserId: actor(locals), refundId: String(req.params.refundId), requestId: requestId(locals) });
-  return finance.topUp(refund.providerPaymentId);
+  return finance.payment(refund.providerPaymentId);
 });
 
 /** CEO touch-up batch 4, item 3 (D8): fresh MFA (route); the account number goes to Paystack only. */
 export const refundBankDetails = handle(async (req, locals) => {
   const input = adminRefundBankDetailsSchema.parse(req.body);
   const refund = await refunds.retryWithCustomerDetails({ actorUserId: actor(locals), refundId: String(req.params.refundId), ...input, requestId: requestId(locals) });
-  return finance.topUp(refund.providerPaymentId);
+  return finance.payment(refund.providerPaymentId);
 });
 
 export const paystackBanks = handle(async () => {
   const client = new PaystackClient();
   return client.listBanks();
-});
-
-export const restoreRefund = handle(async (req, locals) => {
-  const { reason } = adminFinanceReasonSchema.parse(req.body);
-  const refund = await refunds.restoreToWallet({
-    actorUserId: actor(locals),
-    refundId: String(req.params.refundId),
-    reason,
-    requestId: requestId(locals),
-  });
-  return finance.topUp(refund.providerPaymentId);
 });
 
 // CEO batch 5, item 6: the "Refunds needing attention" queue.

@@ -1,6 +1,6 @@
 export * from './types/user.js';
 export * from './types/match.js';
-export * from './types/wallet.js';
+export * from './types/payments.js';
 export * from './types/notification.js';
 export * from './types/messaging.js';
 export * from './types/team.js';

@@ -1,11 +1,9 @@
 import './assert-disposable-test-database.js';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { MATCH_FEE_CENTS } from '@footy-finder/shared';
 import { app } from '../src/app.js';
 import { allowedOrigins } from '../src/config/cors.js';
 import { prisma } from '../src/database/prisma.js';
-import { serializableTransaction } from '../src/database/transaction.js';
 import { SessionsService } from '../src/modules/auth/sessions.service.js';
 import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
 import { BookingsService } from '../src/modules/bookings/bookings.service.js';
@@ -13,9 +11,9 @@ import { MatchesRepository } from '../src/modules/matches/matches.repository.js'
 import { MatchesService } from '../src/modules/matches/matches.service.js';
 import { refereeUnassignedAlertDedupeKey } from '../src/modules/referees/referee-assignment.js';
 import { RefereeJobs } from '../src/modules/referees/referee.jobs.js';
-import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
 import { managedVenueFixture } from './managed-venue-fixture.js';
-import { buyTicket } from './support/ticket-fixtures.js';
+import { buyTicket, removeTicketRows } from './support/ticket-fixtures.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
 
 /**
  * Gate 8 smoke (DEC-020): the FootyFinder referee role (TKT-801) and referee assignment (TKT-802):
@@ -32,7 +30,7 @@ const sessions = new SessionsService();
 const bookings = new BookingsService();
 const matchesRepository = new MatchesRepository();
 const matchesService = new MatchesService();
-const financial = new FinancialRepository();
+const smokeStartedAt = new Date();
 const emails = new TestEmailProvider();
 const jobs = new RefereeJobs(undefined, emails);
 const venueA = managedVenueFixture(`${marker}-a`);
@@ -52,7 +50,6 @@ const user = async (label: string, extra: { platformRole?: 'ADMIN' } = {}) => {
       emailVerifiedAt: new Date(),
       onboardingCompletedAt: new Date(),
       profile: { create: { displayName: `${label} ${marker.slice(-4)}` } },
-      walletAccount: { create: { currency: 'ZAR' } },
       ...extra,
     },
   });
@@ -74,11 +71,6 @@ const post = (path: string, cookie: string, body: object) =>
   request(app).post(path).set('Origin', origin).set('Cookie', cookie).send(body);
 const put = (path: string, cookie: string, body: object) =>
   request(app).put(path).set('Origin', origin).set('Cookie', cookie).send(body);
-
-const fund = (userId: string, index: number) =>
-  serializableTransaction((tx) =>
-    financial.credit(tx, { userId, amountCents: 50_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:seed:${index}`, referenceType: 'SMOKE', referenceId: marker }),
-  );
 
 const publishQuickMatch = async (venue: ReturnType<typeof managedVenueFixture>, startsAt: Date, hostId: string, label: string) => {
   const match = await bookings.createQuickMatch(
@@ -152,7 +144,6 @@ async function assignmentSection(admin: { id: string }, fresh: string, stale: st
   const host = await user('host');
   const players = [];
   for (let index = 0; index < 10; index += 1) players.push(await user(`p${index}`));
-  for (const [index, player] of [refB, ...players].entries()) await fund(player.id, index);
   for (const referee of [refA, refB])
     assert((await post(`/admin/referees/${referee.id}`, fresh, { reason: 'Match official' })).status === 201, 'Could not grant a referee.');
   await venueA.create();
@@ -274,10 +265,10 @@ async function assignmentSection(admin: { id: string }, fresh: string, stale: st
   const cancelledM5 = await prisma.match.findUniqueOrThrow({ where: { id: m5.id } });
   assert(cancelledM5.cancellationReason === 'NO_REFEREE', `Wrong cancellation reason: ${cancelledM5.cancellationReason}`);
   assert((await matchesService.decideGoNoGo(m5.id, m5.goNoGoAt!)).outcome === 'ALREADY_DECIDED', 'The no-go ran twice.');
-  const payments = await prisma.matchPayment.findMany({ where: { matchId: m5.id }, select: { id: true } });
-  const credits = await prisma.walletTransaction.findMany({ where: { type: 'MATCH_CANCELLATION_CREDIT', referenceId: { in: payments.map(({ id }) => id) } } });
-  assert(credits.length === 10 && credits.every(({ amountCents }) => amountCents === MATCH_FEE_CENTS), 'Players were not refunded exactly once.');
-  const cancelNotice = await prisma.notification.findFirst({ where: { userId: players[0]!.id, type: 'MATCH_CANCELLED', targetPath: `/matches/${m5.id}` } });
+  // DEC-021 A3: every payer is asked once to choose a match credit or a full refund (nothing goes to a wallet).
+  const choices = await prisma.matchTicket.count({ where: { matchId: m5.id, status: 'CHOICE_PENDING' } });
+  assert(choices === 10, `Every payer was not given the credit-or-refund choice exactly once (${choices}).`);
+  const cancelNotice = await prisma.notification.findFirst({ where: { userId: players[0]!.id, type: { in: ['MATCH_CANCELLED', 'TICKET_CHOICE_REQUIRED'] }, targetPath: `/matches/${m5.id}` } });
   assert(cancelNotice?.message.includes('because no FootyFinder referee was available'), 'The cancellation did not explain the missing referee.');
   const unfilled = await matchesService.decideGoNoGo(m2.id, m2.goNoGoAt!);
   assert(unfilled.outcome === 'CANCELLED', 'An unfilled match went ahead.');
@@ -305,7 +296,7 @@ async function main() {
   console.log(
     'Gate 8 referees smoke passed: referee role (fresh MFA, reasons, permanent audited history, isReferee), default referee auto-assign (D28), '
       + 'double-booking refusal and busy flag (D27), referee also in the lineup (D17), decline (D16), removal, admin alerts once, '
-      + 'T-30 NO_REFEREE no-go with one refund each, D23 reason order, and revocation unassigning.',
+      + 'T-30 NO_REFEREE no-go with one credit-or-refund choice each, D23 reason order, and revocation unassigning.',
   );
 }
 
@@ -314,7 +305,8 @@ async function cleanup() {
   const entries = await prisma.matchRefereeAssignment.findMany({ where: { matchId: { in: matchIds } }, select: { id: true } });
   await prisma.durableJob.deleteMany({ where: { dedupeKey: { in: entries.map(({ id }) => `referee-notice:${id}`) } } });
   await venueA.cleanupMatches(matchIds);
-  await prisma.matchPayment.deleteMany({ where: { matchId: { in: matchIds } } });
+  await removeTicketJobsSince(smokeStartedAt);
+  await removeTicketRows(matchIds);
   const venueIds = (await prisma.match.findMany({ where: { id: { in: matchIds } }, select: { venueId: true } })).map(({ venueId }) => venueId);
   await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
   await prisma.venue.deleteMany({ where: { id: { in: venueIds } } });
@@ -322,8 +314,6 @@ async function cleanup() {
   await venueB.cleanupVenue();
   await venueC.cleanupVenue();
   await prisma.notification.deleteMany({ where: { OR: [{ userId: { in: userIds } }, { message: { contains: marker } }] } });
-  await prisma.walletHold.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
   await prisma.refereeGrant.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.authSession.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
