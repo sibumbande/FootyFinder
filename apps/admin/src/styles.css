@@ -720,10 +720,11 @@ code {
   color: var(--code);
   font-size: 0.75rem;
 }
+/* Panels rise into place: a sideways slide pushed phone pages wider than the screen while it ran. */
 @keyframes panel-arrive {
   from {
     opacity: 0;
-    transform: translateX(0.7rem) skewX(-0.4deg);
+    transform: translateY(0.5rem);
   }
   to {
     opacity: 1;
