@@ -3,7 +3,7 @@
 | Document | Master Terms of Service, Privacy Notice and Participation Agreement |
 |---|---|
 | Company | FootyFinder (Pty) Ltd, registration number 2026/625818/07 |
-| Version | 2.4 (Launch version) |
+| Version | 2.5 (Launch version) |
 | Effective date | The date and time this version is published in the app |
 | Last updated | 6 October 2026 |
 | Applies to | Everyone who uses the FootyFinder website and app |

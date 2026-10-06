@@ -36,6 +36,8 @@ There is no wallet. Every payment is a **match ticket** for one named match (DEC
 
 **Smokes:** `smoke:tickets`, `smoke:ticket-refunds`, `smoke:ticket-leave`, `smoke:match-credits`, `smoke:ticket-disputes`, `smoke:team-go-no-go`, `smoke:payment-to-settlement` (now on tickets) and `smoke:paystack-sandbox` (a ticket reference against the real TEST API). `smoke:payments` and `smoke:payment-methods` (top-ups) are retired.
 
+**Terms:** the DEC-021 Terms are **v2.5 (Launch version)**. Published versions are immutable, and the earlier v2.4 text (with the wallet) was already published from `legal-launch.json` wherever `legal:publish` ran, so the ticketing text is a new version (CEO decision, 6 October 2026). Publish it with `legal:publish` and `docs/legal/legal-launch.json`; it is material and every account re-accepts it once.
+
 ---
 
 ## Before DEC-021 (history)
@@ -212,8 +214,8 @@ Run on disposable `footy_finder_test` only (see `docs/TEST_DATABASE.md`); result
   - optionally `PAYSTACK_WEBHOOK_IP_ALLOWLIST`.
 - Real, approved venue bank details and venue facts (DEC-005 / TKT-302). Entered by one admin and approved by another.
 - A production `VENUE_BENEFICIARY_ENCRYPTION_KEY`, stored and backed up by Platform Operations.
-- Publish Terms of Service v2.2 with `legal:publish`.
-- External alerting for REVIEW top-ups, failed refunds and reconciliation issues. Today these are visible on the admin Finance page only.
+- Publish Terms of Service v2.5 (Launch version) with `legal:publish` and `docs/legal/legal-launch.json`.
+- External alerting for REVIEW ticket payments, failed refunds and reconciliation issues. Today these are visible on the admin Finance page only.
 
 ## More ways to pay (CEO batch 4, item 3)
 
