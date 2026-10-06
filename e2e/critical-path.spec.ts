@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { getMaxMatchParticipants } from '@footy-finder/shared';
 import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
 import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
+import { ensureLaunchTerms, removeTickets } from './support/fixtures.js';
 
 assertDisposableTestDatabase({
   databaseUrl: process.env.DATABASE_URL,
@@ -182,21 +183,14 @@ async function cleanFixtures() {
   });
   const matchIds = matches.map(({ id }) => id);
   const teamIds = (await prisma.team.findMany({ where: { ownerUserId: { in: userIds } }, select: { id: true } })).map(({ id }) => id);
-  const accountIds = (await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } })).map(({ id }) => id);
-  const teamTransactionIds = (await prisma.teamWalletTransaction.findMany({ where: { teamWalletAccountId: { in: accountIds } }, select: { id: true } })).map(({ id }) => id);
   await prisma.$transaction(async (tx) => {
-    // Gate 7 rows (team match jobs, audit, team wallet) are removed before their teams and matches.
+    // Gate 7 rows (team match jobs, audit) and DEC-021 tickets are removed before their teams and matches.
     if (matchIds.length) await tx.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
     await tx.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { teamId: { in: teamIds } }] } });
-    await tx.teamWalletAllocation.deleteMany({ where: { OR: [{ contributionTransactionId: { in: teamTransactionIds } }, { debitTransactionId: { in: teamTransactionIds } }] } });
-    await tx.teamWalletHold.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletTransaction.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletAccount.deleteMany({ where: { id: { in: accountIds } } });
-    await tx.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } }, type: { in: ['TEAM_CONTRIBUTION_DEBIT', 'TEAM_CONTRIBUTION_REFUND_CREDIT'] } } });
+    await removeTickets(tx, matchIds, userIds);
     await tx.conversation.deleteMany({ where: { id: { in: conversations.map(({ id }) => id) } } });
     await tx.durableJob.deleteMany({ where: { OR: reservations.map(({ id }) => ({ dedupeKey: `quick-match-guarantee-settle:${id}` })) } });
     await tx.fieldReservation.deleteMany({ where: { id: { in: reservations.map(({ id }) => id) } } });
-    await tx.walletHold.deleteMany({ where: { id: { in: reservations.flatMap(({ organizerGuaranteeHoldId }) => organizerGuaranteeHoldId ? [organizerGuaranteeHoldId] : []) } } });
     await tx.match.deleteMany({ where: { id: { in: matches.map(({ id }) => id) } } });
     await tx.team.deleteMany({ where: { ownerUserId: { in: userIds } } });
     await tx.venue.deleteMany({ where: { id: { in: matches.map(({ venueId }) => venueId) } } });
@@ -225,8 +219,9 @@ test.describe('browser critical path', () => {
     const playerContext = await browser.newContext();
     const captainPage = await captainContext.newPage();
     const playerPage = await playerContext.newPage();
-    // Gate 9 / TKT-910: /matches is browsable by guests now, so the redirect is checked on the wallet.
-    const protectedDestination = '/wallet?amount=16000#top-up';
+    // Gate 9 / TKT-910: /matches is browsable by guests now, so the redirect is checked on Tickets & credits.
+    await ensureLaunchTerms(prisma);
+    const protectedDestination = '/tickets?from=login#credits';
     await Promise.all([captainPage.goto(protectedDestination), playerPage.goto('/')]);
     await expect(captainPage).toHaveURL(
       `/login?returnTo=${encodeURIComponent(protectedDestination)}`,
@@ -245,13 +240,6 @@ test.describe('browser critical path', () => {
 
     await captainPage.goto(`/login?returnTo=${encodeURIComponent('/\\attacker.invalid/steal')}`);
     await expect(captainPage).toHaveURL('/');
-
-    const captainDeposit = await api(captainPage, '/wallet/deposits/demo', {
-      method: 'POST',
-      body: { amountCents: 50_000 },
-      headers: { 'Idempotency-Key': `${marker}-deposit-captain` },
-    });
-    expect(captainDeposit.status, JSON.stringify(captainDeposit.body)).toBe(200);
 
     const venueFixture = await createPublishedVenue(captain.id, player.id);
     await captainPage.goto('/');
@@ -291,15 +279,13 @@ test.describe('browser critical path', () => {
     await playerPage.getByRole('button', { name: 'Sign in' }).click();
     await expect(playerPage).toHaveURL(`/m/${quickMatch.publicSlug}`);
 
-    const playerDeposit = await api(playerPage, '/wallet/deposits/demo', {
-      method: 'POST',
-      body: { amountCents: 50_000 },
-      headers: { 'Idempotency-Key': `${marker}-share-deposit-player` },
-    });
-    expect(playerDeposit.status, JSON.stringify(playerDeposit.body)).toBe(200);
+    // DEC-021: joining from the shared page buys a sub-place ticket (the test API's demo operator confirms it).
     await playerPage.getByRole('button', { name: 'Join this match' }).click();
-    await playerPage.getByRole('button', { name: 'Pay & join Team A' }).click();
-    await expect(playerPage.getByText('Place confirmed')).toBeVisible();
+    const sheet = playerPage.getByTestId('ticket-confirm-sheet');
+    await sheet.getByRole('button', { name: 'Home', exact: true }).click();
+    await sheet.getByLabel('I understand the cancellation policy').check();
+    await sheet.getByRole('button', { name: 'Pay R80 · Card / Instant EFT' }).click();
+    await expect(playerPage.getByText('You joined as a sub. Tap an open position on your side to take it.')).toBeVisible();
     expect(
       await prisma.matchParticipant.count({ where: { matchId: quickId, userId: player.id } }),
     ).toBe(1);
@@ -346,19 +332,7 @@ test.describe('browser critical path', () => {
       },
     });
     expect(retired.status, JSON.stringify(retired.body)).toBe(410);
-    // ...so the fixture is a DEC-019 team match at the managed venue, paid from the team wallet.
-    const teamDeposit = await api(captainPage, '/wallet/deposits/demo', {
-      method: 'POST',
-      body: { amountCents: 50_000 },
-      headers: { 'Idempotency-Key': `${marker}-deposit-captain-team` },
-    });
-    expect(teamDeposit.status, JSON.stringify(teamDeposit.body)).toBe(200);
-    const contribution = await api(captainPage, `/teams/${team.body.data!.id}/wallet/contributions`, {
-      method: 'POST',
-      body: { amountCents: 40_000 },
-      headers: { 'Idempotency-Key': `${marker}-team-fund` },
-    });
-    expect(contribution.status, JSON.stringify(contribution.body)).toBe(201);
+    // ...so the fixture is a DEC-019 team match at the managed venue (DEC-021 D7: no money check at publish).
     const fixture = await api<{ id: string }>(captainPage, '/matches', {
       method: 'POST',
       body: {
@@ -460,7 +434,8 @@ test.describe('browser critical path', () => {
         team: index % 2 ? 'HOME' : 'AWAY',
       })),
     });
-    await playerPage.reload();
+    // Back on the shared page (joining opened the lobby).
+    await playerPage.goto(`/m/${quickMatch.publicSlug}`);
     await expect(playerPage.getByText('This match is full. The page remains available for match details.')).toBeVisible();
     await prisma.match.update({ where: { id: quickId }, data: { status: 'CANCELLED' } });
     await playerPage.reload();

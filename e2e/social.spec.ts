@@ -63,7 +63,6 @@ async function cleanFixtures() {
   const teamIds = teams.map(({ id }) => id);
   await prisma.$transaction(async (tx) => {
     await tx.notification.deleteMany({ where: { userId: { in: userIds } } });
-    await tx.teamWalletAccount.deleteMany({ where: { teamId: { in: teamIds } } });
     await tx.team.deleteMany({ where: { id: { in: teamIds } } });
     await tx.conversation.deleteMany({ where: { participants: { some: { userId: { in: userIds } } } } });
     await tx.user.deleteMany({ where: { id: { in: userIds } } });

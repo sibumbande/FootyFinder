@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
 import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
+import { ensureLaunchTerms, removeTickets } from './support/fixtures.js';
 
 // Gate 8 / TKT-811 (DEC-020): the referee journey in a real browser against the real API, database,
 // lifecycle scheduler and sockets. An admin grants the referee role and assigns the referee; a team
@@ -76,13 +77,6 @@ async function register(page: Page, suffix: string, firstName: string, email = `
   return { id: userId, name: `${firstName} Ref Test` };
 }
 
-async function deposit(page: Page, key: string, amountCents = 200_000) {
-  const response = await api(page, '/wallet/deposits/demo', {
-    method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
-  });
-  expect(response.status, JSON.stringify(response.body)).toBe(200);
-}
-
 async function createPublishedVenue(submitterId: string, approverId: string) {
   const venue = await prisma.managedVenue.create({
     data: {
@@ -137,19 +131,13 @@ async function cleanFixtures() {
   const teamIds = teams.map(({ id }) => id);
   const matches = await prisma.match.findMany({ where: { createdById: { in: userIds } }, select: { id: true, venueId: true } });
   const matchIds = matches.map(({ id }) => id);
-  const accounts = await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } });
-  const accountIds = accounts.map(({ id }) => id);
-  const teamTransactionIds = (await prisma.teamWalletTransaction.findMany({ where: { teamWalletAccountId: { in: accountIds } }, select: { id: true } })).map(({ id }) => id);
   await prisma.$transaction(async (tx) => {
     if (matchIds.length) await tx.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
     await tx.notification.deleteMany({ where: { userId: { in: userIds } } });
     await tx.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { teamId: { in: teamIds } }] } });
-    await tx.teamWalletAllocation.deleteMany({ where: { OR: [{ contributionTransactionId: { in: teamTransactionIds } }, { debitTransactionId: { in: teamTransactionIds } }] } });
-    await tx.teamWalletHold.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletTransaction.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletAccount.deleteMany({ where: { id: { in: accountIds } } });
     await tx.venuePayable.deleteMany({ where: { matchId: { in: matchIds } } });
     await tx.fieldReservation.deleteMany({ where: { matchId: { in: matchIds } } });
+    await removeTickets(tx, matchIds, userIds);
     await tx.matchPayment.deleteMany({ where: { matchId: { in: matchIds } } });
     await tx.match.deleteMany({ where: { id: { in: matchIds } } });
     await tx.venue.deleteMany({ where: { id: { in: matches.map(({ venueId }) => venueId) } } });
@@ -161,7 +149,6 @@ async function cleanFixtures() {
       await tx.managedVenue.delete({ where: { id: managedVenueId } });
     }
     await tx.refereeGrant.deleteMany({ where: { userId: { in: userIds } } });
-    await tx.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
     await tx.user.deleteMany({ where: { id: { in: userIds } } });
   });
   expect(await prisma.user.count({ where: { email: { startsWith: marker } } })).toBe(0);
@@ -185,7 +172,7 @@ test.describe('referees and final results (Gate 8 / DEC-020)', () => {
     const owner = await register(ownerPage, 'owner', 'Owner');
     const player = await register(playerPage, 'player', 'Striker');
     const second = await register(secondPage, 'second', 'Winger');
-    for (const [page, key] of [[ownerPage, 'owner'], [playerPage, 'player'], [secondPage, 'second']] as const) await deposit(page, key);
+    await ensureLaunchTerms(prisma);
     const fieldId = await createPublishedVenue(owner.id, player.id);
 
     // The admin (with a fresh MFA check) makes the referee.
@@ -198,7 +185,6 @@ test.describe('referees and final results (Gate 8 / DEC-020)', () => {
     // A team publishes an "Open to both" match; no default referee, so the admin assigns one.
     const team = await api<{ id: string }>(ownerPage, '/teams', { method: 'POST', body: { name: `${marker} Lions`, primaryFormat: 'FIVE_A_SIDE', formationKey: 'BALANCED_1_1_2_1' } });
     const teamId = team.body.data!.id;
-    expect((await api(ownerPage, `/teams/${teamId}/wallet/contributions`, { method: 'POST', body: { amountCents: 50_000 }, headers: { 'Idempotency-Key': `${marker}-fund` } })).status).toBe(201);
     const published = await api<{ id: string }>(ownerPage, '/matches', {
       method: 'POST',
       body: {
@@ -213,10 +199,14 @@ test.describe('referees and final results (Gate 8 / DEC-020)', () => {
     await playerPage.goto(`/matches/${matchId}`);
     await expect(playerPage.getByTestId('match-referee')).toHaveText('FootyFinder referee: Referee Ref Test');
 
-    // Two players take the other side (R80 each).
+    // Two players take the other side with R80 match tickets (DEC-021; the demo operator confirms them).
     for (const page of [playerPage, secondPage]) {
-      const joined = await api(page, `/matches/${matchId}/join`, { method: 'POST', body: { team: 'AWAY' }, headers: { 'Idempotency-Key': `${marker}-${page === playerPage ? 'p' : 's'}-join` } });
-      expect(joined.status, JSON.stringify(joined.body)).toBe(201);
+      const joined = await api<{ state: string }>(page, `/matches/${matchId}/tickets/checkout`, {
+        method: 'POST', body: { seat: 'SUBSTITUTE', side: 'AWAY', method: 'PAYMENT', acceptPolicy: true },
+        headers: { 'Idempotency-Key': `${marker}-${page === playerPage ? 'p' : 's'}-join` },
+      });
+      expect(joined.status, JSON.stringify(joined.body)).toBeLessThan(300);
+      expect(joined.body.data?.state, JSON.stringify(joined.body)).toBe('CONFIRMED');
     }
 
     // The referee sees the match and its lineups on the Referee page.

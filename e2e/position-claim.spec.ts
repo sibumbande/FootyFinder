@@ -2,8 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
 import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
+import { ensureLaunchTerms, removeTickets } from './support/fixtures.js';
 
-// Gate 5 / TKT-506: shared public match -> sign in -> pay/join -> claim -> second-player conflict
+// Gate 5 / TKT-506 (DEC-021): shared public match -> sign in -> buy a sub-place ticket -> claim -> second-player conflict
 // -> realtime convergence, in a real browser against the real API, database, and sockets.
 assertDisposableTestDatabase({
   databaseUrl: process.env.DATABASE_URL,
@@ -100,15 +101,6 @@ async function register(page: Page, suffix: 'host' | 'alpha' | 'bravo', firstNam
   return { id: userId, firstName };
 }
 
-async function fundWallet(page: Page, key: string) {
-  const deposit = await api(page, '/wallet/deposits/demo', {
-    method: 'POST',
-    body: { amountCents: 50_000 },
-    headers: { 'Idempotency-Key': `${marker}-${key}` },
-  });
-  expect(deposit.status, JSON.stringify(deposit.body)).toBe(200);
-}
-
 /** A disposable published venue with one 5-a-side field open all week (dual-control approved). */
 async function createPublishedVenue(submitterId: string, approverId: string) {
   const startsAt = new Date(Date.now() + 72 * 60 * 60_000);
@@ -188,22 +180,17 @@ async function cleanFixtures() {
     select: { id: true, organizerGuaranteeHoldId: true },
   });
   await prisma.$transaction(async (tx) => {
+    await removeTickets(tx, matches.map(({ id }) => id), userIds);
     await tx.durableJob.deleteMany({
       where: {
-        OR: reservations.map(({ id }) => ({ dedupeKey: `quick-match-guarantee-settle:${id}` })),
+        OR: [
+          ...reservations.map(({ id }) => ({ dedupeKey: `quick-match-guarantee-settle:${id}` })),
+          ...matches.map(({ id }) => ({ dedupeKey: { contains: id } })),
+        ],
       },
     });
     await tx.fieldReservation.deleteMany({
       where: { id: { in: reservations.map(({ id }) => id) } },
-    });
-    await tx.walletHold.deleteMany({
-      where: {
-        id: {
-          in: reservations.flatMap(({ organizerGuaranteeHoldId }) =>
-            organizerGuaranteeHoldId ? [organizerGuaranteeHoldId] : [],
-          ),
-        },
-      },
     });
     await tx.match.deleteMany({ where: { id: { in: matches.map(({ id }) => id) } } });
     await tx.venue.deleteMany({ where: { id: { in: matches.map(({ venueId }) => venueId) } } });
@@ -246,11 +233,11 @@ test.describe('public join and position claim', () => {
       bravoContext.newPage(),
     ]);
     await Promise.all([hostPage.goto('/'), alphaPage.goto('/'), bravoPage.goto('/')]);
+    await ensureLaunchTerms(prisma);
 
     const host = await register(hostPage, 'host', 'Hosting');
     const alpha = await register(alphaPage, 'alpha', 'Alpha');
     const bravo = await register(bravoPage, 'bravo', 'Bravo');
-    await fundWallet(hostPage, 'host');
 
     // Host publishes a public Quick Match on a managed field.
     const { field, startsAt } = await createPublishedVenue(host.id, alpha.id);
@@ -284,19 +271,18 @@ test.describe('public join and position claim', () => {
     await alphaPage.getByRole('button', { name: 'Sign in' }).click();
     await expect(alphaPage).toHaveURL(`/m/${publicSlug}`);
 
-    // Both players fund through the environment-gated demo deposit and pay to join Team A.
+    // DEC-021: both players buy a sub-place ticket for Team A (the test API's demo operator confirms it).
     await bravoPage.goto(`/m/${publicSlug}`);
-    for (const [page, key] of [
-      [alphaPage, 'alpha'],
-      [bravoPage, 'bravo'],
-    ] as const) {
-      await fundWallet(page, key);
+    for (const page of [alphaPage, bravoPage]) {
       await page.getByRole('button', { name: 'Join this match' }).click();
-      await page.getByRole('button', { name: 'Pay & join Team A' }).click();
-      await expect(page.getByText('Place confirmed')).toBeVisible();
+      const sheet = page.getByTestId('ticket-confirm-sheet');
+      await sheet.getByRole('button', { name: 'Home', exact: true }).click();
+      await sheet.getByLabel('I understand the cancellation policy').check();
+      await sheet.getByRole('button', { name: 'Pay R80 · Card / Instant EFT' }).click();
+      await expect(page.getByText('You joined as a sub. Tap an open position on your side to take it.')).toBeVisible();
     }
-    const payments = await prisma.matchPayment.findMany({ where: { matchId } });
-    expect(payments.map(({ amountCents }) => amountCents)).toEqual([8_000, 8_000]);
+    const tickets = await prisma.matchTicket.findMany({ where: { matchId, status: 'CONFIRMED' } });
+    expect(tickets.map(({ amountCents }) => amountCents)).toEqual([8_000, 8_000]);
 
     // Everyone opens the lobby. Joined players see claimable open positions on their side.
     await Promise.all(
@@ -349,7 +335,7 @@ test.describe('public join and position claim', () => {
 
     // DEC-018 messaging: the T-30 rule is explained and the live count follows the socket updates.
     await expect(
-      hostPage.getByText(/This match goes ahead only if all positions are filled and a FootyFinder referee is assigned by .* your R80 is refunded to your wallet\./),
+      hostPage.getByText(/This match goes ahead only if all positions are filled and a FootyFinder referee is assigned by .* you choose a match credit or a full refund of your R80\./),
     ).toBeVisible();
     for (const page of [hostPage, winnerPage, loserPage])
       await expect(page.getByTestId('positions-filled')).toHaveText('2 of 10 positions filled', {

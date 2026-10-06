@@ -167,11 +167,15 @@ test.describe('admin app layout and contrast (CEO batch 3.5, item 3)', () => {
     await player.goto(`/matches/${matchId}`);
     await expect(player.getByTestId('hosted-by-footyfinder')).toBeVisible();
     await expect(player.getByTestId('free-match-badge')).toBeVisible();
-    await player.getByRole('button', { name: 'Join a team' }).click();
-    await player.getByRole('button', { name: /for free$/ }).click();
+    // DEC-021: a free match still takes a (free) ticket, with the cancellation policy accepted.
+    await player.getByRole('button', { name: /position \d+, open, buy a ticket for it/ }).first().click();
+    const sheet = player.getByTestId('ticket-confirm-sheet');
+    await sheet.getByLabel('I understand the cancellation policy').check();
+    await sheet.getByRole('button', { name: 'Join for free' }).click();
     await expect.poll(() => f.prisma.matchParticipant.count({ where: { matchId, userId: rookie.id, status: 'JOINED' } })).toBe(1);
-    expect((await f.prisma.matchPayment.findFirstOrThrow({ where: { matchId, userId: rookie.id } })).amountCents).toBe(0);
-    expect((await f.prisma.walletAccount.findUnique({ where: { userId: rookie.id } }))?.balanceCents ?? 0).toBe(0);
+    expect(await f.prisma.matchTicket.findFirstOrThrow({ where: { matchId, playerId: rookie.id }, select: { status: true, method: true, amountCents: true } }))
+      .toEqual({ status: 'CONFIRMED', method: 'FREE', amountCents: 0 });
+    expect(await f.prisma.providerPayment.count({ where: { userId: rookie.id } })).toBe(0);
     expect(await f.prisma.promotionalCost.count({ where: { matchId, userId: rookie.id, status: 'ACTIVE' } })).toBe(1);
 
     // Once someone has joined, the price can no longer change.

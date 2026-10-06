@@ -2,12 +2,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
 import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
+import { ensureLaunchTerms, removeTickets } from './support/fixtures.js';
 
 // Gate 7 / TKT-712 (DEC-019): the full team-match journey in a real browser against the real API,
-// database and sockets. Journey 1: team-page entry -> "Teams only" -> publishing blocked until the
-// team wallet covers the fee -> publish -> another team "Load my team" -> both meters fill -> both
-// lineups -> team chat. Journey 2: "Play as my team" in create-match -> "Open to both" -> a player
-// joins for R80 -> "Load my team" is refused. No venue cost ever reaches the browser.
+// database and sockets. Journey 1: team-page entry -> "Teams only" -> publish with nothing paid
+// (DEC-021 D7) -> another team "Load my team" -> payments open -> each team pays for named players'
+// tickets on its payment checklist -> both lineups -> team chat. Journey 2: "Play as my team" in
+// create-match -> "Open to both" -> a player buys an R80 ticket -> "Load my team" is refused. No venue
+// cost ever reaches the browser.
 assertDisposableTestDatabase({
   databaseUrl: process.env.DATABASE_URL,
   nodeEnv: process.env.NODE_ENV,
@@ -79,13 +81,6 @@ async function register(page: Page, suffix: string, firstName: string) {
   return { id: userId, name: `${firstName} Team Test` };
 }
 
-async function deposit(page: Page, key: string, amountCents = 200_000) {
-  const response = await api(page, '/wallet/deposits/demo', {
-    method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
-  });
-  expect(response.status, JSON.stringify(response.body)).toBe(200);
-}
-
 async function createTeam(page: Page, name: string) {
   const response = await api<{ id: string }>(page, '/teams', {
     method: 'POST', body: { name: `${marker} ${name}`, primaryFormat: 'FIVE_A_SIDE', formationKey: 'BALANCED_1_1_2_1' },
@@ -94,11 +89,13 @@ async function createTeam(page: Page, name: string) {
   return response.body.data!.id;
 }
 
-async function contribute(page: Page, teamId: string, amountCents: number, key: string) {
-  const response = await api(page, `/teams/${teamId}/wallet/contributions`, {
-    method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
+/** DEC-021 A5: pays for named teammates' places on a team side (one demo payment). */
+async function payForTeammates(page: Page, matchId: string, side: 'HOME' | 'AWAY', playerIds: string[], key: string) {
+  const response = await api<{ state: string }>(page, `/matches/${matchId}/team-sides/${side}/tickets/checkout`, {
+    method: 'POST', body: { playerIds, method: 'PAYMENT', acceptPolicy: true }, headers: { 'Idempotency-Key': `${marker}-${key}` },
   });
-  expect(response.status, JSON.stringify(response.body)).toBe(201);
+  expect(response.status, JSON.stringify(response.body)).toBeLessThan(300);
+  expect(response.body.data?.state, JSON.stringify(response.body)).toBe('CONFIRMED');
 }
 
 /** A disposable published venue with one 5-a-side field open all week (dual-control approved). */
@@ -160,17 +157,11 @@ async function cleanFixtures() {
   const teamIds = teams.map(({ id }) => id);
   const matches = await prisma.match.findMany({ where: { createdById: { in: userIds } }, select: { id: true, venueId: true } });
   const matchIds = matches.map(({ id }) => id);
-  const accounts = await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } });
-  const accountIds = accounts.map(({ id }) => id);
-  const teamTransactionIds = (await prisma.teamWalletTransaction.findMany({ where: { teamWalletAccountId: { in: accountIds } }, select: { id: true } })).map(({ id }) => id);
   await prisma.$transaction(async (tx) => {
     if (matchIds.length) await tx.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
     await tx.notification.deleteMany({ where: { userId: { in: userIds } } });
     await tx.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { teamId: { in: teamIds } }] } });
-    await tx.teamWalletAllocation.deleteMany({ where: { OR: [{ contributionTransactionId: { in: teamTransactionIds } }, { debitTransactionId: { in: teamTransactionIds } }] } });
-    await tx.teamWalletHold.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletTransaction.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletAccount.deleteMany({ where: { id: { in: accountIds } } });
+    await removeTickets(tx, matchIds, userIds);
     await tx.teamMessage.deleteMany({ where: { teamId: { in: teamIds } } });
     await tx.venuePayable.deleteMany({ where: { matchId: { in: matchIds } } });
     await tx.fieldReservation.deleteMany({ where: { matchId: { in: matchIds } } });
@@ -183,7 +174,6 @@ async function cleanFixtures() {
       await tx.managedField.deleteMany({ where: { venueId: managedVenueId } });
       await tx.managedVenue.delete({ where: { id: managedVenueId } });
     }
-    await tx.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
     await tx.user.deleteMany({ where: { id: { in: userIds } } });
     if (testBatchId) await tx.testDataBatch.delete({ where: { id: testBatchId } });
   });
@@ -196,7 +186,7 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await prisma.$disconnect();
   });
 
-  test('two teams: publish, load, fill both meters, both lineups and team chat; then an "Open to both" match a player takes first', async ({ browser }) => {
+  test('two teams: publish, load, pay for both teams’ tickets, both lineups and team chat; then an "Open to both" match a player takes first', async ({ browser }) => {
     test.setTimeout(180_000);
     const contexts = await Promise.all([1, 2, 3, 4].map(() => browser.newContext()));
     const [homePage, memberPage, awayPage, playerPage] = await Promise.all(contexts.map((context) => context.newPage()));
@@ -207,7 +197,7 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     const member = await register(memberPage, 'member', 'Member');
     const away = await register(awayPage, 'away', 'Away');
     await register(playerPage, 'player', 'Player');
-    for (const [page, key] of [[homePage, 'home'], [awayPage, 'away'], [playerPage, 'player']] as const) await deposit(page, key);
+    await ensureLaunchTerms(prisma);
     const { slug, fieldId } = await createPublishedVenue(home.id, away.id);
 
     const homeTeamId = await createTeam(homePage, 'Rondebosch');
@@ -215,13 +205,11 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     const inviteToken = invite.body.data!.inviteUrl.split('/').pop()!;
     expect((await api(memberPage, `/team-invites/${inviteToken}/accept`, { method: 'POST' })).status).toBe(200);
     const awayTeamId = await createTeam(awayPage, 'Claremont');
-    await contribute(awayPage, awayTeamId, 100_000, 'away-fund');
 
     // --- Journey 1: team page entry, "Teams only". ---
     await homePage.goto(`/teams/${homeTeamId}`);
     const entry = homePage.getByRole('link', { name: 'Create team match' }).first();
     await expect(entry).toHaveAttribute('href', `/matches/new?playAs=team:${homeTeamId}&lock=1`);
-    await contribute(homePage, homeTeamId, 10_000, 'home-short'); // R100: not enough for R480
     const firstSlot = kickoff(72);
     await homePage.goto(`/matches/new?${slotQuery(slug, fieldId, firstSlot)}&playAs=team%3A${homeTeamId}&lock=1`);
     await expect(homePage.getByRole('button', { name: /Myself \(quick match\)/ })).toHaveCount(0);
@@ -232,16 +220,15 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await homePage.getByLabel('Subs your team brings').fill('1');
     await expect(homePage.getByTestId('team-fee-breakdown')).toHaveText('R400 (5 players) + R80 (1 sub) = R480');
     await homePage.getByRole('button', { name: 'Continue' }).click();
-    await expect(homePage.getByTestId('team-wallet-check')).toContainText('Top up your team wallet to at least R480 to publish this match.');
-    await expect(homePage.getByRole('button', { name: 'Publish team match' })).toBeDisabled();
-    await contribute(homePage, homeTeamId, 50_000, 'home-top-up');
-    await homePage.getByRole('button', { name: 'Check again' }).click();
-    await expect(homePage.getByTestId('team-wallet-check')).toContainText('Team wallet available: R600');
+    // DEC-021 D7: nothing is paid to publish; the team pays in match tickets once an opponent is found.
+    await expect(homePage.getByTestId('team-payment-note')).toContainText('Nothing is paid to publish. Your team pays R480 in match tickets');
     await homePage.getByRole('button', { name: 'Publish team match' }).click();
     await expect(homePage).toHaveURL(/\/matches\/[0-9a-f-]{36}#formation$/);
     const matchId = new URL(homePage.url()).pathname.split('/').pop()!;
-    await expect(homePage.getByTestId('team-meter-inactive')).toBeVisible();
-    expect(await prisma.teamWalletHold.count({ where: { matchId } })).toBe(0);
+    const homeChecklist = homePage.getByTestId('team-payment-checklist');
+    await expect(homeChecklist.getByTestId('team-payment-deadline')).toHaveText('Payments open once the other side is taken. Nobody pays before then.');
+    await expect(homeChecklist.getByRole('checkbox')).toHaveCount(0);
+    expect(await prisma.matchTicket.count({ where: { matchId } })).toBe(0);
 
     // The other team takes the side instantly with "Load my team".
     await awayPage.goto(`/matches/${matchId}`);
@@ -249,18 +236,28 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await awayPage.getByLabel('Subs your team brings').fill('0');
     await expect(awayPage.getByTestId('load-team-fee')).toHaveText('R400 (5 players) + R0 (0 subs) = R400');
     await awayPage.getByRole('button', { name: 'Confirm and load my team' }).click();
-    await expect(awayPage.getByTestId('team-meter')).toHaveText('R0 / R400');
+    const awayChecklist = awayPage.getByTestId('team-payment-checklist');
+    await expect(awayChecklist.getByTestId('team-payment-progress')).toHaveText('0 of 5 paid · R400 still needed');
 
-    // Both meters fill from their own team wallets; the home meter wakes up over the socket.
-    await expect(homePage.getByTestId('team-meter')).toHaveText('R0 / R480', { timeout: 5_000 });
-    await homePage.getByRole('button', { name: 'Fill the rest (R480)' }).click();
-    await expect(homePage.getByTestId('team-meter')).toHaveText('R480 / R480');
-    await awayPage.getByRole('button', { name: 'Fill the rest (R400)' }).click();
-    await expect(awayPage.getByTestId('team-meter')).toHaveText('R400 / R400');
-    const holds = await prisma.teamWalletHold.findMany({ where: { matchId, status: 'ACTIVE' } });
-    expect(holds.reduce((sum, hold) => sum + hold.amountCents, 0)).toBe(88_000);
-    const homeWallet = await prisma.teamWalletAccount.findUniqueOrThrow({ where: { teamId: homeTeamId } });
-    expect(homeWallet.balanceCents).toBe(60_000); // held, not spent: taken only if the match goes ahead
+    // Payments open on both checklists; the home checklist wakes up over the socket.
+    await expect(homeChecklist.getByTestId('team-payment-progress')).toHaveText('0 of 6 paid · R480 still needed', { timeout: 5_000 });
+    // The captain pays for themselves and a teammate in one payment (DEC-021 A5).
+    await homeChecklist.getByRole('checkbox', { name: `Pay for ${home.name}` }).check();
+    await homeChecklist.getByRole('checkbox', { name: `Pay for ${member.name}` }).check();
+    await homeChecklist.getByLabel('I understand the cancellation policy').check();
+    await homeChecklist.getByRole('button', { name: 'Pay R160 for 2 players' }).click();
+    await expect(homeChecklist.getByTestId('team-payment-progress')).toHaveText('2 of 6 paid · R320 still needed');
+    await expect(homeChecklist.getByTestId(`team-payment-${member.id}`)).toContainText('Paid by you');
+    await payForTeammates(awayPage, matchId, 'AWAY', [away.id], 'away-self');
+    await awayPage.reload();
+    await expect(awayChecklist.getByTestId('team-payment-progress')).toHaveText('1 of 5 paid · R320 still needed');
+    const tickets = await prisma.matchTicket.findMany({ where: { matchId, status: 'CONFIRMED' }, select: { playerId: true, payerId: true, amountCents: true } });
+    expect(tickets.map(({ playerId, payerId, amountCents }) => ({ playerId, payerId, amountCents })).sort((a, b) => a.playerId.localeCompare(b.playerId)))
+      .toEqual([
+        { playerId: home.id, payerId: home.id, amountCents: 8_000 },
+        { playerId: member.id, payerId: home.id, amountCents: 8_000 },
+        { playerId: away.id, payerId: away.id, amountCents: 8_000 },
+      ].sort((a, b) => a.playerId.localeCompare(b.playerId)));
 
     // Both lineups load; each side is its own team.
     await expect(homePage.getByRole('button', { name: /Home: .*Rondebosch/ })).toBeVisible();
@@ -271,12 +268,11 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await memberPage.getByRole('tab', { name: 'chat' }).click();
     await homePage.goto(`/teams/${homeTeamId}`);
     await homePage.getByRole('tab', { name: 'chat' }).click();
-    await homePage.getByPlaceholder('Message your team').fill('Meters are full, see you Saturday');
+    await homePage.getByPlaceholder('Message your team').fill('Tickets are sorted, see you Saturday');
     await homePage.getByRole('button', { name: 'Send' }).click();
-    await expect(memberPage.getByText('Meters are full, see you Saturday')).toBeVisible({ timeout: 5_000 });
+    await expect(memberPage.getByText('Tickets are sorted, see you Saturday')).toBeVisible({ timeout: 5_000 });
 
     // --- Journey 2: "Play as my team" in the normal create-match flow, "Open to both". ---
-    await contribute(homePage, homeTeamId, 50_000, 'home-second'); // R480 is held for journey 1
     const secondSlot = kickoff(76);
     await homePage.goto(`/matches/new?${slotQuery(slug, fieldId, secondSlot)}`);
     await homePage.getByRole('button', { name: /My team .*Rondebosch/ }).click();
@@ -287,16 +283,18 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
     await homePage.getByRole('button', { name: 'Continue' }).click();
     await homePage.getByLabel('Subs your team brings').fill('0');
     await homePage.getByRole('button', { name: 'Continue' }).click();
-    await expect(homePage.getByTestId('team-wallet-check')).toContainText('Team wallet available');
+    await expect(homePage.getByTestId('team-payment-note')).toContainText('Nothing is paid to publish');
     await homePage.getByRole('button', { name: 'Publish team match' }).click();
     await expect(homePage).toHaveURL(/\/matches\/[0-9a-f-]{36}#formation$/);
     const openMatchId = new URL(homePage.url()).pathname.split('/').pop()!;
 
-    // A player takes the other side first and pays R80 from their own wallet.
+    // A player takes the other side first with an R80 match ticket (DEC-021).
     await playerPage.goto(`/matches/${openMatchId}`);
     await playerPage.getByRole('button', { name: /Join as a player/ }).click();
-    await playerPage.getByTestId('confirm-dialog').getByRole('button', { name: 'Join' }).click();
-    await expect.poll(() => prisma.matchPayment.count({ where: { matchId: openMatchId, status: 'SUCCEEDED', amountCents: 8_000 } })).toBe(1);
+    const sheet = playerPage.getByTestId('ticket-confirm-sheet');
+    await sheet.getByLabel('I understand the cancellation policy').check();
+    await sheet.getByRole('button', { name: 'Pay R80 · Card / Instant EFT' }).click();
+    await expect.poll(() => prisma.matchTicket.count({ where: { matchId: openMatchId, status: 'CONFIRMED', side: 'AWAY', amountCents: 8_000 } })).toBe(1);
     // ...so a team can no longer load into that side.
     await awayPage.goto(`/matches/${openMatchId}`);
     await expect(awayPage.getByText('Players have already joined the other side, so a team can no longer load into it.')).toBeVisible();
@@ -307,13 +305,15 @@ test.describe('team matches (Gate 7 / DEC-019)', () => {
       expect(body).not.toContain(String(VENUE_PRICE_CENTS));
       expect(body).not.toMatch(/"priceCents|priceCentsSnapshot|"fromPriceCents/);
     }
-    // Money reconciles: every team wallet equals its ledger and never holds more than its fees.
-    for (const teamId of [homeTeamId, awayTeamId]) {
-      const account = await prisma.teamWalletAccount.findUniqueOrThrow({ where: { teamId } });
-      const ledger = await prisma.teamWalletTransaction.aggregate({ where: { teamWalletAccountId: account.id }, _sum: { amountCents: true } });
-      expect(ledger._sum.amountCents).toBe(account.balanceCents);
-      const held = await prisma.teamWalletHold.aggregate({ where: { teamWalletAccountId: account.id, status: 'ACTIVE' }, _sum: { amountCents: true } });
-      expect(held._sum.amountCents ?? 0).toBeLessThanOrEqual(account.balanceCents);
+    // Money reconciles: every paid checkout matches its succeeded payment and the tickets it bought.
+    const checkouts = await prisma.ticketCheckout.findMany({
+      where: { matchId: { in: [matchId, openMatchId] }, status: 'COMPLETED' },
+      select: { amountCents: true, providerPayment: { select: { status: true, amountCents: true } }, tickets: { select: { amountCents: true } } },
+    });
+    expect(checkouts).toHaveLength(3);
+    for (const checkout of checkouts) {
+      expect(checkout.providerPayment).toEqual({ status: 'SUCCEEDED', amountCents: checkout.amountCents });
+      expect(checkout.tickets.reduce((sum, ticket) => sum + ticket.amountCents, 0)).toBe(checkout.amountCents);
     }
     await Promise.all(contexts.map((context) => context.close()));
   });

@@ -38,11 +38,11 @@ async function offscreen(page: Page) {
 async function expectHeaderAligned(page: Page) {
   await page.goto('/');
   const header = page.locator('header').first();
-  await expect(header.getByRole('link', { name: 'Top up wallet' })).toHaveCount(0);
+  // DEC-021: there is no wallet, so no balance chip or top-up link in the header.
+  await expect(header.getByRole('link', { name: /Top up wallet|^Wallet balance/ })).toHaveCount(0);
   const controls = [
     header.getByRole('link', { name: 'FootyFinder home' }),
     header.getByRole('button', { name: /Switch to (dark|light) mode/ }),
-    header.getByRole('link', { name: /^Wallet balance/ }),
     header.getByRole('button', { name: /^Notifications/ }),
     header.locator('button[aria-haspopup="menu"]'),
   ];
@@ -135,9 +135,7 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     matchId = created.body.data!.id;
     // CEO touch-up batch 4, item 5: the long-named player sits in the reserves, so the name checks have a chip to test.
-    await f.deposit(page, 'reserve-join');
-    const joined = await f.api(page, `/matches/${matchId}/join`, { method: 'POST', body: { team: 'HOME' }, headers: { 'Idempotency-Key': `${f.marker}-reserve-join` } });
-    expect(joined.status, JSON.stringify(joined.body)).toBeLessThan(300);
+    await f.buyTicket(page, matchId, { seat: 'SUBSTITUTE', side: 'HOME' }, 'reserve-join');
     publicSlug = (await f.prisma.match.findUniqueOrThrow({ where: { id: matchId }, select: { publicSlug: true } })).publicSlug!;
     await context.close();
   });
@@ -182,7 +180,7 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
     expect(swatchBox.height).toBeGreaterThanOrEqual(44);
     await swatch.tap();
     await expect(swatch).toHaveAttribute('aria-checked', 'true');
-    await expect(sheet.getByTestId('kit-band')).toHaveAttribute('style', /rgb(20, 33, 61)|#14213D/i);
+    await expect(sheet.getByTestId('kit-band')).toHaveAttribute('style', /rgb\(20, 33, 61\)|#14213D/i);
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('INPUT');
     expect(await offscreen(page)).toEqual([]);
     await sheet.getByRole('button', { name: 'Done' }).tap();
@@ -256,7 +254,7 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       expect(login.status, JSON.stringify(login.body)).toBe(200);
       // CEO touch-up batch 3, item 11: plus the pages the 390 px audit found broken (team create/invites/settings,
       // onboarding, bookings, disputes).
-      for (const path of ['/', '/matches', '/social', '/social?tab=leaderboards', '/social?tab=friends', '/social?tab=teams', '/social?tab=dms', '/wallet', '/teams', '/teams/create', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/teams/${teamId}?tab=settings`, `/matches/${matchId}`, '/matches/new', `/players/${userId}`, '/support', '/bookings', '/disputes', '/onboarding'])
+      for (const path of ['/', '/matches', '/social', '/social?tab=leaderboards', '/social?tab=friends', '/social?tab=teams', '/social?tab=dms', '/tickets', '/teams', '/teams/create', `/teams/${teamId}`, `/teams/${teamId}?tab=invites`, `/teams/${teamId}?tab=settings`, `/matches/${matchId}`, '/matches/new', `/players/${userId}`, '/support', '/bookings', '/disputes', '/onboarding'])
         await expectFits(page, path);
 
       // The notifications panel opens fully on screen, under the header.
@@ -291,7 +289,12 @@ test.describe('phone widths (CEO batch 1, item 4)', () => {
       // CEO touch-up batch 3.5, item 6: Leaderboards comes after Discover and before Friends.
       expect((await page.getByTestId('social-section-select').locator('option').allTextContents()).slice(0, 3).map((text) => text.split(' ')[0])).toEqual(['Discover', 'Leaderboards', 'Friends']);
       await page.getByTestId('social-section-select').selectOption('leaderboards');
+      // Batch 5 brief, B3: on phones one board shows at a time, behind Matches · Goals · Assists tabs.
+      await expect(page.getByTestId('leaderboard-matches')).toBeVisible();
+      await expect(page.getByTestId('leaderboard-goals')).toBeHidden();
+      await page.getByRole('tablist', { name: 'Leaderboards' }).getByRole('tab', { name: /Goals/i }).click();
       await expect(page.getByTestId('leaderboard-goals')).toBeVisible();
+      await expect(page.getByTestId('leaderboard-matches')).toBeHidden();
       await page.goto(`/teams/${teamId}`);
       // CEO touch-up batch 4, item 2: the team statistics strip sits on the Overview tab and fits.
       await expect(page.getByTestId('team-stats')).toBeVisible();

@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, type Page } from '@playwright/test';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../apps/api/src/generated/prisma/client.js';
@@ -9,6 +13,43 @@ import { assertDisposableTestDatabase } from '../../apps/api/src/database/test-d
  */
 /** The API the browser tests talk to (override with E2E_API_URL to run against side-port servers). */
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+
+type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
+
+/**
+ * DEC-021: removes the match tickets of these matches and players (checkouts, payments, refunds, disputes, emails), so
+ * the matches and players can be deleted. Specs that issue match credits keep those rows instead: the credit ledger
+ * is append-only.
+ */
+export async function removeTickets(tx: Tx, matchIds: string[], userIds: string[]) {
+  const checkouts = await tx.ticketCheckout.findMany({ where: { OR: [{ matchId: { in: matchIds } }, { payerId: { in: userIds } }] }, select: { id: true, providerPaymentId: true } });
+  const paymentIds = checkouts.flatMap(({ providerPaymentId }) => (providerPaymentId ? [providerPaymentId] : []));
+  await tx.ticketEmail.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { checkoutId: { in: checkouts.map(({ id }) => id) } }, { userId: { in: userIds } }] } });
+  await tx.providerRefund.deleteMany({ where: { providerPaymentId: { in: paymentIds } } });
+  await tx.providerDispute.deleteMany({ where: { providerPaymentId: { in: paymentIds } } });
+  await tx.matchTicket.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { checkoutId: { in: checkouts.map(({ id }) => id) } }] } });
+  await tx.ticketCheckout.deleteMany({ where: { id: { in: checkouts.map(({ id }) => id) } } });
+  await tx.providerPayment.deleteMany({ where: { id: { in: paymentIds } } });
+}
+
+/**
+ * DEC-021: a ticket purchase records the version of the Terms the player accepted the cancellation policy under, so
+ * the disposable database needs the launch Terms published (docs/legal/legal-launch.json), as `legal:publish` does.
+ * Versions are immutable: an existing row is left as it is.
+ */
+export async function ensureLaunchTerms(prisma: PrismaClient) {
+  if (await prisma.legalDocument.findFirst({ where: { type: 'TERMS' }, select: { id: true } })) return;
+  const file = resolve(dirname(fileURLToPath(import.meta.url)), '../../docs/legal/legal-launch.json');
+  const [row] = JSON.parse(readFileSync(file, 'utf8')) as Array<{ type: 'TERMS'; version: string; title: string; contentFile: string; material: boolean; reacceptanceRequired: boolean }>;
+  const content = readFileSync(resolve(dirname(file), row!.contentFile), 'utf8').trim();
+  const now = new Date();
+  await prisma.legalDocument.create({
+    data: {
+      type: row!.type, version: row!.version, title: row!.title, material: row!.material, reacceptanceRequired: row!.reacceptanceRequired,
+      content, checksum: createHash('sha256').update(content, 'utf8').digest('hex'), effectiveAt: now, publishedAt: now,
+    },
+  }).catch(() => undefined); // another spec published it at the same moment
+}
 
 export function createFixtures(prefix: string) {
   assertDisposableTestDatabase({ databaseUrl: process.env.DATABASE_URL, nodeEnv: process.env.NODE_ENV });
@@ -47,6 +88,7 @@ export function createFixtures(prefix: string) {
   }
 
   async function register(page: Page, suffix: string, firstName: string, email = `${marker}-${suffix}@test.invalid`) {
+    await ensureLaunchTerms(prisma);
     const response = await api<{ id: string }>(page, '/auth/register', {
       method: 'POST',
       body: {
@@ -78,11 +120,26 @@ export function createFixtures(prefix: string) {
     return { id: userId, name: `${firstName} Mobile Test` };
   }
 
-  async function deposit(page: Page, key: string, amountCents = 200_000) {
-    const response = await api(page, '/wallet/deposits/demo', {
-      method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
+  type TicketPlace = { seat: 'POSITION'; side: 'HOME' | 'AWAY'; slotId: string } | { seat: 'SUBSTITUTE'; side: 'HOME' | 'AWAY' };
+  /**
+   * DEC-021: buys a match ticket through the API as the signed-in player, with the cancellation-policy tick. The
+   * test API runs the demo payment operator, so the ticket is confirmed straight away (no Paystack).
+   */
+  async function buyTicket(page: Page, matchId: string, place: TicketPlace, key: string) {
+    const response = await api<{ state: string }>(page, `/matches/${matchId}/tickets/checkout`, {
+      method: 'POST', body: { ...place, method: 'PAYMENT', acceptPolicy: true }, headers: { 'Idempotency-Key': `${marker}-${key}` },
     });
-    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.status, JSON.stringify(response.body)).toBeLessThan(300);
+    expect(response.body.data?.state, JSON.stringify(response.body)).toBe('CONFIRMED');
+  }
+
+  /** DEC-021 A5: pays for named teammates' places on a team side (one demo payment). */
+  async function payForTeammates(page: Page, matchId: string, side: 'HOME' | 'AWAY', playerIds: string[], key: string) {
+    const response = await api<{ state: string }>(page, `/matches/${matchId}/team-sides/${side}/tickets/checkout`, {
+      method: 'POST', body: { playerIds, method: 'PAYMENT', acceptPolicy: true }, headers: { 'Idempotency-Key': `${marker}-${key}` },
+    });
+    expect(response.status, JSON.stringify(response.body)).toBeLessThan(300);
+    expect(response.body.data?.state, JSON.stringify(response.body)).toBe('CONFIRMED');
   }
 
   async function createTeam(page: Page, name: string) {
@@ -91,13 +148,6 @@ export function createFixtures(prefix: string) {
     });
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     return response.body.data!.id;
-  }
-
-  async function contribute(page: Page, teamId: string, amountCents: number, key: string) {
-    const response = await api(page, `/teams/${teamId}/wallet/contributions`, {
-      method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
-    });
-    expect(response.status, JSON.stringify(response.body)).toBe(201);
   }
 
   /** A disposable published venue with one 5-a-side field open all week (dual-control approved). */
@@ -153,17 +203,11 @@ export function createFixtures(prefix: string) {
       select: { id: true, venueId: true },
     });
     const matchIds = matches.map(({ id }) => id);
-    const accounts = await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } });
-    const accountIds = accounts.map(({ id }) => id);
-    const teamTransactionIds = (await prisma.teamWalletTransaction.findMany({ where: { teamWalletAccountId: { in: accountIds } }, select: { id: true } })).map(({ id }) => id);
     await prisma.$transaction(async (tx) => {
       if (matchIds.length) await tx.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
       await tx.notification.deleteMany({ where: { userId: { in: userIds } } });
       await tx.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { teamId: { in: teamIds } }] } });
-      await tx.teamWalletAllocation.deleteMany({ where: { OR: [{ contributionTransactionId: { in: teamTransactionIds } }, { debitTransactionId: { in: teamTransactionIds } }] } });
-      await tx.teamWalletHold.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-      await tx.teamWalletTransaction.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-      await tx.teamWalletAccount.deleteMany({ where: { id: { in: accountIds } } });
+      await removeTickets(tx, matchIds, userIds);
       await tx.teamMessage.deleteMany({ where: { teamId: { in: teamIds } } });
       await tx.venuePayable.deleteMany({ where: { matchId: { in: matchIds } } });
       await tx.fieldReservation.deleteMany({ where: { matchId: { in: matchIds } } });
@@ -176,7 +220,6 @@ export function createFixtures(prefix: string) {
         await tx.managedField.deleteMany({ where: { venueId: managedVenueId } });
         await tx.managedVenue.delete({ where: { id: managedVenueId } });
       }
-      await tx.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
       await tx.user.deleteMany({ where: { id: { in: userIds } } });
       if (testBatchId) await tx.testDataBatch.delete({ where: { id: testBatchId } });
     });
@@ -201,5 +244,5 @@ export function createFixtures(prefix: string) {
     await prisma.authSession.updateMany({ where: { userId, revokedAt: null }, data: { adminVerifiedAt: at } });
   }
 
-  return { prisma, marker, PASSWORD, VENUE_PRICE_CENTS, api, register, registerAdmin, verifyAdminSession, deposit, createTeam, contribute, createPublishedVenue, recordResponses, cleanFixtures };
+  return { prisma, marker, PASSWORD, VENUE_PRICE_CENTS, api, register, registerAdmin, verifyAdminSession, buyTicket, payForTeammates, createTeam, createPublishedVenue, recordResponses, cleanFixtures };
 }

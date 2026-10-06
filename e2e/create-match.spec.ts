@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../apps/api/src/generated/prisma/client.js';
 import { assertDisposableTestDatabase } from '../apps/api/src/database/test-database-safety.js';
+import { removeTickets } from './support/fixtures.js';
 
 // CEO touch-up batch 1, item 1: the whole create-match wizard in a real browser. The venue and slot
 // are picked inside the wizard, nothing entered earlier is lost (also across a refresh), the last
@@ -78,26 +79,12 @@ async function register(page: Page, suffix: string, firstName: string) {
   return { id: userId, name: `${firstName} Create Test` };
 }
 
-async function deposit(page: Page, key: string, amountCents = 200_000) {
-  const response = await api(page, '/wallet/deposits/demo', {
-    method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
-  });
-  expect(response.status, JSON.stringify(response.body)).toBe(200);
-}
-
 async function createTeam(page: Page, name: string) {
   const response = await api<{ id: string }>(page, '/teams', {
     method: 'POST', body: { name: `${marker} ${name}`, primaryFormat: 'FIVE_A_SIDE', formationKey: 'BALANCED_1_1_2_1' },
   });
   expect(response.status, JSON.stringify(response.body)).toBe(201);
   return response.body.data!.id;
-}
-
-async function contribute(page: Page, teamId: string, amountCents: number, key: string) {
-  const response = await api(page, `/teams/${teamId}/wallet/contributions`, {
-    method: 'POST', body: { amountCents }, headers: { 'Idempotency-Key': `${marker}-${key}` },
-  });
-  expect(response.status, JSON.stringify(response.body)).toBe(201);
 }
 
 /** A disposable published venue with one 5-a-side field open all week (dual-control approved). */
@@ -149,18 +136,12 @@ async function cleanFixtures() {
   const teamIds = teams.map(({ id }) => id);
   const matches = await prisma.match.findMany({ where: { createdById: { in: userIds } }, select: { id: true, venueId: true } });
   const matchIds = matches.map(({ id }) => id);
-  const accounts = await prisma.teamWalletAccount.findMany({ where: { teamId: { in: teamIds } }, select: { id: true } });
-  const accountIds = accounts.map(({ id }) => id);
-  const teamTransactionIds = (await prisma.teamWalletTransaction.findMany({ where: { teamWalletAccountId: { in: accountIds } }, select: { id: true } })).map(({ id }) => id);
   await prisma.$transaction(async (tx) => {
     if (matchIds.length) await tx.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
     await tx.notification.deleteMany({ where: { userId: { in: userIds } } });
     await tx.teamMatchAuditEvent.deleteMany({ where: { OR: [{ matchId: { in: matchIds } }, { teamId: { in: teamIds } }] } });
-    await tx.teamWalletAllocation.deleteMany({ where: { OR: [{ contributionTransactionId: { in: teamTransactionIds } }, { debitTransactionId: { in: teamTransactionIds } }] } });
-    await tx.teamWalletHold.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletTransaction.deleteMany({ where: { teamWalletAccountId: { in: accountIds } } });
-    await tx.teamWalletAccount.deleteMany({ where: { id: { in: accountIds } } });
     await tx.teamMessage.deleteMany({ where: { teamId: { in: teamIds } } });
+    await removeTickets(tx, matchIds, userIds);
     await tx.venuePayable.deleteMany({ where: { matchId: { in: matchIds } } });
     await tx.fieldReservation.deleteMany({ where: { matchId: { in: matchIds } } });
     await tx.match.deleteMany({ where: { id: { in: matchIds } } });
@@ -172,7 +153,6 @@ async function cleanFixtures() {
       await tx.managedField.deleteMany({ where: { venueId: managedVenueId } });
       await tx.managedVenue.delete({ where: { id: managedVenueId } });
     }
-    await tx.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
     await tx.user.deleteMany({ where: { id: { in: userIds } } });
     if (testBatchId) await tx.testDataBatch.delete({ where: { id: testBatchId } });
   });
@@ -263,15 +243,13 @@ test.describe('create a match: every step through to the formation (CEO batch 1)
     await context.close();
   });
 
-  test('"Play as my team": the same flow publishes from the team wallet and opens the lineup', async ({ browser }) => {
+  test('"Play as my team": the same flow publishes with nothing paid up front and opens the lineup', async ({ browser }) => {
     test.setTimeout(120_000);
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto('/');
     await register(page, 'captain', 'Captain');
-    await deposit(page, 'captain');
-    const teamId = await createTeam(page, 'Wanderers');
-    await contribute(page, teamId, 100_000, 'captain-fund');
+    await createTeam(page, 'Wanderers');
     const venueName = `${marker} Park`;
 
     await page.goto('/matches/new');
@@ -286,7 +264,7 @@ test.describe('create a match: every step through to the formation (CEO batch 1)
     await page.getByLabel('Subs your team brings').fill('1');
     await page.getByRole('button', { name: 'Continue' }).click();
     await expect(page.getByRole('heading', { name: 'Finalise match' })).toBeVisible();
-    await expect(page.getByTestId('team-wallet-check')).toContainText('Team wallet available');
+    await expect(page.getByTestId('team-payment-note')).toContainText('Nothing is paid to publish');
     await page.getByRole('button', { name: 'Publish team match' }).click();
     await expect(page).toHaveURL(/\/matches\/[0-9a-f-]{36}#formation$/);
     await expect(page.locator('#formation')).toBeInViewport();

@@ -72,14 +72,14 @@ test.describe('gender and girls-only matches (CEO batch 4, item 1)', () => {
     await expect(page.getByRole('article').filter({ hasText: `${f.marker} girls night` }).getByTestId('girls-only-badge')).toBeVisible();
     await page.goto(`/matches/${matchId}`);
     await expect(page.getByTestId('girls-only-badge')).toBeVisible();
-    const refused = await f.api(page, `/matches/${matchId}/join`, { method: 'POST', body: { team: 'HOME' }, headers: { 'Idempotency-Key': `${f.marker}-male-join` } });
+    const refused = await f.api(page, `/matches/${matchId}/tickets/checkout`, {
+      method: 'POST', body: { seat: 'SUBSTITUTE', side: 'HOME', method: 'PAYMENT', acceptPolicy: true }, headers: { 'Idempotency-Key': `${f.marker}-male-join` },
+    });
     expect(refused.status).toBe(409);
     expect(refused.body.code).toBe('GIRLS_ONLY');
     await context.clearCookies();
     expect((await f.api(page, '/auth/login', { method: 'POST', body: { identifier: femaleEmail, password: f.PASSWORD } })).status).toBe(200);
-    await f.deposit(page, 'female-funds');
-    const joined = await f.api(page, `/matches/${matchId}/join`, { method: 'POST', body: { team: 'HOME' }, headers: { 'Idempotency-Key': `${f.marker}-female-join` } });
-    expect(joined.status, JSON.stringify(joined.body)).toBeLessThan(300);
+    await f.buyTicket(page, matchId, { seat: 'SUBSTITUTE', side: 'HOME' }, 'female-join');
     await context.close();
   });
 });
