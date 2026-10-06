@@ -29,7 +29,7 @@ There is no wallet. Every payment is a **match ticket** for one named match (DEC
 | Setting | Value | When |
 | --- | --- | --- |
 | Test / Live Callback URL | `<CLIENT_URL>/tickets/return` (locally `http://localhost:5173/tickets/return`) | Now. We also send it with every transaction. |
-| Billing descriptor / statement name | Something players recognise, for example `FOOTYFINDER MATCH` (the CEO confirms the exact text) | Before going live; it is a Paystack dashboard / business setting, not something the app sends |
+| Billing descriptor / statement name | `FOOTYFINDER MATCH` (CEO-approved, 6 October 2026) | Before going live; it is a Paystack dashboard / business setting, not something the app sends |
 | Webhook URL | Unchanged (`/payments/paystack/webhook`) | As before |
 
 **Settings retired:** `TOP_UP_PENDING_EXPIRY_MINUTES` and `TOP_UP_MAX_PENDING_HOURS`. The 10-minute hold, the 24-hour rule, the 7-day choice and the 3-year credit validity are fixed constants in `packages/shared/src/config/ticketing.ts`.
@@ -226,5 +226,5 @@ Run on disposable `footy_finder_test` only (see `docs/TEST_DATABASE.md`); result
   5. Add `apple_pay` to `PAYSTACK_CHANNELS` and restart the API.
   - Ask Paystack to confirm whether their hosted checkout page (`checkout.paystack.com`, which FootyFinder redirects to) needs our domain verified; their docs describe it for checkout on your own site.
 - **QR, USSD and bank transfer** stay off; the API refuses to start if they are configured.
-- **Fees.** FootyFinder pays Paystack's fee for every method (D9); players always pay exactly the top-up amount. Paystack keeps its fee when a payment is refunded.
+- **Fees.** FootyFinder pays Paystack's fee for every method (D9); players always pay exactly the ticket price. Paystack keeps its fee when a payment is refunded.
 - **Sandbox check.** `npm run smoke:paystack-sandbox` sends the configured channels to the Paystack test API with the test keys in `apps/api/.env` and reports which channels Paystack accepts.
