@@ -114,9 +114,19 @@ export function RefereePanel({ match }: { match: AdminMatchDetail }) {
 }
 
 /**
- * CEO touch-up batch 2 (weather/venue cancellation), now only on the match page: before kick-off, every player
- * gets a full refund and is told. Fresh MFA (unchanged). Team matches only before their 30-minute check.
+ * CEO touch-up batch 2 (weather/venue cancellation), now only on the match page: before kick-off, everyone who paid
+ * chooses a match credit or a full refund (DEC-021) and is told. Fresh MFA (unchanged). Team matches only before their 30-minute check.
  */
+/** Batch 5 brief, item 5: the DEC-021 cancel-match wording, as in the player app. */
+const cancelMessage = (match: AdminMatchDetail) => {
+  const players = match.players.filter(({ status }) => status === 'JOINED').length;
+  if (players === 0) return 'Nobody has joined yet. The match is cancelled and the slot is released.';
+  const who = players === 1 ? 'The 1 player' : `All ${players} players`;
+  return match.freeOnFootyFinder
+    ? `${who} ${players === 1 ? 'is' : 'are'} notified by email. It is a free match, so there is nothing to refund.`
+    : `${who} will be asked to choose a match credit or a full refund, and ${players === 1 ? 'is' : 'are'} notified by email.`;
+};
+
 export function CancelPanel({ match }: { match: AdminMatchDetail }) {
   const cache = useQueryClient();
   const { confirm, confirmDialog } = useConfirm();
@@ -153,7 +163,7 @@ export function CancelPanel({ match }: { match: AdminMatchDetail }) {
             onClick={async () => {
               if (await confirm({
                 title: `Cancel ${match.name}?`,
-                message: <p>Every player is refunded and notified by email.</p>,
+                message: <p>{cancelMessage(match)}</p>,
                 confirmLabel: 'Cancel match',
                 cancelLabel: 'Keep match',
                 destructive: true,

@@ -120,7 +120,7 @@ export function TeamMatchDayLobby({ match }: { match: Match }) {
                 const { confirmed } = await confirm({
                   title: publicTeamMatch ? 'Cancel this team match for both sides?' : 'Cancel this private Team fixture?',
                   message: publicTeamMatch
-                    ? <p>Everyone who paid chooses a match credit or a full refund. Everyone is notified by email.</p>
+                    ? <p>Everyone who paid will be asked to choose a match credit or a full refund, and everyone is notified by email.</p>
                     : <p>The fixture is cancelled for your team.</p>,
                   confirmLabel: 'Cancel match',
                   cancelLabel: 'Keep match',

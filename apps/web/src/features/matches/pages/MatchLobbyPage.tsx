@@ -46,6 +46,18 @@ import { TicketConfirmSheet, type TicketPlace } from '@/features/tickets/compone
 import { TicketLeaveSheet } from '@/features/tickets/components/TicketLeaveSheet.js';
 import { CancelledMatchChoice } from '@/features/tickets/components/CancelledMatchChoice.js';
 import { useTicketContext } from '@/features/tickets/hooks/useTickets.js';
+/**
+ * Batch 5 brief, item 5: the cancel-match copy in DEC-021 words ("Cancel this match? All N players will be asked to
+ * choose a match credit or a full refund, and are notified by email."). A free match has nothing to give back.
+ */
+export const cancelMatchMessage = (players: number, free: boolean) => {
+  if (players === 0) return 'Nobody has joined yet. The match is cancelled and the slot is released.';
+  const who = players === 1 ? 'The 1 player' : `All ${players} players`;
+  return free
+    ? `${who} ${players === 1 ? 'is' : 'are'} notified by email. It is a free match, so there is nothing to refund.`
+    : `${who} will be asked to choose a match credit or a full refund, and ${players === 1 ? 'is' : 'are'} notified by email.`;
+};
+
 export function MatchLobbyPage() {
   const { matchId = '' } = useParams();
   useMatchSocket(matchId);
@@ -117,7 +129,7 @@ export function MatchLobbyPage() {
   const cancelMatch = async () => {
     const { confirmed } = await confirm({
       title: 'Cancel this match?',
-      message: <p>Every player who paid chooses a match credit or a full refund, and everyone is notified by email.</p>,
+      message: <p>{cancelMatchMessage(participants.filter(({ status }) => status === 'JOINED').length, match.freeOnFootyFinder || match.feeCents === 0)}</p>,
       confirmLabel: 'Cancel match',
       cancelLabel: 'Keep match',
       destructive: true,
