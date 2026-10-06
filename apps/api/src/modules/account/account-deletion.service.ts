@@ -105,7 +105,7 @@ export class AccountDeletionService {
           status: 'GRACE',
           requestedAt: now,
           scheduledFor,
-          confirmSummary: { matches: preview.matches, teams: preview.teams, wallet: preview.wallet } as unknown as Prisma.InputJsonValue,
+          confirmSummary: { matches: preview.matches, teams: preview.teams, credits: preview.credits } as unknown as Prisma.InputJsonValue,
         },
       });
       await tx.user.update({ where: { id: userId }, data: { accountStatus: 'PENDING_DELETION' } });
@@ -140,7 +140,7 @@ export class AccountDeletionService {
     await this.sendEmail(user.email, 'We have received your request to delete your FootyFinder account', [
       'You asked us to delete your FootyFinder account. It is now deactivated and hidden from other players.',
       `Your account will be deleted on ${formatDeletionDate(outcome.scheduledFor)}. Until then you can change your mind: just sign in and the deletion is cancelled.`,
-      'When it is deleted, your unspent Wallet balance (after your own unspent Team Wallet contributions are returned to it) is refunded the way you paid (Terms clause 20.2).',
+      'When it is deleted, your unused match credits that came from a paid ticket are refunded to the card or bank account you paid with, and any other credits lapse (Terms clause 20.2).',
       `If you did not ask for this, sign in now and change your password: ${appUrl('/login')}`,
     ]);
     return { scheduledFor: outcome.scheduledFor.toISOString() };
@@ -161,7 +161,8 @@ export class AccountDeletionService {
   }
 
   /**
-   * D4: upcoming matches are left under the normal clause 14.3 rules, and a hosted match nobody joined is
+   * D4, DEC-021 D11: upcoming matches are left under the normal ticket rules (clause 14.3; more than 24 hours out a
+   * place the player paid for is refunded to the original payment method), and a hosted match nobody joined is
    * cancelled. Each runs through the normal service. A failure here (for example the lock arriving in the
    * meantime) is retried by the final step, which never runs while the player is still in a live match.
    */

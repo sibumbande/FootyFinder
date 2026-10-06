@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
 import { currentUserKey } from '@/features/auth/hooks/useAuth.js';
-import { formatRands, formatWhen } from '../format.js';
+import { formatWhen } from '../format.js';
+import { formatWholeRands } from '@/utils/format-currency.js';
 import { useDeletionPreview, useRequestDeletion } from '../hooks/useAccount.js';
 
 const METHOD_NAMES: Record<string, string> = {
@@ -18,10 +19,14 @@ const METHOD_NAMES: Record<string, string> = {
 
 function matchLine(plan: AccountDeletionMatchPlan) {
   switch (plan.outcome) {
-    case 'FULL_REFUND':
-      return `You leave this match now and your ${formatRands(plan.creditCents)} comes back to your Wallet (more than 12 hours before kick-off).`;
-    case 'NO_REFUND_UNLESS_REPLACED':
-      return 'You leave this match now. It is 12 hours or less before kick-off, so your R80 comes back only if a new paid player joins your side (clause 14.3).';
+    case 'REFUNDED':
+      return `You leave this match now and your ${formatWholeRands(plan.refundCents)} is refunded to the card or bank you paid with (more than 24 hours before kick-off).`;
+    case 'CREDIT_BACK':
+      return 'You leave this match now and the match credit you paid with comes back to you (more than 24 hours before kick-off). It is then refunded or lapses with your other credits, below.';
+    case 'PAYER_CHOOSES':
+      return 'You leave this match now. A teammate paid for your place, so they choose a match credit or a refund (more than 24 hours before kick-off).';
+    case 'FORFEITED':
+      return 'You leave this match now. It is 24 hours or less before kick-off, so nothing is refunded and your place is released for someone else.';
     case 'NOTHING_PAID':
       return 'You leave this match now. You paid nothing, so nothing is refunded.';
     case 'LEFT_OUT_OF_SQUAD':
@@ -32,13 +37,11 @@ function matchLine(plan: AccountDeletionMatchPlan) {
 }
 
 function teamLine(plan: AccountDeletionTeamPlan) {
-  const money = plan.unspentContributionCents
-    ? ` Your unspent ${formatRands(plan.unspentContributionCents)} in its Team Wallet is returned to your Wallet first.`
-    : '';
-  if (plan.outcome === 'CLOSE') return `You own this team and are its only member. It is closed when your account is deleted.${money}`;
-  if (plan.role === 'FORMER_MEMBER') return `You left this team earlier.${money}`;
-  return `You stay in the team until your account is deleted, then you are removed.${money}`;
+  if (plan.outcome === 'CLOSE') return 'You own this team and are its only member. It is closed when your account is deleted.';
+  return 'You stay in the team until your account is deleted, then you are removed.';
 }
+
+const credits = (count: number) => `${count} unused match ${count === 1 ? 'credit' : 'credits'}`;
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -50,7 +53,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Summary({ preview }: { preview: AccountDeletionPreview }) {
-  const methods = preview.wallet.paymentMethods.map((method) => METHOD_NAMES[method] ?? method);
+  const methods = preview.credits.paymentMethods.map((method) => METHOD_NAMES[method] ?? method);
   return (
     <>
       <Section title={`The next ${preview.graceDays} days`}>
@@ -98,21 +101,24 @@ function Summary({ preview }: { preview: AccountDeletionPreview }) {
         )}
       </Section>
 
-      <Section title="Your money">
+      <Section title="Your match credits">
+        {preview.credits.refunded > 0 && (
+          <p data-testid="credits-refunded">
+            <strong>Your {credits(preview.credits.refunded)} will be refunded to your card/bank</strong>
+            {methods.length ? ` (${methods.join(', ')})` : ''}, R80 each, when your account is deleted.
+          </p>
+        )}
+        {preview.credits.lapsing > 0 && (
+          <p data-testid="credits-lapsing">
+            Your {credits(preview.credits.lapsing)} that did not come from a payment (for example a test or goodwill
+            credit) lapse when your account is deleted.
+          </p>
+        )}
+        {preview.credits.refunded === 0 && preview.credits.lapsing === 0 && <p>You have no unused match credits.</p>}
         <p>
-          Wallet balance today: <strong>{formatRands(preview.wallet.balanceCents)}</strong>
-          {preview.wallet.teamContributionsCents > 0 && (
-            <> · your unspent Team Wallet contributions: <strong>{formatRands(preview.wallet.teamContributionsCents)}</strong></>
-          )}
+          Card and Apple Pay refunds go back automatically. For Capitec Pay or Instant EFT, our finance team may email you
+          for your bank account details. We never keep your money (clause 20.2).
         </p>
-        <p>
-          When your account is deleted, your own unspent Team Wallet contributions are returned to your Wallet first.
-          Then your whole Wallet balance is refunded the way you paid
-          {methods.length ? ` (${methods.join(', ')})` : ''}. Card and Apple Pay refunds go back automatically. For
-          Capitec Pay or Instant EFT, our finance team may email you for your bank account details. We never keep or
-          wipe your money (clause 20.2).
-        </p>
-        <p className="text-content-muted">Your Wallet is frozen during the {preview.graceDays} days.</p>
       </Section>
 
       <Section title="What is deleted">
@@ -130,7 +136,7 @@ function Summary({ preview }: { preview: AccountDeletionPreview }) {
       <Section title="What we keep, and why">
         <p>These records are kept only under an anonymous ID that cannot be linked back to your name or email:</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Payments and Wallet records, for 5 years from the end of the tax year (Tax Administration Act)</li>
+          <li>Payment, ticket and refund records, for 5 years from the end of the tax year (Tax Administration Act)</li>
           <li>The record that you accepted our Terms, as evidence of the agreement (Electronic Communications and Transactions Act)</li>
           <li>Our audit and security records for 5 years, and conduct and safety records for 3 years</li>
           <li>Past lineups and results, shown as "Deleted player"</li>

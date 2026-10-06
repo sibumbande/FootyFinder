@@ -23,14 +23,17 @@ const BLOCKER_LABELS: Record<string, string> = {
   MATCH_LOCKED: 'in a locked or live match',
   HOSTING_MATCH: 'hosting a match others joined',
   TEAM_OWNER_HAS_MEMBERS: 'owns a team with members',
-  TEAM_OWNER_HAS_MONEY: 'owns a team with Team Wallet money',
+  // Codes from before DEC-021 stay readable on older rows.
+  TEAM_OWNER_HAS_MONEY: 'team money held (an earlier payment record)',
   TEAM_OWNER_UPCOMING_MATCH: 'owns a team with an upcoming Team Match',
   OPEN_DISPUTE: 'open chargeback',
-  NEGATIVE_BALANCE: 'wallet below zero or paused',
+  NEGATIVE_BALANCE: 'money owed (an earlier payment record)',
   REFUND_IN_PROGRESS: 'refund in progress',
-  TOP_UP_PENDING: 'top-up being confirmed',
-  TEAM_MONEY_HELD: 'Team Wallet money held in a Fill Meter',
-  WALLET_HOLD: 'wallet money on hold',
+  PAYMENT_PENDING: 'ticket payment being confirmed',
+  REFUNDS_IN_PROGRESS: 'refunds still with Paystack',
+  TOP_UP_PENDING: 'payment being confirmed (an earlier payment record)',
+  TEAM_MONEY_HELD: 'team money held (an earlier payment record)',
+  WALLET_HOLD: 'money on hold (an earlier payment record)',
   OWNED_TEAM_NOT_CLOSABLE: 'owned team cannot be closed yet',
   ACCOUNT_ACTIVE_AGAIN: 'account active again',
 };
@@ -79,14 +82,14 @@ function RequestCard({ request }: { request: AdminAccountDeletionRequest }) {
       {request.status === 'COMPLETED' && (
         <>
           <p>
-            Anonymised {when(request.completedAt)} · final email {request.finalEmailSentAt ? 'sent' : 'not sent yet'} · wallet now {rands(request.walletBalanceCents)}
+            Anonymised {when(request.completedAt)} · final email {request.finalEmailSentAt ? 'sent' : 'not sent yet'} · match credits refunded {request.creditsRefunded}, lapsed {request.creditsLapsed}
           </p>
           {request.refunds.map((refund, index) => (
             <p key={refund.refundId ?? index}>
               Refund {rands(refund.amountCents)} to {refund.method ?? 'card'} · {refund.status}
             </p>
           ))}
-          {request.uncoveredCents > 0 && <p className="error">{rands(request.uncoveredCents)} could not be refunded to a top-up and must be returned by finance.</p>}
+          {request.uncoveredCents > 0 && <p className="error">{rands(request.uncoveredCents)} could not be refunded automatically and must be returned by finance.</p>}
           {request.contactEmail && <p>Finance contact (kept until settled): {request.contactEmail}</p>}
           {openRefunds.length > 0 && (
             <p>

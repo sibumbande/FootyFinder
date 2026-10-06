@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Input } from '@/components/ui/Input.js';
-import { formatRands, formatWhen } from '../format.js';
+import { formatWhen } from '../format.js';
 import { useDownloadData } from '../hooks/useAccount.js';
 
 const saveJson = (data: PersonalDataExport) => {
@@ -69,11 +69,16 @@ function Summary({ data }: { data: PersonalDataExport }) {
           </p>
         ))}
       </Block>
-      <Block title="Wallet">
-        <Row label="Balance" value={formatRands(data.wallet.balanceCents)} />
-        <Row label="History" value={count(data.wallet.transactions, 'entry', 'entries')} />
-        <Row label="Top-ups" value={count(data.wallet.topUps, 'top-up', 'top-ups')} />
-        <Row label="Team Wallet contributions" value={count(data.teamWalletContributions, 'entry', 'entries')} />
+      <Block title="Tickets and payments">
+        <Row label="Match tickets" value={count(data.tickets, 'ticket', 'tickets')} />
+        <Row label="Match credits" value={count(data.matchCredits, 'credit', 'credits')} />
+        <Row label="Payments" value={count(data.payments, 'payment', 'payments')} />
+        {(data.earlierPaymentRecords.walletEntries.length > 0 || data.earlierPaymentRecords.topUps.length > 0 || data.earlierPaymentRecords.teamWalletEntries.length > 0) && (
+          <Row
+            label="Earlier payment records"
+            value={count([...data.earlierPaymentRecords.walletEntries, ...data.earlierPaymentRecords.topUps, ...data.earlierPaymentRecords.teamWalletEntries], 'record', 'records')}
+          />
+        )}
       </Block>
       <Block title="Teams and people">
         <Row label="Teams" value={data.teams.map((team) => `${team.name} (${team.role.toLowerCase()})`).join(', ') || 'none'} />
@@ -112,7 +117,7 @@ export function DownloadDataPage() {
       <div className="print:hidden">
         <h1 className="text-3xl font-bold text-content-strong">Download my data</h1>
         <p className="mt-1 text-content-muted">
-          Get a copy of the personal data FootyFinder holds about you: your profile, matches, results, Wallet history,
+          Get a copy of the personal data FootyFinder holds about you: your profile, matches, results, tickets and payments,
           teams, friends, the messages you sent, your consents and your Terms acceptances. You can do this once every
           24 hours.
         </p>

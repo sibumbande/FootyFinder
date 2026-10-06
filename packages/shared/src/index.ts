@@ -12,7 +12,6 @@ export * from './types/dispute.js';
 export * from './types/operations.js';
 export * from './types/venue.js';
 export * from './types/finance.js';
-export * from './types/team-wallet.js';
 export * from './types/team-chat.js';
 export * from './types/referee.js';
 export * from './types/team-review.js';

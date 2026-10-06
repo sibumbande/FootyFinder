@@ -13,25 +13,35 @@ export const ACCOUNT_DELETION_BLOCKER_CODES = [
   'MATCH_LOCKED',
   'HOSTING_MATCH',
   'TEAM_OWNER_HAS_MEMBERS',
-  'TEAM_OWNER_HAS_MONEY',
   'TEAM_OWNER_UPCOMING_MATCH',
   'OPEN_DISPUTE',
-  'NEGATIVE_BALANCE',
   'REFUND_IN_PROGRESS',
-  'TOP_UP_PENDING',
+  /** DEC-021: a match ticket payment is still being confirmed with Paystack. */
+  'PAYMENT_PENDING',
 ] as const;
 export type AccountDeletionBlockerCode = (typeof ACCOUNT_DELETION_BLOCKER_CODES)[number];
 
 export interface AccountDeletionBlocker {
   code: AccountDeletionBlockerCode;
   message: string;
-  /** Where the player can fix it (a match, a team, the wallet), or null for "contact support". */
+  /** Where the player can fix it (a match, a team, Tickets & credits), or null for "contact support". */
   targetPath: string | null;
 }
 
+/**
+ * DEC-021 D11, what happens to each upcoming match on confirm:
+ * - REFUNDED: more than 24 hours before kick-off, a place you paid for is refunded to the card or bank you paid with;
+ * - CREDIT_BACK: more than 24 hours before, a place paid with a match credit gives the credit back (then refunded or
+ *   lapsing with your other credits);
+ * - PAYER_CHOOSES: more than 24 hours before, a teammate paid for your place, and they choose a credit or a refund;
+ * - FORFEITED: 24 hours or less before kick-off, nothing comes back;
+ * - NOTHING_PAID: a free match.
+ */
 export type AccountDeletionMatchOutcome =
-  | 'FULL_REFUND'
-  | 'NO_REFUND_UNLESS_REPLACED'
+  | 'REFUNDED'
+  | 'CREDIT_BACK'
+  | 'PAYER_CHOOSES'
+  | 'FORFEITED'
   | 'NOTHING_PAID'
   | 'LEFT_OUT_OF_SQUAD'
   | 'HOSTED_MATCH_CANCELLED';
@@ -41,8 +51,8 @@ export interface AccountDeletionMatchPlan {
   name: string;
   startsAt: string;
   outcome: AccountDeletionMatchOutcome;
-  /** Credited to the Wallet straight away under clause 14.3 (0 when nothing comes back now). */
-  creditCents: number;
+  /** What is refunded to your card or bank for this match (REFUNDED only; 0 otherwise). */
+  refundCents: number;
 }
 
 export interface AccountDeletionTeamPlan {
@@ -51,7 +61,6 @@ export interface AccountDeletionTeamPlan {
   role: 'OWNER' | 'CAPTAIN' | 'MEMBER' | 'FORMER_MEMBER';
   /** LEAVE: membership removed at the final step. CLOSE: an empty team you own is closed. */
   outcome: 'LEAVE' | 'CLOSE';
-  unspentContributionCents: number;
 }
 
 export interface AccountDeletionPreview {
@@ -59,10 +68,13 @@ export interface AccountDeletionPreview {
   blockers: AccountDeletionBlocker[];
   matches: AccountDeletionMatchPlan[];
   teams: AccountDeletionTeamPlan[];
-  wallet: {
-    balanceCents: number;
-    heldCents: number;
-    teamContributionsCents: number;
+  /**
+   * DEC-021 D11: unused match credits. Those that came from a paid ticket are refunded (R80 each) to the payment
+   * method of that ticket at the final step; credits with no cash origin (test or goodwill credits) lapse.
+   */
+  credits: {
+    refunded: number;
+    lapsing: number;
     /** Ways the player has paid ("card", "apple_pay", "capitec_pay", "eft"); refunds go back the same way. */
     paymentMethods: string[];
   };
@@ -128,16 +140,21 @@ export interface PersonalDataExport {
     preferredPositions: string[];
     photo: { uploadedAt: string; hiddenByFootyFinder: boolean } | null;
   };
-  matches: Array<{ matchId: string; name: string; startsAt: string; matchStatus: string; side: string; yourStatus: string; joinedAt: string; leftAt: string | null; paidCents: number }>;
+  matches: Array<{ matchId: string; name: string; startsAt: string; matchStatus: string; side: string; yourStatus: string; joinedAt: string; leftAt: string | null }>;
   results: Array<{ matchId: string; name: string; startsAt: string; side: string; role: string; didNotPlay: boolean; score: { home: number | null; away: number | null; outcome: string | null } | null }>;
   statistics: PlayerStatistics;
-  wallet: {
-    balanceCents: number;
-    transactions: Array<{ type: string; amountCents: number; status: string; description: string | null; createdAt: string }>;
+  /** DEC-021: match tickets you hold or paid for, with what happened to each. */
+  tickets: Array<{ matchId: string; match: string; startsAt: string; seat: string; side: string; status: string; method: string; amountCents: number; outcome: string | null; forPlayer: string; paidBy: string; createdAt: string }>;
+  matchCredits: Array<{ status: string; reason: string; issuedAt: string; expiresAt: string; usedAt: string | null }>;
+  /** Your ticket payments, how they were paid and their refunds. Card and bank numbers are never held by FootyFinder. */
+  payments: Array<{ reference: string; amountCents: number; status: string; method: string | null; createdAt: string; refunds: Array<{ amountCents: number; status: string; createdAt: string }> }>;
+  /** DEC-021 D13: wallet and Team Wallet records from before match ticketing, kept read-only as history. */
+  earlierPaymentRecords: {
+    walletEntries: Array<{ type: string; amountCents: number; status: string; description: string | null; createdAt: string }>;
     topUps: Array<{ reference: string; amountCents: number; status: string; method: string | null; createdAt: string; refunds: Array<{ amountCents: number; status: string; createdAt: string }> }>;
+    teamWalletEntries: Array<{ team: string; type: string; amountCents: number; createdAt: string }>;
   };
   teams: Array<{ teamId: string; name: string; role: string; joinedAt: string }>;
-  teamWalletContributions: Array<{ team: string; type: string; amountCents: number; createdAt: string }>;
   friends: Array<{ displayName: string; since: string }>;
   friendRequests: Array<{ direction: 'SENT' | 'RECEIVED'; otherPlayer: string; status: string; createdAt: string }>;
   blockedPlayers: Array<{ displayName: string; since: string }>;

@@ -10,16 +10,18 @@ import { logError, logInfo } from '../../observability/logger.js';
 import { appendAdminAudit } from '../admin/admin-audit.js';
 import { formatRands } from '../matches/cancellation-message.js';
 import { CardRefundsService } from '../payments/card-refunds.service.js';
+import { requestTicketRefundInTx } from '../tickets/ticket-refunds.js';
 import { PlayerPhotoStorage } from '../profiles/player-photo.storage.js';
-import { TeamWalletService } from '../team-wallet/team-wallet.service.js';
 import { TeamsRepository } from '../teams/teams.repository.js';
 import { AccountDeletionService, finaliseJobInput } from './account-deletion.service.js';
 import { buildDeletionPreview } from './account-deletion.preview.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const ACCOUNT_DELETION_SETTLE_CHECK_JOB = 'ACCOUNT_DELETION_SETTLE_CHECK';
-/** Closure refunds that still need Paystack or finance before the case is settled. */
+/** Refunds that still need Paystack or finance before the case is settled. */
 const OPEN_REFUND_STATUSES = ['PENDING', 'PROCESSING', 'NEEDS_ATTENTION', 'FAILED'] as const;
+/** Refunds still with Paystack: the final step waits for these (NEEDS_ATTENTION and FAILED are with finance). */
+const WITH_PAYSTACK_STATUSES = ['PENDING', 'PROCESSING'] as const;
 
 export type ClosureRefundLine = {
   refundId: string | null;
@@ -33,11 +35,13 @@ export type ClosureRefundLine = {
 const notDue = () => Object.assign(new Error('The 14-day grace period has not ended yet.'), { code: 'ACCOUNT_DELETION_NOT_DUE' });
 
 /**
- * CEO batch 5, item 3: the final step, 14 days after the player confirmed (a durable job). In order:
- * 1. anything still open is settled or waited for (a live match, Team Wallet money held in a Fill Meter);
- * 2. the player's own unspent Team Wallet contributions go back to their Wallet (ToS 12.4);
- * 3. the whole Wallet balance is refunded the way they paid, newest top-up first, through the Gate 6 refund
- *    path (D1). NEEDS_ATTENTION / FAILED refunds and any amount no top-up covers go to finance; money is never
+ * CEO batch 5, item 3, adapted to DEC-021 (D11): the final step, 14 days after the player confirmed (a durable job).
+ * In order:
+ * 1. anything still open is settled or waited for (a live match, a match left on confirm);
+ * 2. each unused match credit that came from a paid ticket is refunded (R80, partial) to the original payment method
+ *    of that ticket, through the ticket refund path; credits with no cash origin lapse (FORFEITED);
+ * 3. the step waits until these refunds and the ticket refunds from confirm are processed, or handed to finance
+ *    (NEEDS_ATTENTION / FAILED). Anything that cannot be refunded automatically goes to finance; money is never
  *    kept or wiped;
  * 4. the account is anonymised (never hard-deleted), keeping only what the law or other players need;
  * 5. a final email is sent.
@@ -47,7 +51,6 @@ const notDue = () => Object.assign(new Error('The 14-day grace period has not en
 export class AccountDeletionFinaliser {
   constructor(
     private readonly refunds = new CardRefundsService(),
-    private readonly teamWallet = new TeamWalletService(),
     private readonly teams = new TeamsRepository(),
     private readonly deletion = new AccountDeletionService(),
     private readonly photos = new PlayerPhotoStorage(env.PLAYER_UPLOAD_DIR),
@@ -70,20 +73,9 @@ export class AccountDeletionFinaliser {
       matches: before.matches.filter(({ outcome }) => outcome !== 'LEFT_OUT_OF_SQUAD'),
     });
     const preview = await serializableTransaction((tx) => buildDeletionPreview(tx, request.userId, now));
-    // A rerun after a crash must not wait on the closure refunds this step started itself.
-    const otherRefundsInProgress = await prisma.providerRefund.count({
-      where: { providerPayment: { userId: request.userId }, source: { not: 'ACCOUNT_CLOSURE' }, status: { in: [...OPEN_REFUND_STATUSES] } },
-    });
-    const blocking = preview.blockers.filter(({ code }) => code !== 'REFUND_IN_PROGRESS' || otherRefundsInProgress > 0);
+    // Refunds are waited for in step 3 (and a refund with finance does not hold the deletion up).
+    const blocking = preview.blockers.filter(({ code }) => code !== 'REFUND_IN_PROGRESS');
     if (blocking.length) return this.wait(request.id, attempt, blocking.map(({ code }) => code).join(','), now);
-
-    // 2. Own unspent Team Wallet contributions back to the Wallet (what is held in a Fill Meter waits).
-    const heldBack = await this.returnTeamContributions(request.userId, request.id);
-    if (heldBack > 0) return this.wait(request.id, attempt, 'TEAM_MONEY_HELD', now);
-    const walletHolds = await prisma.walletHold.count({
-      where: { status: 'ACTIVE', walletAccount: { userId: request.userId }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
-    });
-    if (walletHolds) return this.wait(request.id, attempt, 'WALLET_HOLD', now);
 
     // An empty team they own is closed through the normal close path.
     const owned = await prisma.team.findMany({ where: { ownerUserId: request.userId, archivedAt: null }, select: { id: true } });
@@ -93,8 +85,12 @@ export class AccountDeletionFinaliser {
         return this.wait(request.id, attempt, 'OWNED_TEAM_NOT_CLOSABLE', now);
     }
 
-    // 3. Refund the Wallet the way the player paid.
-    const { lines, uncoveredCents } = await this.refundWallet(request.userId, request.id);
+    // 2. Unused credits from a paid ticket are refunded; credits with no cash origin lapse.
+    const { lines, uncoveredCents } = await this.refundCredits(request.userId, request.id, now);
+
+    // 3. Wait while any refund of theirs is still with Paystack (finance has the rest).
+    const withPaystack = await prisma.providerRefund.count({ where: { providerPayment: { userId: request.userId }, status: { in: [...WITH_PAYSTACK_STATUSES] } } });
+    if (withPaystack) return this.wait(request.id, attempt, 'REFUNDS_IN_PROGRESS', now);
 
     // 4. Anonymise.
     const photoKey = await this.anonymise(request.userId, request.id, user, lines, uncoveredCents, now);
@@ -104,7 +100,7 @@ export class AccountDeletionFinaliser {
     await this.deletion.sendEmail(user.email, 'Your FootyFinder account has been deleted', [
       'Your FootyFinder account has now been deleted. Your profile, photo, username and email address have been removed, and your past matches show "Deleted player".',
       ...(lines.length
-        ? [`Your Wallet balance is being refunded the way you paid: ${lines.map((line) => `${formatRands(line.amountCents)} to your ${channelName(line.channel)}`).join(', ')}. Card refunds usually take a few working days. If a bank refund needs your account details, our finance team will email you.`]
+        ? [`Your unused match credits have been refunded the way you paid for them: ${lines.map((line) => `${formatRands(line.amountCents)} to your ${channelName(line.channel)}`).join(', ')}. Card refunds usually take a few working days. If a bank refund needs your account details, our finance team will email you.`]
         : []),
       ...(uncoveredCents > 0
         ? [`${formatRands(uncoveredCents)} could not be refunded automatically. Our finance team will contact you at this address to return it. We never keep your money (Terms clause 20.2).`]
@@ -130,58 +126,53 @@ export class AccountDeletionFinaliser {
     return { outcome: 'WAITING' as const, reason };
   }
 
-  /** Returns what is still held back (in a Fill Meter) after returning everything that can be. */
-  private async returnTeamContributions(userId: string, requestId: string) {
-    let heldBack = 0;
-    for (const item of await this.teamWallet.reclaimable(userId)) {
-      if (item.refundableCents > 0)
-        await this.teamWallet.refund(item.team.id, userId, item.refundableCents, `account-closure-${requestId}-${item.unspentCents}`);
-      heldBack += item.unspentCents - item.refundableCents;
-    }
-    return heldBack;
-  }
-
-  /** D1: newest successful top-up first, each up to what it has not already refunded. */
-  private async refundWallet(userId: string, requestId: string) {
-    const lines: ClosureRefundLine[] = [];
-    const existing = await prisma.providerRefund.findMany({
-      where: { source: 'ACCOUNT_CLOSURE', providerPayment: { userId } },
-      select: { id: true, providerPaymentId: true, amountCents: true, status: true, providerPayment: { select: { channel: true } } },
-    });
-    for (const refund of existing)
-      lines.push({ refundId: refund.id, providerPaymentId: refund.providerPaymentId, channel: refund.providerPayment.channel, amountCents: refund.amountCents, status: refund.status });
-    const alreadyRefunded = new Set(existing.map(({ providerPaymentId }) => providerPaymentId));
-    const wallet = await prisma.walletAccount.findUnique({ where: { userId } });
-    let remaining = Math.max(0, wallet?.balanceCents ?? 0);
-    const payments = await prisma.providerPayment.findMany({
-      where: { userId, status: 'SUCCEEDED', disputes: { none: {} } },
-      include: { refunds: { select: { amountCents: true, status: true } } },
-      orderBy: [{ verifiedAt: 'desc' }, { createdAt: 'desc' }],
-    });
-    for (const payment of payments) {
-      if (remaining <= 0) break;
-      if (alreadyRefunded.has(payment.id)) continue;
-      const committed = payment.refunds.filter(({ status }) => status !== 'RESTORED_TO_WALLET').reduce((sum, { amountCents }) => sum + amountCents, 0);
-      const amountCents = Math.min(remaining, payment.amountCents - committed);
-      if (amountCents <= 0) continue;
+  /**
+   * D11: each unused credit that came from a paid ticket is refunded (the ticket's price, a partial refund) to the
+   * payment method of that ticket, once per credit; a credit with no cash origin lapses. A credit that cannot be
+   * refunded automatically stays for finance (uncovered). Safe to run again: earlier closure refunds are reused.
+   */
+  private async refundCredits(userId: string, requestId: string, now: Date) {
+    const credits = await prisma.matchCredit.findMany({ where: { userId, status: 'AVAILABLE', expiresAt: { gt: now } }, select: { id: true, originTicketId: true } });
+    let uncoveredCents = 0;
+    for (const credit of credits) {
       try {
-        const refund = await this.refunds.initiate({
-          actorUserId: userId,
-          providerPaymentId: payment.id,
-          amountCents,
-          reason: 'Account closure (Terms clause 20.2)',
-          idempotencyKey: `account-closure:${requestId}`,
-          source: 'ACCOUNT_CLOSURE',
+        const refundId = await serializableTransaction(async (tx) => {
+          const claimed = await tx.matchCredit.updateMany({
+            where: { id: credit.id, status: 'AVAILABLE' },
+            data: { status: credit.originTicketId ? 'REFUNDED' : 'FORFEITED', closedAt: now },
+          });
+          if (!claimed.count) return null;
+          if (!credit.originTicketId) {
+            await tx.matchCreditEvent.create({ data: { creditId: credit.id, type: 'FORFEITED', note: 'Account deleted: a credit with no cash origin lapses (DEC-021 D11)' } });
+            return null;
+          }
+          const refund = await requestTicketRefundInTx(tx, {
+            ticketId: credit.originTicketId,
+            creditId: credit.id,
+            source: 'ACCOUNT_CLOSURE',
+            reason: 'Account closure: unused match credit (Terms clause 20.2)',
+            initiatedByUserId: userId,
+          });
+          await tx.matchCreditEvent.create({ data: { creditId: credit.id, type: 'REFUNDED', ticketId: credit.originTicketId, note: 'Account deleted: refunded to the original payment method (DEC-021 D11)' } });
+          return refund.id;
         });
-        lines.push({ refundId: refund.id, providerPaymentId: payment.id, channel: payment.channel, amountCents, status: refund.status });
-        remaining -= amountCents;
+        // The queued job sends it too; sending now means Paystack has it before the wait below.
+        if (refundId) await this.refunds.submitQueued(refundId).catch((error: unknown) => logError('account_deletion_refund_submit_failed', error, { requestId, refundId }));
       } catch (error) {
-        logError('account_deletion_refund_failed', error, { requestId, providerPaymentId: payment.id });
-        lines.push({ refundId: null, providerPaymentId: payment.id, channel: payment.channel, amountCents, status: 'NOT_STARTED', error: error instanceof Error ? error.message.slice(0, 120) : 'error' });
+        logError('account_deletion_credit_refund_failed', error, { requestId, creditId: credit.id });
+        const origin = credit.originTicketId ? await prisma.matchTicket.findUnique({ where: { id: credit.originTicketId }, select: { amountCents: true } }) : null;
+        uncoveredCents += origin?.amountCents ?? 0;
       }
     }
-    const after = await prisma.walletAccount.findUnique({ where: { userId } });
-    return { lines, uncoveredCents: Math.max(0, after?.balanceCents ?? 0) };
+    const refunds = await prisma.providerRefund.findMany({
+      where: { source: 'ACCOUNT_CLOSURE', providerPayment: { userId } },
+      select: { id: true, providerPaymentId: true, amountCents: true, status: true, providerPayment: { select: { channel: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const lines: ClosureRefundLine[] = refunds.map((refund) => ({
+      refundId: refund.id, providerPaymentId: refund.providerPaymentId, channel: refund.providerPayment.channel, amountCents: refund.amountCents, status: refund.status,
+    }));
+    return { lines, uncoveredCents };
   }
 
   private async anonymise(
@@ -299,14 +290,15 @@ export class AccountDeletionFinaliser {
   }
 
   /**
-   * D2: once every closure refund has been processed (or finance has marked the case settled) and the final
+   * D2: once every refund of theirs has been processed (or finance has marked the case settled) and the final
    * email has been sent, the contact email is erased. Re-checked daily until then.
    */
   async settleCheck(requestId: string, now = new Date()) {
     const request = await prisma.accountDeletionRequest.findUnique({ where: { id: requestId } });
     if (!request || request.status !== 'COMPLETED' || !request.contactEmail) return { settled: true };
+    // D11: credit refunds and ticket refunds alike; the address is kept until every one is done or settled.
     const open = await prisma.providerRefund.count({
-      where: { source: 'ACCOUNT_CLOSURE', providerPayment: { userId: request.userId }, status: { in: [...OPEN_REFUND_STATUSES] } },
+      where: { providerPayment: { userId: request.userId }, status: { in: [...OPEN_REFUND_STATUSES] } },
     });
     const settled = Boolean(request.financeSettledAt) || (open === 0 && request.uncoveredCents === 0);
     if (settled && request.finalEmailSentAt) {

@@ -21,7 +21,7 @@ export class AccountDeletionAdminService {
             accountStatus: true,
             username: true,
             profile: { select: { displayName: true } },
-            walletAccount: { select: { balanceCents: true } },
+            matchCredits: { where: { status: { in: ['REFUNDED', 'FORFEITED'] } }, select: { status: true } },
           },
         },
       },
@@ -51,7 +51,8 @@ export class AccountDeletionAdminService {
         status: (line.refundId && current.get(line.refundId)) || line.status,
       })),
       uncoveredCents: row.uncoveredCents,
-      walletBalanceCents: row.user.walletAccount?.balanceCents ?? 0,
+      creditsRefunded: row.user.matchCredits.filter(({ status }) => status === 'REFUNDED').length,
+      creditsLapsed: row.user.matchCredits.filter(({ status }) => status === 'FORFEITED').length,
       contactEmail: row.contactEmail,
       finalEmailSentAt: row.finalEmailSentAt?.toISOString() ?? null,
       financeSettledAt: row.financeSettledAt?.toISOString() ?? null,
@@ -61,7 +62,7 @@ export class AccountDeletionAdminService {
 
   /**
    * Finance records that a deleted account's remaining money has been returned (for example the uncovered amount
-   * paid back by EFT). Only once no closure refund is still open; the contact email is then erased.
+   * paid back by EFT). Only once none of their refunds is still open; the contact email is then erased.
    */
   async settle(requestId: string, adminUserId: string, note: string, auditRequestId?: string) {
     const request = await prisma.accountDeletionRequest.findUnique({ where: { id: requestId } });
@@ -69,10 +70,10 @@ export class AccountDeletionAdminService {
       throw new AppError(404, 'Completed deletion request not found.', 'DELETION_REQUEST_NOT_FOUND');
     if (request.financeSettledAt) throw new AppError(409, 'This deletion is already settled.', 'DELETION_ALREADY_SETTLED');
     const open = await prisma.providerRefund.count({
-      where: { source: 'ACCOUNT_CLOSURE', providerPayment: { userId: request.userId }, status: { in: [...REFUND_IN_PROGRESS_STATUSES] } },
+      where: { providerPayment: { userId: request.userId }, status: { in: [...REFUND_IN_PROGRESS_STATUSES] } },
     });
     if (open)
-      throw new AppError(409, 'A closure refund is still open. Finish it on the Finance page first.', 'DELETION_REFUNDS_OPEN');
+      throw new AppError(409, 'A refund of this account is still open. Finish it on the Finance page first.', 'DELETION_REFUNDS_OPEN');
     await prisma.$transaction(async (tx) => {
       await tx.accountDeletionRequest.update({
         where: { id: requestId },

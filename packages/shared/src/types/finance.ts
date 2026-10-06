@@ -83,7 +83,9 @@ export interface AdminAccountDeletionRequest {
   lastCheckedAt: string | null;
   refunds: Array<{ refundId: string | null; amountCents: number; method: string | null; status: string }>;
   uncoveredCents: number;
-  walletBalanceCents: number;
+  /** DEC-021 D11: unused match credits refunded (they came from a paid ticket) and lapsed (no cash origin). */
+  creditsRefunded: number;
+  creditsLapsed: number;
   contactEmail: string | null;
   finalEmailSentAt: string | null;
   financeSettledAt: string | null;

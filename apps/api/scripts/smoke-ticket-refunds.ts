@@ -77,7 +77,7 @@ try {
   const queue = await finance.refundsNeedingAttention();
   const listed = queue.find(({ id }) => id === payment.id);
   assert(listed?.purpose === 'TICKETS' && listed.refunds.some((item) => item.ticketId === t1.id && item.matchId === match.id), 'The ticket refund is not in the finance queue as a ticket refund.');
-  assert((await codeOf(() => refunds.restoreToWallet({ actorUserId: admin.id, refundId: r1.id, reason: 'never allowed' }))) === 'REFUND_NOT_RESTORABLE', 'A ticket refund could be returned to a wallet.');
+  assert(!('restoreToWallet' in refunds), 'A refund can still be returned to a wallet.');
   await refunds.retryWithCustomerDetails({ actorUserId: admin.id, refundId: r1.id, accountNumber: '1234567890', bankId: '140', bankName: 'Capitec Bank' });
   const retried = await prisma.providerRefund.findUniqueOrThrow({ where: { id: r1.id } });
   assert(retried.status === 'PROCESSING' && !JSON.stringify(retried).includes('1234567890'), 'The bank-details retry failed or stored the account number.');
@@ -90,8 +90,8 @@ try {
   await refunds.retry({ actorUserId: admin.id, refundId: r1.id });
   assert((fake.refunds.length as number) === 3, 'A retried refund was not sent again.');
 
-  // 5. A ticket payment is never refunded free-form by an admin: refunds come from the ticket rules.
-  assert((await codeOf(() => refunds.initiate({ actorUserId: admin.id, providerPaymentId: payment.id, amountCents: 8_000, reason: 'manual', idempotencyKey: randomUUID() }))) === 'TICKET_PAYMENT_NOT_REFUNDABLE_HERE', 'An admin could refund a ticket payment outside the ticket rules.');
+  // 5. A ticket payment is never refunded free-form by an admin: refunds come from the ticket rules only.
+  assert(!('initiate' in refunds), 'A free-form refund can still be started.');
   console.log('Ticket refunds smoke passed: once per ticket, partial R80 refunds of one shared payment to the payer, ambiguous events never guessed, events with ids exact and idempotent, needs-attention bank refunds completed with details never stored (audit keeps last 4), failed refunds stay for finance and are retried (never a credit or wallet money), and ticket payments are only refunded by the ticket rules.');
 } finally {
   await removeTicketJobsSince(smokeStartedAt);

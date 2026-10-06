@@ -11,6 +11,10 @@ export const DATA_EXPORT_AUDIT_ACTION = 'PERSONAL_DATA_EXPORTED';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const iso = (date: Date | null | undefined) => date?.toISOString() ?? null;
 const nameOf = (user: { username: string; profile: { displayName: string } | null }) => user.profile?.displayName ?? user.username;
+const paymentRow = (row: { reference: string; amountCents: number; status: string; channel: string | null; createdAt: Date; refunds: Array<{ amountCents: number; status: string; createdAt: Date }> }) => ({
+  reference: row.reference, amountCents: row.amountCents, status: row.status, method: row.channel, createdAt: row.createdAt.toISOString(),
+  refunds: row.refunds.map((refund) => ({ amountCents: refund.amountCents, status: refund.status, createdAt: refund.createdAt.toISOString() })),
+});
 
 /**
  * CEO batch 5, item 5 (POPIA section 23, ToS 8.7 and 8.13): the player's own personal data as JSON. The password is
@@ -49,13 +53,13 @@ export class DataExportService {
     });
     const person = { select: { username: true, profile: { select: { displayName: true } } } } as const;
     const [
-      participations, lineup, statistics, ledger, topUps, memberships, contributions,
+      participations, lineup, statistics, ledger, payments, memberships, contributions, tickets, credits,
       friendships, requests, blocks, dms, lobby, team, reviews, lookingCard, joinRequests, posts,
       interests, acceptances, deletionRequests,
     ] = await Promise.all([
       prisma.matchParticipant.findMany({
         where: { userId },
-        select: { team: true, status: true, joinedAt: true, leftAt: true, payment: { select: { amountCents: true } }, match: { select: { id: true, name: true, startsAt: true, status: true } } },
+        select: { team: true, status: true, joinedAt: true, leftAt: true, match: { select: { id: true, name: true, startsAt: true, status: true } } },
         orderBy: { joinedAt: 'asc' },
       }),
       prisma.matchLineupEntry.findMany({
@@ -68,7 +72,7 @@ export class DataExportService {
         : [],
       prisma.providerPayment.findMany({
         where: { userId },
-        select: { reference: true, amountCents: true, status: true, channel: true, createdAt: true, refunds: { select: { amountCents: true, status: true, createdAt: true } } },
+        select: { purpose: true, reference: true, amountCents: true, status: true, channel: true, createdAt: true, refunds: { select: { amountCents: true, status: true, createdAt: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       prisma.teamMembership.findMany({ where: { userId }, select: { role: true, joinedAt: true, team: { select: { id: true, name: true } } } }),
@@ -77,6 +81,16 @@ export class DataExportService {
         select: { type: true, amountCents: true, createdAt: true, account: { select: { team: { select: { name: true } } } } },
         orderBy: { createdAt: 'asc' },
       }),
+      // DEC-021: tickets they hold or paid for, and their match credits.
+      prisma.matchTicket.findMany({
+        where: { OR: [{ playerId: userId }, { payerId: userId }] },
+        select: {
+          seat: true, side: true, status: true, method: true, amountCents: true, outcome: true, createdAt: true, playerId: true, payerId: true,
+          match: { select: { id: true, name: true, startsAt: true } }, player: person, payer: person,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.matchCredit.findMany({ where: { userId }, select: { status: true, reason: true, issuedAt: true, expiresAt: true, usedAt: true }, orderBy: { issuedAt: 'asc' } }),
       prisma.friendship.findMany({ where: { OR: [{ userLowId: userId }, { userHighId: userId }] }, select: { createdAt: true, userLow: person, userHigh: person, userLowId: true } }),
       prisma.friendRequest.findMany({ where: { OR: [{ requesterId: userId }, { recipientId: userId }] }, select: { status: true, createdAt: true, requesterId: true, requester: person, recipient: person } }),
       prisma.userBlock.findMany({ where: { blockerId: userId }, select: { createdAt: true, blocked: person } }),
@@ -120,25 +134,30 @@ export class DataExportService {
         preferredPositions: profile?.preferredPositions.map(({ position }) => position) ?? [],
         photo: profile?.photo ? { uploadedAt: profile.photo.createdAt.toISOString(), hiddenByFootyFinder: Boolean(profile.photo.hiddenAt) } : null,
       },
-      matches: participations.map(({ match, team: side, status, joinedAt, leftAt, payment }) => ({
+      matches: participations.map(({ match, team: side, status, joinedAt, leftAt }) => ({
         matchId: match.id, name: match.name, startsAt: match.startsAt.toISOString(), matchStatus: match.status,
-        side, yourStatus: status, joinedAt: joinedAt.toISOString(), leftAt: iso(leftAt), paidCents: payment?.amountCents ?? 0,
+        side, yourStatus: status, joinedAt: joinedAt.toISOString(), leftAt: iso(leftAt),
       })),
       results: lineup.map(({ match, side, role, didNotPlay }) => ({
         matchId: match.id, name: match.name, startsAt: match.startsAt.toISOString(), side, role, didNotPlay,
         score: match.result ? { home: match.result.homeScore, away: match.result.awayScore, outcome: match.result.outcomeType } : null,
       })),
       statistics: aggregatePlayerStatistics(statistics),
-      wallet: {
-        balanceCents: user.walletAccount?.balanceCents ?? 0,
-        transactions: ledger.map((row) => ({ type: row.type, amountCents: row.amountCents, status: row.status, description: row.description ?? null, createdAt: row.createdAt.toISOString() })),
-        topUps: topUps.map((row) => ({
-          reference: row.reference, amountCents: row.amountCents, status: row.status, method: row.channel, createdAt: row.createdAt.toISOString(),
-          refunds: row.refunds.map((refund) => ({ amountCents: refund.amountCents, status: refund.status, createdAt: refund.createdAt.toISOString() })),
-        })),
+      tickets: tickets.map((row) => ({
+        matchId: row.match.id, match: row.match.name, startsAt: row.match.startsAt.toISOString(), seat: row.seat, side: row.side, status: row.status,
+        method: row.method, amountCents: row.amountCents, outcome: row.outcome ?? null,
+        forPlayer: row.playerId === userId ? 'you' : nameOf(row.player), paidBy: row.payerId === userId ? 'you' : nameOf(row.payer),
+        createdAt: row.createdAt.toISOString(),
+      })),
+      matchCredits: credits.map((row) => ({ status: row.status, reason: row.reason, issuedAt: row.issuedAt.toISOString(), expiresAt: row.expiresAt.toISOString(), usedAt: iso(row.usedAt) })),
+      payments: payments.filter(({ purpose }) => purpose === 'TICKETS').map(paymentRow),
+      // D13: wallet and Team Wallet rows from before DEC-021, kept read-only as history.
+      earlierPaymentRecords: {
+        walletEntries: ledger.map((row) => ({ type: row.type, amountCents: row.amountCents, status: row.status, description: row.description ?? null, createdAt: row.createdAt.toISOString() })),
+        topUps: payments.filter(({ purpose }) => purpose === 'TOP_UP').map(paymentRow),
+        teamWalletEntries: contributions.map((row) => ({ team: row.account.team.name, type: row.type, amountCents: row.amountCents, createdAt: row.createdAt.toISOString() })),
       },
       teams: memberships.map(({ role, joinedAt, team: t }) => ({ teamId: t.id, name: t.name, role, joinedAt: joinedAt.toISOString() })),
-      teamWalletContributions: contributions.map((row) => ({ team: row.account.team.name, type: row.type, amountCents: row.amountCents, createdAt: row.createdAt.toISOString() })),
       friends: friendships.map((row) => ({ displayName: nameOf(row.userLowId === userId ? row.userHigh : row.userLow), since: row.createdAt.toISOString() })),
       friendRequests: requests.map((row) => ({
         direction: row.requesterId === userId ? ('SENT' as const) : ('RECEIVED' as const),

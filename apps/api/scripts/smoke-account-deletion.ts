@@ -8,37 +8,41 @@ import { AccountDeletionFinaliser } from '../src/modules/account/account-deletio
 import { AccountDeletionService } from '../src/modules/account/account-deletion.service.js';
 import { TestEmailProvider } from '../src/modules/auth/email.provider.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
+import { BookingsService } from '../src/modules/bookings/bookings.service.js';
 import { MessagingService } from '../src/modules/messaging/messaging.service.js';
 import { CardRefundsService } from '../src/modules/payments/card-refunds.service.js';
 import { PaymentDisputesService } from '../src/modules/payments/payment-disputes.service.js';
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
-import { TopUpService } from '../src/modules/payments/top-up.service.js';
-import { TopUpSettlementService } from '../src/modules/payments/top-up-settlement.service.js';
 import { FriendsService } from '../src/modules/social/friends.service.js';
-import { TeamWalletService } from '../src/modules/team-wallet/team-wallet.service.js';
 import { TeamsService } from '../src/modules/teams/teams.service.js';
 import { joinTeamAsMember } from '../src/modules/teams/teams.repository.js';
+import { issueCreditInTx } from '../src/modules/tickets/match-credits.js';
+import { TicketCheckoutService } from '../src/modules/tickets/ticket-checkout.service.js';
+import { TicketLeaveService } from '../src/modules/tickets/ticket-leave.service.js';
+import { TicketReconciliationService } from '../src/modules/tickets/ticket-reconciliation.service.js';
+import { TicketSettlementService } from '../src/modules/tickets/ticket-settlement.service.js';
 import { UsersService } from '../src/modules/users/users.service.js';
 import { AccountDeletionAdminService } from '../src/modules/account/account-deletion.admin.service.js';
 import { AdminFinanceService } from '../src/modules/payments/admin-finance.service.js';
-import { WalletReconciliationService } from '../src/modules/wallet/wallet-reconciliation.service.js';
-import { FinancialRepository } from '../src/modules/wallet/financial.repository.js';
+import { managedVenueFixture } from './managed-venue-fixture.js';
 import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-server.js';
-import { deleteTeamWalletFixtures } from './team-wallet-fixtures.js';
+import { removeTicketJobsSince } from './support/ticket-job-cleanup.js';
 
 /**
- * CEO batch 5, items 1-3 on PostgreSQL with a fake Paystack:
+ * CEO batch 5, items 1-3, adapted to DEC-021 (D11), on PostgreSQL with a fake Paystack:
  * - blocked cases: admin, referee, owner of a team with members (fixed by "Make Owner"), a locked match, an open
  *   chargeback; a wrong password; a refused attempt is recorded for admins;
  * - cancel within grace: deactivated, signed out, hidden from search; signing in cancels it and emails;
- * - delete with a balance: own Team Wallet money returned first, then the whole balance refunded newest top-up
- *   first (card back automatically, Instant EFT needs attention for finance), a non-top-up credit left as an
- *   uncovered amount for finance, never wiped; ledgers reconcile;
+ * - delete with tickets and credits: an upcoming ticket more than 24 hours out is refunded to the card on confirm;
+ *   at the final step an unused credit that came from a paid ticket is refunded to that ticket's payment method
+ *   (Instant EFT, which needs attention for finance), a goodwill credit lapses, and the step waits while a refund is
+ *   still with Paystack; nothing is kept or wiped;
  * - anonymisation: nothing personal left on the account or visible to other players.
- * Anonymised accounts, their audit rows and money records are kept in the disposable database by design
- * (the audit log and ledger are immutable), tagged with the smoke marker.
+ * Anonymised accounts, their audit rows, tickets and credits are kept in the disposable database by design (the
+ * audit log and the credit ledger are append-only), tagged with the smoke marker.
  */
 const marker = `del-${randomUUID().slice(0, 8)}`;
+const smokeStartedAt = new Date();
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -56,17 +60,20 @@ const channels = ['card', 'apple_pay', 'capitec_pay', 'eft'] as const;
 const fake = await new FakePaystack().start();
 fake.expectedChannels = [...channels];
 const gateway = new PaystackClient({ secretKey: FAKE_PAYSTACK_SECRET, baseUrl: fake.baseUrl, channels: [...channels] });
-const settlement = new TopUpSettlementService(gateway, undefined, undefined, [...channels]);
-const topUps = new TopUpService(gateway, settlement, undefined, { clientUrl: 'http://localhost:5173', expiryMinutes: 60, paystackEnabled: () => true });
+const ticketSettlement = new TicketSettlementService(gateway, undefined, [...channels]);
+const checkouts = new TicketCheckoutService(gateway, undefined, ticketSettlement, {
+  clientUrl: 'http://localhost:5173', demo: () => false, paystackEnabled: () => true, termsVersion: async () => '2.4',
+});
+const refunds = new CardRefundsService(gateway);
 const emails = new TestEmailProvider();
 const deletion = new AccountDeletionService(emails);
-const finaliser = new AccountDeletionFinaliser(new CardRefundsService(gateway), undefined, undefined, deletion);
+const finaliser = new AccountDeletionFinaliser(refunds, undefined, deletion);
 const adminDeletions = new AccountDeletionAdminService(finaliser);
 const friends = new FriendsService();
 const teams = new TeamsService();
-const teamWallet = new TeamWalletService();
+const managed = managedVenueFixture(marker);
 const userIds: string[] = [];
-const teamIds: string[] = [];
+const matchIds: string[] = [];
 let n = 0;
 
 const player = async (label: string) => {
@@ -79,33 +86,34 @@ const player = async (label: string) => {
       emailVerifiedAt: new Date(),
       onboardingCompletedAt: new Date(),
       profile: { create: { displayName: `${label} ${marker}`, onboardingStatus: 'COMPLETE', gender: 'MALE', bio: `Bio of ${label}`, homeArea: `${label} Area`, dateOfBirth: new Date('1994-05-05') } },
-      walletAccount: { create: {} },
     },
   });
   userIds.push(user.id);
   return user;
 };
-const topUp = async (userId: string, amountCents: number, channel: string) => {
-  const started = await topUps.initiate(userId, amountCents, `${marker}-${randomUUID()}`);
-  fake.pay(started.reference, { channel });
-  await settlement.settleFromVerify(started.reference, 'webhook');
-  return prisma.providerPayment.findUniqueOrThrow({ where: { reference: started.reference } });
+const quickMatch = async (hostId: string) => {
+  const match = await new BookingsService().createQuickMatch(
+    { managedFieldId: managed.fieldId, name: `${marker}-${matchIds.length}`, format: 'FIVE_A_SIDE', substituteCapacityPerTeam: 2, rollingSubstitutes: false, rules: [], visibility: 'PUBLIC', startsAt: managed.nextKickoff().toISOString() },
+    hostId,
+  );
+  matchIds.push(match.id);
+  return match;
 };
-const createTeam = async (ownerId: string, name: string) => {
-  const created = await teams.create({ name: `${name} ${marker}`, primaryFormat: 'FIVE_A_SIDE', formationKey: getDefaultFormationKey('FIVE_A_SIDE'), primaryColor: '#0B5D2A', secondaryColor: '#FFFFFF' }, ownerId);
-  teamIds.push(created.id);
-  return created;
+/** Buys a substitute place on Paystack with this method; the verified webhook path confirms it. */
+const buyTicket = async (matchId: string, userId: string, channel: string) => {
+  const started = await checkouts.start(matchId, userId, { seat: 'SUBSTITUTE', side: 'HOME', method: 'PAYMENT', acceptPolicy: true }, randomUUID());
+  fake.pay(started.reference!, { channel });
+  await ticketSettlement.settleFromVerify(started.reference!, 'webhook');
+  return prisma.providerPayment.findUniqueOrThrow({ where: { reference: started.reference! } });
 };
+const createTeam = async (ownerId: string, name: string) =>
+  teams.create({ name: `${name} ${marker}`, primaryFormat: 'FIVE_A_SIDE', formationKey: getDefaultFormationKey('FIVE_A_SIDE'), primaryColor: '#0B5D2A', secondaryColor: '#FFFFFF' }, ownerId);
 const join = (teamId: string, userId: string) => serializableTransaction((tx) => joinTeamAsMember(tx, teamId, userId, [marker, teamId, userId]));
 const blockers = async (userId: string) => (await deletion.preview(userId)).blockers.map(({ code: blocker }) => blocker);
-const reconciles = async (userId: string) => {
-  const wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
-  const ledger = await prisma.walletTransaction.aggregate({ where: { walletAccountId: wallet.id, status: 'SUCCEEDED' }, _sum: { amountCents: true } });
-  return (ledger._sum.amountCents ?? 0) === wallet.balanceCents;
-};
 const afterGrace = (scheduledFor: string) => new Date(new Date(scheduledFor).getTime() + 60_000);
 
 try {
+  await managed.create();
   // ---------- Blocked cases ----------
   const admin = await player('Admin');
   await prisma.user.update({ where: { id: admin.id }, data: { platformRole: 'ADMIN' } });
@@ -141,8 +149,10 @@ try {
   assert((await prisma.user.findUniqueOrThrow({ where: { id: locked.id } })).accountStatus === 'ACTIVE', 'A blocked request changed the account.');
 
   const disputer = await player('Disputer');
-  const disputed = await topUp(disputer.id, 20_000, 'card');
-  await new PaymentDisputesService().open(disputed.reference, { id: `${marker}-dispute`, refund_amount: 20_000, transaction: { reference: disputed.reference, amount: 20_000 } });
+  const disputed = await prisma.providerPayment.create({
+    data: { userId: disputer.id, purpose: 'TICKETS', provider: 'paystack', reference: `ff_ticket_${randomUUID().replaceAll('-', '')}`, amountCents: 8_000, status: 'SUCCEEDED', verifiedAt: new Date(), creditedBy: 'webhook', channel: 'card' },
+  });
+  await new PaymentDisputesService().open(disputed.reference, { id: `${marker}-dispute`, refund_amount: 8_000, transaction: { reference: disputed.reference, amount: 8_000 } });
   const disputeBlockers = await blockers(disputer.id);
   assert(disputeBlockers.includes('OPEN_DISPUTE'), 'A player with an open chargeback could self-delete.');
 
@@ -166,18 +176,22 @@ try {
   assert((await finaliser.finalise(cancelledRequest.id, 0, afterGrace(scheduled.scheduledFor))).outcome === 'NOTHING_TO_DO', 'The final step ran after a cancel.');
   assert((await friends.search(viewer.id, { q: 'Changer' })).some(({ id }) => id === changer.id), 'The player did not come back after cancelling.');
 
-  // ---------- Delete with a balance ----------
+  // ---------- Delete with tickets and credits (DEC-021 D11) ----------
   const leaver = await player('Leaver');
   const friend = await player('Friend');
   const otherOwner = await player('OtherOwner');
-  const card = await topUp(leaver.id, 30_000, 'card');
-  const eft = await topUp(leaver.id, 20_000, 'eft');
+  const host = await player('Host');
+  const kept = await quickMatch(host.id);
+  const left = await quickMatch(host.id);
+  // An upcoming ticket paid by card (refunded on confirm), and an Instant EFT ticket left for a match credit.
+  const card = await buyTicket(kept.id, leaver.id, 'card');
+  const eft = await buyTicket(left.id, leaver.id, 'eft');
+  assert((await new TicketLeaveService().leave(left.id, leaver.id, 'CREDIT')).outcome === 'CREDIT_ISSUED', 'Leaving for a credit did not issue one.');
   fake.refundStatusByReference.set(eft.reference, 'needs-attention');
-  // R25 credited without a top-up (for example a goodwill credit): no top-up can carry it back.
-  await serializableTransaction((tx) => new FinancialRepository().credit(tx, { userId: leaver.id, amountCents: 2_500, type: 'MATCH_CANCELLATION_CREDIT', idempotencyKey: `${marker}-credit`, description: 'Smoke credit' }));
+  // A goodwill credit has no cash origin: it lapses.
+  await serializableTransaction((tx) => issueCreditInTx(tx, { userId: leaver.id, reason: 'GOODWILL', note: `${marker} goodwill` }));
   const otherTeam = await createTeam(otherOwner.id, 'Others FC');
   await join(otherTeam.id, leaver.id);
-  await teamWallet.contribute(otherTeam.id, leaver.id, 10_000, `${marker}-contribution`);
   // Social and messages to anonymise.
   await prisma.friendship.create({ data: { userLowId: [leaver.id, friend.id].sort()[0]!, userHighId: [leaver.id, friend.id].sort()[1]! } });
   const messaging = new MessagingService();
@@ -189,25 +203,36 @@ try {
 
   const preview = await deletion.preview(leaver.id);
   assert(preview.canDelete, `The leaver is blocked: ${preview.blockers.map(({ code: c }) => c).join(', ')}`);
-  assert(preview.wallet.teamContributionsCents === 10_000, 'The preview does not show the Team Wallet money.');
+  assert(preview.matches.some(({ matchId, outcome, refundCents }) => matchId === kept.id && outcome === 'REFUNDED' && refundCents === 8_000), 'The preview does not say the upcoming ticket is refunded.');
+  assert(preview.credits.refunded === 1 && preview.credits.lapsing === 1, `The preview does not count the credits right: ${JSON.stringify(preview.credits)}`);
+  assert(['card', 'eft'].every((method) => preview.credits.paymentMethods.includes(method)), 'The preview does not name the payment methods.');
   const leaverScheduled = await deletion.request(leaver.id, { password: PASSWORD, confirmation: 'DELETE' });
   assert(!(await prisma.playerLookingCard.findUniqueOrThrow({ where: { userId: leaver.id } })).enabled, 'The looking card was not switched off on confirm.');
   const request = await prisma.accountDeletionRequest.findFirstOrThrow({ where: { userId: leaver.id, status: 'GRACE' } });
   assert((await code(finaliser.finalise(request.id, 0, new Date()))) === 'ACCOUNT_DELETION_NOT_DUE', 'The final step ran before 14 days.');
 
-  const result = await finaliser.finalise(request.id, 0, afterGrace(leaverScheduled.scheduledFor));
+  // On confirm the upcoming ticket was left for a refund to the card; it is still with Paystack.
+  const ticketRefund = await prisma.providerRefund.findFirstOrThrow({ where: { providerPaymentId: card.id, source: 'TICKET_LEFT' } });
+  const sentTicketRefund = await refunds.submitQueued(ticketRefund.id);
+  assert(sentTicketRefund?.status === 'PENDING' && sentTicketRefund.providerRefundId && sentTicketRefund.amountCents === 8_000, 'The upcoming ticket was not refunded to the card on confirm.');
+
+  const waiting = await finaliser.finalise(request.id, 0, afterGrace(leaverScheduled.scheduledFor));
+  assert(waiting.outcome === 'WAITING' && 'reason' in waiting && waiting.reason === 'REFUNDS_IN_PROGRESS', `The final step did not wait for the refund with Paystack: ${JSON.stringify(waiting)}`);
+  await refunds.applyWebhook('refund.processed', card.reference, { id: Number(sentTicketRefund.providerRefundId), amount: 8_000, status: 'processed' });
+  const result = await finaliser.finalise(request.id, 1, afterGrace(leaverScheduled.scheduledFor));
   assert(result.outcome === 'COMPLETED', `The final step did not complete: ${JSON.stringify(result)}`);
-  const refunds = await prisma.providerRefund.findMany({ where: { source: 'ACCOUNT_CLOSURE', providerPayment: { userId: leaver.id } }, include: { providerPayment: true }, orderBy: { createdAt: 'asc' } });
-  assert(refunds.length === 2, `Expected 2 closure refunds, got ${refunds.length}.`);
-  assert(refunds[0]!.providerPaymentId === eft.id && refunds[0]!.amountCents === 20_000 && refunds[0]!.status === 'NEEDS_ATTENTION', 'The newest (EFT) top-up was not refunded first, or did not go to finance.');
-  assert(refunds[1]!.providerPaymentId === card.id && refunds[1]!.amountCents === 30_000, 'The card top-up was not refunded in full (the R100 Team Wallet money was not returned first?).');
-  const leaverWallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: leaver.id } });
-  assert(leaverWallet.balanceCents === 2_500, `R25 not covered by any top-up should stay visible for finance, not be wiped (balance ${leaverWallet.balanceCents}).`);
-  assert(await reconciles(leaver.id), 'The deleted wallet does not reconcile to its ledger.');
+  const closureRefunds = await prisma.providerRefund.findMany({ where: { source: 'ACCOUNT_CLOSURE', providerPayment: { userId: leaver.id } } });
+  assert(closureRefunds.length === 1, `Expected 1 closure refund (the credit from a paid ticket), got ${closureRefunds.length}.`);
+  const closureRefund = closureRefunds[0]!;
+  assert(closureRefund.providerPaymentId === eft.id && closureRefund.amountCents === 8_000 && closureRefund.creditId && closureRefund.status === 'NEEDS_ATTENTION', 'The credit was not refunded to the EFT payment it came from, or did not go to finance.');
+  const credits = await prisma.matchCredit.findMany({ where: { userId: leaver.id }, include: { events: true } });
+  assert(credits.find(({ reason }) => reason === 'LEFT_MATCH')?.status === 'REFUNDED', 'The credit from a paid ticket was not refunded.');
+  assert(credits.find(({ reason }) => reason === 'GOODWILL')?.status === 'FORFEITED', 'The goodwill credit did not lapse.');
+  assert(credits.every(({ status, events }) => events.some(({ type }) => type === status)), 'A credit closed without its ledger entry.');
   const completed = await prisma.accountDeletionRequest.findUniqueOrThrow({ where: { id: request.id } });
-  assert(completed.status === 'COMPLETED' && completed.uncoveredCents === 2_500, 'The uncovered amount was not recorded for finance.');
-  assert(completed.contactEmail === leaver.email, 'The finance contact email was not kept while money is outstanding (D2).');
-  assert(emails.messages.some(({ to, subject }) => to === leaver.email && /has been deleted/.test(subject)), 'No final email was sent.');
+  assert(completed.status === 'COMPLETED' && completed.uncoveredCents === 0, 'The deletion did not complete cleanly.');
+  assert(completed.contactEmail === leaver.email, 'The finance contact email was not kept while a refund needs finance (D2).');
+  assert(emails.messages.some(({ to, subject, text }) => to === leaver.email && /has been deleted/.test(subject) && /match credits have been refunded/.test(text)), 'No final email about the refunded credits was sent.');
 
   // ---------- Anonymisation ----------
   const gone = await prisma.user.findUniqueOrThrow({ where: { id: leaver.id }, include: { profile: { include: { preferredPositions: true, photo: true } } } });
@@ -232,41 +257,30 @@ try {
 
   // ---------- Admin and finance (item 6) ----------
   const listed = (await adminDeletions.list()).find(({ id }) => id === request.id);
-  assert(listed?.status === 'COMPLETED' && listed.displayName === DELETED_PLAYER_NAME && listed.uncoveredCents === 2_500, 'The admin page does not show the completed deletion.');
+  assert(listed?.status === 'COMPLETED' && listed.displayName === DELETED_PLAYER_NAME && listed.creditsRefunded === 1 && listed.creditsLapsed === 1, 'The admin page does not show the completed deletion and its credits.');
   assert(listed.refunds.some(({ status }) => status === 'NEEDS_ATTENTION'), 'The admin page does not show the EFT refund needing attention.');
   assert((await adminDeletions.list('BLOCKED')).some(({ userId }) => userId === locked.id), 'The admin page does not show the refused attempt.');
   const queue = await new AdminFinanceService().refundsNeedingAttention();
-  const queued = queue.find(({ id }) => id === eft.id);
-  assert(queued?.accountClosure?.contactEmail === leaver.email, 'Finance does not see the EFT closure refund with the contact email.');
-  const issues = (await new WalletReconciliationService().report()).issues;
-  assert(issues.some(({ code: c, referenceId }) => c === 'ACCOUNT_CLOSURE_UNREFUNDED' && referenceId === request.id), 'Reconciliation does not flag the uncovered closure amount.');
-  assert(issues.some(({ code: c, referenceId }) => c === 'REFUND_NEEDS_FINANCE' && referenceId === refunds[0]!.id), 'Reconciliation does not flag the needs-attention refund.');
-  assert((await code(adminDeletions.settle(request.id, admin.id, 'Paid R25 by EFT'))) === 'DELETION_REFUNDS_OPEN', 'Finance could settle while a closure refund was still open.');
+  assert(queue.find(({ id }) => id === eft.id)?.accountClosure?.contactEmail === leaver.email, 'Finance does not see the EFT closure refund with the contact email.');
+  const issues = (await new TicketReconciliationService().report()).issues;
+  assert(issues.some(({ code: c, referenceId }) => c === 'REFUND_NEEDS_FINANCE' && referenceId === closureRefund.id), 'Reconciliation does not flag the needs-attention closure refund.');
+  assert((await code(adminDeletions.settle(request.id, admin.id, 'Paid by EFT'))) === 'DELETION_REFUNDS_OPEN', 'Finance could settle while a refund was still open.');
 
-  // D2: once every closure refund is processed and finance has settled the rest, the contact email is erased.
-  await prisma.providerRefund.updateMany({ where: { id: { in: refunds.map(({ id }) => id) } }, data: { status: 'PROCESSED' } });
-  assert(!(await finaliser.settleCheck(request.id)).settled, 'The case settled with an uncovered amount.');
-  const settled = await adminDeletions.settle(request.id, admin.id, 'Paid R25 by EFT, ref smoke');
-  assert(settled.financeSettledAt && !settled.contactEmail, 'Settling did not erase the contact email.');
-  assert((await prisma.adminAuditLog.count({ where: { actorUserId: admin.id, action: 'ACCOUNT_CLOSURE_SETTLED', entityId: request.id } })) === 1, 'Settling was not audited.');
+  // D2: once every refund is processed, the case is settled and the contact email is erased.
+  await prisma.providerRefund.update({ where: { id: closureRefund.id }, data: { status: 'PROCESSED', processedAt: new Date() } });
+  assert((await finaliser.settleCheck(request.id)).settled, 'The case did not settle once every refund was processed.');
   assert(!(await prisma.accountDeletionRequest.findUniqueOrThrow({ where: { id: request.id } })).contactEmail, 'The contact email was not erased once settled.');
-
-  for (const userId of [disputer.id, otherOwner.id]) assert(await reconciles(userId), 'A wallet does not reconcile to its ledger.');
-  console.log('Account deletion smoke passed: admin, referee, team owner with members (fixed by Make Owner), locked match and chargeback are blocked and the attempt recorded; a wrong password is refused; signing in during grace cancels it; the final step returns Team Wallet money, refunds the newest top-up first (EFT to finance, card automatic), keeps an uncovered amount for finance, anonymises the account, DMs and notifications, and erases the contact email once settled; admins see requests and refused attempts, finance sees the closure refund with the contact email, reconciliation flags what is open, settling is refused while a refund is open and is audited; ledgers reconcile.');
+  assert((await code(adminDeletions.settle(request.id, admin.id, 'Again'))) === 'DELETION_ALREADY_SETTLED', 'A settled case could be settled again.');
+  console.log('Account deletion smoke passed: admin, referee, team owner with members (fixed by Make Owner), locked match and chargeback are blocked and the attempt recorded; a wrong password is refused; signing in during grace cancels it; on confirm an upcoming ticket more than 24 hours out is refunded to the card; the final step waits while a refund is with Paystack, refunds the credit from a paid ticket to its EFT payment (to finance), lets a goodwill credit lapse, anonymises the account, DMs and notifications, and erases the contact email once every refund is processed; admins see requests, credits and refused attempts, finance sees the closure refund with the contact email, reconciliation flags it, and settling is refused while a refund is open.');
 } finally {
   const requests = await prisma.accountDeletionRequest.findMany({ where: { userId: { in: userIds } }, select: { id: true } });
   for (const { id } of requests) await prisma.durableJob.deleteMany({ where: { dedupeKey: { contains: id } } });
-  const payments = await prisma.providerPayment.findMany({ where: { userId: { in: userIds } }, select: { id: true } });
-  for (const { id } of payments) await prisma.durableJob.deleteMany({ where: { dedupeKey: { startsWith: `paystack-topup-expire:${id}` } } });
-  // Money rows are removed (the fake Paystack's ids restart every run); the accounts themselves stay, because
-  // the append-only audit log names them as actors.
-  await deleteTeamWalletFixtures(teamIds);
+  await removeTicketJobsSince(smokeStartedAt);
+  await prisma.durableJob.deleteMany({ where: { OR: matchIds.map((id) => ({ dedupeKey: { contains: id } })) } });
+  // Refund and dispute rows are removed (the fake Paystack's ids restart every run). Accounts, tickets and credits
+  // stay: the audit log and the credit ledger are append-only.
   await prisma.providerDispute.deleteMany({ where: { providerPayment: { userId: { in: userIds } } } });
   await prisma.providerRefund.deleteMany({ where: { providerPayment: { userId: { in: userIds } } } });
-  await prisma.providerPayment.deleteMany({ where: { userId: { in: userIds } } });
-  await prisma.walletTransaction.deleteMany({ where: { walletAccount: { userId: { in: userIds } } } });
-  await prisma.walletAccount.updateMany({ where: { userId: { in: userIds } }, data: { balanceCents: 0, spendingRestrictedAt: null, spendingRestrictionReason: null } });
-  await prisma.matchParticipant.deleteMany({ where: { userId: { in: userIds } } });
   await fake.stop();
   await prisma.$disconnect();
 }

@@ -6,7 +6,7 @@ import { DATA_EXPORT_AUDIT_ACTION, DataExportService } from '../src/modules/acco
 
 /**
  * CEO batch 5, item 5 on PostgreSQL: "Download my data". The password is re-checked, the JSON holds the player's
- * profile, wallet, friends, consents, Terms acceptances and the messages they sent (never the other person's
+ * profile, tickets, credits and payments, friends, consents, Terms acceptances and the messages they sent (never the other person's
  * messages or contact details), it can be downloaded once every 24 hours, and each download is audited.
  * The player is kept in the disposable database by design (the audit log names them).
  */
@@ -34,7 +34,6 @@ try {
       data: {
         email: `${marker}-${label}@smoke.invalid`, username: `${marker.replace('-', '_')}_${label}`, passwordHash,
         profile: { create: { displayName: `${label} ${marker}`, homeArea: `${label} Home`, bio: `${label} bio`, dateOfBirth: new Date('1996-03-03') } },
-        walletAccount: { create: { balanceCents: 0 } },
       },
     });
   const me = await make('me');
@@ -52,7 +51,7 @@ try {
   assert(data.account.email === me.email && data.profile.homeArea === 'me Home' && data.profile.dateOfBirth === '1996-03-03', 'Profile data is missing.');
   assert(data.friends.some(({ displayName }) => displayName === `friend ${marker}`), 'Friends are missing.');
   assert(data.messagesSent.direct.length === 1 && data.messagesSent.direct[0]!.content === `My message ${marker}`, 'Sent messages are missing.');
-  assert(Array.isArray(data.wallet.transactions) && Array.isArray(data.termsAcceptances) && Array.isArray(data.consents.cityWaitingList), 'Sections are missing.');
+  assert(!('wallet' in data) && Array.isArray(data.tickets) && Array.isArray(data.matchCredits) && Array.isArray(data.payments) && Array.isArray(data.earlierPaymentRecords.walletEntries) && Array.isArray(data.termsAcceptances) && Array.isArray(data.consents.cityWaitingList), 'Sections are missing.');
   const json = JSON.stringify(data);
   for (const secret of [`Their private reply ${marker}`, friend.email, 'friend Home', 'friend bio', friend.username])
     assert(!json.includes(secret), `The export contains another player's private data: ${secret}`);
@@ -60,7 +59,7 @@ try {
   assert((await code(service.export(me.id, { password: PASSWORD }))) === 'DATA_EXPORT_RATE_LIMITED', 'A second download within 24 hours was allowed.');
   const tomorrow = new Date(Date.now() + 24 * 3_600_000 + 60_000);
   assert((await service.export(me.id, { password: PASSWORD }, undefined, tomorrow)).generatedAt === tomorrow.toISOString(), 'A download after 24 hours was refused.');
-  console.log('Data export smoke passed: the password is re-checked; profile, friends, wallet, consents, Terms acceptances and the messages the player sent are included, never another player\'s messages or contact details; once per 24 hours; audited.');
+  console.log('Data export smoke passed: the password is re-checked; profile, friends, tickets, credits, payments and earlier payment records, consents, Terms acceptances and the messages the player sent are included, never another player\'s messages or contact details; once per 24 hours; audited.');
 } finally {
   await prisma.conversation.deleteMany({ where: { id: { in: conversationIds } } });
   await prisma.friendship.deleteMany({ where: { OR: [{ userLowId: { in: removable } }, { userHighId: { in: removable } }] } });
