@@ -12,12 +12,10 @@ import { PlayerPhotoService } from '../../src/modules/profiles/player-photo.serv
 import { findRefereeClash } from '../../src/modules/referees/referee-assignment.js';
 import { RefereeAssignmentService } from '../../src/modules/referees/referee-assignment.service.js';
 import { RefereeRoleService } from '../../src/modules/referees/referee-role.service.js';
-import { TeamMatchMetersService } from '../../src/modules/team-matches/team-match-meters.js';
 import { TeamMatchesService } from '../../src/modules/team-matches/team-matches.service.js';
-import { TeamWalletService } from '../../src/modules/team-wallet/team-wallet.service.js';
 import { TeamsService } from '../../src/modules/teams/teams.service.js';
-import { DemoPaymentOperator } from '../../src/modules/wallet/demo-payment.operator.js';
-import { DepositsService } from '../../src/modules/wallet/deposits.service.js';
+import { TeamTicketsService } from '../../src/modules/tickets/team-tickets.service.js';
+import { TicketCheckoutService } from '../../src/modules/tickets/ticket-checkout.service.js';
 import { FriendsService } from '../../src/modules/social/friends.service.js';
 import { RecruitmentService } from '../../src/modules/social/recruitment.service.js';
 import { ShiftRefusedError, devSeedMatchLink, shiftDevSeedMatch } from './shift.js';
@@ -28,8 +26,7 @@ import {
   DEV_SEED_MATCH_PREFIX,
   DEV_SEED_PASSWORD,
   DEV_SEED_RESET_AUDIT,
-  DEV_SEED_TEAM_CONTRIBUTION_CENTS,
-  DEV_SEED_WALLET_CENTS,
+  WEB_URL,
   GOALKEEPERS,
   TEAMS,
   mockPlayer,
@@ -42,12 +39,14 @@ const TZ_OFFSET_MINUTES = 120; // Africa/Johannesburg, UTC+2 all year.
 
 const onboarding = new OnboardingService();
 const photos = new PlayerPhotoService();
-const deposits = new DepositsService(new DemoPaymentOperator());
 const teamsService = new TeamsService();
-const teamWallet = new TeamWalletService();
 const matches = new MatchesService();
 const teamMatches = new TeamMatchesService();
-const meters = new TeamMatchMetersService();
+// DEC-021 (D12): mock players buy match tickets through the demo operator (confirmed straight away, no real money),
+// so they are placed by exactly the same rules as a player who paid on Paystack.
+const termsVersion = async () => (await onboarding.currentLegalDocuments())[0]?.version;
+const demoTickets = new TicketCheckoutService(undefined, undefined, undefined, { clientUrl: WEB_URL, demo: () => true, paystackEnabled: () => false, termsVersion });
+const demoTeamTickets = new TeamTicketsService(demoTickets, undefined, { demo: () => true, termsVersion });
 const lineups = new MatchLineupService();
 const refereeRoles = new RefereeRoleService();
 const refereeAssignments = new RefereeAssignmentService();
@@ -110,7 +109,6 @@ async function ensurePlayers(): Promise<Players> {
           isTestAccount: true,
           testDataBatchId: batch.id,
           profile: { create: { displayName: spec.displayName } },
-          walletAccount: { create: { currency: 'ZAR' } },
         },
         include: { profile: { include: { photo: true, preferredPositions: true } } },
       });
@@ -132,23 +130,6 @@ async function ensurePlayers(): Promise<Players> {
   }
   log(`${created} created, ${30 - created} already there. Terms ${terms[0]!.version} accepted by all.`);
   return players;
-}
-
-async function fundWallets(players: Players, round: number) {
-  console.log(`Wallets (R${DEV_SEED_WALLET_CENTS / 100} each, round ${round})`);
-  let funded = 0;
-  for (const player of players.values()) {
-    const key = `DEV-SEED:round-${round}:wallet:${mockPlayer(player.n).email}`;
-    if (await prisma.walletTransaction.findUnique({ where: { idempotencyKey: key } })) continue;
-    const account = await prisma.walletAccount.findUniqueOrThrow({ where: { userId: player.id } });
-    const shortfall = DEV_SEED_WALLET_CENTS - account.balanceCents;
-    if (shortfall <= 0) continue;
-    const amountCents = Math.max(5_000, Math.ceil(shortfall / 100) * 100);
-    const result = await deposits.deposit(player.id, amountCents, key, { description: 'DEV SEED wallet top-up (demo, no real money)' });
-    if (result.status !== 'success') throw new Error(`Demo top-up failed for player${player.n}: ${result.status}`);
-    funded += 1;
-  }
-  log(`${funded} topped up through the demo top-up path; the rest already had their round-${round} top-up.`);
 }
 
 async function setUpReferee(email: string) {
@@ -202,10 +183,7 @@ async function ensureTeams(players: Players) {
     const captain = players.get(spec.captain)!;
     if ((await prisma.teamMembership.findFirst({ where: { teamId: team.id, userId: captain.id } }))?.role !== 'CAPTAIN')
       await teamsService.updateMemberRole(team.id, captain.id, 'CAPTAIN', owner.id);
-    for (const n of spec.contributors)
-      await teamWallet.contribute(team.id, players.get(n)!.id, DEV_SEED_TEAM_CONTRIBUTION_CENTS, `DEV-SEED:team:${team.id}:contribution:player${n}`);
-    const account = await prisma.teamWalletAccount.findUniqueOrThrow({ where: { teamId: team.id } });
-    log(`${spec.name}: ${spec.members.length} members, owner player${String(spec.owner).padStart(2, '0')}, captain player${String(spec.captain).padStart(2, '0')}, team wallet R${account.balanceCents / 100}.`);
+    log(`${spec.name}: ${spec.members.length} members, owner player${String(spec.owner).padStart(2, '0')}, captain player${String(spec.captain).padStart(2, '0')}.`);
   }
   return ids;
 }
@@ -227,12 +205,13 @@ async function fieldFor(formats: MatchFormat[]) {
 }
 
 const gridSlotAtLeast = (at: Date) => new Date(Math.ceil(at.getTime() / (30 * MINUTE)) * 30 * MINUTE);
-/** HH:MM Johannesburg time, tomorrow. */
-function tomorrowAt(hour: number, minute: number, now: Date) {
+/** HH:MM Johannesburg time, `days` days from today (1 = tomorrow). */
+function dayAt(days: number, hour: number, minute: number, now: Date) {
   const local = new Date(now.getTime() + TZ_OFFSET_MINUTES * MINUTE);
-  const day = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + 1, hour, minute);
+  const day = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + days, hour, minute);
   return new Date(day - TZ_OFFSET_MINUTES * MINUTE);
 }
+const tomorrowAt = (hour: number, minute: number, now: Date) => dayAt(1, hour, minute, now);
 
 /**
  * Publishes through the normal create path at the first 30-minute slot from `from` where the
@@ -256,20 +235,31 @@ async function publishAtFreeSlot(input: Omit<CreateMatchInput, 'startsAt'>, host
   throw new Error(`No free slot found for ${input.name}.`);
 }
 
+/** Each player buys a ticket for an open position on their side (a goalkeeper takes the keeper's spot), or a sub place. */
 async function joinAndClaim(matchId: string, entries: Array<{ n: number; side: TeamSide }>, players: Players) {
-  const used = new Set<string>();
   for (const { n, side } of entries) {
     const player = players.get(n)!;
-    await matches.join(matchId, player.id, { team: side }, `DEV-SEED:join:${matchId}:player${n}`);
-    const participant = await prisma.matchParticipant.findFirstOrThrow({ where: { matchId, userId: player.id, status: 'JOINED' }, include: { formationSlot: true } });
-    if (participant.formationSlot) continue;
-    const slots = await prisma.formationSlot.findMany({ where: { matchId, team: side, participantId: null }, orderBy: { slotIndex: 'asc' } });
-    const free = slots.filter((slot) => !used.has(slot.id));
+    if (await prisma.matchParticipant.findFirst({ where: { matchId, userId: player.id, status: 'JOINED' } })) continue;
+    const free = await prisma.formationSlot.findMany({ where: { matchId, team: side, participantId: null }, orderBy: { slotIndex: 'asc' } });
     const slot = GOALKEEPERS.has(n) ? free.find((item) => item.slotIndex === 1) ?? free[0] : free.find((item) => item.slotIndex !== 1) ?? free[0];
-    if (!slot) continue;
-    used.add(slot.id);
-    await matches.claimPosition(matchId, slot.id, player.id);
+    const result = await demoTickets.start(
+      matchId,
+      player.id,
+      slot ? { seat: 'POSITION', side, slotId: slot.id, method: 'PAYMENT', acceptPolicy: true } : { seat: 'SUBSTITUTE', side, method: 'PAYMENT', acceptPolicy: true },
+      `DEV-SEED:ticket:${matchId}:player${n}`,
+      { ip: 'DEV SEED 127.0.0.1', userAgent: 'DEV SEED mock world' },
+    );
+    if (result.state !== 'CONFIRMED') throw new Error(`player${n}'s demo ticket was not confirmed (${result.state}).`);
   }
+}
+
+/** DEC-021 A5: a captain pays for the named lineup on the team's checklist (one demo payment). */
+async function payForLineup(matchId: string, side: TeamSide, payerId: string, playerNs: number[], players: Players) {
+  const result = await demoTeamTickets.checkout(
+    matchId, side, payerId, { playerIds: playerNs.map((n) => players.get(n)!.id), method: 'PAYMENT', acceptPolicy: true },
+    `DEV-SEED:team-tickets:${matchId}:${side}`, { ip: 'DEV SEED 127.0.0.1', userAgent: 'DEV SEED mock world' },
+  );
+  if (result.state !== 'CONFIRMED') throw new Error(`The ${side} team's demo payment was not confirmed (${result.state}).`);
 }
 
 async function arrangeLineup(matchId: string, side: TeamSide, managerId: string, starters: number[], subs: number[], players: Players) {
@@ -315,7 +305,7 @@ async function scenarios(players: Players, teamIds: Record<string, string>, refe
     toShift.push({ key: 'A', matchId: a.id, target: targets.A! });
     from = new Date(a.startsAt.getTime() + 90 * MINUTE);
   } else log('A already exists for this round; left as is.');
-  results.push({ key: 'A', matchId: a.id, startsAt: a.startsAt, loginAs: 'You (join the AWAY side, pay R80, claim the open position)', test: 'Join, pay, claim; T-30 go ahead; kick-off; record the result as referee; stats; team-free Quick Match (no reviews), lineup record' });
+  results.push({ key: 'A', matchId: a.id, startsAt: a.startsAt, loginAs: 'You (tap the open AWAY position, tick the policy, pay R80 or use a match credit)', test: 'Buy a ticket for the open position (demo checkout or 1 match credit); T-30 go ahead; kick-off; record the result as referee; stats; team-free Quick Match (no reviews), lineup record' });
 
   let b = await existing('B');
   if (!b) {
@@ -327,7 +317,7 @@ async function scenarios(players: Players, teamIds: Record<string, string>, refe
     toShift.push({ key: 'B', matchId: b.id, target: targets.B! });
     from = new Date(b.startsAt.getTime() + 90 * MINUTE);
   } else log('B already exists for this round; left as is.');
-  results.push({ key: 'B', matchId: b.id, startsAt: b.startsAt, loginAs: 'player15 (or player30, the host)', test: 'T-30 auto-cancel (positions not filled): every R80 refunded to the wallet, in-app cancellation notice, the email printed in the API console' });
+  results.push({ key: 'B', matchId: b.id, startsAt: b.startsAt, loginAs: 'player15 (or player30, the host)', test: 'T-30 auto-cancel (positions not filled): every payer is asked to choose a match credit or a full refund (in the app and by email, printed in the API console); no choice within 7 days refunds automatically' });
 
   let c = await existing('C');
   if (!c) {
@@ -336,13 +326,14 @@ async function scenarios(players: Players, teamIds: Record<string, string>, refe
       playAsTeamId: teamIds.WANDERERS, otherSideMode: 'TEAMS_ONLY', teamSubstituteCount: 2,
     }, id(1), from, refereeId);
     await teamMatches.loadTeam(c.id, id(15), { teamId: teamIds.OBSERVATORY!, substituteCount: 2 });
-    await meters.fill(c.id, 'HOME', id(2), undefined, `DEV-SEED:meter:${c.id}:HOME`);
-    await meters.fill(c.id, 'AWAY', id(16), undefined, `DEV-SEED:meter:${c.id}:AWAY`);
     await arrangeLineup(c.id, 'HOME', id(2), [1, 2, 3, 4, 5], [6, 7], players);
     await arrangeLineup(c.id, 'AWAY', id(16), [15, 16, 17, 18, 19], [20, 21], players);
+    // Each captain pays for their named lineup (7 places, R560) on the team's checklist.
+    await payForLineup(c.id, 'HOME', id(2), [1, 2, 3, 4, 5, 6, 7], players);
+    await payForLineup(c.id, 'AWAY', id(16), [15, 16, 17, 18, 19, 20, 21], players);
     toShift.push({ key: 'C', matchId: c.id, target: targets.C! });
   } else log('C already exists for this round; left as is.');
-  results.push({ key: 'C', matchId: c.id, startsAt: c.startsAt, loginAs: 'player02 (Wanderers captain) or player16 (Observatory captain)', test: 'Team T-30: both R560 team fees captured once; lineup lock and lineup record at kick-off; referee result; team reviews (14 days) and stats' });
+  results.push({ key: 'C', matchId: c.id, startsAt: c.startsAt, loginAs: 'player02 (Wanderers captain) or player16 (Observatory captain)', test: 'Team match with both teams fully paid (7 named tickets each, R560); T-2h cutoff passes; T-30 check; lineup lock and lineup record at kick-off; referee result; team reviews (14 days) and stats' });
 
   let d = await existing('D');
   if (!d) {
@@ -351,17 +342,18 @@ async function scenarios(players: Players, teamIds: Record<string, string>, refe
       playAsTeamId: teamIds.WANDERERS, otherSideMode: 'OPEN', teamSubstituteCount: 2,
     }, id(1), tomorrowAt(18, 0, now), refereeId);
   } else log('D already exists for this round; left as is.');
-  results.push({ key: 'D', matchId: d.id, startsAt: d.startsAt, loginAs: 'player29 or player30 (join as individuals), player15 ("Load my team" instead), player01/player02 (withdraw, cancel)', test: 'Individuals vs "Load my team" race for the other side, R80 per individual, team withdraw, home cancel with refunds' });
+  results.push({ key: 'D', matchId: d.id, startsAt: d.startsAt, loginAs: 'player29 or player30 (join as individuals), player15 ("Load my team" instead), player01/player02 (withdraw, cancel)', test: 'Individuals (R80 ticket each) vs "Load my team" race for the other side; each team pays for named teammates on its checklist (T-4h alert, T-2h cutoff); team withdraw; home cancel with the credit-or-refund choice' });
 
   let e = await existing('E');
   if (!e) {
-    e = await publishAtFreeSlot(quick('E', 'Quick 7-a-side, half full', 'SEVEN_A_SIDE', seven.id), id(22), tomorrowAt(20, 0, now), refereeId);
+    // The day after tomorrow, so leaving is always more than 24 hours before kick-off (DEC-021 A2).
+    e = await publishAtFreeSlot(quick('E', 'Quick 7-a-side, half full', 'SEVEN_A_SIDE', seven.id), id(22), dayAt(2, 20, 0, now), refereeId);
     await joinAndClaim(e.id, [
       { n: 25, side: 'HOME' }, { n: 22, side: 'HOME' }, { n: 23, side: 'HOME' }, { n: 24, side: 'HOME' },
       { n: 26, side: 'AWAY' }, { n: 27, side: 'AWAY' }, { n: 28, side: 'AWAY' },
     ], players);
   } else log('E already exists for this round; left as is.');
-  results.push({ key: 'E', matchId: e.id, startsAt: e.startsAt, loginAs: 'player23 (leave >12h before: full refund), you in the admin app (Cancel match (weather/venue))', test: 'Leaving more than 12 hours before kick-off; the admin "Cancel match (weather/venue)" button with full refunds' });
+  results.push({ key: 'E', matchId: e.id, startsAt: e.startsAt, loginAs: 'player23 (leave more than 24h before: choose a match credit or a refund), you in the admin app (Cancel match (weather/venue))', test: 'Leaving more than 24 hours before kick-off (credit or refund); Tickets & credits; the admin "Cancel match (weather/venue)" button with the credit-or-refund choice' });
 
   for (const item of toShift) {
     const current = await prisma.match.findUniqueOrThrow({ where: { id: item.matchId }, select: { startsAt: true } });
@@ -462,7 +454,6 @@ export async function seed(meEmail: string | undefined) {
   const players = await ensurePlayers();
   console.log('Mock venue');
   await ensureMockVenue(log, players.get(1)!.id, players.get(2)!.id);
-  await fundWallets(players, round);
   const teamIds = await ensureTeams(players);
   const meForSocial = meEmail ? await prisma.user.findUnique({ where: { email: meEmail.trim().toLowerCase() }, select: { id: true, isTestAccount: true } }) : null;
   await ensureSocial(players, teamIds, meForSocial && !meForSocial.isTestAccount ? meForSocial.id : undefined);
@@ -482,7 +473,7 @@ export async function seed(meEmail: string | undefined) {
 /**
  * --reset-mock (CEO-approved, 2026-09-30). Mock accounts are kept: their Terms acceptances are
  * append-only legal records that block deleting the account. Not-started scenario matches are
- * cancelled through the normal cancel path (full refunds); started, finished and cancelled ones are
+ * cancelled through the normal cancel path (the credit-or-refund choice); started, finished and cancelled ones are
  * kept as history and marked. Mock teams are closed through the normal team-closure path. The next
  * seed run starts a new round with fresh teams and scenarios.
  */
@@ -531,7 +522,7 @@ export async function resetMock(meEmail: string | undefined) {
       summary.notCancelled.push(`${match.name}: ${code}${me ? '' : ' (pass --me to try the admin cancel)'}`);
     }
   }
-  for (const line of summary.cancelled) log(`Cancelled with full refunds: ${line}`);
+  for (const line of summary.cancelled) log(`Cancelled (ticket holders choose a match credit or a refund): ${line}`);
   for (const line of summary.keptAsHistory) log(`Kept as history: ${line}`);
   for (const line of summary.notCancelled) log(`Could not cancel (left as is): ${line}`);
 
@@ -542,17 +533,17 @@ export async function resetMock(meEmail: string | undefined) {
   const teams = await prisma.team.findMany({ where: { ownerUserId: { in: userIds }, archivedAt: null } });
   for (const team of teams) {
     try {
-      const { refunds } = await teamsService.remove(team.id, team.ownerUserId);
+      await teamsService.remove(team.id, team.ownerUserId);
       await prisma.teamMessage.deleteMany({ where: { teamId: team.id } });
       summary.teamsClosed.push(team.name);
-      log(`Closed ${team.name}; ${refunds?.length ?? 0} contributors got their unspent money back.`);
+      log(`Closed ${team.name}.`);
     } catch (error) {
       summary.teamsKept.push(`${team.name}: ${errorCode(error)}`);
       log(`Could not close ${team.name}: ${errorCode(error)}`);
     }
   }
   const notifications = await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
-  log(`Cleared ${notifications.count} notifications of mock players. Mock accounts, wallets and ledgers are kept.`);
+  log(`Cleared ${notifications.count} notifications of mock players. Mock accounts, tickets and credits are kept.`);
   await serializableTransaction((tx) => appendAdminAudit(tx, {
     ...(me ? { actorUserId: me.id } : {}), action: DEV_SEED_RESET_AUDIT, entityType: 'DEV_SEED', requestId: REQUEST_ID,
     metadata: { mark: DEV_SEED, endedRound: round, ...summary },

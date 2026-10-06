@@ -5,8 +5,8 @@ export const DEV_SEED = 'DEV SEED';
 export const DEV_SEED_BATCH_LABEL = 'DEV SEED mock world';
 export const DEV_SEED_MATCH_PREFIX = '[DEV SEED]';
 export const DEV_SEED_PASSWORD = 'MockPlayer2026';
-export const DEV_SEED_WALLET_CENTS = 50_000;
-export const DEV_SEED_TEAM_CONTRIBUTION_CENTS = 30_000;
+/** DEC-021 (D12): match credits the ticketing cutover gives each mock player and you, to test paying with a credit. */
+export const DEV_SEED_CUTOVER_CREDITS = 2;
 export const DEV_SEED_RESET_AUDIT = 'DEV_SEED_MOCK_RESET';
 export const WEB_URL = 'http://localhost:5173';
 
@@ -39,8 +39,8 @@ export function mockPlayer(n: number) {
 }
 
 export const TEAMS = [
-  { key: 'WANDERERS', name: 'Woodstock Wanderers', members: range(1, 14), owner: 1, captain: 2, contributors: [1, 2, 3, 4, 5], locationText: 'Woodstock, Cape Town', primaryColor: '#1F4EB4', secondaryColor: '#FFD400' },
-  { key: 'OBSERVATORY', name: 'Observatory United', members: range(15, 28), owner: 15, captain: 16, contributors: [15, 16, 17, 18, 19], locationText: 'Observatory, Cape Town', primaryColor: '#D7262E', secondaryColor: '#FFFFFF' },
+  { key: 'WANDERERS', name: 'Woodstock Wanderers', members: range(1, 14), owner: 1, captain: 2, locationText: 'Woodstock, Cape Town', primaryColor: '#1F4EB4', secondaryColor: '#FFD400' },
+  { key: 'OBSERVATORY', name: 'Observatory United', members: range(15, 28), owner: 15, captain: 16, locationText: 'Observatory, Cape Town', primaryColor: '#D7262E', secondaryColor: '#FFFFFF' },
 ] as const;
 
 export function range(from: number, to: number) {
