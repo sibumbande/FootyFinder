@@ -5,7 +5,7 @@
 | Company | FootyFinder (Pty) Ltd, registration number 2026/625818/07 |
 | Version | 2.4 (Launch version) |
 | Effective date | The date and time this version is published in the app |
-| Last updated | 2 October 2026 |
+| Last updated | 6 October 2026 |
 | Applies to | Everyone who uses the FootyFinder website and app |
 | Governing law | Republic of South Africa |
 | Accepted | With one checkbox before your player profile is activated (clause 28) |
@@ -36,8 +36,8 @@ You accept these Terms with a single checkbox that names the Privacy Notice (cla
 - [9. Assumption of Risk, Waiver and Indemnity](#clause-9)
 - [10. Medical Fitness, Emergencies and Insurance](#clause-10)
 - [11. Quick Matches, Positions and Substitutes](#clause-11)
-- [12. Teams, Team Wallets and Team Matches](#clause-12)
-- [13. Wallet and Payments](#clause-13)
+- [12. Teams and Team Matches](#clause-12)
+- [13. Match Tickets and Payments](#clause-13)
 - [14. Cancellations, Refunds and No-Shows](#clause-14)
 - [15. Code of Conduct and Venue Rules](#clause-15)
 - [16. Referees, Results and Statistics](#clause-16)
@@ -74,11 +74,12 @@ In these Terms, unless the context indicates otherwise:
 - **"Account"** means your registered login and player profile on the platform.
 - **"Captain"** means a member of a Team whom the Team's Owner has made a Captain. A Captain may act for that Team as set out in clause 12.
 - **"CPA"** means the Consumer Protection Act 68 of 2008.
-- **"Fill Meter"** means the running total of Team Wallet money a Team has put towards its Team Match Fee for a particular Team Match, for example "R0 / R1,120".
 - **"Final Result"** means the result of a match recorded by its Referee, or by FootyFinder under clause 16.8, including the score, the scorer and any assister of each goal, and which players did not play.
 - **"Go/no-go check"** means the check made 30 minutes before kick-off that decides whether a match goes ahead (clauses 11.7 and 12.17).
 - **"Host"** means the user who creates a Quick Match, or FootyFinder when it creates one itself (shown as "Hosted by FootyFinder", clause 11.13). The Host has the organiser powers in clause 11.1 and is not a match official.
 - **"Lineup Record"** means the record of the players on each side of a match, taken automatically at kick-off.
+- **"Match Credit"** means a credit for one Match Ticket to any paid match, counted in matches and not in rand (clause 13.6).
+- **"Match Ticket"** (or "ticket") means your paid (or, in a free match, R0) place in one named match, at a named venue, date and time (clause 13.1).
 - **"Lobby"** means the page for a specific scheduled match, showing its sides, its starting positions on the pitch and its substitute places.
 - **"Other Side"** means the away side of a Team Match, which another Team or individual players can take (clause 12.13).
 - **"Owner"** means the user who created a Team.
@@ -88,13 +89,11 @@ In these Terms, unless the context indicates otherwise:
 - **"POPIA"** means the Protection of Personal Information Act 4 of 2013.
 - **"Quick Match"** means a match created by an individual user or by FootyFinder (the Host), in which every player pays the Slot Fee (clause 11), unless it is a free match (clause 13.11).
 - **"Referee"** (or "FootyFinder Referee") means the person FootyFinder assigns to referee a match under clause 16.2. A Referee may be an employee, an independent contractor or a volunteer.
-- **"Slot Fee"** means the fixed fee of R80 that a player pays to join a match, whether in a starting position or as a substitute. FootyFinder sets the Slot Fee; a Host cannot set or change it. In a free match (clause 13.11) the Slot Fee is R0.
+- **"Slot Fee"** means the fixed price of R80 of a Match Ticket for one place in a match, whether in a starting position or as a substitute. FootyFinder sets the Slot Fee; a Host cannot set or change it. In a free match (clause 13.11) the Slot Fee is R0.
 - **"Substitute"** (or "sub") means a player who has joined a match but does not hold a starting position. The app lists substitutes under each side's "reserves".
 - **"Team"** means a group of users registered together on the platform.
 - **"Team Match"** means a public match created by a Team under clause 12.8, in which that Team is the home side.
 - **"Team Match Fee"** means the fee a Team pays to play a Team Match, worked out under clause 12.10.
-- **"Team Wallet"** means the shared, closed-loop balance held for a Team, made up of its members' contributions.
-- **"Wallet"** means the closed-loop store of prepaid credit held in your Account.
 
 **2.1 Interpretation.** Headings are for convenience only and do not affect interpretation. The singular includes the plural and the other way round. "Including" and "in particular" are not words of limitation.
 
@@ -117,7 +116,7 @@ The following information is provided in compliance with section 43 of ECTA:
 | Support | Contact support on our website or in the app |
 | Information Officer | Sibulele Obakhe Mbande |
 | Nature of business | On-demand football matchmaking, digital slot booking, team administration and venue facilitation |
-| Currency | All prices, fees and credits are quoted and settled in South African Rand (ZAR) and include VAT where applicable |
+| Currency | All prices and fees are quoted and settled in South African Rand (ZAR) and include VAT where applicable. Match Credits are counted in matches, not in rand (clause 13.6) |
 | Payment processing | Payments are processed by Paystack Payments South Africa, a PCI-DSS compliant third-party provider. We accept the methods shown at checkout: card (including Apple Pay where it is offered), Capitec Pay and Instant EFT |
 | PAIA Manual | Available on request through support |
 
@@ -133,7 +132,7 @@ The following information is provided in compliance with section 43 of ECTA:
 
 **4.3 Confirming your age.** When you complete your player profile you give your date of birth, and the app does not accept a date of birth under 18. When you accept these Terms you confirm that you are 18 or older. We may ask you to verify your age or identity under clause 7.
 
-**4.4 False information.** If you use a false date of birth or another person's identity, we will suspend the Account immediately and terminate it after investigation. Any Wallet balance that is not the proceeds of fraud will be refunded to the original payment method of the lawful owner of those funds, less any amount we are lawfully entitled to keep. We do not confiscate funds as a penalty.
+**4.4 False information.** If you use a false date of birth or another person's identity, we will suspend the Account immediately and terminate it after investigation. Payments for upcoming matches and unused Match Credits that came from a payment are dealt with under clause 20.2, refunded to the original payment method of their lawful payer unless they are the proceeds of fraud, less any amount we are lawfully entitled to keep. We do not confiscate money as a penalty.
 
 **4.5 Reporting a minor.** If you believe a person under 18 is using the platform, report it to support. We will investigate, suspend the Account pending verification, and delete the minor's Personal Information where we have no lawful basis to keep it.
 
@@ -173,13 +172,13 @@ The following information is provided in compliance with section 43 of ECTA:
 
 ## 7. Identity and Age Checks
 
-**7.1 No identity document at sign-up.** You do not need to give us an identity document to sign up, top up your Wallet or play.
+**7.1 No identity document at sign-up.** You do not need to give us an identity document to sign up, buy a Match Ticket or play.
 
 **7.2 We may ask you to verify.** We may ask you at any time to verify your age or identity, for example where we suspect fraud, a chargeback, a false date of birth or use by someone under 18. We will tell you how to do it, for example by sending a copy of your identity document to support. We may suspend your Account until the check is complete.
 
 **7.3 How we use it.** We use what you send only to confirm your age or identity and to deal with any related fraud or dispute. We do not use biometric or facial recognition checks.
 
-**7.4 If we cannot verify you.** If you cannot verify your age or identity, we may close your Account. Any unspent Wallet balance is refunded under clause 20.2.
+**7.4 If we cannot verify you.** If you cannot verify your age or identity, we may close your Account. Your upcoming Match Tickets and unused Match Credits are dealt with under clause 20.2.
 
 ## 8. Privacy Notice (POPIA)
 
@@ -192,7 +191,7 @@ The following information is provided in compliance with section 43 of ECTA:
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
 - **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), the players you block (clause 18.8), and your Team recruitment posts, "Looking for a team" card and requests to join Teams (clause 18.9).
-- **Transaction data:** Wallet top-ups, Slot Fees, Team Wallet contributions and refunds, refunds and cancellation credits, and payment references. We do not store card numbers or bank account numbers; Paystack holds them. If support needs your bank account to refund a bank payment (clause 14.7), we pass it to Paystack and keep only the bank's name and the last four digits.
+- **Transaction data:** your Match Tickets (including who paid for which place), your payments and the method used, refunds, Match Credits, payment disputes, payment references, and the record of your acceptance of the cancellation policy each time you buy (clause 13.5: the time, the version of these Terms, the policy wording you were shown, and your IP address and browser). We do not store card numbers or bank account numbers; Paystack holds them. If support needs your bank account to refund a bank payment (clause 14.7), we pass it to Paystack and keep only the bank's name and the last four digits.
 - **Identity documents,** only if we ask you to verify your age or identity (clause 7).
 - **Technical data:** IP address, browser and device information, and security logs.
 - **Communications:** Lobby chat, Team chat, direct messages, support requests and reports of misconduct.
@@ -219,7 +218,7 @@ We do not collect your phone number, emergency contact details or health informa
 - Team recruitment posts and, while it is on, your "Looking for a team" card (clause 18.9);
 - public matches: the venue, time, format, fee and how many places are left; and, once a match has been played, its Final Result with the names of the scorers and assisters.
 
-Search engines may list these public pages. Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, gender, identity documents, chats and messages, friends list or payment and Wallet information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7). Once you ask to delete your Account (clause 20.1), none of your profile is shown to anyone: past lineups, results and messages show "Deleted player" instead of your name.
+Search engines may list these public pages. Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, gender, identity documents, chats and messages, friends list or payment, ticket and Match Credit information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7). Once you ask to delete your Account (clause 20.1), none of your profile is shown to anyone: past lineups, results and messages show "Deleted player" instead of your name.
 
 **8.4 Operators.** We use third-party operators for hosting, card payments (Paystack) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
 
@@ -236,6 +235,7 @@ Search engines may list these public pages. Before a match is played, people wit
 | Account and profile data | While your Account is active. If you delete your Account, it is anonymised fourteen (14) days after you ask (clause 20.1). If we close your Account, for 12 months after it is closed |
 | Identity documents you send us (clause 7) | Only as long as needed to complete the check and any related fraud or dispute investigation |
 | Financial and transaction records | 5 years from the end of the relevant tax year, as required by the Tax Administration Act |
+| Your acceptance of the cancellation policy when you buy a ticket (time, Terms version, wording shown, IP address and browser) | With the financial records: 5 years from the end of the relevant tax year, because it is our evidence if a payment is disputed |
 | Match results and Lineup Records | While the match history is kept, because other players' statistics depend on them |
 | Conduct and safety records | 3 years, or longer where an incident is unresolved or subject to legal proceedings |
 | Chat, messages and support requests | 12 months, or longer where reported and under investigation |
@@ -257,11 +257,11 @@ When information reaches the end of its period, we delete it or make it anonymou
 
 **8.10 Cookies and local storage.** We use only what the platform needs to work: a cookie that keeps you signed in, and a setting stored in your browser for light or dark mode. We do not use advertising or analytics cookies.
 
-**8.11 Automated decisions.** We do not make decisions about you that have legal or similarly significant effects based solely on automated processing. The automatic go/no-go check applies the published match rules in clauses 11.7 and 12.17 to everyone in the same way. A person reviews the matter before any suspension is imposed.
+**8.11 Automated decisions.** We do not make decisions about you that have legal or similarly significant effects based solely on automated processing. The automatic go/no-go check and the Team payment cutoff apply the published match rules in clauses 11.7, 12.16 and 12.17 to everyone in the same way. A person reviews the matter before any suspension is imposed.
 
 **8.12 Security incidents.** If a security compromise affects your Personal Information, we will notify you and the Information Regulator as soon as reasonably possible after establishing the extent of the compromise, as required by section 22 of POPIA.
 
-**8.13 Downloading your data.** In Account settings you can download a copy of the personal data we hold about you ("Download my data") after confirming your password. It includes your Account and profile details, your matches, results and statistics, your Wallet and Team Wallet history, your Teams, friends, friend requests and blocks, the messages you sent, your Team reviews, your recruitment posts, requests to join and "Looking for a team" card, your consents, and your acceptances of these Terms. You receive it as a file in a standard machine-readable format (JSON) and as a summary you can print. Other players appear in it only by their public display name. You can download it once every twenty-four (24) hours, and each download is recorded.
+**8.13 Downloading your data.** In Account settings you can download a copy of the personal data we hold about you ("Download my data") after confirming your password. It includes your Account and profile details, your matches, results and statistics, your Match Tickets, Match Credits and payments (and any earlier payment records), your Teams, friends, friend requests and blocks, the messages you sent, your Team reviews, your recruitment posts, requests to join and "Looking for a team" card, your consents, and your acceptances of these Terms. You receive it as a file in a standard machine-readable format (JSON) and as a summary you can print. Other players appear in it only by their public display name. You can download it once every twenty-four (24) hours, and each download is recorded.
 
 > **COMPLAINTS TO THE REGULATOR**
 > If you are not satisfied with how we have handled your Personal Information, you may complain to the Information Regulator (South Africa), JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001.
@@ -314,23 +314,23 @@ When information reaches the end of its period, we delete it or make it anonymou
 
 **11.1 Hosting a Quick Match.** Any user may host a Quick Match by choosing an available slot at a Partner Venue and a format (5-a-side, 7-a-side or 11-a-side). The Host:
 
-- does not set a fee and does not pay for the pitch. A Host who wants to play joins and pays the R80 Slot Fee like any other player;
+- does not set a fee and does not pay for the pitch. A Host who wants to play buys an R80 Match Ticket like any other player;
 - chooses whether the match is public (listed in the app and on the website, where anyone can see it, with a share link) or private (joinable only through an invite link, which the Host can replace at any time);
 - may change the match's name and description, but not its venue slot or kick-off time;
-- may, before the Lobby locks (clause 11.8), move players between positions and between the two sides, or take a player off a position so that they become a substitute (in the reserves). Players are told in the app when the Host changes their position. The Host cannot remove a player from the match, and a player moved this way keeps their place and their fee; and
+- may, before the Lobby locks (clause 11.8), move players between positions and between the two sides, or take a player off a position so that they become a substitute (in the reserves). Players are told in the app when the Host changes their position. The Host cannot remove a player from the match, and a player moved this way keeps their place and their ticket; and
 - may cancel the match until the Lobby locks (clause 14.1).
 
-**11.2 Joining.** When you join a match you choose a side, and the R80 Slot Fee is taken from your Wallet straight away (clause 13.3). In a free match nothing is taken (clause 13.11). You start in that side's reserves.
+**11.2 Joining.** You join a match by buying a Match Ticket for one place: an open starting position on a side, or a substitute place on a side. Before you pay, you see the match, venue, kick-off, your place, the R80 price and our cancellation policy in plain words, and you tick "I understand the cancellation policy" (clause 13.5). You then pay on Paystack's checkout (clause 13.3), or use a Match Credit instead (clause 13.6). In a free match your ticket is R0 and there is no checkout (clause 13.11).
 
-**11.3 Claiming a position.** After joining, you claim an open starting position on your side of the pitch. Positions go to whoever claims them first: the first confirmed claim wins, and the order in which players paid does not matter. You may move yourself to another open position on your side. To switch sides, first move back to the reserves.
+**11.3 Holding and confirming your place.** While you pay, the place you chose is held for you for ten (10) minutes; other players see it as "Being booked" and cannot book or claim it. You are placed in the match only once Paystack has confirmed your payment to us (clause 13.3). If your payment is not completed within the ten minutes, the hold ends and the place is released. A substitute may later claim an open starting position on their side; positions go to whoever claims them first. You may move yourself to another open position on your side. To switch sides, first move back to the reserves.
 
 **11.4 Capacity.** The number of starting positions depends on the format. The number of substitute places for each side is shown on the match page.
 
-**11.5 Substitutes.** A substitute pays the same R80 Slot Fee and is not guaranteed playing time. It is the substitute's responsibility to get onto the pitch, either by claiming an open position before the Lobby locks or by arranging it with their side on the day. No refund or credit is given for a substitute who does not get on the pitch, unless the match is cancelled (clause 14.1).
+**11.5 Substitutes.** A substitute's ticket costs the same R80 Slot Fee, and a substitute is not guaranteed playing time. It is the substitute's responsibility to get onto the pitch, either by claiming an open position before the Lobby locks or by arranging it with their side on the day. No refund or credit is given for a substitute who does not get on the pitch, unless the match is cancelled (clause 14.1).
 
 **11.6 Open positions.** If a player leaves before the Lobby locks, their position becomes open and any player on that side may claim it. Nobody is moved into a position automatically.
 
-**11.7 Go/no-go 30 minutes before kick-off.** A match goes ahead only if, 30 minutes before kick-off, every starting position has been claimed and a FootyFinder Referee is assigned to the match. Substitutes do not count. For a 14:00 kick-off the check happens at 13:30. If either condition is not met, the match is cancelled automatically, every player's R80 is credited back to their Wallet, nothing is owed to the venue, and every player and the Host are told in the app and by email.
+**11.7 Go/no-go 30 minutes before kick-off.** A match goes ahead only if, 30 minutes before kick-off, every starting position has been claimed and a FootyFinder Referee is assigned to the match. Substitutes do not count. For a 14:00 kick-off the check happens at 13:30. If either condition is not met, the match is cancelled automatically, everyone who paid for a place chooses a Match Credit or a full refund (clause 14.1), nothing is owed to the venue, and every player and the Host are told in the app and by email.
 
 **11.8 Lobby lock.** The Lobby locks 30 minutes before kick-off. From then on nobody can join or leave, claim or change a position, or switch sides, and the Host cannot move players or cancel the match. A player who cannot attend after the lock is a no-show (clause 14.3).
 
@@ -346,21 +346,21 @@ When information reaches the end of its period, we delete it or make it anonymou
 
 **11.14 Girls-only matches.** A match may be marked "Girls only" when it is created. Only female players can join it, claim a position in it, be selected or invited into a Team's lineup for it, or be loaded into it with their Team. The Referee can be anyone. When a Team takes part, members who are not eligible are left out of its lineup and the Owner or Captain who acted is told. FootyFinder can switch the rule on only while no player who is not eligible has joined, and off only while nobody has joined.
 
-## 12. Teams, Team Wallets and Team Matches
+## 12. Teams and Team Matches
 
 ### Teams
 
 **12.1 Creating a Team.** Any user with an active player profile may create a Team and becomes its Owner. The Owner may make members Captains and change them back, remove members, change the Team's details and close the Team. The Owner may also make a Captain the Owner; the former Owner then stays in the Team as a Captain. The Owner and Captains may invite people to join through an invite link, or invite one player personally in the app: a friend of theirs (clause 18.7), or a player whose "Looking for a team" card is on (clause 18.9). A personal invite expires after fourteen (14) days if the player does not answer, and only one can be waiting for the same player and Team at a time. The player accepts or declines it; a player who accepts joins the Team as a member in the same way as through an invite link. No invite can be sent between players where one has blocked the other (clause 18.8).
 
-**12.2 Authority of the Owner and Captains.** A Team's Owner and its Captains act for their own Team only. They may create Team Matches for the Team, load the Team into the Other Side of another Team's match, choose the Team's substitutes and lineup, fill the Team's Fill Meter from the Team Wallet, and withdraw or cancel as set out in clauses 12.14 and 12.15. A Captain who is demoted or removed loses this authority immediately. By joining a Team you authorise its Owner and Captains to do these things on your behalf. FootyFinder's administrators do not act for a Team.
+**12.2 Authority of the Owner and Captains.** A Team's Owner and its Captains act for their own Team only. They may create Team Matches for the Team, load the Team into the Other Side of another Team's match, choose the Team's substitutes and lineup, and withdraw or cancel as set out in clauses 12.14 and 12.15. A Captain who is demoted or removed loses this authority immediately. By joining a Team you authorise its Owner and Captains to do these things on your behalf. FootyFinder's administrators do not act for a Team.
 
-**12.3 Contributions.** Any current member of a Team may add money to that Team's Team Wallet from their own Wallet, in whole-rand amounts from R10 to R5,000 per contribution. A member may contribute at most R5,000, and at most ten times, to the same Team in any 24 hours. The contribution moves from your Wallet to the Team Wallet at the same moment. Team Wallet money is used to pay the Team's Team Match Fees. Like the Wallet, it is closed-loop: it cannot be withdrawn to a bank account or card.
+**12.3 Paying for teammates.** Any member of a Team can pay for places in that Team's side of a Team Match, for themselves and for named teammates, in one payment, using the Team's payment checklist. Each player paid for gets their own Match Ticket, which records who paid. A player who is already paid for, or who someone else is paying for at that moment (the place is held for ten (10) minutes while they pay, shown as "Being paid for"), cannot be paid for again. If a second payment for the same player is confirmed anyway, the extra place is refunded automatically to whoever paid for it. A Match Credit can pay only for your own place, never for a teammate's. Paying for a player is what confirms their place in the Team's side for that match.
 
-**12.4 Your unspent contributions.** When a Team spends from its Team Wallet, the oldest contributions are spent first. You may return any of your own contributions that have not been spent to your own Wallet at any time, even after you leave or are removed from the Team, except money that is currently held in a Fill Meter. Money spent on a Team Match that went ahead is not refundable. Nobody else can take back your contributions, and you cannot take back anyone else's.
+**12.4 Refunds and credits for team places.** A refund or Match Credit for a team place always goes to whoever paid for it, never to the player, and a refund goes back to the payment method that person used (clause 14.7). If a player leaves (clause 14.3), the person who paid gets what the cancellation policy gives; if that is not the player, both are told by email. A payer who later leaves the Team stays the payer. The Owner and Captains may move a paid player between starting positions and substitutes, but cannot remove a paid player from the lineup; the player must leave the match themselves.
 
-**12.5 Closing a Team.** The Owner may close a Team when it has no upcoming Team Match and no Team Wallet money is held for a match. When a Team is closed, each contributor's own unspent contributions are returned to that contributor's Wallet, including a contributor who has since left the Team. There is no proportional or equal-share split, and Team Wallet money is never paid out in cash. A closed Team is archived, and its match and payment history is kept.
+**12.5 Closing a Team.** The Owner may close a Team when it has no upcoming Team Match. A closed Team is archived, and its match and payment history is kept.
 
-**12.6 Disputes within a Team.** Disputes about squad selection, membership or a Team's internal affairs are matters between its members. We will not decide them, but we will act where a dispute involves fraud, harassment or misuse of funds.
+**12.6 Disputes within a Team.** Disputes about squad selection, membership or a Team's internal affairs are matters between its members. We will not decide them, but we will act where a dispute involves fraud, harassment or misuse of money.
 
 **12.7 Team names and crests.** You may not use a Team name, crest or colours that infringe someone else's trade mark, impersonate an existing club or company without authority, or are offensive, discriminatory or misleading. We may require a change.
 
@@ -370,56 +370,62 @@ When information reaches the end of its period, we delete it or make it anonymou
 
 **12.9 Who can take the Other Side.** When creating a Team Match, the home Team chooses one of two options. "Teams only": only another Team can take the Other Side. "Open to both": the Other Side can be taken by another Team or filled by individual players, whichever comes first.
 
-**12.10 Team Match Fee.** Each Team pays a fixed fee of R80 for every starting position in the format plus R80 for every substitute that Team chooses to bring. For example, an 11-a-side match with 3 substitutes costs R880 (11 players) + R240 (3 substitutes) = R1,120. FootyFinder sets the R80 and Teams cannot change it. Each Team's fee is worked out separately and is paid from its Team Wallet through its Fill Meter, not from members' personal Wallets.
+**12.10 Team Match Fee.** Each Team pays a fixed fee of R80 for every starting position in the format plus R80 for every substitute that Team chooses to bring. For example, an 11-a-side match with 3 substitutes costs R880 (11 players) + R240 (3 substitutes) = R1,120. FootyFinder sets the R80 and Teams cannot change it. Each Team's fee is worked out separately and is paid as an R80 Match Ticket for each place, for named players (clause 12.3). The Team's page shows its named players and how much is still needed, for example "11 of 14 paid · R240 still needed".
 
-**12.11 Publishing.** A Team Match can be published only if the home Team's Team Wallet has an available balance (money not already held for another match) of at least the home Team's fee. This is a check only: nothing is taken or held when the match is published. A Team can have at most two published Team Matches whose Other Side has not yet been taken.
+**12.11 Publishing.** Nothing is paid or held when a Team Match is published, and loading a Team into the Other Side needs no payment either. A Team can have at most two published Team Matches whose Other Side has not yet been taken.
 
 **12.12 No opponent for a "Teams only" match.** If no Team has taken the Other Side of a "Teams only" match 24 hours before kick-off, the match is cancelled automatically, nothing is owed by either side and the venue slot is released. If the Other Side is still open 48 hours before kick-off, we warn the home Team's members in the app and its Owner and Captains by email. A "Teams only" match published less than 24 hours before kick-off is decided by the go/no-go check in clause 12.17 instead.
 
 **12.13 Taking the Other Side.** There is no approval step. The Other Side is taken straight away by whoever comes first:
 
 - (a) the Owner or a Captain of another Team can load their whole Team into the Other Side with one button ("Load my team"), choosing their Team's number of substitutes, which sets that Team's own Team Match Fee. A Team can do this only while no individual player is on the Other Side;
-- (b) in an "Open to both" match, individual players can join the Other Side instead. Each pays the R80 Slot Fee from their own Wallet when they join, and clauses 11 and 14 apply to them as for any match. Once the first player has joined, only players can join that side; if every player leaves before the Lobby locks, a Team can load into it again. The number of substitute places for those players follows the home Team's number of substitutes;
+- (b) in an "Open to both" match, individual players can join the Other Side instead. Each buys an R80 Match Ticket (clause 11.2), and clauses 11 and 14 apply to them as for any match. Once the first player has joined, only players can join that side; if every player leaves before the Lobby locks, a Team can load into it again. The number of substitute places for those players follows the home Team's number of substitutes;
 - (c) the Other Side can be taken only once. If a Team and a player, or two Teams, try to take it at the same moment, only one succeeds; and
 - (d) nobody can play against their own Team: a member of the home Team cannot join the Other Side, and a Team that shares a player with the home Team cannot load into it.
 
 The home Team cannot turn away the Team or players who take the Other Side.
 
-**12.14 Withdrawing from the Other Side.** The Team that took the Other Side may withdraw only its own Team, and only until 30 minutes before kick-off. Any money held from its Team Wallet for the match goes back to that Team Wallet, the Other Side opens again under clause 12.13 (and clause 12.12 applies again to a "Teams only" match), and the home Team's members are told in the app and its Owner and Captains by email.
+**12.14 Withdrawing from the Other Side.** The Team that took the Other Side may withdraw only its own Team, and only until 30 minutes before kick-off. Everyone who paid for one of its places gets the choice in clause 14.1 (a Match Credit or a full refund) for each place they paid for, the Other Side opens again under clause 12.13 (and clause 12.12 applies again to a "Teams only" match), and the home Team's members are told in the app and its Owner and Captains by email.
 
-**12.15 Cancelling a Team Match.** Only the home Team's Owner or Captains can cancel a Team Match, and only until 30 minutes before kick-off. Cancelling ends the match for both sides: all money held from either Team Wallet goes back to that Team Wallet, every individual player's R80 is refunded to their Wallet, nothing is owed to the venue, and everyone involved is told in the app and by email.
+**12.15 Cancelling a Team Match.** Only the home Team's Owner or Captains can cancel a Team Match, and only until 30 minutes before kick-off. Cancelling ends the match for both sides: everyone who paid for a place gets the choice in clause 14.1 for each place they paid for, nothing is owed to the venue, and everyone involved is told in the app and by email.
 
-**12.16 Fill Meter.** Once the Other Side has been taken, each Team sees its own Fill Meter, for example "R0 / R1,120". The Team's Owner or a Captain fills it from the Team Wallet, in one go or in parts, up to the Team Match Fee and no more. Money in the Fill Meter is held: it stays in the Team Wallet but cannot be spent or taken back while it is held. It is taken from the Team Wallet only if the match goes ahead; otherwise it goes back to the Team Wallet. Before the Other Side is taken, the fee is shown but the Fill Meter is not open.
+**12.16 Paying by the deadline.** Once the Other Side has been taken, each Team pays for its places on its payment checklist (clause 12.3). A Team is fully paid when every place in its Team Match Fee (its starting positions plus its chosen substitutes) has a confirmed Match Ticket. If a Team is not fully paid four (4) hours before kick-off, its Owner and Captains (and, for the home Team, the user who created the match) are told in the app and by email how much is still needed and by when. If a Team is still not fully paid two (2) hours before kick-off, the Team Match is cancelled automatically, everyone who paid for a place gets the choice in clause 14.1 for each place they paid for, nothing is owed to the venue, and everyone involved is told in the app and by email. For a 14:00 kick-off the reminder is sent at 10:00 and the cutoff is at 12:00. Places cannot be paid for after the cutoff.
 
-**12.17 Go/no-go 30 minutes before kick-off.** A Team Match goes ahead only if, 30 minutes before kick-off, a FootyFinder Referee is assigned to it and: (a) where another Team took the Other Side, both Teams' Fill Meters are full; or (b) where individual players took the Other Side, the home Team's Fill Meter is full and every starting position on the Other Side has been claimed (substitutes do not count). If so, each Team's Team Match Fee is taken from its Team Wallet and the match is confirmed. If not, including where nobody has taken the Other Side, the match is cancelled automatically: all money held in either Fill Meter goes back to that Team Wallet, every individual player's R80 is credited back to their Wallet, nothing is owed to the venue, and every member of both Teams and every player who joined is told in the app and by email. For a 14:00 kick-off the check happens at 13:30.
+**12.17 Go/no-go 30 minutes before kick-off.** A Team Match goes ahead only if, 30 minutes before kick-off, a FootyFinder Referee is assigned to it and: (a) where another Team took the Other Side, both Teams are fully paid (clause 12.16); or (b) where individual players took the Other Side, the home Team is fully paid and every starting position on the Other Side has been claimed (substitutes do not count). If so, the match is confirmed. If not, including where nobody has taken the Other Side, the match is cancelled automatically: everyone who paid for a place gets the choice in clause 14.1, nothing is owed to the venue, and every member of both Teams and every player who joined is told in the app and by email. For a 14:00 kick-off the check happens at 13:30.
 
-**12.18 After the check.** From the go/no-go check until kick-off, no Team or player can take, join, leave or withdraw from a side, no Fill Meter can be filled, substitutes cannot be changed and the match cannot be cancelled. The Owner and Captains may still arrange their own Team's lineup until kick-off.
+**12.18 After the check.** From the go/no-go check until kick-off, no Team or player can take, join, leave or withdraw from a side, no places can be paid for, substitutes cannot be changed and the match cannot be cancelled. The Owner and Captains may still arrange their own Team's lineup until kick-off.
 
-**12.19 Changing substitutes.** A Team's Owner or a Captain may change the Team's number of substitutes until 30 minutes before kick-off. The Team Match Fee is recalculated at R80 per place, and any money in the Fill Meter above the new fee goes back to the Team Wallet straight away. A Team cannot choose fewer substitutes than it has already selected in its lineup, and in an "Open to both" match with individual players on the Other Side, the home Team cannot go below the number of substitutes who have already joined that side.
+**12.19 Changing substitutes.** A Team's Owner or a Captain may change the Team's number of substitutes until the payment cutoff two (2) hours before kick-off. The Team Match Fee is recalculated at R80 per place. A Team cannot choose fewer places than it has already paid for, and no refund comes from a change of substitutes. A Team cannot choose fewer substitutes than it has already selected in its lineup, and in an "Open to both" match with individual players on the Other Side, the home Team cannot go below the number of substitutes who have already joined that side.
 
-## 13. Wallet and Payments
+## 13. Match Tickets and Payments
 
-**13.1 Closed-loop credit.** The Wallet is a closed-loop store of prepaid credit that can be used only for FootyFinder Slot Fees and contributions to a Team Wallet. Wallet balances are not a deposit, do not earn interest, are not a claim against a bank, and are not the business of a bank under the Banks Act 94 of 1990.
+**13.1 Every payment is a match ticket.** Everything you pay for on FootyFinder is a Match Ticket: a place in one named match, at a named venue, on a set date and time. You cannot pay money into FootyFinder in advance or keep money with us: you only ever pay for a ticket for a specific match.
 
 **13.2 Not a bank.** We are not a bank, an authorised payment service provider or a registered financial services provider. All payments are processed and settled by Paystack.
 
-**13.3 Paying for a match.** When you join a match, the R80 Slot Fee is taken from your Wallet straight away (in a free match nothing is taken, clause 13.11). If your Wallet does not hold enough, you cannot join until you top up. If the match does not go ahead, the fee is credited back to your Wallet under clause 14.
+**13.3 Paying.** You pay on Paystack's secure checkout page, using one of the methods shown there (card, Apple Pay, Capitec Pay or Instant EFT, as offered at the time). We pay Paystack's fees. Your ticket is confirmed only once Paystack confirms your payment to our server; returning to the app does not confirm anything by itself. If a payment is declined, abandoned or cannot be confirmed, no ticket is confirmed. One payment can cover several places only when you pay for teammates in a Team Match (clause 12.3). If Paystack confirms your payment after your ten-minute hold has ended (clause 11.3): if the same place is still free and you can still join the match, you are placed as normal; otherwise (the place was taken, the match was cancelled or locked, or you can no longer join it) your payment is refunded in full to the payment method you used, never as a Match Credit, and we email you to say why. If you were charged but have no ticket and no refund, contact support (clause 14.7).
 
-**13.4 The price you see.** The Slot Fee is a fixed R80 per player per match, unless the match is shown as a free match (clause 13.11), and a Team Match Fee is R80 per place (clause 12.10), set by FootyFinder. The price you see before you join is the price you pay. We do not add undisclosed charges.
+**13.4 The price you see.** A Match Ticket costs a fixed R80 per place (the Slot Fee), unless the match is shown as a free match (clause 13.11), and a Team Match Fee is R80 per place (clause 12.10), set by FootyFinder. The price shown before you pay is the price you pay. We do not add undisclosed charges.
 
-**13.5 Topping up.** You add money to your Wallet on Paystack's secure checkout page, using one of the methods shown there (card, Apple Pay, Capitec Pay or Instant EFT, as offered at the time), in amounts from R50 to R5,000 per top-up. We pay Paystack's fees, so the full amount you pay goes into your Wallet. A top-up is credited only once Paystack confirms the payment to us; returning to the app does not credit anything by itself. If a payment is declined, abandoned or cannot be confirmed, nothing is credited. If you were charged but nothing was credited, contact support and we will refund the charge the way you paid (clause 14.7). Before you pay, the app asks you to confirm the amount. Within 24 hours of a card or Apple Pay top-up being credited you can undo it once from your Wallet: the unspent part (all or some of it) is refunded to the same card through Paystack. Top-ups paid by Capitec Pay or Instant EFT cannot be undone in the app; contact support instead (clause 14.7). Unspent means the top-up amount less anything you have spent since that top-up (for example, after a R800 top-up and a R80 match you can undo up to R720), and never more than your available Wallet balance. Undo is not available while your Wallet is restricted (clause 13.9) or if the payment is disputed. The amount leaves your Wallet when you ask for the refund; if the refund fails, our team retries it or returns the amount to your Wallet.
+**13.5 The cancellation policy and your receipt.** Before you pay, the app shows the match, venue, kick-off, your place, the price and our cancellation policy in plain words (clause 14), and you must tick "I understand the cancellation policy". We keep a record of that acceptance with your purchase: the time, the version of these Terms, the policy wording you were shown, and your IP address and browser (clause 8). Straight after payment we email you a ticket receipt with the match, the venue and its address, the kick-off, your place, the amount, the cancellation policy and a link to manage your ticket. Paystack's receipt describes the payment as a FootyFinder match ticket for that venue, date and time.
 
-**13.6 No withdrawals.** Wallet credit cannot be withdrawn to a bank account or card. If your Account is closed, your unspent balance is refunded to the card or bank account you paid with (clause 20.2).
+**13.6 Match Credits.** A Match Credit is counted in matches, not in rand: 1 credit is 1 ticket to any paid match, whatever its price. You get a credit only when you choose one instead of a refund (clauses 14.1 and 14.3), or when a ticket you paid for with a credit is given back (it comes back as a credit, because it was never cash). Credits:
+- are personal and cannot be transferred, sold or bought;
+- can pay only for your own place, never for a teammate's (clause 12.3), and are not needed for a free match;
+- cannot be exchanged for cash or refunded once you have chosen them, except when your Account is closed (clause 20.2);
+- are valid for three (3) years from the day they are issued, and the expiry date is shown in the app. A credit returned for a cancelled match you paid for with a credit is a new credit, valid for three years from its return. Your credit that expires soonest is used first.
 
-**13.7 Dormant balances.** If your Account has no activity for twenty-four (24) months in a row and holds a balance, we will try to contact you at your registered email address. If we do not hear from you within ninety (90) days, we will keep holding the balance for you and deal with it in line with applicable law. We will not simply take the funds, and you may reclaim your balance at any time on proof of identity.
+We record every credit when it is issued, used, expired or closed, linked to the ticket it came from.
 
-**13.8 Errors.** If an amount is credited to your Wallet in error, we may reverse it, and we will tell you before doing so. If you are charged in error, we will refund you in full. We may also, at our discretion, give a goodwill credit (clause 14.5).
+**13.7 Tickets & credits.** "Tickets & credits" in the app shows your upcoming and past tickets (including places you paid for teammates), your Match Credits and when they expire, your refunds and their status, and the payment method used.
 
-**13.9 Chargebacks and fraud.** If a payment is reversed or disputed with your bank (a chargeback) or found to be fraudulent, we reverse the matching Wallet credit, even if this makes your balance negative. While a dispute is open or your balance is below zero, you cannot join matches or spend from your Wallet. The restriction lifts automatically once your balance is back at zero or above and no dispute is open, and our team may also lift it. If the dispute is resolved in our favour, we restore the reversed credit to your Wallet. We may also suspend the Account and recover any charge Paystack levies on us. We will tell you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
+**13.8 Errors.** If you are charged in error or twice, we refund you in full to the payment method you used. We may also, at our discretion, give a goodwill credit (clause 14.5).
 
-**13.10 No betting or gambling.** The Wallet may not be used for wagering. FootyFinder is not a gambling operator, and nothing on the platform is a bet, a lottery or a game of chance under the National Gambling Act 7 of 2004.
+**13.9 Payment disputes (chargebacks).** If you dispute a payment with your bank or card issuer (a chargeback), you cannot buy tickets or use Match Credits until the dispute is resolved. The tickets in that payment stay valid, so teammates you paid for are not affected. We may contest the dispute with the records we hold about the ticket: the ticket itself, your acceptance of the cancellation policy (clause 13.5), the emails we sent you, the Referee's record of who played, and any cancellation or refund. If the dispute is resolved in our favour, the restriction lifts automatically. If it is resolved against us, the restriction stays until our team lifts it. We will tell you and give you an opportunity to respond before taking any further recovery steps, unless we are legally prevented from doing so.
 
-**13.11 Free matches.** FootyFinder may make some Quick Matches free. A free match is shown as "Free match, on FootyFinder" before you join, and you join it for R0: nothing is taken from your Wallet, so nothing is refunded if you leave the match or if it is cancelled. A free place has no cash value: it is never credited to your Wallet and cannot be withdrawn or refunded to a card. FootyFinder may mark a free match "first-time players only", which means only players who have never played a match on FootyFinder can join it. FootyFinder can make a match free, or paid again, only before anyone has joined it. All other rules for Quick Matches apply to free matches as normal, including positions, the Lobby lock, the go/no-go check and the Code of Conduct.
+**13.10 No betting or gambling.** Match Tickets and Match Credits may not be used for wagering. FootyFinder is not a gambling operator, and nothing on the platform is a bet, a lottery or a game of chance under the National Gambling Act 7 of 2004.
+
+**13.11 Free matches.** FootyFinder may make some Quick Matches free. A free match is shown as "Free match, on FootyFinder" before you join, and you join it with an R0 ticket, with no checkout. Nothing is paid, so nothing is refunded and no credit is given if you leave the match or if it is cancelled. A free place has no cash value and never becomes a Match Credit. FootyFinder may mark a free match "first-time players only", which means only players who have never played a match on FootyFinder can join it. FootyFinder can make a match free, or paid again, only before anyone has joined it. All other rules for Quick Matches apply to free matches as normal, including positions, the Lobby lock, the go/no-go check and the Code of Conduct.
 
 ## 14. Cancellations, Refunds and No-Shows
 
@@ -427,30 +433,39 @@ This clause is our cancellation policy for the purposes of section 17 of the Con
 
 ### 14.1 If the match is cancelled before kick-off
 
-Every player gets their full R80 Slot Fee back as a credit to their Wallet, automatically, if a match is cancelled before kick-off:
+If a match is cancelled before kick-off, whoever paid for each place (the payer) chooses, for each place they paid for:
+
+- **1 Match Credit**, to use on any match (clause 13.6); or
+- **a full refund** of the ticket price to the payment method they used (clause 14.7).
+
+We tell every payer in the app and by email, with both options. If a payer does not choose within seven (7) days, they are refunded automatically: we never turn money into a credit without the payer's choice. A place paid for with a Match Credit gets its credit back automatically. A free place owes nothing (clause 13.11). A player who left the match twenty-four (24) hours or less before kick-off (clause 14.3) also gets this choice if the match is later cancelled before kick-off.
+
+This applies when a match is cancelled:
 
 - at the go/no-go check, because not every starting position was filled or no FootyFinder Referee was assigned (clause 11.7);
 - by the Host, which a Host may do until the Lobby locks 30 minutes before kick-off;
-- by FootyFinder, because of the weather, an unplayable or unavailable pitch, a floodlight or facility failure, or a venue closure. FootyFinder can cancel a Quick Match for these reasons until kick-off, and a Team Match until 30 minutes before kick-off (when its Team Match Fees are taken); or
-- under clauses 12.12, 12.15 or 12.17 (Team Matches), where money held from a Team Wallet also goes back to that Team Wallet.
+- by FootyFinder, because of the weather, an unplayable or unavailable pitch, a floodlight or facility failure, or a venue closure. FootyFinder can cancel a Quick Match for these reasons until kick-off, and a Team Match until its go/no-go check 30 minutes before kick-off; or
+- under clauses 12.12, 12.15, 12.16 or 12.17 (Team Matches). When a Team withdraws from the Other Side (clause 12.14), the payers of its places get the same choice.
 
 Everyone affected is told in the app and by email. Nothing is owed to the venue for a cancelled match.
 
 ### 14.2 If a match is abandoned after kick-off
 
-Once a match has kicked off, fees are not refunded if the Referee (or FootyFinder under clause 16.8) records it as abandoned, for any reason. This applies to the R80 Slot Fee and to any Team Match Fee. Recording a forfeit does not change any fee either.
+Once a match has kicked off, no refund or credit is given if the Referee (or FootyFinder under clause 16.8) records it as abandoned, for any reason. This applies to every ticket, including the places in a Team Match Fee. Recording a forfeit does not change any ticket either.
 
 ### 14.3 If you leave a match
 
 | When you leave | What you get back |
 |---|---|
-| More than 12 hours before kick-off | Your full R80, credited to your Wallet straight away |
-| 12 hours or less before kick-off, until the Lobby locks 30 minutes before kick-off | No credit, unless a new paid player joins your side after you leave. Each new player on that side credits one earlier leaver, oldest first, so your R80 comes back only once. If the match is later cancelled before kick-off, any R80 not yet credited is refunded under clause 14.1 |
+| More than 24 hours before kick-off | You choose: 1 Match Credit (use it on any match), or a refund of the ticket price to the card or bank account you paid with. A place paid for with a Match Credit gives the credit back |
+| 24 hours or less before kick-off, until the Lobby locks 30 minutes before kick-off | No refund and no credit. Your place is released for someone else to buy. If the match is later cancelled before kick-off, you get the choice in clause 14.1 |
 | Less than 30 minutes before kick-off (Lobby locked) | You cannot leave. If you do not attend, no refund is due |
 | No-show without notice | No refund. Repeated no-shows may, after a warning, affect your access to bookings |
 | Substitute who does not get on the pitch | No refund (clause 11.5) |
 
-If you delete your Account (clause 20.1), you leave each upcoming match at the moment you confirm, and this table applies as if you had left it yourself.
+The app shows what you will get back before you confirm that you are leaving. If someone else paid for your place (clause 12.3), what the table gives goes to them, and both of you are told by email.
+
+If you delete your Account (clause 20.1), you leave each upcoming match at the moment you confirm, and this table applies, except that a place you paid for more than 24 hours before kick-off is refunded to the payment method you used (clause 20.2).
 
 **14.4 Why late cancellations are not refunded.** A late withdrawal is unlikely to be filled in time, leaves the remaining players short, and puts the match at risk of cancellation for everyone. If the match goes ahead, it costs the same to run. The amount kept reflects our actual loss and is not a penalty.
 
@@ -458,7 +473,7 @@ If you delete your Account (clause 20.1), you leave each upcoming match at the m
 
 **14.6 No electronic cooling-off period.** The seven-day cooling-off right in section 44 of ECTA does not apply to these bookings. Section 42(2) of ECTA excludes agreements for leisure services that the supplier undertakes to provide on a specific date or within a specific period, and a match place is such a service. Your cancellation rights are those in this clause 14.
 
-**14.7 How refunds are paid.** Refunds and cancellation credits are paid to your Wallet straight away and cannot be withdrawn to a bank account (clause 13.6). If a payment itself has to be refunded (for example a top-up charged in error or twice), we refund it the way you paid: to the original card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from. For a bank refund Paystack sometimes needs your bank account details; support will ask you for them and pass them to Paystack. If a refund is not possible, our finance team reviews it, and a failed refund is never turned into Wallet credit without telling you.
+**14.7 How refunds are paid.** Refunds go back the way the payment was made, through Paystack: to the original card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from, and always to whoever paid. A refund can be part of a payment, for example one R80 place in a payment that covered several teammates. You can follow your refunds and their status in Tickets & credits (clause 13.7). For a bank refund Paystack sometimes needs your bank account details; support will ask you for them and pass them to Paystack. If a refund fails, our finance team follows it up; a failed refund is never turned into a Match Credit.
 
 ## 15. Code of Conduct and Venue Rules
 
@@ -484,7 +499,7 @@ If you delete your Account (clause 20.1), you leave each upcoming match at the m
 
 **16.1 Status.** Referees may be employees, independent contractors or volunteers. Their status is as recorded in their engagement with us.
 
-**16.2 A FootyFinder Referee on every match.** We assign a Referee to every match, including every Team Match, and we may change or replace the Referee before the match. If no Referee is assigned 30 minutes before kick-off, the match does not go ahead and every player is refunded in full (clauses 11.7, 12.17 and 14.1). A Referee may also play in a match they referee, but cannot referee a match whose time overlaps another match they are playing in or refereeing (clause 11.12). The Referee's name is shown on the match page.
+**16.2 A FootyFinder Referee on every match.** We assign a Referee to every match, including every Team Match, and we may change or replace the Referee before the match. If no Referee is assigned 30 minutes before kick-off, the match does not go ahead and everyone who paid chooses a Match Credit or a full refund (clauses 11.7, 12.17 and 14.1). A Referee may also play in a match they referee, but cannot referee a match whose time overlaps another match they are playing in or refereeing (clause 11.12). The Referee's name is shown on the match page.
 
 **16.3 The Referee on the day.** The Referee may check the players against the Lineup Record, refuse to let someone who is not booked take part, stop play, remove a player for a breach of clause 15, refuse unsafe footwear, exclude a player who appears impaired, and abandon the match where there is a risk to safety.
 
@@ -570,15 +585,20 @@ You may not:
 
 ## 20. Suspension, Termination and Closing Your Account
 
-**20.1 Closing your Account.** You may delete your Account at any time in the app (Account settings, "Delete my account"), confirming with your password, or by contacting support. Before you confirm, the app shows what will happen to your matches, Teams and money, and anything that must be settled first. You cannot delete your Account in the app while:
+**20.1 Closing your Account.** You may delete your Account at any time in the app (Account settings, "Delete my account"), confirming with your password, or by contacting support. Before you confirm, the app shows what will happen to your matches, Teams, tickets and Match Credits, and anything that must be settled first. You cannot delete your Account in the app while:
 - you are in a match from 30 minutes before kick-off until it ends (the Lobby is locked or the match is being played);
 - you are hosting an upcoming match that other players have joined (you may cancel it under clause 14.1);
-- you own a Team that still has other members, Team Wallet money or an upcoming Team Match (make a Captain the Owner under clause 12.1, or close the Team under clause 12.5); or
-- a payment of yours is disputed, your Wallet is below zero, a top-up is still being confirmed, or a refund to your card or bank account is still in progress.
+- you own a Team that still has other members or an upcoming Team Match (make a Captain the Owner under clause 12.1, or close the Team under clause 12.5); or
+- a payment of yours is disputed, a payment for a ticket is still being confirmed, or a refund to your card or bank account is still in progress.
 
-Administrators, Referees and suspended or banned Accounts cannot delete their Account in the app and must contact support. When you confirm, you leave your upcoming matches under clause 14.3, you are taken out of the lineups of upcoming Team Matches, an upcoming match you host that nobody has joined is cancelled, and your Account is deleted fourteen (14) days later. During those fourteen days your Account is deactivated: you are signed out everywhere, your Wallet cannot be used, and other players cannot find or see you in search, Social, friends lists, leaderboards, Team squads, lineups or recruitment. Where you still appear in a past match, result or message, you are shown as "Deleted player". If you sign in before the fourteen days end, the deletion is cancelled and your Account is active again (matches you left stay left). We email you when you ask for deletion, if you cancel it, and when your Account has been deleted.
+Administrators, Referees and suspended or banned Accounts cannot delete their Account in the app and must contact support. When you confirm, you leave your upcoming matches under clause 14.3, you are taken out of the lineups of upcoming Team Matches, an upcoming match you host that nobody has joined is cancelled, and your Account is deleted fourteen (14) days later. During those fourteen days your Account is deactivated: you are signed out everywhere, and other players cannot find or see you in search, Social, friends lists, leaderboards, Team squads, lineups or recruitment. Where you still appear in a past match, result or message, you are shown as "Deleted player". If you sign in before the fourteen days end, the deletion is cancelled and your Account is active again (matches you left stay left). We email you when you ask for deletion, if you cancel it, and when your Account has been deleted.
 
-**20.2 Your money on closure.** When your Account is deleted (clause 20.1), your own unspent Team Wallet contributions are first returned to your Wallet (clause 12.4). If some of them are held in a Fill Meter, the deletion waits until that match has been decided. Your whole Wallet balance is then refunded the way you paid, starting with your most recent top-up: to the card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from (clause 14.7). If a refund needs your bank account details, or part of your balance cannot be refunded to a top-up, our finance team contacts you to arrange it at the email address you used; we keep that address for this purpose only, until your money has been returned. If we close your Account, we refund your unspent Wallet balance in the same way. We never keep or wipe your money, other than an amount lawfully due to us (clause 20.6).
+**20.2 Your money on closure.** When your Account is deleted (clause 20.1):
+- your upcoming tickets are dealt with when you confirm (clause 14.3): more than 24 hours before kick-off, a place you paid for is refunded to the payment method you used; 24 hours or less, it is forfeited;
+- each unused Match Credit that came from a ticket you paid for is refunded, for the price of that ticket, to the payment method used for that ticket, and the app tells you this before you confirm. Credits that did not come from a payment (for example a goodwill credit) lapse;
+- the deletion waits until these refunds, and the refunds for tickets you left when you confirmed, have been processed by Paystack or passed to our finance team.
+
+Refunds go to the card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from (clause 14.7). If a refund needs your bank account details, or cannot be completed automatically, our finance team contacts you to arrange it at the email address you used; we keep that address for this purpose only, until your money has been returned. The same applies if we close your Account (clause 20.6), and if you close it instead of accepting new Terms (clause 25.3). We never keep or wipe your money, other than an amount lawfully due to us (clause 20.6).
 
 **20.3 Suspension by us.** We may suspend your Account where we reasonably suspect fraud, a serious breach of clause 15 or 19, a risk to the safety of others, a failure to complete a check under clause 7, or where the law requires it.
 
@@ -586,7 +606,7 @@ Administrators, Referees and suspended or banned Accounts cannot delete their Ac
 
 **20.5 Termination by us.** We may terminate your Account for a serious or repeated breach of these Terms. We will give you thirty (30) days' notice if we terminate for convenience rather than for a breach.
 
-**20.6 No forfeiture as punishment.** We do not confiscate Wallet balances as a penalty. On termination for any reason, money that is lawfully yours is returned to you under clause 20.2, less amounts we are entitled to recover for damage, chargebacks or unpaid fees.
+**20.6 No forfeiture as punishment.** We do not confiscate your money as a penalty. On termination for any reason, money that is lawfully yours (payments for upcoming matches and unused Match Credits that came from a payment) is returned to you under clause 20.2, less amounts we are entitled to recover for damage, chargebacks or unpaid fees.
 
 **20.7 What survives.** Clauses 8, 9, 10, 17, 21, 22, 23, 26 and 27 survive the end of this agreement.
 
@@ -635,7 +655,7 @@ This indemnity does not extend to loss caused by our own gross negligence or wil
 
 ## 24. Events Beyond Our Control
 
-Neither party is liable for a failure or delay in performing its obligations caused by an event beyond its reasonable control, including load shedding and prolonged power failure, network or internet outage, extreme weather, flooding, fire, civil unrest, riot, strike, epidemic or pandemic, government action, or the closure of a venue by an authority. If a match is cancelled because of such an event before kick-off, clause 14.1 applies and you receive a full refund. Once a match has kicked off, clause 14.2 applies and fees are not refunded.
+Neither party is liable for a failure or delay in performing its obligations caused by an event beyond its reasonable control, including load shedding and prolonged power failure, network or internet outage, extreme weather, flooding, fire, civil unrest, riot, strike, epidemic or pandemic, government action, or the closure of a venue by an authority. If a match is cancelled because of such an event before kick-off, clause 14.1 applies and you choose a Match Credit or a full refund. Once a match has kicked off, clause 14.2 applies and fees are not refunded.
 
 ## 25. Changes to These Terms
 
@@ -643,7 +663,7 @@ Neither party is liable for a failure or delay in performing its obligations cau
 
 **25.2 Notice.** We will notify you in the app and require re-acceptance; we may also email you. Until you accept a new version, you cannot join, create or pay for matches, send messages, or create or manage a Team, but you can still sign in and see your Account.
 
-**25.3 Your choice.** If you do not accept a change, you may close your Account instead, and we will refund your unspent Wallet balance in full to the card you paid with (clause 20.2).
+**25.3 Your choice.** If you do not accept a change, you may close your Account instead, and your upcoming tickets and unused Match Credits are dealt with under clause 20.2.
 
 **25.4 Matches already joined.** A change does not apply retrospectively to a match you joined before the change took effect.
 
@@ -703,20 +723,22 @@ This summary is for convenience and does not replace the full Terms above. If th
 |---|---|
 | Who we are | FootyFinder (Pty) Ltd, a Cape Town company that helps you find, join and pay for football matches. |
 | Who can join | Anyone 18 or older. We may ask you to verify your age or identity; we never use face or biometric checks. |
-| What you pay | A fixed R80 per match, taken from your Wallet when you join. Subs pay R80 too. Free matches shown as "on FootyFinder" cost R0 (clause 13.11). A Team pays R80 for every starting position plus every sub it brings, from its Team Wallet. |
-| Your money | Top up R50 to R5,000 through Paystack by card, Apple Pay, Capitec Pay or Instant EFT (as offered); we pay the fees. Wallet credit is spent only on FootyFinder and can't be withdrawn. If your account closes, the balance goes back to the card or bank account you paid with. We never confiscate it. |
-| When a game goes ahead | Only if every starting position is filled (or, for Team Matches, the team fees are in) and a FootyFinder referee is assigned 30 minutes before kick-off. Otherwise it is cancelled and everyone gets their money back. |
-| If the game is off before kick-off | Cancelled at the 30-minute check, by the Host or the home Team, or by us for weather or venue problems: your R80 comes back to your Wallet and held team money goes back to the Team Wallet. |
-| After kick-off | No refunds if the match is abandoned, for any reason. |
+| What you pay | A match ticket: a fixed R80 for one place in one match, paid on Paystack (card, Apple Pay, Capitec Pay or Instant EFT, as offered) when you tap a position, after you tick that you understand the cancellation policy. We pay the fees. Subs pay R80 too. Free matches shown as "on FootyFinder" cost R0. You never pay money into FootyFinder in advance. |
+| Your place | Held for 10 minutes while you pay. You're in once Paystack confirms the payment to us. If it's confirmed too late and your place has gone, you're refunded in full. You get an emailed ticket receipt. |
+| Match credits | 1 credit = 1 ticket to any paid match. You only get one if you choose it instead of a refund. Personal, valid for 3 years, no cash value once chosen. |
+| When a game goes ahead | Only if every starting position is filled (for Team Matches, both teams fully paid 2 hours before kick-off) and a FootyFinder referee is assigned 30 minutes before kick-off. |
+| If the game is off before kick-off | Cancelled at the 30-minute check, by the Host or the home Team, or by us for weather or venue problems: whoever paid chooses a match credit or a full refund to their card or bank. No choice within 7 days means an automatic refund. |
+| After kick-off | No refunds or credits if the match is abandoned, for any reason. |
 | One match at a time | You can't join or be picked for a match that overlaps another match you're in (kick-off to 30 minutes after the scheduled end). |
-| If you leave | More than 12 hours before kick-off: full R80 back. 12 hours or less: only if a new paid player joins your side. In the last 30 minutes the lineup is locked and you can't leave. |
+| If you leave | More than 24 hours before kick-off: choose a match credit or a refund to your card or bank. 24 hours or less: nothing back, and your place is released. In the last 30 minutes the lineup is locked and you can't leave. |
 | Referees and results | A FootyFinder referee runs every match and records the score, scorers and assisters. Their result is final; only we can fix a clear recording error. You can still complain. |
-| Teams | Members add money to the Team Wallet and can take back their own unspent money. Only the Owner and Captains spend it. The Owner and Captains can invite friends to the team in one tap; invites expire after 14 days. |
+| Teams | Any member can pay for named teammates' places in one payment; refunds and credits for a place go to whoever paid. A team must be fully paid 2 hours before kick-off (reminder at 4 hours) or the match is cancelled. The Owner and Captains can invite friends to the team in one tap; invites expire after 14 days. |
 | Reviews | Players who played can rate the opposing team within 14 days. Reviews are anonymous; comments are checked first. |
 | Friends | Send friend requests (up to 20 new ones a day, not counting people you played with) and turn them off if you prefer. Only you see your friends list. |
 | Recruitment | Teams can post that they're recruiting (30 days, renewable) and you can switch on "Looking for a team". Ask to join a team (up to 10 requests waiting, 14 days each). No money involved. |
 | Blocking | Block anyone: they can't message you, add you or ask to join your team, and you stop seeing each other. They aren't told. Shared matches and teams stay as they are. |
 | The risk | Football can injure you. You accept that risk and cover your own medical costs. We are still responsible if we are grossly negligent. |
+| Chargebacks | If you dispute a payment with your bank, you can't buy tickets or use credits until it's resolved. |
 | Your data | We keep only what we need to run matches, never sell it, send no marketing and use no tracking cookies. You can download your data and delete your account in the app, ask us to correct your data, and complain to the Information Regulator. |
 | What the public sees | Anyone can browse FootyFinder without an account: player profiles, team pages, recruitment posts, looking cards, upcoming public matches (counts only) and past results with scorers. Never your email, date of birth, messages, friends or payments. |
 | Behaviour | Violence, racism and abuse mean a permanent ban and possibly a police report. |

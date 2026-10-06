@@ -3,6 +3,43 @@
 Tickets TKT-601 to TKT-609, implemented 2026-09-29 on `ceo/finish-gate-5`, one commit per ticket.
 Decisions: DEC-011 (Paystack personal payments), DEC-012 (weekly dual-control venue settlement), DEC-018 (a venue is owed money only for a match that went ahead), and the CEO's Gate 6 decisions D1–D12 recorded in the ticket breakdown (section 10).
 
+## DEC-021 Match Ticketing (batch 5, 2026-10-02): read this first
+
+There is no wallet. Every payment is a **match ticket** for one named match (DEC-021, batch 5 brief Part A). The wallet sections further down ("What players get", "How a top-up is credited", top-up refunds, "Return to wallet") describe the system before DEC-021 and are kept as history only; their routes return 404 and their tables are read-only (D13). Venue settlement (DEC-012, DEC-018) is unchanged.
+
+**What players get**
+- **Tickets & credits** (avatar menu): upcoming and past tickets (including places paid for teammates), match credits with their expiry, refunds and their status, and the payment method used. Old `/wallet` links open it.
+- **Buying a place:** tap an open position (or a sub place) → confirm sheet with the match, venue, kick-off, place, R80 and the cancellation policy in plain words → tick "I understand the cancellation policy" → Paystack hosted checkout (or "Use 1 match credit" when they have one). The place is held for 10 minutes ("Being booked").
+- **Teams:** any squad member pays for named teammates on the team's checklist; T-4h alert, T-2h cutoff (D1).
+
+**How a ticket is confirmed**
+1. `POST /matches/:id/tickets/checkout` (or `/team-sides/:side/tickets/checkout`, with an `Idempotency-Key`) creates the `TicketCheckout`, the HELD ticket(s) and a `ProviderPayment` with `purpose = TICKETS`, then calls Paystack `transaction/initialize` with `channels` from `PAYSTACK_CHANNELS`, `currency: 'ZAR'`, our reference `ff_ticket_<32 hex>`, `callback_url = CLIENT_URL/tickets/return`, and metadata `{ providerPaymentId, checkoutId, matchId, ticketId, positionId, venue, kickoff }` plus `custom_fields` "FootyFinder match ticket: <venue>, <date time>" (the only line-item text Paystack's checkout and receipt can show).
+2. **The browser never confirms anything.** `/tickets/return` only asks `GET /tickets/checkouts/by-reference/:reference`.
+3. The signed webhook, the hold-expiry job and the status check all call `TicketSettlementService.settleFromVerify`, which verifies with Paystack from our server under the same rules as before (`payment-verification.ts`: success, exact amount, ZAR, an offered channel, matching reference and metadata). The player is placed once. A payment confirmed after the hold ended is placed if the same place is still free and the player is still eligible; otherwise it is refunded in full to the original method with an email saying why (A1.4, D5).
+4. A late `charge.success` for an earlier top-up is recorded and ignored (`retired_top_up_ignored`).
+
+**Refunds (A7):** Paystack Refund API with `amount` (partial: one R80 place of a team payment), always to the payer. `refund.pending/processing/processed/failed` and "needs attention" are applied idempotently by Paystack's refund id. NEEDS_ATTENTION is completed with the customer's bank details (Finance → Refunds needing attention; never stored). A failed refund stays with finance and is retried; it never becomes a credit. There is no admin free-form refund and no "Return to wallet".
+
+**Disputes (A8, D9):** `charge.dispute.create/remind/resolve` → Admin → Payment disputes, with the evidence pack (tickets, policy acceptance with IP and browser, emails, the referee's attendance record, cancellation and refund history). The payer cannot buy tickets or use credits while a dispute is open; tickets stay valid. Won: the restriction lifts by itself. Lost: an admin lifts it with a reason (fresh MFA, audited).
+
+**Reconciliation (A6):** Admin → Finance and `npm run tickets:reconcile` (read-only). See ADMIN_BACK_OFFICE_IMPLEMENTATION.md.
+
+**Paystack dashboard changes for DEC-021**
+
+| Setting | Value | When |
+| --- | --- | --- |
+| Test / Live Callback URL | `<CLIENT_URL>/tickets/return` (locally `http://localhost:5173/tickets/return`) | Now. We also send it with every transaction. |
+| Billing descriptor / statement name | Something players recognise, for example `FOOTYFINDER MATCH` (the CEO confirms the exact text) | Before going live; it is a Paystack dashboard / business setting, not something the app sends |
+| Webhook URL | Unchanged (`/payments/paystack/webhook`) | As before |
+
+**Settings retired:** `TOP_UP_PENDING_EXPIRY_MINUTES` and `TOP_UP_MAX_PENDING_HOURS`. The 10-minute hold, the 24-hour rule, the 7-day choice and the 3-year credit validity are fixed constants in `packages/shared/src/config/ticketing.ts`.
+
+**Smokes:** `smoke:tickets`, `smoke:ticket-refunds`, `smoke:ticket-leave`, `smoke:match-credits`, `smoke:ticket-disputes`, `smoke:team-go-no-go`, `smoke:payment-to-settlement` (now on tickets) and `smoke:paystack-sandbox` (a ticket reference against the real TEST API). `smoke:payments` and `smoke:payment-methods` (top-ups) are retired.
+
+---
+
+## Before DEC-021 (history)
+
 ## What players get
 
 - **Wallet page.** Open it from the avatar menu → Wallet, or click the header balance. It shows:
@@ -47,7 +84,7 @@ Decisions: DEC-011 (Paystack personal payments), DEC-012 (weekly dual-control ve
 
 | Setting | Value | When |
 | --- | --- | --- |
-| Test Callback URL | `http://localhost:5173/wallet/top-up/return` | Any time. We also send it with every transaction. |
+| Test Callback URL | *(before DEC-021)* `http://localhost:5173/wallet/top-up/return`; now `/tickets/return` (see above) | Any time. We also send it with every transaction. |
 | Test Webhook URL | `https://<your-tunnel-host>/payments/paystack/webhook` | Only while a tunnel runs for a manual card test. Clear it afterwards. |
 | IP whitelist | Leave **empty** in TEST | This limits which server IPs may call Paystack with your secret key. A home IP changes. In LIVE, set the production server's egress IP(s). |
 
