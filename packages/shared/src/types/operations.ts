@@ -41,6 +41,7 @@ export interface OperationsSummary {
   matches: { draft: number; open: number; inProgress: number; awaitingResult: number };
   durableJobs: { pending: number; running: number; failed: number; overdue: number };
   goNoGo: GoNoGoHealth;
+  /** DEC-021: match ticket payments started in the last 24 hours (succeeded, failed, value verified by Paystack). */
   finance24Hours: {
     succeededTransactions: number;
     failedTransactions: number;

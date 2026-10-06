@@ -12,7 +12,7 @@ const notFoundPlayer = () => new AppError(404, 'Player profile not found.', 'PLA
 /**
  * Gate 9 / TKT-910 (CEO guest browsing): the read-only views anyone can open without an account.
  * Each one is built from an explicit list of guest-safe fields: never an email address, date of
- * birth, chat, message, friends list, wallet or payment data, or any venue cost.
+ * birth, chat, message, friends list, ticket or payment data, or any venue cost.
  */
 export class PublicBrowseService {
   constructor(

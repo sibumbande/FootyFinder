@@ -175,7 +175,7 @@ function Dashboard() {
           `${data.durableJobs.overdue} overdue · ${data.durableJobs.failed} failed`,
         ],
         [
-          'Settled in 24h',
+          'Ticket payments in 24h',
           money(data.finance24Hours.settledValueCents),
           `${data.finance24Hours.succeededTransactions} succeeded · ${data.finance24Hours.failedTransactions} failed`,
         ],

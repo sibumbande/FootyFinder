@@ -88,7 +88,7 @@ export class TeamMatchesService {
     const fee = getTeamFee(input.format, input.teamSubstituteCount);
     try {
       const match = await serializableTransaction(async (tx) => {
-        // Serialises the publish limit and wallet check for this team.
+        // Serialises the publish limit for this team (DEC-021 D7: no money check at publish).
         await tx.$queryRaw`SELECT "id" FROM "Team" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
         const team = await tx.team.findUnique({
           where: { id: teamId },

@@ -4,7 +4,7 @@ import type { TeamStats } from './team.js';
 
 /**
  * Gate 9 / TKT-910: what anyone on the internet can see without an account. These shapes never
- * carry email addresses, dates of birth, chats, messages, friends lists, wallet or payment data,
+ * carry email addresses, dates of birth, chats, messages, friends lists, ticket or payment data,
  * or any venue cost, payable or settlement data. Before a match is played, no names are shown.
  */
 export interface PublicMatchResult {

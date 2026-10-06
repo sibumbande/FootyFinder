@@ -3,79 +3,56 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/database/prisma.js';
 import { serializableTransaction } from '../src/database/transaction.js';
 import { enqueueDurableJob, registerDurableJobHandler, runOneDurableJob } from '../src/jobs/durable-jobs.js';
-import { FinancialInsufficientFundsError, FinancialRepository } from '../src/modules/wallet/financial.repository.js';
-import { WalletRepository } from '../src/modules/wallet/wallet.repository.js';
+import { issueCreditInTx } from '../src/modules/tickets/match-credits.js';
 
-const marker = `slice-5-${randomUUID()}`;
+/**
+ * Money integrity guards on PostgreSQL (DEC-021: there is no wallet). The database itself refuses a match credit
+ * valid for less than 3 years, an AVAILABLE credit with a closing date, and any change to the credit ledger; an
+ * issued credit is ledgered once; and the durable job worker claims and completes a ready job exactly once.
+ * The smoke user and its credit stay (marked) in the disposable database: the credit ledger is append-only.
+ */
+const marker = `money-integrity-${randomUUID()}`;
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => { if (!condition) throw new Error(message); };
-const financial = new FinancialRepository();
-const walletRepository = new WalletRepository(financial);
-let userId = '';
+const refused = async (work: () => Promise<unknown>) => {
+  try {
+    await work();
+    return false;
+  } catch {
+    return true;
+  }
+};
 let jobId = '';
 try {
-  const user = await prisma.user.create({ data: { email: `${marker}@smoke.invalid`, username: `f_${marker.slice(-20)}`, passwordHash: 'smoke', profile: { create: { displayName: 'Finance Smoke' } }, walletAccount: { create: {} } } });
-  userId = user.id;
-  await serializableTransaction((tx) => financial.credit(tx, { userId, amountCents: 10_000, type: 'DEPOSIT_CREDIT', idempotencyKey: `${marker}:seed`, referenceType: 'SMOKE', referenceId: marker }));
+  const user = await prisma.user.create({ data: { email: `${marker}@smoke.invalid`, username: `mi_${marker.slice(-20)}`, passwordHash: 'smoke', profile: { create: { displayName: 'Money Smoke' } } } });
 
-  const holds = await Promise.allSettled([
-    serializableTransaction((tx) => financial.createHold(tx, { userId, amountCents: 7_000, idempotencyKey: `${marker}:hold-a`, referenceType: 'SMOKE', referenceId: marker })),
-    serializableTransaction((tx) => financial.createHold(tx, { userId, amountCents: 7_000, idempotencyKey: `${marker}:hold-b`, referenceType: 'SMOKE', referenceId: marker })),
-  ]);
-  assert(holds.filter((result) => result.status === 'fulfilled').length === 1, 'Concurrent holds did not produce exactly one winner.');
-  assert(holds.some((result) => result.status === 'rejected' && result.reason instanceof FinancialInsufficientFundsError), 'Losing hold did not report insufficient available funds.');
-  const hold = (holds.find((result) => result.status === 'fulfilled') as PromiseFulfilledResult<Awaited<ReturnType<FinancialRepository['createHold']>>>).value.hold;
+  // A credit is valid for 3 years (CPA s63): anything shorter is refused by the database.
+  assert(
+    await refused(() => prisma.matchCredit.create({ data: { userId: user.id, reason: 'GOODWILL', issuedAt: new Date(), expiresAt: new Date(Date.now() + 365 * 86_400_000) } })),
+    'The database accepted a match credit valid for less than 3 years.',
+  );
+  const credit = await serializableTransaction((tx) => issueCreditInTx(tx, { userId: user.id, reason: 'GOODWILL', note: marker }));
+  assert((await prisma.matchCreditEvent.count({ where: { creditId: credit.id, type: 'ISSUED' } })) === 1, 'The credit was not ledgered once.');
+  assert(
+    await refused(() => prisma.matchCredit.update({ where: { id: credit.id }, data: { closedAt: new Date() } })),
+    'The database accepted an available credit with a closing date.',
+  );
 
-  let debitBlocked = false;
-  try { await serializableTransaction((tx) => financial.debit(tx, { userId, amountCents: 4_000, type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}:blocked-debit`, referenceType: 'SMOKE', referenceId: marker })); }
-  catch (error) { debitBlocked = error instanceof FinancialInsufficientFundsError; }
-  assert(debitBlocked, 'Active hold did not reduce spendable balance.');
+  // The credit ledger is append-only.
+  const event = await prisma.matchCreditEvent.findFirstOrThrow({ where: { creditId: credit.id } });
+  assert(await refused(() => prisma.matchCreditEvent.update({ where: { id: event.id }, data: { note: 'changed' } })), 'A credit ledger entry was changed.');
+  assert(await refused(() => prisma.matchCreditEvent.delete({ where: { id: event.id } })), 'A credit ledger entry was deleted.');
 
-  const capture = await serializableTransaction((tx) => financial.captureHold(tx, hold.id, { type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}:capture`, description: 'Smoke capture' }));
-  const replay = await serializableTransaction((tx) => financial.captureHold(tx, hold.id, { type: 'MATCH_ENTRY_DEBIT', idempotencyKey: `${marker}:capture`, description: 'Smoke capture' }));
-  assert(!capture.replayed && replay.replayed, 'Hold capture was not idempotent.');
-  assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId } })).balanceCents === 3_000, 'Hold capture changed the balance more than once.');
-
-  const pending = await Promise.all([
-    walletRepository.createPending(userId, 5_000, 'smoke-provider', `${marker}:deposit`),
-    walletRepository.createPending(userId, 5_000, 'smoke-provider', `${marker}:deposit`),
-  ]);
-  assert(pending.filter((item) => item.created).length === 1, 'Concurrent deposit creation produced duplicate operations.');
-  assert((await prisma.walletTransaction.count({ where: { idempotencyKey: `${marker}:deposit` } })) === 1, 'Concurrent deposit key produced duplicate ledger rows.');
-
-  let terminalBlocked = false;
-  try { await prisma.walletTransaction.update({ where: { id: capture.transaction.id }, data: { status: 'FAILED' } }); }
-  catch (error) { terminalBlocked = String(error).includes('terminal state is immutable'); }
-  assert(terminalBlocked, 'Database allowed a succeeded transaction to reverse state.');
-
-  let negativeBlocked = false;
-  try { await prisma.walletAccount.update({ where: { userId }, data: { balanceCents: -1 } }); }
-  catch (error) { negativeBlocked = true; }
-  assert(negativeBlocked, 'Database allowed a negative wallet balance.');
-
+  // The durable job worker claims a ready job and completes it (due first, so jobs other smokes left do not interfere).
   const jobType = `SMOKE_${marker}`;
   let handled = false;
   registerDurableJobHandler(jobType, async (payload) => { handled = (payload as { marker?: string }).marker === marker; });
-  const job = await prisma.$transaction((tx) => enqueueDurableJob(tx, { type: jobType, dedupeKey: `${marker}:job`, payload: { marker }, runAt: new Date() }));
+  const job = await prisma.$transaction((tx) => enqueueDurableJob(tx, { type: jobType, dedupeKey: `${marker}:job`, payload: { marker }, runAt: new Date(0) }));
   jobId = job.id;
   assert(await runOneDurableJob(), 'Durable worker did not claim the ready job.');
   assert(handled && (await prisma.durableJob.findUniqueOrThrow({ where: { id: job.id } })).status === 'SUCCEEDED', 'Durable job did not complete authoritatively.');
-
-  const wallet = await prisma.walletAccount.findUniqueOrThrow({ where: { userId } });
-  const ledger = await prisma.walletTransaction.aggregate({ where: { walletAccountId: wallet.id, status: 'SUCCEEDED' }, _sum: { amountCents: true } });
-  assert(ledger._sum.amountCents === wallet.balanceCents, 'Wallet did not reconcile to its settled ledger.');
+  console.log('Money integrity smoke passed: credits are valid for 3 years and closed consistently (database checks), the credit ledger is append-only, an issued credit is ledgered once, and durable jobs complete once.');
 } finally {
   if (jobId) await prisma.durableJob.deleteMany({ where: { id: jobId } });
-  if (userId) {
-    const wallet = await prisma.walletAccount.findUnique({ where: { userId } });
-    if (wallet) {
-      await prisma.matchPayment.deleteMany({ where: { userId } });
-      await prisma.walletHold.deleteMany({ where: { walletAccountId: wallet.id } });
-      await prisma.walletTransaction.deleteMany({ where: { walletAccountId: wallet.id } });
-    }
-    await prisma.user.deleteMany({ where: { id: userId } });
-  }
-  assert((await prisma.user.count({ where: { email: `${marker}@smoke.invalid` } })) === 0, 'Financial smoke user remained.');
-  assert((await prisma.durableJob.count({ where: { dedupeKey: `${marker}:job` } })) === 0, 'Financial smoke job remained.');
+  assert((await prisma.durableJob.count({ where: { dedupeKey: `${marker}:job` } })) === 0, 'Money integrity smoke job remained.');
   await prisma.$disconnect();
 }
-console.log('Slice 5 concurrent holds, atomic deposits, terminal transitions, reconciliation, durable jobs, and cleanup smoke test passed.');

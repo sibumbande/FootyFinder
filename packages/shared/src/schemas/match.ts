@@ -80,7 +80,7 @@ export const createMatchSchema = managedMatchSchema
     /**
      * Gate 7 / DEC-019: "Play as my team". The team match is always public; the captain must say
      * who can take the other side and how many subs their team brings (the fee is R80 x
-     * (starting positions + subs), paid from the team wallet through the fill meter).
+     * (starting positions + subs), paid as match tickets for named players, DEC-021).
      */
     playAsTeamId: z.string().uuid().optional(),
     otherSideMode: z.enum(TEAM_MATCH_OTHER_SIDE_MODES).optional(),

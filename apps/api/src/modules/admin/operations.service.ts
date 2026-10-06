@@ -140,9 +140,10 @@ export class OperationsService {
       prisma.match.groupBy({ by: ['status'], _count: { _all: true } }),
       prisma.durableJob.groupBy({ by: ['status'], _count: { _all: true } }),
       prisma.durableJob.count({ where: { status: 'PENDING', runAt: { lt: now } } }),
-      prisma.walletTransaction.groupBy({
+      // DEC-021: match ticket payments verified by Paystack in the last 24 hours.
+      prisma.providerPayment.groupBy({
         by: ['status'],
-        where: { createdAt: { gte: since } },
+        where: { purpose: 'TICKETS', createdAt: { gte: since } },
         _count: { _all: true },
         _sum: { amountCents: true },
       }),
@@ -161,7 +162,7 @@ export class OperationsService {
     const jobs = jobGroups.map((item) => ({ key: item.status, count: item._count._all }));
     const succeeded = financeGroups.find((item) => item.status === 'SUCCEEDED');
     const failed = financeGroups
-      .filter((item) => item.status === 'FAILED' || item.status === 'ERROR')
+      .filter((item) => item.status === 'FAILED')
       .reduce((sum, item) => sum + item._count._all, 0);
     const metrics = operationalMetricsSnapshot();
     return {

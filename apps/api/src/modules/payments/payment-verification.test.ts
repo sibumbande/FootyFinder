@@ -31,7 +31,7 @@ describe('evaluateVerification (TKT-604 / D11)', () => {
     ['amount', { amountCents: 15_900 }, 'amount_mismatch'],
     ['currency', { currency: 'NGN' }, 'currency_mismatch'],
     ['channel', { channel: 'eft' }, 'channel_not_offered'],
-    ['reference', { reference: 'ff_topup_2' }, 'reference_mismatch'],
+    ['reference', { reference: 'ff_ticket_2' }, 'reference_mismatch'],
     ['payment metadata', { metadata: { providerPaymentId: 'other' } }, 'metadata_payment_mismatch'],
     ['user metadata', { metadata: { userId: 'someone-else' } }, 'metadata_user_mismatch'],
   ])('sends a %s mismatch to review instead of crediting', (_label, overrides, reason) => {

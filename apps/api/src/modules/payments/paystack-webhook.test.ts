@@ -33,7 +33,7 @@ const { errorHandler } = await import('../../middleware/error-handler.js');
 
 const SECRET = 'sk_test_unit-fake-webhook-secret';
 const sign = (raw: string, secret = SECRET) => createHmac('sha512', secret).update(raw).digest('hex');
-const event = JSON.stringify({ event: 'charge.success', data: { reference: 'ff_topup_1', amount: 16_000 } });
+const event = JSON.stringify({ event: 'charge.success', data: { reference: 'ff_ticket_1', amount: 16_000 } });
 
 const appWith = (config: Partial<{ secret: string | undefined; allowlist: string[] }> = {}) =>
   express()
@@ -78,7 +78,7 @@ describe('Paystack webhook route (TKT-605)', () => {
     const app = appWith();
     for (let attempt = 0; attempt < 3; attempt += 1) expect((await post(app, event, sign(event))).status).toBe(200);
     expect(db.created).toHaveLength(1);
-    expect(db.created[0]).toMatchObject({ signatureValid: true, eventType: 'charge.success', reference: 'ff_topup_1' });
+    expect(db.created[0]).toMatchObject({ signatureValid: true, eventType: 'charge.success', reference: 'ff_ticket_1' });
     expect(db.enqueued).toHaveLength(1);
     expect(db.enqueued[0]).toMatchObject({ type: 'PAYSTACK_WEBHOOK_PROCESS' });
   });

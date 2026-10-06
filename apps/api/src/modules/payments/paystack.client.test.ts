@@ -12,16 +12,16 @@ const client = (fetchImpl: typeof fetch) =>
 describe('PaystackClient (TKT-604)', () => {
   it('initialises a card-only ZAR hosted checkout with our reference and metadata', async () => {
     const fetchImpl = vi.fn(async () =>
-      json(200, { status: true, data: { authorization_url: 'https://checkout.paystack.com/abc', reference: 'ff_topup_1' } }),
+      json(200, { status: true, data: { authorization_url: 'https://checkout.paystack.com/abc', reference: 'ff_ticket_1' } }),
     );
     const result = await client(fetchImpl as never).initialize({
       email: 'player@example.invalid',
       amountCents: 16_000,
-      reference: 'ff_topup_1',
-      callbackUrl: 'http://localhost:5173/wallet/top-up/return',
+      reference: 'ff_ticket_1',
+      callbackUrl: 'http://localhost:5173/tickets/return',
       metadata: { providerPaymentId: 'p1', userId: 'u1' },
     });
-    expect(result).toEqual({ authorizationUrl: 'https://checkout.paystack.com/abc', reference: 'ff_topup_1' });
+    expect(result).toEqual({ authorizationUrl: 'https://checkout.paystack.com/abc', reference: 'ff_ticket_1' });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.paystack.test/transaction/initialize');
     expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${FAKE_SECRET}`);
@@ -29,8 +29,8 @@ describe('PaystackClient (TKT-604)', () => {
       email: 'player@example.invalid',
       amount: 16_000,
       currency: 'ZAR',
-      reference: 'ff_topup_1',
-      callback_url: 'http://localhost:5173/wallet/top-up/return',
+      reference: 'ff_ticket_1',
+      callback_url: 'http://localhost:5173/tickets/return',
       channels: ['card'],
       metadata: { providerPaymentId: 'p1', userId: 'u1' },
     });
@@ -40,11 +40,11 @@ describe('PaystackClient (TKT-604)', () => {
     const fetchImpl = vi.fn(async () =>
       json(200, {
         status: true,
-        data: { id: 42, reference: 'ff_topup_1', status: 'success', amount: 16_000, currency: 'ZAR', channel: 'card', metadata: { userId: 'u1' } },
+        data: { id: 42, reference: 'ff_ticket_1', status: 'success', amount: 16_000, currency: 'ZAR', channel: 'card', metadata: { userId: 'u1' } },
       }),
     );
-    await expect(client(fetchImpl as never).verify('ff_topup_1')).resolves.toEqual({
-      id: '42', reference: 'ff_topup_1', status: 'success', amountCents: 16_000, currency: 'ZAR', channel: 'card', metadata: { userId: 'u1' },
+    await expect(client(fetchImpl as never).verify('ff_ticket_1')).resolves.toEqual({
+      id: '42', reference: 'ff_ticket_1', status: 'success', amountCents: 16_000, currency: 'ZAR', channel: 'card', metadata: { userId: 'u1' },
     });
   });
 
@@ -55,7 +55,7 @@ describe('PaystackClient (TKT-604)', () => {
     [json(400, { status: false, message: 'Duplicate Transaction Reference' }), 'PAYSTACK_DUPLICATE_REFERENCE'],
     [json(400, { status: false, message: 'Invalid key' }), 'PAYSTACK_REJECTED'],
   ])('maps provider errors to stable codes (%#)', async (response, code) => {
-    const error = await client((async () => response) as never).verify('ff_topup_1').catch((caught) => caught);
+    const error = await client((async () => response) as never).verify('ff_ticket_1').catch((caught) => caught);
     expect(error).toBeInstanceOf(PaystackError);
     expect(error.code).toBe(code);
   });
@@ -64,14 +64,14 @@ describe('PaystackClient (TKT-604)', () => {
     const error = await client((async () => {
       throw new Error(`socket hang up while sending Bearer ${FAKE_SECRET}`);
     }) as never)
-      .verify('ff_topup_1')
+      .verify('ff_ticket_1')
       .catch((caught) => caught);
     expect(error.code).toBe('PAYSTACK_UNAVAILABLE');
   });
 
   it('never puts the secret key in errors, even when the provider echoes it', async () => {
     const echo = json(401, { status: false, message: `Invalid key ${FAKE_SECRET}` });
-    const error = await client((async () => echo) as never).verify('ff_topup_1').catch((caught) => caught);
+    const error = await client((async () => echo) as never).verify('ff_ticket_1').catch((caught) => caught);
     expect(`${error.message} ${error.stack}`).not.toContain(FAKE_SECRET);
     expect(error.message).toContain('[redacted]');
     const network = await client((async () => {
@@ -86,7 +86,7 @@ describe('PaystackClient (TKT-604)', () => {
   it('refuses to call Paystack without a configured key', async () => {
     const fetchImpl = vi.fn();
     const error = await new PaystackClient({ baseUrl: 'https://api.paystack.test' }, fetchImpl as never)
-      .verify('ff_topup_1')
+      .verify('ff_ticket_1')
       .catch((caught) => caught);
     expect(error.code).toBe('PAYSTACK_NOT_CONFIGURED');
     expect(fetchImpl).not.toHaveBeenCalled();
