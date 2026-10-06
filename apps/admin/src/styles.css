@@ -1014,3 +1014,12 @@ th {
     display: none;
   }
 }
+.audit-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.audit-list strong,
+.audit-list span,
+.audit-list code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

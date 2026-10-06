@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from './Button.js';
 
 /**
@@ -7,6 +8,7 @@ import { Button } from './Button.js';
  * title, plain-English consequences, a primary (red when destructive) button and a secondary button. It traps focus,
  * closes with Escape or the phone's back button, shows a loading state while its action runs, and shows the action's
  * error inline instead of closing. On phones it never grows past the visible screen, so the keyboard can't hide it.
+ * It renders into document.body, so no transformed or blurred ancestor can pin the sheet above the screen's bottom edge.
  */
 export type ConfirmRequest = {
   title: string;
@@ -138,7 +140,7 @@ export function ConfirmDialog({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 grid place-items-end bg-content-strong/40 p-0 sm:place-items-center sm:p-4"
       onPointerDown={(event) => {
@@ -192,6 +194,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
