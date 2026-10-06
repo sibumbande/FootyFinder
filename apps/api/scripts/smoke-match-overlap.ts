@@ -49,7 +49,9 @@ async function main() {
   await buyTicket(q1.id, player.id, 'HOME', key());
   await rejectsWith(() => buyTicket(q2.id, player.id, 'HOME', key()), 'PLAYER_MATCH_OVERLAP');
   assert(!(await prisma.matchParticipant.findFirst({ where: { matchId: q2.id, userId: player.id } })), 'The overlapping join left a participant.');
-  assert((await prisma.walletTransaction.count({ where: { walletAccount: { userId: player.id }, type: 'MATCH_ENTRY_DEBIT' } })) === 1, 'The refused join still charged the player.');
+  // DEC-021: the refusal comes before any payment, so the player holds one ticket (q1) and nothing on q2.
+  assert((await prisma.matchTicket.count({ where: { playerId: player.id, status: { in: ['HELD', 'CONFIRMED'] } } })) === 1, 'The refused join still charged the player.');
+  assert(!(await prisma.ticketCheckout.count({ where: { matchId: q2.id, payerId: player.id } })), 'The refused join opened a checkout.');
   await buyTicket(q3.id, player.id, 'HOME', key());
 
   // Refereeing counts both ways, but playing in the match you referee is allowed (D17).
