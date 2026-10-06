@@ -6,9 +6,7 @@ import {
   messagingApi,
   notificationsApi,
   usersApi,
-  walletApi,
   teamsApi,
-  teamWalletApi,
   teamChatApi,
   supportApi,
   bookingsApi,
@@ -29,11 +27,9 @@ export const authClient = authApi(apiClient);
 export const usersClient = usersApi(apiClient);
 export const matchClient = matchesApi(apiClient);
 export const ticketsClient = ticketsApi(apiClient);
-export const walletClient = walletApi(apiClient);
 export const messagingClient = messagingApi(apiClient);
 export const notificationsClient = notificationsApi(apiClient);
 export const teamsClient = teamsApi(apiClient);
-export const teamWalletClient = teamWalletApi(apiClient);
 export const teamChatClient = teamChatApi(apiClient);
 export const supportClient = supportApi(apiClient);
 export const bookingsClient = bookingsApi(apiClient);

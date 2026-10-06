@@ -89,11 +89,11 @@ export function UserMenu() {
           </Link>
           <Link
             role="menuitem"
-            to="/wallet"
+            to="/tickets"
             onClick={() => setOpen(false)}
             className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-content hover:bg-surface-hover"
           >
-            Wallet
+            Tickets &amp; credits
           </Link>
           {!user.onboardingComplete && (
             <Link

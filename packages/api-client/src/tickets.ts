@@ -1,4 +1,4 @@
-import type { MatchTicketContext, TeamPaymentRoster, TeamSide, TeamTicketCheckoutInput, TicketChoiceInput, TicketCheckoutInput, TicketCheckoutResult, TicketLeaveResult } from '@footy-finder/shared';
+import type { MatchTicketContext, MyTicketsOverview, TeamPaymentRoster, TeamSide, TeamTicketCheckoutInput, TicketChoiceInput, TicketCheckoutInput, TicketCheckoutResult, TicketLeaveResult } from '@footy-finder/shared';
 import type { ApiClient } from './client.js';
 
 /** DEC-021 Match Ticketing: buy a ticket for one place; check a checkout's status (never confirms anything). */
@@ -31,6 +31,8 @@ export const ticketsApi = (client: ApiClient) => ({
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(input),
     }),
+  /** DEC-021 "Tickets & credits": upcoming and past tickets, match credits with expiry, refunds and their status. */
+  mine: () => client.request<{ data: MyTicketsOverview }>('/tickets/mine'),
   checkoutStatus: (checkoutId: string) => client.request<{ data: TicketCheckoutResult }>(`/tickets/checkouts/${encodeURIComponent(checkoutId)}`),
   checkoutStatusByReference: (reference: string) =>
     client.request<{ data: TicketCheckoutResult }>(`/tickets/checkouts/by-reference/${encodeURIComponent(reference)}`),

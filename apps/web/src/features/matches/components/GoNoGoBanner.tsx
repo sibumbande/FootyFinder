@@ -42,8 +42,8 @@ export function GoNoGoBanner({
     const refund =
       feeCents > 0
         ? viewerJoined
-          ? ` Your ${rands(feeCents)} has been refunded to your FootyFinder wallet.`
-          : ` Every player's ${rands(feeCents)} has been refunded to their FootyFinder wallet.`
+          ? ` If you paid ${rands(feeCents)}, choose a match credit or a full refund. Without a choice within 7 days you're refunded automatically.`
+          : ` Everyone who paid ${rands(feeCents)} chooses a match credit or a full refund.`
         : '';
     return (
       <section role="status" className="rounded-2xl border border-danger-200 bg-danger-50 p-5">
@@ -92,7 +92,7 @@ export function GoNoGoBanner({
       <p className="text-sm font-semibold text-content">
         This match goes ahead only if all positions are filled and a FootyFinder referee is assigned
         by {when}. Otherwise it&apos;s
-        cancelled and your {fee} is refunded to your wallet.
+        cancelled and you choose a match credit or a full refund of your {fee}.
       </p>
       {count}
       {checking && (

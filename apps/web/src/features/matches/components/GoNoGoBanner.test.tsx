@@ -20,7 +20,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
       <GoNoGoBanner facts={{ goNoGoAt }} status="OPEN" feeCents={8_000} filled={7} total={10} now={before} />,
     );
     expect(screen.getByRole('status')).toHaveTextContent(
-      "This match goes ahead only if all positions are filled and a FootyFinder referee is assigned by 13:30 on 30 Oct 2026. Otherwise it's cancelled and your R80 is refunded to your wallet.",
+      "This match goes ahead only if all positions are filled and a FootyFinder referee is assigned by 13:30 on 30 Oct 2026. Otherwise it's cancelled and you choose a match credit or a full refund of your R80.",
     );
     expect(screen.getByTestId('positions-filled')).toHaveTextContent('7 of 10 positions filled');
     expect(screen.queryByText(/lineup is locked/)).not.toBeInTheDocument();
@@ -64,7 +64,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
     );
     expect(screen.getByRole('status')).toHaveTextContent('Cancelled: not every position was filled');
     expect(screen.getByRole('status')).toHaveTextContent(
-      'This match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. Your R80 has been refunded to your FootyFinder wallet.',
+      "This match at Italian Club on Fri 30 Oct 2026 at 14:00 was cancelled because not every position was filled 30 minutes before kickoff. If you paid R80, choose a match credit or a full refund. Without a choice within 7 days you're refunded automatically.",
     );
   });
 
@@ -83,7 +83,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
     );
     expect(screen.getByRole('status')).toHaveTextContent('Cancelled: no referee was available');
     expect(screen.getByRole('status')).toHaveTextContent(
-      'This match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled because no FootyFinder referee was available. Your R80 has been refunded to your FootyFinder wallet.',
+      "This match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled because no FootyFinder referee was available. If you paid R80, choose a match credit or a full refund. Without a choice within 7 days you're refunded automatically.",
     );
   });
 
@@ -101,7 +101,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
     );
     expect(screen.getByRole('status')).toHaveTextContent('Cancelled by the host');
     expect(screen.getByRole('status')).toHaveTextContent(
-      "This match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled by the host. Every player's R80 has been refunded to their FootyFinder wallet.",
+      "This match at Queens Park on Fri 30 Oct 2026 at 14:00 was cancelled by the host. Everyone who paid R80 chooses a match credit or a full refund.",
     );
   });
 
@@ -118,7 +118,7 @@ describe('GoNoGoBanner (DEC-018)', () => {
         viewerJoined
       />,
     );
-    expect(screen.getByRole('status')).toHaveTextContent('was cancelled by the host. Your R45.50 has been refunded');
+    expect(screen.getByRole('status')).toHaveTextContent('was cancelled by the host. If you paid R45.50, choose a match credit or a full refund');
   });
 
   it('renders nothing for an open legacy match', () => {

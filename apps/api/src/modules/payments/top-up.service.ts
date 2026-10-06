@@ -8,7 +8,7 @@ import { AppError } from '../../errors/app-error.js';
 import { enqueueDurableJob } from '../../jobs/durable-jobs.js';
 import { logError } from '../../observability/logger.js';
 import { FinancialRepository } from '../wallet/financial.repository.js';
-import { demoDepositsEnabled } from './payment-config.js';
+import { demoPaymentsEnabled } from './payment-config.js';
 import {
   isPaystackCheckoutUrl,
   PaystackClient,
@@ -39,7 +39,7 @@ export class TopUpService {
     private readonly config: { clientUrl: string; expiryMinutes: number; paystackEnabled: () => boolean } = {
       clientUrl: env.CLIENT_URL,
       expiryMinutes: env.TOP_UP_PENDING_EXPIRY_MINUTES,
-      paystackEnabled: () => !demoDepositsEnabled() && Boolean(env.PAYSTACK_SECRET_KEY),
+      paystackEnabled: () => !demoPaymentsEnabled() && Boolean(env.PAYSTACK_SECRET_KEY),
     },
   ) {}
 

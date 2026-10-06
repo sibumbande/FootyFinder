@@ -65,16 +65,16 @@ describe('ProtectedRoute', () => {
       user: { emailVerificationRequired: true, emailVerified: true, onboardingComplete: false },
     };
     render(
-      <MemoryRouter initialEntries={['/wallet']}>
+      <MemoryRouter initialEntries={['/tickets']}>
         <Routes>
           <Route element={<ProtectedRoute />}>
-            <Route path="/wallet" element={<p>Wallet</p>} />
+            <Route path="/tickets" element={<p>Tickets</p>} />
           </Route>
           <Route path="/onboarding" element={<CurrentLocation />} />
         </Routes>
       </MemoryRouter>,
     );
-    expect(await screen.findByText('/onboarding?returnTo=%2Fwallet')).toBeInTheDocument();
+    expect(await screen.findByText('/onboarding?returnTo=%2Ftickets')).toBeInTheDocument();
   });
 
   it('preserves legacy read access while server-side mutation gates require completion', async () => {

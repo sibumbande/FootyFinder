@@ -1,15 +1,8 @@
-import type { AuthenticatedUser } from './user.js';
-
 /** DEC-018: platform-fixed Quick Match place fee (R80), paid by every joined player including subs. */
 export const MATCH_FEE_CENTS = 8_000;
 /** DEC-011: card top-ups are whole-rand ZAR amounts from R50 to R5,000. No withdrawals. */
 export const TOP_UP_MIN_CENTS = 5_000;
 export const TOP_UP_MAX_CENTS = 500_000;
-/** Quick-pick top-up amounts shown above the custom amount (CEO touch-up batch 4, item 3, D10: R200 / R400 / R800). */
-export const TOP_UP_QUICK_PICK_CENTS = [20_000, 40_000, 80_000] as const;
-export const TOP_UP_DEFAULT_CENTS = 40_000;
-
-export type PaymentProviderName = 'demo' | 'paystack';
 
 /**
  * CEO touch-up batch 4, item 3 (D7): the Paystack checkout channels FootyFinder can offer, by Paystack's own codes.
@@ -24,21 +17,9 @@ export const PAYMENT_CHANNEL_LABELS: Record<PaymentChannel, string> = {
   capitec_pay: 'Capitec Pay',
   eft: 'Instant EFT',
 };
-/** D8: top-ups paid this way go back automatically, so "Undo top-up" is offered; others are refunded through support. */
-export const UNDO_REFUND_CHANNELS: readonly PaymentChannel[] = ['card', 'apple_pay'];
 /** The player-facing name of a Paystack channel (unknown channels are shown as they are). */
 export const paymentChannelLabel = (channel: string | null | undefined) =>
   channel ? (PAYMENT_CHANNEL_LABELS[channel as PaymentChannel] ?? channel) : null;
-
-export interface TopUpOptions {
-  provider: PaymentProviderName;
-  minCents: number;
-  maxCents: number;
-  quickPickCents: number[];
-  defaultCents: number;
-  /** CEO touch-up batch 4, item 3: the payment methods checkout offers right now. */
-  channels: PaymentChannel[];
-}
 
 /**
  * TKT-604: a card top-up as the player sees it. PROCESSING covers "waiting for Paystack" and
@@ -58,27 +39,6 @@ export interface TopUpStatus {
 export interface TopUpInitiation extends TopUpStatus {
   /** Paystack hosted checkout (checkout.paystack.com). Absent once the top-up is closed. */
   authorizationUrl?: string;
-}
-
-export type DepositStatus = 'success' | 'failure' | 'error';
-
-export interface DepositResponse {
-  status: DepositStatus;
-  transactionId: string;
-  user?: AuthenticatedUser;
-  message?: string;
-  replayed?: boolean;
-}
-
-export interface WalletHold {
-  id: string;
-  amountCents: number;
-  currency: 'ZAR';
-  status: 'ACTIVE' | 'CAPTURED' | 'RELEASED' | 'EXPIRED';
-  referenceType: string;
-  referenceId: string;
-  expiresAt?: string;
-  createdAt: string;
 }
 
 /** TKT-601: the caller's own wallet. `availableCents` = balance minus active holds. */
@@ -139,9 +99,6 @@ export interface WalletLedgerPage {
   entries: WalletLedgerEntry[];
   nextCursor: string | null;
 }
-
-export const WALLET_HISTORY_DEFAULT_LIMIT = 20;
-export const WALLET_HISTORY_MAX_LIMIT = 50;
 
 export interface WalletReconciliationIssue {
   code: WalletReconciliationIssueCode;
@@ -207,18 +164,4 @@ export interface WalletReconciliationReport {
   teamWalletCount?: number;
   issueCount: number;
   issues: WalletReconciliationIssue[];
-}
-
-/** CEO touch-up batch 3, item 6b: a recent top-up the player may undo (refund to the same card) once. */
-export interface UndoableTopUp {
-  paymentId: string;
-  amountCents: number;
-  creditedAt: string;
-  undoUntil: string;
-  /** The most that can still be refunded: the top-up minus spending since, capped at the available balance. */
-  refundableCents: number;
-  /** REFUND_VIA_SUPPORT (CEO touch-up batch 4, item 3, D8): bank payments (Instant EFT, Capitec Pay) are refunded through support. */
-  blockedReason: 'ALREADY_UNDONE' | 'WALLET_RESTRICTED' | 'DISPUTED' | 'REFUND_VIA_SUPPORT' | null;
-  /** How it was paid, e.g. "Card" or "Capitec Pay". */
-  paymentMethod: string | null;
 }

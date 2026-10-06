@@ -5,6 +5,14 @@ import { matchKey } from '@/features/matches/hooks/useMatches.js';
 
 export const ticketContextKey = (matchId: string) => [...matchKey(matchId), 'ticket-context'] as const;
 export const checkoutKey = (reference: string) => ['ticket-checkout', reference] as const;
+/** DEC-021 "Tickets & credits" (replaces the wallet page). */
+export const myTicketsKey = ['tickets', 'mine'] as const;
+
+export const useMyTickets = () =>
+  useQuery({
+    queryKey: myTicketsKey,
+    queryFn: async () => (await ticketsClient.mine()).data,
+  });
 
 /** Paystack's hosted checkout is the only place a card or bank payment is taken; any other address is refused. */
 export const isPaystackCheckoutUrl = (value: string) => {

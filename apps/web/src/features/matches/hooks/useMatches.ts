@@ -102,7 +102,7 @@ export function useRotateMatchInvite(id: string) {
   });
 }
 /**
- * Organiser formation edits touch only this lobby: no wallet, participation, or list data changes,
+ * Organiser formation edits touch only this lobby: no ticket, participation, or list data changes,
  * so only this Match is refreshed. The versioned socket echo usually lands first. The refetch is
  * the fallback when the socket is disconnected.
  */

@@ -33,7 +33,7 @@ export function MyTeamsPage() {
         <div className="rounded-3xl border border-dashed border-line-strong bg-surface p-10 text-center">
           <h2 className="text-xl font-bold text-content-strong">Your first team starts here</h2>
           <p className="mt-2 text-content-muted">
-            Team creation is free and does not use your wallet.
+            Team creation is free.
           </p>
           <Link className="button mt-5" to="/teams/create">
             Create Team

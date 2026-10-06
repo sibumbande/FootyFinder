@@ -5,7 +5,6 @@ import {
   type TeamContributionResult,
   type TeamWalletEntry,
   type TeamWalletEntryKind,
-  type TeamWalletHistoryQuery,
   type TeamWalletHoldView,
   type TeamWalletPage,
   type TeamWalletSummary,
@@ -21,6 +20,8 @@ import { TeamWalletRepository } from './team-wallet.repository.js';
 import { TeamWalletTransfers } from './team-wallet.transfers.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** The retired team wallet history route's query (DEC-021); kept until the team wallet code is removed with A10. */
+type TeamWalletHistoryQuery = { cursor?: string; limit: number };
 
 const KIND_BY_TYPE: Record<TeamWalletTransactionType, TeamWalletEntryKind> = {
   CONTRIBUTION_CREDIT: 'CONTRIBUTION',

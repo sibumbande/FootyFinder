@@ -20,7 +20,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { OnboardingService } from '../onboarding/onboarding.service.js';
 import { lockMatchForFormation } from '../matches/matches.repository.js';
 import { isPaystackCheckoutUrl, PaystackClient, PaystackError, type PaystackGateway } from '../payments/paystack.client.js';
-import { demoDepositsEnabled } from '../payments/payment-config.js';
+import { demoPaymentsEnabled } from '../payments/payment-config.js';
 import { assertTicketPlaceable, placeableMatchSelect, placeTicketInTx, refusal, releaseExpiredHolds } from './ticket-placement.js';
 import { TicketSettlementService } from './ticket-settlement.service.js';
 import { useOldestCreditInTx } from './match-credits.js';
@@ -74,8 +74,8 @@ export class TicketCheckoutService {
     private readonly settlement = new TicketSettlementService(gateway),
     private readonly config: { clientUrl: string; demo: () => boolean; paystackEnabled: () => boolean; termsVersion: () => Promise<string | undefined> } = {
       clientUrl: env.CLIENT_URL,
-      demo: () => demoDepositsEnabled(),
-      paystackEnabled: () => !demoDepositsEnabled() && Boolean(env.PAYSTACK_SECRET_KEY),
+      demo: () => demoPaymentsEnabled(),
+      paystackEnabled: () => !demoPaymentsEnabled() && Boolean(env.PAYSTACK_SECRET_KEY),
       // The Terms version the player accepted the cancellation policy under (A8).
       termsVersion: async () => (await new OnboardingService().currentLegalDocuments())[0]?.version,
     },

@@ -12,7 +12,6 @@ import { PaystackWebhookProcessor } from '../src/modules/payments/paystack-webho
 import { runTopUpExpiry } from '../src/modules/payments/top-up.jobs.js';
 import { TopUpService } from '../src/modules/payments/top-up.service.js';
 import { TopUpSettlementService } from '../src/modules/payments/top-up-settlement.service.js';
-import { WalletHistoryService } from '../src/modules/wallet/wallet-history.service.js';
 import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-server.js';
 
 /**
@@ -41,11 +40,9 @@ const topUps = new TopUpService(gateway, settlement, undefined, {
   expiryMinutes: 60,
   paystackEnabled: () => true,
 });
-const history = new WalletHistoryService();
 const processor = new PaystackWebhookProcessor(settlement);
 const startedAt = new Date();
 const financial = new FinancialRepository();
-const summaryOf = (userId: string) => history.summary(userId);
 const userIds: string[] = [];
 let retainedAdmin = '';
 
@@ -87,8 +84,6 @@ try {
   assert(fake.calls.initialize === 1, 'Paystack initialize was called more than once for one key.');
   assert((await code(topUps.initiate(player, 24_000, key))) === 'IDEMPOTENCY_KEY_REUSED', 'Reusing a key for another amount was accepted.');
   assert((await balance(player)) === 0, 'Starting a top-up credited the wallet.');
-  const pendingRow = (await history.history(player, { limit: 20 })).entries[0];
-  assert(pendingRow?.status === 'PENDING' && !pendingRow.countsTowardsBalance, 'Pending top-up is not shown as pending in history.');
   assert((await prisma.durableJob.count({ where: { dedupeKey: { startsWith: `paystack-topup-expire:${(await payment(first.reference)).id}` } } })) === 1, 'Expiry job was not enqueued.');
 
   // --- Status check while the checkout is open: no credit, throttled verify ---------------
@@ -277,8 +272,6 @@ try {
   await deliver(processed.raw, processed.signature);
   await processAll(r1Payment.reference);
   assert((await refundRow(r1.id)).status === 'PROCESSED', 'refund.processed not applied.');
-  const r1History = (await history.history(refunder, { limit: 20 })).entries.find((entry) => entry.kind === 'CARD_REFUND');
-  assert(r1History?.amountCents === -10_000 && r1History.cardRefund?.state === 'PROCESSED', 'History does not show the card refund state.');
 
   // Failure, retry, failed again by webhook, explicit restore to wallet (D3).
   const r2 = await refunds.initiate({ actorUserId: admin, providerPaymentId: r1Payment.id, amountCents: 5_000, reason: 'Account closure', idempotencyKey: `${marker}-refund-2` }).catch(() => null);

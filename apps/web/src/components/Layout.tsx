@@ -2,7 +2,6 @@ import { TERMS_ANCHORS } from '@footy-finder/shared';
 import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth.js';
 import { NotificationsMenu } from '@/features/notifications/NotificationsMenu.js';
-import { formatRands } from '@/utils/format-currency.js';
 import { Logo } from './Logo.js';
 import { ThemeToggle } from './ThemeToggle.js';
 import { UserMenu } from './UserMenu.js';
@@ -65,21 +64,6 @@ export function Layout() {
           )}
           {user && (
             <>
-              {/* CEO touch-up batch 3.5, item 2: the balance chip is the one way to the wallet (and top-ups);
-                  every header control is 44 px tall on one centre line. */}
-              <Link
-                to="/wallet"
-                className="inline-flex min-h-11 flex-col justify-center rounded-md border border-line-strong bg-brand-900 px-2.5 text-right text-content-inverse shadow-[2px_2px_0_rgb(var(--theme-accent-gold))] sm:px-3"
-                title="Wallet balance"
-                aria-label={`Wallet balance ${formatRands(user.balanceCents)}`}
-              >
-                <span className="hidden text-[9px] font-black uppercase tracking-[0.14em] text-hero-accent sm:block">
-                  Balance
-                </span>
-                <span className="block whitespace-nowrap text-sm font-black text-content-inverse">
-                  {formatRands(user.balanceCents)}
-                </span>
-              </Link>
               <NotificationsMenu />
               <UserMenu />
             </>

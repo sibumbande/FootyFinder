@@ -55,7 +55,7 @@ export function OnboardingPage() {
   const togglePosition = (position: FootballPosition) => setPositions((current) => current.includes(position) ? current.filter((item) => item !== position) : current.length < 4 ? [...current, position] : current);
   return (
     <section className="mx-auto grid w-full max-w-4xl grid-cols-[minmax(0,1fr)] gap-6">
-      <div><p className="anime-kicker">Player activation</p><h1 className="mt-2 text-4xl font-black uppercase text-content-strong">Complete your profile</h1><p className="mt-3 text-content-muted">Your progress is saved step by step. Existing matches, teams, wallet and read access remain intact.</p></div>
+      <div><p className="anime-kicker">Player activation</p><h1 className="mt-2 text-4xl font-black uppercase text-content-strong">Complete your profile</h1><p className="mt-3 text-content-muted">Your progress is saved step by step. Existing matches, teams, tickets and read access remain intact.</p></div>
       {!user.emailVerified && <Card title="1. Verify your email"><p className="text-sm text-content-muted">Verify {user.email} before activation.</p><div className="flex flex-wrap gap-3"><Button loading={resend.isPending} onClick={() => resend.mutate()}>Resend email</Button><Link className="button" to={`/verify-email?returnTo=${encodeURIComponent(returnTo)}`}>I have a verification link</Link></div><FormError message={resend.error?.message} /></Card>}
       <Card title="2. Player details">
         {/* CEO touch-up batch 2, item 3: the two fields line up: same height, width, style and a hint each. */}

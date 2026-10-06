@@ -43,8 +43,6 @@ export * from './schemas/booking.js';
 export * from './schemas/moderation.js';
 export * from './schemas/dispute.js';
 export * from './schemas/venue.js';
-export * from './schemas/wallet.js';
-export * from './schemas/team-wallet.js';
 export * from './schemas/team-chat.js';
 export * from './schemas/referee.js';
 export * from './schemas/match-result.js';

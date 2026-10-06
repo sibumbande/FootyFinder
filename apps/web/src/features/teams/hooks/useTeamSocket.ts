@@ -21,7 +21,6 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
       });
       refresh();
     };
-    const refreshWallet = () => void cache.invalidateQueries({ queryKey: [...teamKey(teamId), 'wallet'] });
     // Gate 7 / TKT-711: a new team chat message arrived in the team room.
     const refreshChat = () => void cache.invalidateQueries({ queryKey: teamChatKey(teamId) });
     const joinAndRecover = () => {
@@ -37,7 +36,6 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
     socket.on(SocketEvents.teamFormationUpdated, refreshFormation);
     socket.on(SocketEvents.teamMemberRoleUpdated, refresh);
     socket.on(SocketEvents.teamDeleted, refresh);
-    socket.on(SocketEvents.teamWalletUpdated, refreshWallet);
     socket.on(SocketEvents.teamChatMessage, refreshChat);
     return () => {
       socket.emit(SocketEvents.leaveTeamRoom, { teamId });
@@ -48,7 +46,6 @@ export function useTeamSocket(teamId: string, format?: MatchFormat) {
       socket.off(SocketEvents.teamFormationUpdated, refreshFormation);
       socket.off(SocketEvents.teamMemberRoleUpdated, refresh);
       socket.off(SocketEvents.teamDeleted, refresh);
-      socket.off(SocketEvents.teamWalletUpdated, refreshWallet);
       socket.off(SocketEvents.teamChatMessage, refreshChat);
     };
   }, [cache, format, teamId]);

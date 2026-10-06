@@ -18,7 +18,7 @@ type GuestTab = (typeof GUEST_TABS)[number];
 /**
  * Gate 9 / TKT-910, CEO touch-up batch 2, item 5: a visitor sees the same team page as a member
  * (header, tabs, overview, squad) built from the public team view; join, challenge, message and
- * add friend become "Sign up to play". Wallet, chat, invites and settings stay members-only.
+ * add friend become "Sign up to play". Chat, invites and settings stay members-only.
  */
 export function GuestTeamPage() {
   const { teamId = '' } = useParams();

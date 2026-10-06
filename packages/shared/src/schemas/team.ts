@@ -63,3 +63,9 @@ export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type UpdateTeamMemberRoleInput = z.infer<typeof updateTeamMemberRoleSchema>;
 export type SaveTeamFormationInput = z.infer<typeof saveTeamFormationSchema>;
 export type UpdateTeamFormationSlotInput = z.infer<typeof updateTeamFormationSlotSchema>;
+
+/** DEC-019 D5: a team changes its own number of subs (0-10). DEC-021 D1: never below the places already paid for. */
+export const changeTeamSubstitutesSchema = z.object({
+  substituteCount: z.number().int().min(0).max(10),
+});
+export type ChangeTeamSubstitutesInput = z.infer<typeof changeTeamSubstitutesSchema>;

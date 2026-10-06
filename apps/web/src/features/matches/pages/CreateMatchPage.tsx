@@ -68,8 +68,8 @@ function GoNoGoNotice({ startsAt }: { startsAt: string }) {
     >
       Heads up: this match goes ahead only if every position is filled and a FootyFinder referee is
       assigned 30 minutes before kickoff ({formatClock(getGoNoGoAt(startsAt).toISOString())}). If not,
-      it&apos;s cancelled automatically and every player gets their {rands(MATCH_FEE_CENTS)} refunded
-      to their wallet.
+      it&apos;s cancelled automatically and every player who paid chooses a match credit or a full
+      refund of their {rands(MATCH_FEE_CENTS)}.
     </p>
   );
 }

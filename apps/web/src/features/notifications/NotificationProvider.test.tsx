@@ -7,7 +7,7 @@ function NotificationTrigger() {
   return (
     <button
       onClick={() =>
-        notify({ variant: 'success', title: 'Funds added', message: 'Wallet updated.' })
+        notify({ variant: 'success', title: 'Ticket confirmed', message: 'You’re in.' })
       }
     >
       Notify
@@ -28,7 +28,7 @@ describe('NotificationProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Notify' }));
 
     const notification = screen.getByRole('status');
-    expect(notification).toHaveTextContent('Funds added');
+    expect(notification).toHaveTextContent('Ticket confirmed');
     expect(notification).not.toHaveClass('notification-toast--exiting');
 
     act(() => vi.advanceTimersByTime(3_999));

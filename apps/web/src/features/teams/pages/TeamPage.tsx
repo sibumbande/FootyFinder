@@ -10,7 +10,6 @@ import { formatDate } from '@/utils/format-date.js';
 import { TeamHeroView, TeamTabs } from '../components/TeamHeroView.js';
 import { TeamFormationEditor } from '../components/TeamFormationEditor.js';
 import { TeamInvitePanel } from '../components/TeamInvitePanel.js';
-import { TeamWalletPanel } from '../components/TeamWalletPanel.js';
 import { TeamChatPanel } from '../components/TeamChatPanel.js';
 import { TeamReviewsSection } from '@/features/team-reviews/components/TeamReviewsSection.js';
 import {
@@ -27,28 +26,30 @@ import { TeamStatsPanel } from '@/features/teams/components/TeamStatsPanel.js';
 import { PlayerName } from '@/components/ui/PlayerName.js';
 import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 
-type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'wallet' | 'chat' | 'invites' | 'settings';
+type Tab = 'overview' | 'matches' | 'squad' | 'formation' | 'chat' | 'invites' | 'settings';
 export function TeamPage() {
   const { teamId = '' } = useParams();
   useTeamSocket(teamId);
   const team = useTeam(teamId);
   const [search] = useSearchParams();
-  const [tab, setTab] = useState<Tab>((search.get('tab') as Tab | null) ?? 'overview');
+  const [selectedTab, setTab] = useState<Tab>((search.get('tab') as Tab | null) ?? 'overview');
   if (team.isPending) return <div className="h-[40rem] animate-pulse rounded-3xl bg-surface" />;
   if (!team.data || team.error)
     return <FormError message={team.error?.message ?? 'Team not found.'} />;
   const archived = Boolean(team.data.archivedAt);
   const allowedTabs: Tab[] = ['overview', 'matches', 'squad', 'formation'];
-  if (team.data.viewerRole) allowedTabs.push('wallet', 'chat');
+  if (team.data.viewerRole) allowedTabs.push('chat');
   if (!archived && (team.data.viewerRole === 'OWNER' || team.data.viewerRole === 'CAPTAIN'))
     allowedTabs.push('invites');
   if (!archived && team.data.viewerRole === 'OWNER') allowedTabs.push('settings');
+  // Old links (for example ?tab=wallet, retired by DEC-021) open the overview.
+  const tab: Tab = allowedTabs.includes(selectedTab) ? selectedTab : 'overview';
   return (
     <section className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <TeamHero team={team.data} />
       {archived && (
         <p role="status" className="rounded-2xl border border-line bg-surface-muted p-4 text-sm font-semibold text-content">
-          This team was closed on {formatDate(team.data.archivedAt!)}. Its history is kept, and any unspent contributions were returned to each contributor&apos;s wallet.
+          This team was closed on {formatDate(team.data.archivedAt!)}. Its match history is kept.
         </p>
       )}
       <TeamTabs tabs={allowedTabs} current={tab} onChange={setTab} />
@@ -57,7 +58,6 @@ export function TeamPage() {
         {tab === 'matches' && <TeamMatches team={team.data} />}
         {tab === 'squad' && <Squad team={team.data} />}
         {tab === 'formation' && <TeamFormationEditor team={team.data} />}
-        {tab === 'wallet' && <TeamWalletPanel team={team.data} />}
         {tab === 'chat' && <TeamChatPanel team={team.data} />}
         {tab === 'invites' && <TeamInvitePanel team={team.data} />}
         {tab === 'settings' && <TeamSettings team={team.data} />}
@@ -353,9 +353,8 @@ function TeamSettings({ team }: { team: TeamDetail }) {
       <div className="border-t border-danger-200 pt-6">
         <h3 className="font-bold text-danger-700">Close Team</h3>
         <p className="mt-1 text-sm text-content-muted">
-          Closing archives the Team: nobody can join, invite or play as it any more, but its match and
-          wallet history is kept. Each member&apos;s unspent contributions go back to their own wallet.
-          You can close a Team only when it has no upcoming team match and no money held for one.
+          Closing archives the Team: nobody can join, invite or play as it any more, but its match
+          history is kept. You can close a Team only when it has no upcoming team match.
         </p>
         <Button
           variant="secondary"
@@ -364,7 +363,7 @@ function TeamSettings({ team }: { team: TeamDetail }) {
           onClick={async () => {
             const { confirmed } = await confirm({
               title: `Close ${team.name}?`,
-              message: <p>Unspent contributions will be returned to each member's wallet. The Team is archived and its history is kept.</p>,
+              message: <p>The Team is archived and its match history is kept.</p>,
               confirmLabel: 'Close Team',
               cancelLabel: 'Keep Team',
               destructive: true,

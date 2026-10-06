@@ -38,8 +38,7 @@ import { WaitingListPage } from '@/features/onboarding/pages/WaitingListPage.js'
 import { LegalPage } from '@/features/legal/pages/LegalPage.js';
 import { VenueDetailPage } from '@/features/venues/pages/VenueDetailPage.js';
 import { PublicMatchPreviewPage } from '@/features/matches/pages/PublicMatchPreviewPage.js';
-import { WalletPage } from '@/features/wallet/pages/WalletPage.js';
-import { TopUpReturnPage } from '@/features/wallet/pages/TopUpReturnPage.js';
+import { TicketsPage } from '@/features/tickets/pages/TicketsPage.js';
 import { TicketReturnPage } from '@/features/tickets/pages/TicketReturnPage.js';
 import { RefereePage } from '@/features/referee/pages/RefereePage.js';
 import { RefereeMatchPage } from '@/features/referee/pages/RefereeMatchPage.js';
@@ -100,8 +99,9 @@ export function AppRouter() {
             <Route path="/account/delete" element={animated(<DeleteAccountPage />)} />
             <Route path="/account/welcome-back" element={animated(<WelcomeBackPage />)} />
             <Route path="/account/data" element={animated(<DownloadDataPage />)} />
-            <Route path="/wallet" element={animated(<WalletPage />)} />
-            <Route path="/wallet/top-up/return" element={animated(<TopUpReturnPage />)} />
+            <Route path="/tickets" element={animated(<TicketsPage />)} />
+            {/* DEC-021: the wallet is gone; old links open Tickets & credits. */}
+            <Route path="/wallet/*" element={<Navigate to="/tickets" replace />} />
             <Route path="/tickets/return" element={animated(<TicketReturnPage />)} />
             <Route path="/support" element={animated(<SupportPage />)} />
             <Route path="/support/:ticketId" element={animated(<SupportPage />)} />

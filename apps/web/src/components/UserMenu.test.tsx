@@ -32,13 +32,13 @@ describe('UserMenu', () => {
     );
   });
 
-  it('puts Wallet in the account menu', () => {
+  it('puts Tickets & credits in the account menu', () => {
     render(
       <MemoryRouter>
         <UserMenu />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole('button', { name: /player-one/i }));
-    expect(screen.getByRole('menuitem', { name: 'Wallet' })).toHaveAttribute('href', '/wallet');
+    expect(screen.getByRole('menuitem', { name: 'Tickets & credits' })).toHaveAttribute('href', '/tickets');
   });
 });

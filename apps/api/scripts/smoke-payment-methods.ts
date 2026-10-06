@@ -7,16 +7,13 @@ import { PaymentDisputesService } from '../src/modules/payments/payment-disputes
 import { PaystackClient } from '../src/modules/payments/paystack.client.js';
 import { TopUpService } from '../src/modules/payments/top-up.service.js';
 import { TopUpSettlementService } from '../src/modules/payments/top-up-settlement.service.js';
-import { TopUpUndoService } from '../src/modules/payments/top-up-undo.service.js';
-import { WalletHistoryService } from '../src/modules/wallet/wallet-history.service.js';
 import { FAKE_PAYSTACK_SECRET, FakePaystack } from './support/fake-paystack-server.js';
 
 /**
  * CEO touch-up batch 4, item 3 on PostgreSQL with a fake Paystack: checkout asks for exactly the switched-on methods
  * (card, Apple Pay, Capitec Pay, Instant EFT), top-ups through each are credited and a method that is not switched
- * on (QR) is parked for review; history shows how each top-up was paid; Undo is offered for card and Apple Pay only;
- * an admin refund of a bank payment that Paystack marks "needs attention" is completed with the customer's bank
- * account (sent to Paystack, never stored; audit keeps the last 4 digits) or returned to the wallet; chargebacks work
+ * on (QR) is parked for review; an admin refund of a bank payment that Paystack marks "needs attention" is
+ * completed with the customer's bank account (sent to Paystack, never stored; audit keeps the last 4 digits) or returned to the wallet; chargebacks work
  * for a bank payment too.
  */
 const marker = `methods-${randomUUID()}`;
@@ -38,8 +35,6 @@ const gateway = new PaystackClient({ secretKey: FAKE_PAYSTACK_SECRET, baseUrl: f
 const settlement = new TopUpSettlementService(gateway, undefined, undefined, channels);
 const topUps = new TopUpService(gateway, settlement, undefined, { clientUrl: 'http://localhost:5173', expiryMinutes: 60, paystackEnabled: () => true });
 const refunds = new CardRefundsService(gateway);
-const undo = new TopUpUndoService(refunds);
-const history = new WalletHistoryService();
 const userIds: string[] = [];
 let retainedAdmin = '';
 
@@ -67,19 +62,6 @@ try {
   assert(qr.status === 'REVIEW' && qr.reviewReason === 'channel_not_offered', 'A QR payment was credited although QR is not offered.');
   assert((await prisma.walletAccount.findUniqueOrThrow({ where: { userId: player } })).balanceCents === 80_000, 'The wallet is not R800 after four credited top-ups.');
 
-  // History names the method on each top-up.
-  const entries = (await history.history(player, { limit: 20 })).entries.filter(({ kind }) => kind === 'TOP_UP');
-  assert(['Card', 'Apple Pay', 'Capitec Pay', 'Instant EFT'].every((label) => entries.some(({ paymentMethod }) => paymentMethod === label)), `History does not show every method: ${entries.map(({ paymentMethod }) => paymentMethod).join(', ')}`);
-
-  // Undo: card and Apple Pay only; bank payments go through support.
-  const undoable = await undo.undoable(player);
-  for (const channel of ['card', 'apple_pay'] as const)
-    assert(undoable.find(({ paymentId }) => paymentId === paid[channel]!.id)?.blockedReason === null, `${channel} top-up cannot be undone.`);
-  for (const channel of ['capitec_pay', 'eft'] as const) {
-    assert(undoable.find(({ paymentId }) => paymentId === paid[channel]!.id)?.blockedReason === 'REFUND_VIA_SUPPORT', `${channel} top-up offered Undo.`);
-    assert((await code(undo.undo(player, paid[channel]!.id, 5_000, `${marker}-${channel}`))) === 'REFUND_VIA_SUPPORT', `${channel} top-up was undone.`);
-  }
-  assert((await undo.undo(player, paid.apple_pay!.id, 20_000, `${marker}-apple`)).status === 'PENDING', 'An Apple Pay top-up could not be undone.');
 
   // Admin refund of an Instant EFT top-up: Paystack has no bank account, so it needs attention.
   const admin = await createUser('admin');
@@ -119,7 +101,7 @@ try {
     const ledger = await prisma.walletTransaction.aggregate({ where: { walletAccountId: wallet.id, status: 'SUCCEEDED' }, _sum: { amountCents: true } });
     assert((ledger._sum.amountCents ?? 0) === wallet.balanceCents, 'A wallet does not reconcile to its ledger.');
   }
-  console.log('Payment methods smoke passed: checkout asks for exactly card, Apple Pay, Capitec Pay and Instant EFT; each is credited and QR is parked for review; history names the method; Undo only for card and Apple Pay; a needs-attention bank refund is completed with the customer\'s account (never stored, audit keeps last 4) or returned to the wallet; a Capitec Pay chargeback restricts bookings; wallets reconcile.');
+  console.log('Payment methods smoke passed: checkout asks for exactly card, Apple Pay, Capitec Pay and Instant EFT; each is credited and QR is parked for review; a needs-attention bank refund is completed with the customer\'s account (never stored, audit keeps last 4) or returned to the wallet; a Capitec Pay chargeback restricts bookings; wallets reconcile.');
 } finally {
   const payments = await prisma.providerPayment.findMany({ where: { userId: { in: userIds } }, select: { id: true } });
   for (const { id } of payments) await prisma.durableJob.deleteMany({ where: { dedupeKey: { startsWith: `paystack-topup-expire:${id}` } } });
