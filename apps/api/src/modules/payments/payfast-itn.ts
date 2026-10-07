@@ -68,6 +68,8 @@ export const payfastItnHandler =
       const raw = rawBody.toString('utf8');
       const pairs = itnPairs(raw);
       const fields = Object.fromEntries(pairs);
+      // Every notice that reaches us is logged on arrival, so "did PayFast call us at all?" is always answerable.
+      logInfo('payfast_itn_received', { reference: fields.m_payment_id?.slice(0, 120), paymentStatus: fields.payment_status?.slice(0, 20) });
       if (!verifyPayfastItnSignature(pairs, fields.signature, passphrase)) {
         await recordRejected(rawBody, req.ip, 'invalid_signature');
         return res.status(400).json({ error: 'Invalid signature.', code: 'WEBHOOK_SIGNATURE_INVALID' });
@@ -112,12 +114,52 @@ export const payfastItnHandler =
 
 const itnRateLimit = createRateLimit({ scope: 'payfast-itn', limit: 600, windowMs: 60_000 });
 
+/** What GET on the ITN address answers: a fixed marker, so a tunnel or proxy in front of it can be checked. */
+export const PAYFAST_ITN_HEALTH = { service: 'footyfinder-payfast-itn', ok: true } as const;
+
 /** Mounted before express.json() so the signature is checked against the exact posted fields. */
 export const createPayfastItnRouter = (config: PayfastItnConfig = defaultConfig): ExpressRouter => {
   const router = express.Router();
+  // PayFast only POSTs here; GET lets anyone check that PUBLIC_API_URL really reaches this API (open it in a browser,
+  // or see the startup check below). It says nothing about payments.
+  router.get('/payfast/itn', (_req, res) => res.json({ data: PAYFAST_ITN_HEALTH }));
   router.post('/payfast/itn', itnRateLimit, express.raw({ type: () => true, limit: MAX_BODY_BYTES }), payfastItnHandler(config));
   return router;
 };
+
+/**
+ * PayFast confirms a payment only by posting its ITN to PUBLIC_API_URL/payments/payfast/itn. This asks that address,
+ * from outside the app as PayFast would, whether it reaches this API, and explains what came back when it does not
+ * (a tunnel's warning or password page, the web app instead of the API, a tunnel that is down). It sends no browser
+ * headers, like PayFast's server.
+ */
+export async function checkPayfastItnReachable(publicApiUrl: string, fetchImpl: typeof fetch = fetch): Promise<{ ok: boolean; url: string; detail: string }> {
+  const url = `${publicApiUrl.replace(/\/$/, '')}/payments/payfast/itn`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { headers: { Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+  } catch (error) {
+    return { ok: false, url, detail: `could not connect (${error instanceof Error ? error.message : 'unknown error'}). Is the tunnel running?` };
+  }
+  const body = await response.text().catch(() => '');
+  try {
+    const data = (JSON.parse(body) as { data?: { service?: string } }).data;
+    if (response.ok && data?.service === PAYFAST_ITN_HEALTH.service) return { ok: true, url, detail: 'reaches this API' };
+  } catch {
+    // Not our JSON: explained below.
+  }
+  const snippet = body.replace(/\s+/g, ' ').slice(0, 160);
+  const reason = /localtunnel|tunnel password|bypass-tunnel-reminder/i.test(body)
+    ? 'localtunnel answered with its own reminder/password page instead of forwarding the request. PayFast cannot get past it; use cloudflared (no interstitial) instead'
+    : /ngrok/i.test(body)
+      ? 'ngrok answered with its own page instead of forwarding the request'
+      : response.status >= 300 && response.status < 400
+        ? `it redirects (${response.status} to ${response.headers.get('location') ?? '?'}); PayFast does not follow redirects`
+        : /<!doctype html|<html/i.test(body)
+          ? 'it returned a web page, not this API. Is the tunnel pointing at the API port (not the web app)?'
+          : `it answered ${response.status}`;
+  return { ok: false, url, detail: `${reason}. Response: ${response.status} ${snippet}` };
+}
 
 /**
  * Processes one stored ITN: PayFast's validate endpoint must answer VALID for the exact fields, then the notice is

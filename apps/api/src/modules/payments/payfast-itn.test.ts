@@ -37,7 +37,7 @@ vi.mock('../../database/prisma.js', () => {
   return { prisma: { ...client, $transaction: vi.fn(async (work: (tx: unknown) => unknown) => work(client)) } };
 });
 
-const { createPayfastItnRouter, PayfastItnProcessor } = await import('./payfast-itn.js');
+const { checkPayfastItnReachable, createPayfastItnRouter, PayfastItnProcessor } = await import('./payfast-itn.js');
 const { payfastEncode, payfastItnSignature } = await import('./payfast.client.js');
 const { errorHandler } = await import('../../middleware/error-handler.js');
 
@@ -134,5 +134,28 @@ describe('PayFast ITN processing', () => {
     });
     await expect(new PayfastItnProcessor({ validateItn: down }, { settleFromVerify: vi.fn() } as never).process(id)).rejects.toThrow('PayFast unavailable');
     expect(db.created[0]).toMatchObject({ processedAt: null });
+  });
+});
+
+describe('PayFast ITN reachability', () => {
+  it('answers GET with a fixed marker, so the address can be checked through a tunnel', async () => {
+    const response = await request(appWith()).get('/payments/payfast/itn');
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ data: { service: 'footyfinder-payfast-itn', ok: true } });
+  });
+
+  it('passes only when PUBLIC_API_URL really reaches this API, and says why not otherwise', async () => {
+    const answer = (body: string, status = 200, headers: Record<string, string> = {}) => vi.fn(async () => new Response(body, { status, headers })) as unknown as typeof fetch;
+    const ours = JSON.stringify({ data: { service: 'footyfinder-payfast-itn', ok: true } });
+    expect(await checkPayfastItnReachable('https://dev.trycloudflare.com/', answer(ours))).toEqual({ ok: true, url: 'https://dev.trycloudflare.com/payments/payfast/itn', detail: 'reaches this API' });
+    const localtunnel = await checkPayfastItnReachable('https://pretty-actors-love.loca.lt', answer('<html><title>localtunnel</title>Tunnel Password: enter the password</html>', 511));
+    expect(localtunnel.ok).toBe(false);
+    expect(localtunnel.detail).toContain('localtunnel answered with its own reminder/password page');
+    // A refusal that merely names the host is not mistaken for localtunnel's page.
+    expect((await checkPayfastItnReachable('https://pretty-actors-love.loca.lt', answer('Host not in allowlist: pretty-actors-love.loca.lt', 403))).detail).toMatch(/^it answered 403/);
+    expect((await checkPayfastItnReachable('https://x.example', answer('<!doctype html><div id="root"></div>'))).detail).toContain('not this API. Is the tunnel pointing at the API port');
+    expect((await checkPayfastItnReachable('https://x.example', answer('', 302, { location: 'https://elsewhere.example' }))).detail).toContain('PayFast does not follow redirects');
+    const down = vi.fn(async () => { throw new Error('ECONNREFUSED'); }) as unknown as typeof fetch;
+    expect((await checkPayfastItnReachable('https://x.example', down)).detail).toContain('could not connect (ECONNREFUSED)');
   });
 });
