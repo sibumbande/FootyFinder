@@ -1,11 +1,13 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 const FOCUSABLE = 'button:not([disabled]), [href], textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Batch 5 brief: the app's modal sheet (the confirm, leave and team checklist sheets), styled like the "Choose your
  * team" sheet: a bottom sheet on phones, a centred dialog above. Focus is trapped and returned, Escape and the
- * phone's back button close it, and it never grows past the visible screen (so the keyboard can't hide it).
+ * phone's back button close it, and it never grows past the visible screen (so the keyboard can't hide it). It renders
+ * into document.body, so a transformed ancestor (such as the page-enter motion) can't trap it inside the page's box.
  */
 export function Sheet({
   title,
@@ -79,7 +81,7 @@ export function Sheet({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 grid place-items-end bg-content-strong/40 p-0 sm:place-items-center sm:p-4"
       onPointerDown={(event) => {
@@ -106,6 +108,7 @@ export function Sheet({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -15,8 +15,10 @@
   from {
     transform: translate3d(var(--motion-page-offset), 0.35rem, 0) scale(0.995);
   }
+  /* `none`, not an identity transform: the animation's end state stays on the page wrapper, and any transform
+     there would trap every position: fixed sheet or overlay on the page inside the page's own box. */
   to {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: none;
   }
 }
 
