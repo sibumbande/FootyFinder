@@ -124,6 +124,14 @@ try {
   assert(payment.provider === 'payfast' && payment.status === 'INITIALIZED', 'The payment was not recorded as a PayFast payment.');
   assert((await prisma.matchTicket.findFirstOrThrow({ where: { checkoutId: started.checkoutId } })).status === 'HELD', 'The place was not held.');
 
+  // While the payment is open the player is not in the lineup, but is told so: buying again is refused as a payment in
+  // progress (not "already in the match"), and the lobby's ticket context shows the held place with its reference.
+  const again = await checkouts.start(match.id, a, sub, randomUUID()).then(() => 'OK', (error: { code?: string }) => error.code);
+  assert(again === 'PAYMENT_IN_PROGRESS', `Buying again during an open payment gave ${again}.`);
+  const pending = await checkouts.context(match.id, a);
+  assert(pending.ticket?.status === 'HELD' && pending.ticket.paymentReference === started.reference && pending.ticket.holdExpiresAt, 'The lobby cannot show the payment being confirmed.');
+  assert(pending.paymentProvider === 'payfast', 'The confirm sheet would not name PayFast.');
+
   // 2. Before any ITN, the player's status check finds nothing to apply.
   assert((await checkouts.status(a, started.checkoutId)).state === 'PROCESSING', 'The status check placed a player without a PayFast notice.');
 

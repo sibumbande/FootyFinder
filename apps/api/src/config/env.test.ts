@@ -124,14 +124,28 @@ describe('environment contract', () => {
     expect(JSON.stringify(sandbox.error?.issues)).toContain('PAYFAST_SANDBOX must be false in production');
   });
 
+  it('refuses PayFast when its ITN could not reach this API (localhost, private or bare-name PUBLIC_API_URL)', () => {
+    const credentials = { PAYMENT_PROVIDER: 'payfast', PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: '46f0cd694581a', PAYFAST_PASSPHRASE: 'sandbox passphrase' };
+    for (const url of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://192.168.1.20:3000', 'http://10.0.0.5', 'http://172.20.0.3:3000', 'http://api:3000', 'http://[::1]:3000', 'http://dev.localhost']) {
+      const result = envSchema.safeParse({ ...valid, ...credentials, PUBLIC_API_URL: url });
+      expect(result.success, url).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain('cannot be reached by PayFast');
+    }
+    for (const url of ['https://footy-dev.trycloudflare.com', 'https://abc123.ngrok-free.app', 'https://172.217.1.1'])
+      expect(envSchema.safeParse({ ...valid, ...credentials, PUBLIC_API_URL: url }).success, url).toBe(true);
+    // Paystack verifies from our server, so it has no such need.
+    expect(envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'paystack', PAYSTACK_SECRET_KEY: 'sk_test_fake' }).success).toBe(true);
+  });
+
   it('needs every PayFast credential with PAYMENT_PROVIDER=payfast, and defaults to the sandbox', () => {
     const credentials = { PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: '46f0cd694581a', PAYFAST_PASSPHRASE: 'sandbox passphrase' };
-    const parsed = envSchema.parse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials });
+    const tunnel = { PUBLIC_API_URL: 'https://footy-dev.trycloudflare.com' };
+    const parsed = envSchema.parse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, ...tunnel });
     expect(parsed).toMatchObject({ PAYMENT_PROVIDER: 'payfast', PAYFAST_SANDBOX: true });
     // Live PayFast endpoints only in production, like Paystack's live keys.
-    expect(envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, PAYFAST_SANDBOX: 'false' }).success).toBe(false);
+    expect(envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, ...tunnel, PAYFAST_SANDBOX: 'false' }).success).toBe(false);
     for (const missing of Object.keys(credentials)) {
-      const result = envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, [missing]: '' });
+      const result = envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, ...tunnel, [missing]: '' });
       expect(result.success).toBe(false);
       expect(JSON.stringify(result.error?.issues)).toContain(missing);
     }

@@ -306,7 +306,10 @@ export class TicketCheckoutService {
       prisma.matchTicket.findFirst({
         where: { matchId, playerId: userId, status: { in: ['HELD', 'CONFIRMED', 'CHOICE_PENDING'] } },
         orderBy: { createdAt: 'desc' },
-        include: { payer: { select: { id: true, username: true, profile: { select: { displayName: true } } } } },
+        include: {
+          payer: { select: { id: true, username: true, profile: { select: { displayName: true } } } },
+          checkout: { select: { providerPayment: { select: { reference: true } } } },
+        },
       }),
       prisma.matchCredit.count({ where: { userId, status: 'AVAILABLE', expiresAt: { gt: now } } }),
       prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { bookingRestrictedAt: true } }),
@@ -333,6 +336,7 @@ export class TicketCheckoutService {
             paidByMe: ticket.payerId === userId,
             ...(ticket.payerId !== userId ? { payerDisplayName: ticket.payer.profile?.displayName ?? ticket.payer.username } : {}),
             ...(ticket.status === 'HELD' && ticket.holdExpiresAt ? { holdExpiresAt: ticket.holdExpiresAt.toISOString() } : {}),
+            ...(ticket.status === 'HELD' && ticket.payerId === userId && ticket.checkout.providerPayment ? { paymentReference: ticket.checkout.providerPayment.reference } : {}),
             ...(ticket.choiceDeadlineAt ? { choiceDeadlineAt: ticket.choiceDeadlineAt.toISOString() } : {}),
           }
         : null,

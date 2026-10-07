@@ -45,6 +45,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialog.js';
 import { TicketConfirmSheet, type TicketPlace } from '@/features/tickets/components/TicketConfirmSheet.js';
 import { TicketLeaveSheet } from '@/features/tickets/components/TicketLeaveSheet.js';
 import { CancelledMatchChoice } from '@/features/tickets/components/CancelledMatchChoice.js';
+import { PendingPaymentNotice } from '@/features/tickets/components/PendingPaymentNotice.js';
 import { useTicketContext } from '@/features/tickets/hooks/useTickets.js';
 /**
  * Batch 5 brief, item 5: the cancel-match copy in DEC-021 words ("Cancel this match? All N players will be asked to
@@ -196,6 +197,7 @@ export function MatchLobbyPage() {
     <section className="grid gap-6">
       {confirmDialog}
       {ticketContext.data && <CancelledMatchChoice matchId={match.id} context={ticketContext.data} />}
+      {ticketContext.data && <PendingPaymentNotice context={ticketContext.data} />}
       <header className="rounded-3xl bg-brand-900 p-6 text-content-inverse shadow-soft sm:p-8">
         <MatchVenuePhoto venue={match.venue} />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

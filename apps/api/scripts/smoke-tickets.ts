@@ -111,7 +111,8 @@ try {
 
   // 2. Nobody else can buy or claim a position being booked; A can't hold two places.
   assert((await codeOf(() => paystack.start(match.id, b, position(slot1!.id), randomUUID()))) === 'POSITION_BEING_BOOKED', 'B could buy a position being booked.');
-  assert((await codeOf(() => paystack.start(match.id, a, position(slot2!.id), randomUUID()))) === 'ALREADY_IN_MATCH', 'A could hold two places.');
+  // A's own open payment is not a place yet: a second purchase is refused with PAYMENT_IN_PROGRESS, not "already in".
+  assert((await codeOf(() => paystack.start(match.id, a, position(slot2!.id), randomUUID()))) === 'PAYMENT_IN_PROGRESS', 'A could hold two places.');
   const cJoined = await demo.start(match.id, c, sub(), randomUUID());
   assert(cJoined.state === 'CONFIRMED', 'The demo operator did not confirm instantly.');
   assert((await codeOf(() => matches.claimPosition(match.id, slot1!.id, c))) === 'POSITION_BEING_BOOKED', 'A joined player could claim a position being booked.');

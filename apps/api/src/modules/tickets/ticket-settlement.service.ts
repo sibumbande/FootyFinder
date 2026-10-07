@@ -26,13 +26,14 @@ const LATE_REASONS: Record<string, string> = {
   SIDE_FULL: 'That side filled up while you were paying.',
   OTHER_SIDE_REFUSED: 'A team took that side of the match while you were paying.',
   ALREADY_IN_MATCH: 'You already had a place in this match, so this second payment is refunded.',
+  PAYMENT_IN_PROGRESS: 'You were already paying for a place in this match, so this second payment is refunded.',
   PLAYER_MATCH_OVERLAP: 'You joined another match at the same time while you were paying.',
   // DEC-021 A5: team places.
   TEAM_PAYMENTS_CLOSED: 'Team payments closed 2 hours before kick-off, before your payment came through.',
   TEAM_WITHDRAWN: 'The team withdrew from the match before your payment came through.',
   NOT_IN_TEAM: 'The player is no longer in the team.',
 };
-const duplicateReasons = new Set(['ALREADY_IN_MATCH', 'SIDE_FULL']);
+const duplicateReasons = new Set(['ALREADY_IN_MATCH', 'PAYMENT_IN_PROGRESS', 'SIDE_FULL']);
 const lateReason = (code: string) => LATE_REASONS[code] ?? 'The place was no longer available when your payment came through.';
 
 export type TicketSettlementResult = { status: string; outcome: 'PLACED' | 'REFUNDED' | 'FAIL' | 'WAIT' | 'REVIEW' | 'REPLAYED' };
@@ -120,7 +121,7 @@ export class TicketSettlementService {
         }
         const reason = 'reason' in placement ? placement.reason : 'NOT_PLACEABLE';
         // A5: a team place already paid for (or no place left) is the "double payment that slips through".
-        const duplicate = ticket.seat === 'TEAM' ? duplicateReasons.has(reason) : reason === 'ALREADY_IN_MATCH';
+        const duplicate = ticket.seat === 'TEAM' ? duplicateReasons.has(reason) : reason === 'ALREADY_IN_MATCH' || reason === 'PAYMENT_IN_PROGRESS';
         const closedReason = lateReason(reason);
         await tx.matchTicket.update({
           where: { id: ticket.id },

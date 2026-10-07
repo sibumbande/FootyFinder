@@ -44,6 +44,8 @@ export interface MyMatchTicket {
   paidByMe: boolean;
   payerDisplayName?: string;
   holdExpiresAt?: string;
+  /** While HELD and paid by the viewer: our payment reference, for the "check payment" link (/tickets/return). */
+  paymentReference?: string;
   choiceDeadlineAt?: string;
 }
 

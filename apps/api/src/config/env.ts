@@ -10,6 +10,19 @@ const optionalDate = z
   .optional();
 // An empty value (e.g. 'PAYSTACK_SECRET_KEY=' copied from .env.example) means not configured.
 const optionalSecret = z.preprocess((value) => (value === '' ? undefined : value), z.string().min(1).optional());
+/**
+ * True when the internet cannot reach this address: localhost, loopback, private and link-local ranges, or a bare
+ * name without a dot (a container or LAN host). PayFast posts its ITN to PUBLIC_API_URL, so it must be public.
+ */
+export const isUnreachableFromInternet = (url: string) => {
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return (
+    !host.includes('.') && !host.includes(':') ||
+    host === 'localhost' || host.endsWith('.localhost') || host === '::1' || host === '0.0.0.0' ||
+    /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^(fc|fd)[0-9a-f]{2}:/.test(host)
+  );
+};
 export const envSchema = z
   .object({
     DATABASE_URL: z.string().url(),
@@ -128,6 +141,14 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['PAYSTACK_SECRET_KEY'],
         message: 'PAYSTACK_SECRET_KEY is required when PAYMENT_PROVIDER is paystack',
+      });
+    // PayFast confirms a payment only by posting its ITN to PUBLIC_API_URL/payments/payfast/itn. From an address
+    // PayFast cannot reach, every payment would stay unconfirmed (the player waits forever), so refuse to start.
+    if (value.PAYMENT_PROVIDER === 'payfast' && isUnreachableFromInternet(value.PUBLIC_API_URL))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PUBLIC_API_URL'],
+        message: `PUBLIC_API_URL (${value.PUBLIC_API_URL}) cannot be reached by PayFast, so no payment could ever be confirmed. Set it to a public address for this API (locally, a tunnel such as cloudflared or ngrok pointing at port ${value.PORT}).`,
       });
     if (value.PAYMENT_PROVIDER === 'payfast')
       for (const name of ['PAYFAST_MERCHANT_ID', 'PAYFAST_MERCHANT_KEY', 'PAYFAST_PASSPHRASE'] as const)

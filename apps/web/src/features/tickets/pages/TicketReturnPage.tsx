@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Spinner } from '@/components/ui/Spinner.js';
+import { formatClock } from '@/features/matches/utils/go-no-go-format.js';
 import { useCheckoutByReference } from '../hooks/useTickets.js';
 
 /**
@@ -36,6 +37,11 @@ export function TicketReturnPage() {
           <Spinner className="mx-auto size-8" />
           <h1 className="text-2xl font-black text-content-strong">Confirming your payment…</h1>
           <p className="text-content">This usually takes a few seconds. You don’t need to pay again.</p>
+          {data?.holdExpiresAt && (
+            <p className="text-sm text-content-muted">
+              Your place is held until {formatClock(data.holdExpiresAt)}. If your payment isn’t confirmed by then, the place is released.
+            </p>
+          )}
           <FormError message={checkout.error?.message} />
           {data && !checkout.isFetching && checkout.dataUpdatedAt && (
             <Button variant="secondary" onClick={() => void checkout.refetch()}>Check again</Button>

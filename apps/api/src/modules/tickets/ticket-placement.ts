@@ -28,6 +28,8 @@ const REFUSALS = {
   OTHER_SIDE_REFUSED: [409, 'Players can no longer join this side.'],
   OWN_TEAM_CONFLICT: [409, 'You can’t play against your own team.'],
   ALREADY_IN_MATCH: [409, 'You already have a place in this match.'],
+  // A payment of the player's own for this match is still open (held up to 10 minutes): not a place yet.
+  PAYMENT_IN_PROGRESS: [409, 'Your payment for a place in this match is still being confirmed. Check its status on the match page. If you didn’t finish paying, the place is released 10 minutes after you started, and you can buy it again then.'],
   SIDE_FULL: [409, 'That side is full.'],
   POSITION_NOT_FOUND: [404, 'That position does not exist.'],
   POSITION_WRONG_SIDE: [409, 'That position is on the other side.'],
@@ -96,8 +98,10 @@ export async function assertTicketPlaceable(
   }
   const joined = await tx.matchParticipant.findMany({ where: { matchId: match.id, status: 'JOINED' }, select: { userId: true, team: true } });
   if (joined.some(({ userId }) => userId === playerId)) throw refusal('ALREADY_IN_MATCH');
-  if (await tx.matchTicket.count({ where: { matchId: match.id, playerId, status: { in: ['HELD', 'CONFIRMED'] }, ...exceptSelf } }))
+  if (await tx.matchTicket.count({ where: { matchId: match.id, playerId, status: 'CONFIRMED', ...exceptSelf } }))
     throw refusal('ALREADY_IN_MATCH');
+  if (await tx.matchTicket.count({ where: { matchId: match.id, playerId, status: 'HELD', ...exceptSelf } }))
+    throw refusal('PAYMENT_IN_PROGRESS');
   if (match.otherSideMode) {
     const individuals = joined.filter(({ team }) => team === 'AWAY').length;
     const decision = decideOtherSide({ mode: match.otherSideMode, takenBy: match.otherSideTakenBy, joinedIndividuals: individuals }, 'INDIVIDUAL');
