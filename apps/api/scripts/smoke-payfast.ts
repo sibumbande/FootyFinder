@@ -19,7 +19,7 @@ import { managedVenueFixture } from './managed-venue-fixture.js';
 /**
  * PayFast as the ticket payment provider, on PostgreSQL, through the real ITN route and the shared settlement path.
  * PayFast's own servers are faked (the validate post-back and the Refund API); everything else is real.
- * - Checkout: a signed, card-only sandbox payment form; the place is held and nothing is placed yet.
+ * - Checkout: a signed sandbox payment form; the place is held and nothing is placed yet.
  * - ITN: a forged notice is refused; a genuine one is stored once and, only after PayFast validates it, places the
  *   player (payment SUCCEEDED with PayFast's payment id). A wrong amount goes to review; a notice PayFast does not
  *   recognise is never applied, and the status check alone never places anyone.
@@ -112,12 +112,12 @@ try {
   matchIds.push(match.id);
   const sub = { seat: 'SUBSTITUTE' as const, side: 'HOME' as const, method: 'PAYMENT' as const, acceptPolicy: true as const };
 
-  // 1. Checkout: PayFast's signed, card-only sandbox form; the place is held, nothing is placed yet.
+  // 1. Checkout: PayFast's signed sandbox form; the place is held, nothing is placed yet.
   const started = await checkouts.start(match.id, a, sub, randomUUID());
   references.push(started.reference!);
   assert(started.state === 'PROCESSING' && started.authorizationUrl && isPayfastCheckoutUrl(started.authorizationUrl, true), 'Checkout did not go to the PayFast sandbox.');
   const form = new URL(started.authorizationUrl).searchParams;
-  assert(form.get('m_payment_id') === started.reference && form.get('amount') === '80.00' && form.get('payment_method') === 'cc', 'The PayFast form is missing the reference, amount or card-only method.');
+  assert(form.get('m_payment_id') === started.reference && form.get('amount') === '80.00' && /^[0-9a-f]{32}$/.test(form.get('signature') ?? ''), 'The PayFast form is missing the reference, amount or signature.');
   assert(form.get('return_url') === `http://localhost:5173/tickets/return?reference=${started.reference}` && form.get('cancel_url') === `http://localhost:5173/matches/${match.id}`, 'The return or cancel address is wrong.');
   assert(!started.authorizationUrl.includes(payfastEncode(PASSPHRASE)), 'The passphrase reached the checkout address.');
   const payment = await prisma.providerPayment.findUniqueOrThrow({ where: { reference: started.reference! } });
@@ -174,7 +174,7 @@ try {
   assert(refundCall?.url === 'https://api.payfast.co.za/refunds/pf-1089250?testing=true' && JSON.parse(refundCall.body).amount === 8_000, 'The refund did not go to PayFast for R80.');
   assert(refundCall.headers['merchant-id'] === MERCHANT && /^[0-9a-f]{32}$/.test(refundCall.headers.signature ?? '') && !JSON.stringify(refundCall).includes(PASSPHRASE), 'The refund call is not signed properly, or leaks the passphrase.');
 
-  console.log('PayFast smoke passed: checkout is a signed, card-only PayFast sandbox form that holds the place; a forged ITN is refused; a genuine ITN gets 200, is stored once and, only after PayFast validates it, places the player (SUCCEEDED with PayFast\'s payment id; the return page shows it confirmed); a wrong amount goes to review; a notice PayFast does not recognise is never applied; and a refund goes to PayFast\'s Refund API for the ticket\'s amount.');
+  console.log('PayFast smoke passed: checkout is a signed PayFast sandbox form that holds the place; a forged ITN is refused; a genuine ITN gets 200, is stored once and, only after PayFast validates it, places the player (SUCCEEDED with PayFast\'s payment id; the return page shows it confirmed); a wrong amount goes to review; a notice PayFast does not recognise is never applied; and a refund goes to PayFast\'s Refund API for the ticket\'s amount.');
 } finally {
   server.close();
   await removeTicketJobsSince(smokeStartedAt);

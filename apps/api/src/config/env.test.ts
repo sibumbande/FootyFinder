@@ -116,19 +116,20 @@ describe('environment contract', () => {
     expect(demo.success).toBe(false);
     expect(JSON.stringify(demo.error?.issues)).toContain('PAYMENT_PROVIDER');
     expect(envSchema.parse(valid).PAYMENT_PROVIDER).toBe('demo');
-    // PayFast is not live until the Terms of Service name it (CLAUDE.md), so production refuses it too.
-    const payfast = envSchema.safeParse({
-      ...production, PAYMENT_PROVIDER: 'payfast', PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: 'live-merchant-key', PAYFAST_PASSPHRASE: 'live passphrase', PAYFAST_SANDBOX: 'false',
-    });
-    expect(payfast.success).toBe(false);
-    expect(JSON.stringify(payfast.error?.issues)).toContain('PAYMENT_PROVIDER');
+    // Terms v2.6 name PayFast too: production accepts it on PayFast's live endpoints only.
+    const live = { ...production, VENUE_BENEFICIARY_ENCRYPTION_KEY: 'an-independent-venue-beneficiary-key', PAYMENT_PROVIDER: 'payfast', PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: 'live-merchant-key', PAYFAST_PASSPHRASE: 'live passphrase' };
+    expect(envSchema.parse({ ...live, PAYFAST_SANDBOX: 'false' })).toMatchObject({ PAYMENT_PROVIDER: 'payfast', PAYFAST_SANDBOX: false });
+    const sandbox = envSchema.safeParse(live);
+    expect(sandbox.success).toBe(false);
+    expect(JSON.stringify(sandbox.error?.issues)).toContain('PAYFAST_SANDBOX must be false in production');
   });
 
   it('needs every PayFast credential with PAYMENT_PROVIDER=payfast, and defaults to the sandbox', () => {
     const credentials = { PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: '46f0cd694581a', PAYFAST_PASSPHRASE: 'sandbox passphrase' };
     const parsed = envSchema.parse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials });
     expect(parsed).toMatchObject({ PAYMENT_PROVIDER: 'payfast', PAYFAST_SANDBOX: true });
-    expect(envSchema.parse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, PAYFAST_SANDBOX: 'false' }).PAYFAST_SANDBOX).toBe(false);
+    // Live PayFast endpoints only in production, like Paystack's live keys.
+    expect(envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, PAYFAST_SANDBOX: 'false' }).success).toBe(false);
     for (const missing of Object.keys(credentials)) {
       const result = envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, [missing]: '' });
       expect(result.success).toBe(false);

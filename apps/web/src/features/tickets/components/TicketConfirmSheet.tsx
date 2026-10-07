@@ -123,7 +123,7 @@ export function TicketConfirmSheet({
       )}
       {!free && (
         <p className="mt-2 text-center text-xs text-content-muted">
-          {context.data?.paymentProvider === 'payfast' ? 'Card payments are made on PayFast’s secure page.' : 'Card or bank payments are made on Paystack’s secure page.'} Your place is held for 10 minutes while you pay.
+          {context.data?.paymentProvider === 'payfast' ? 'Card or Instant EFT payments are made on PayFast’s secure page.' : 'Card or bank payments are made on Paystack’s secure page.'} Your place is held for 10 minutes while you pay.
         </p>
       )}
     </Sheet>

@@ -29,7 +29,7 @@ export function evaluateVerification(
     if (verified.amountCents !== payment.amountCents) return { kind: 'REVIEW', reason: 'amount_mismatch' };
     if (verified.currency !== 'ZAR') return { kind: 'REVIEW', reason: 'currency_mismatch' };
     // CEO touch-up batch 4, item 3 (D7): only a channel FootyFinder offers (PAYSTACK_CHANNELS) is credited. A PayFast
-    // payment has no Paystack channel: its card-only method is fixed in the signed checkout form (anyChannel).
+    // payment has no Paystack channel: its methods (card, Instant EFT) are set in the PayFast dashboard (anyChannel).
     if (!options.anyChannel && (!verified.channel || !(options.channels ?? env.PAYSTACK_CHANNELS).includes(verified.channel as PaymentChannel)))
       return { kind: 'REVIEW', reason: 'channel_not_offered' };
     const { providerPaymentId, userId } = verified.metadata;

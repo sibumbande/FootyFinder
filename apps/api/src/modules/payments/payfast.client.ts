@@ -12,7 +12,9 @@ import type {
 /**
  * PayFast, an alternative to Paystack for DEC-021 match tickets (PAYMENT_PROVIDER=payfast). It fits the same gateway
  * shape, so checkout, settlement and refunds keep one path:
- * - initialize: the signed PayFast payment form (card only), as a checkout address on PayFast's process page.
+ * - initialize: the signed PayFast payment form, as a checkout address on PayFast's process page. The methods offered
+ *   are card (Visa, Mastercard) and Instant EFT (Terms clause 13.3), set in the PayFast dashboard: PayFast's form
+ *   can name only one payment_method, so the form leaves it out.
  * - verify: the newest ITN for the reference that PayFast itself confirmed as genuine (the ITN handler checks the
  *   signature and merchant id; the ITN job posts it back to PayFast's validate endpoint). Nothing the browser sends
  *   counts, and the amount, currency and our payment id are checked against our own record by settlement.
@@ -123,8 +125,6 @@ export class PayfastClient implements PaystackGateway {
       ['item_name', (input.description ?? 'FootyFinder match ticket').slice(0, 100)],
       ['custom_str1', String(input.metadata.providerPaymentId ?? '')],
       ['custom_str2', String(input.metadata.checkoutId ?? '')],
-      // Card only: the methods the Terms of Service name (clause 13.3), refunded automatically to the card.
-      ['payment_method', 'cc'],
     ];
     const kept = fields.filter(([, value]) => value.trim() !== '').map(([key, value]) => [key, value.trim()] as [string, string]);
     return [...kept, ['signature', payfastCheckoutSignature(kept, passphrase)]];
@@ -178,8 +178,10 @@ export class PayfastClient implements PaystackGateway {
   }
 
   /**
-   * PayFast's Refund API (POST /refunds/{pf_payment_id}) for the ticket's own amount. PayFast does not send refund
-   * webhooks, so an accepted card refund is recorded as processed; one PayFast refuses stays FAILED for finance.
+   * PayFast's Refund API (POST /refunds/{pf_payment_id}) for the ticket's own amount, back to the original payment
+   * method (Terms clause 14.7). PayFast does not send refund webhooks, so an accepted refund is recorded as processed;
+   * one PayFast refuses (for example an Instant EFT refund that needs the player's bank details) stays FAILED for
+   * finance, who follow it up with the player.
    */
   async refund(input: PaystackRefundInput): Promise<PaystackRefund> {
     const { merchantId, passphrase } = this.credentials();

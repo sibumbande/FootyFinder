@@ -1,7 +1,7 @@
 [
   {
     "type": "TERMS",
-    "version": "2.5",
+    "version": "2.6",
     "title": "Master Terms of Service, Privacy Notice and Participation Agreement",
     "contentFile": "TERMS_OF_SERVICE.md",
     "effectiveAt": "on-publish",

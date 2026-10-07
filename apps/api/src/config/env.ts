@@ -47,7 +47,7 @@ export const envSchema = z
     EMAIL_FROM: z.string().email().default('no-reply@footyfinder.test'),
     POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
     // DEC-011 / TKT-603: 'demo' auto-succeeds and exists only in development/test. 'payfast' is an alternative to
-    // Paystack for match tickets; it is refused in production until the Terms name PayFast (CLAUDE.md).
+    // Paystack for match tickets (Terms of Service v2.6 name both as Payment Providers).
     PAYMENT_PROVIDER: z.enum(['demo', 'paystack', 'payfast']).default('demo'),
     // TKT-604: Paystack credentials are owned by Platform Operations. Never log or echo them.
     PAYSTACK_SECRET_KEY: optionalSecret,
@@ -133,6 +133,13 @@ export const envSchema = z
       for (const name of ['PAYFAST_MERCHANT_ID', 'PAYFAST_MERCHANT_KEY', 'PAYFAST_PASSPHRASE'] as const)
         if (!value[name])
           context.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is required when PAYMENT_PROVIDER is payfast` });
+    // Like Paystack's test keys: the PayFast sandbox outside production, PayFast's live endpoints only in production.
+    if (value.PAYMENT_PROVIDER === 'payfast' && value.PAYFAST_SANDBOX === (value.NODE_ENV === 'production'))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYFAST_SANDBOX'],
+        message: value.NODE_ENV === 'production' ? 'PAYFAST_SANDBOX must be false in production' : `PAYFAST_SANDBOX must be true in ${value.NODE_ENV}`,
+      });
     if (value.NODE_ENV !== 'production') return;
     if (value.PAYSTACK_BASE_URL !== 'https://api.paystack.co')
       context.addIssue({
@@ -193,13 +200,12 @@ export const envSchema = z
         path: ['POSTMARK_SERVER_TOKEN'],
         message: 'POSTMARK_SERVER_TOKEN is required in production',
       });
-    // The Terms of Service name Paystack as the payment processor (clauses 8.4, 11.3, 13.2, 13.3, 14.7), so PayFast
-    // stays a development/sandbox option until the Terms name it too.
-    if (value.PAYMENT_PROVIDER !== 'paystack')
+    // Terms of Service v2.6 name Paystack and PayFast as the Payment Providers (clauses 2, 8.4, 13.3, 14.7).
+    if (value.PAYMENT_PROVIDER === 'demo')
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['PAYMENT_PROVIDER'],
-        message: 'PAYMENT_PROVIDER must be paystack in production; the demo operator is development/test only, and PayFast is not live until the Terms name it',
+        message: 'PAYMENT_PROVIDER must be paystack or payfast in production; the demo operator is development/test only',
       });
     if (value.EMAIL_FROM.toLowerCase() === 'no-reply@footyfinder.test' || value.EMAIL_FROM.toLowerCase().endsWith('.test'))
       context.addIssue({

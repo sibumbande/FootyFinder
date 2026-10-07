@@ -3,9 +3,9 @@
 | Document | Master Terms of Service, Privacy Notice and Participation Agreement |
 |---|---|
 | Company | FootyFinder (Pty) Ltd, registration number 2026/625818/07 |
-| Version | 2.5 (Launch version) |
+| Version | 2.6 (Launch version) |
 | Effective date | The date and time this version is published in the app |
-| Last updated | 6 October 2026 |
+| Last updated | 7 October 2026 |
 | Applies to | Everyone who uses the FootyFinder website and app |
 | Governing law | Republic of South Africa |
 | Accepted | With one checkbox before your player profile is activated (clause 28) |
@@ -83,6 +83,7 @@ In these Terms, unless the context indicates otherwise:
 - **"Lobby"** means the page for a specific scheduled match, showing its sides, its starting positions on the pitch and its substitute places.
 - **"Other Side"** means the away side of a Team Match, which another Team or individual players can take (clause 12.13).
 - **"Owner"** means the user who created a Team.
+- **"Payment Provider"** means the third-party payment provider whose secure checkout page you pay on: Paystack Payments South Africa ("Paystack") or PayFast (DPO Payfast, part of Network International) ("PayFast"). The checkout shows which one you are paying with (clause 13.3).
 - **"Partner Venue"** means a sports ground, club or facility whose pitches are listed on or booked through the platform.
 - **"Personal Information"** has the meaning given to it in POPIA.
 - **"Platform"** means the FootyFinder website, web app and related services.
@@ -117,7 +118,7 @@ The following information is provided in compliance with section 43 of ECTA:
 | Information Officer | Sibulele Obakhe Mbande |
 | Nature of business | On-demand football matchmaking, digital slot booking, team administration and venue facilitation |
 | Currency | All prices and fees are quoted and settled in South African Rand (ZAR) and include VAT where applicable. Match Credits are counted in matches, not in rand (clause 13.6) |
-| Payment processing | Payments are processed by Paystack Payments South Africa, a PCI-DSS compliant third-party provider. We accept the methods shown at checkout: card (including Apple Pay where it is offered), Capitec Pay and Instant EFT |
+| Payment processing | Payments are processed by our Payment Provider: Paystack Payments South Africa, a PCI-DSS compliant third-party provider, or PayFast (DPO Payfast, part of Network International), a third-party provider. We accept the methods shown at checkout: with Paystack, card (including Apple Pay where it is offered), Capitec Pay and Instant EFT; with PayFast, card (Visa and Mastercard) and Instant EFT |
 | PAIA Manual | Available on request through support |
 
 **3.1 Registration status.** FootyFinder is not a registered financial services provider, bank or authorised payment service provider. We do not provide financial advice, credit or insurance.
@@ -191,7 +192,7 @@ The following information is provided in compliance with section 43 of ECTA:
 - **Football profile data:** your display name, profile photo, preferred positions, years of experience and, if you choose to add them, your preferred foot, home area and a short bio.
 - **Activity data:** the matches and Teams you join, your positions and sides, Lineup Records, Final Results and your match statistics (clause 16.11), and the Team reviews you write (clause 18.6).
 - **Social data:** your friends, the friend requests you send and receive, whether you accept friend requests (clause 18.7), the players you block (clause 18.8), and your Team recruitment posts, "Looking for a team" card and requests to join Teams (clause 18.9).
-- **Transaction data:** your Match Tickets (including who paid for which place), your payments and the method used, refunds, Match Credits, payment disputes, payment references, and the record of your acceptance of the cancellation policy each time you buy (clause 13.5: the time, the version of these Terms, the policy wording you were shown, and your IP address and browser). We do not store card numbers or bank account numbers; Paystack holds them. If support needs your bank account to refund a bank payment (clause 14.7), we pass it to Paystack and keep only the bank's name and the last four digits.
+- **Transaction data:** your Match Tickets (including who paid for which place), your payments and the method used, refunds, Match Credits, payment disputes, payment references, and the record of your acceptance of the cancellation policy each time you buy (clause 13.5: the time, the version of these Terms, the policy wording you were shown, and your IP address and browser). We do not store card numbers or bank account numbers; the Payment Provider you paid with holds them. If support needs your bank account to refund a bank payment (clause 14.7), we pass it to that Payment Provider and keep only the bank's name and the last four digits.
 - **Identity documents,** only if we ask you to verify your age or identity (clause 7).
 - **Technical data:** IP address, browser and device information, and security logs.
 - **Communications:** Lobby chat, Team chat, direct messages, support requests and reports of misconduct.
@@ -220,7 +221,7 @@ We do not collect your phone number, emergency contact details or health informa
 
 Search engines may list these public pages. Before a match is played, people without an account see only how many places are filled, never who is playing. Signed-in users can also see your preferred foot, home area and years of experience, and players in a match see each other in the Lobby and lineups. Nobody except you (and FootyFinder) can see your email address, date of birth, gender, identity documents, chats and messages, friends list or payment, ticket and Match Credit information. The Referee of a match can see the display names, positions and sides of the players in that match, and nothing else about you. Team reviews are shown without the author's name (clause 18.6). Your friends list is visible only to you; another player sees only whether the two of you are friends or have a friend request waiting (clause 18.7). Once you ask to delete your Account (clause 20.1), none of your profile is shown to anyone: past lineups, results and messages show "Deleted player" instead of your name.
 
-**8.4 Operators.** We use third-party operators for hosting, card payments (Paystack) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
+**8.4 Operators.** We use third-party operators for hosting, payments (our Payment Providers: Paystack, and PayFast, which is DPO Payfast, part of Network International) and sending email. Each is bound by a written agreement under section 21 of POPIA to process your data only on our instructions and to keep it secure.
 
 **8.5 We never sell your data.** We do not sell, rent or trade your Personal Information.
 
@@ -320,9 +321,9 @@ When information reaches the end of its period, we delete it or make it anonymou
 - may, before the Lobby locks (clause 11.8), move players between positions and between the two sides, or take a player off a position so that they become a substitute (in the reserves). Players are told in the app when the Host changes their position. The Host cannot remove a player from the match, and a player moved this way keeps their place and their ticket; and
 - may cancel the match until the Lobby locks (clause 14.1).
 
-**11.2 Joining.** You join a match by buying a Match Ticket for one place: an open starting position on a side, or a substitute place on a side. Before you pay, you see the match, venue, kick-off, your place, the R80 price and our cancellation policy in plain words, and you tick "I understand the cancellation policy" (clause 13.5). You then pay on Paystack's checkout (clause 13.3), or use a Match Credit instead (clause 13.6). In a free match your ticket is R0 and there is no checkout (clause 13.11).
+**11.2 Joining.** You join a match by buying a Match Ticket for one place: an open starting position on a side, or a substitute place on a side. Before you pay, you see the match, venue, kick-off, your place, the R80 price and our cancellation policy in plain words, and you tick "I understand the cancellation policy" (clause 13.5). You then pay on the Payment Provider's checkout (clause 13.3), or use a Match Credit instead (clause 13.6). In a free match your ticket is R0 and there is no checkout (clause 13.11).
 
-**11.3 Holding and confirming your place.** While you pay, the place you chose is held for you for ten (10) minutes; other players see it as "Being booked" and cannot book or claim it. You are placed in the match only once Paystack has confirmed your payment to us (clause 13.3). If your payment is not completed within the ten minutes, the hold ends and the place is released. A substitute may later claim an open starting position on their side; positions go to whoever claims them first. You may move yourself to another open position on your side. To switch sides, first move back to the reserves.
+**11.3 Holding and confirming your place.** While you pay, the place you chose is held for you for ten (10) minutes; other players see it as "Being booked" and cannot book or claim it. You are placed in the match only once the Payment Provider has confirmed your payment to us (clause 13.3). If your payment is not completed within the ten minutes, the hold ends and the place is released. A substitute may later claim an open starting position on their side; positions go to whoever claims them first. You may move yourself to another open position on your side. To switch sides, first move back to the reserves.
 
 **11.4 Capacity.** The number of starting positions depends on the format. The number of substitute places for each side is shown on the match page.
 
@@ -401,13 +402,13 @@ The home Team cannot turn away the Team or players who take the Other Side.
 
 **13.1 Every payment is a match ticket.** Everything you pay for on FootyFinder is a Match Ticket: a place in one named match, at a named venue, on a set date and time. You cannot pay money into FootyFinder in advance or keep money with us: you only ever pay for a ticket for a specific match.
 
-**13.2 Not a bank.** We are not a bank, an authorised payment service provider or a registered financial services provider. All payments are processed and settled by Paystack.
+**13.2 Not a bank.** We are not a bank, an authorised payment service provider or a registered financial services provider. All payments are processed and settled by our Payment Provider (Paystack or PayFast).
 
-**13.3 Paying.** You pay on Paystack's secure checkout page, using one of the methods shown there (card, Apple Pay, Capitec Pay or Instant EFT, as offered at the time). We pay Paystack's fees. Your ticket is confirmed only once Paystack confirms your payment to our server; returning to the app does not confirm anything by itself. If a payment is declined, abandoned or cannot be confirmed, no ticket is confirmed. One payment can cover several places only when you pay for teammates in a Team Match (clause 12.3). If Paystack confirms your payment after your ten-minute hold has ended (clause 11.3): if the same place is still free and you can still join the match, you are placed as normal; otherwise (the place was taken, the match was cancelled or locked, or you can no longer join it) your payment is refunded in full to the payment method you used, never as a Match Credit, and we email you to say why. If you were charged but have no ticket and no refund, contact support (clause 14.7).
+**13.3 Paying.** You pay on the Payment Provider's secure checkout page, using one of the methods shown there, as offered at the time: with Paystack, card, Apple Pay, Capitec Pay or Instant EFT; with PayFast, card (Visa or Mastercard) or Instant EFT. We pay all the Payment Provider's fees: you pay exactly the ticket price. Your ticket is confirmed only once the Payment Provider confirms your payment to our server; returning to the app does not confirm anything by itself. If a payment is declined, abandoned or cannot be confirmed, no ticket is confirmed. One payment can cover several places only when you pay for teammates in a Team Match (clause 12.3). If the Payment Provider confirms your payment after your ten-minute hold has ended (clause 11.3): if the same place is still free and you can still join the match, you are placed as normal; otherwise (the place was taken, the match was cancelled or locked, or you can no longer join it) your payment is refunded in full to the payment method you used, never as a Match Credit, and we email you to say why. If you were charged but have no ticket and no refund, contact support (clause 14.7).
 
 **13.4 The price you see.** A Match Ticket costs a fixed R80 per place (the Slot Fee), unless the match is shown as a free match (clause 13.11), and a Team Match Fee is R80 per place (clause 12.10), set by FootyFinder. The price shown before you pay is the price you pay. We do not add undisclosed charges.
 
-**13.5 The cancellation policy and your receipt.** Before you pay, the app shows the match, venue, kick-off, your place, the price and our cancellation policy in plain words (clause 14), and you must tick "I understand the cancellation policy". We keep a record of that acceptance with your purchase: the time, the version of these Terms, the policy wording you were shown, and your IP address and browser (clause 8). Straight after payment we email you a ticket receipt with the match, the venue and its address, the kick-off, your place, the amount, the cancellation policy and a link to manage your ticket. Paystack's receipt describes the payment as a FootyFinder match ticket for that venue, date and time.
+**13.5 The cancellation policy and your receipt.** Before you pay, the app shows the match, venue, kick-off, your place, the price and our cancellation policy in plain words (clause 14), and you must tick "I understand the cancellation policy". We keep a record of that acceptance with your purchase: the time, the version of these Terms, the policy wording you were shown, and your IP address and browser (clause 8). Straight after payment we email you a ticket receipt with the match, the venue and its address, the kick-off, your place, the amount, the cancellation policy and a link to manage your ticket. The Payment Provider's receipt describes the payment as a FootyFinder match ticket for that venue, date and time.
 
 **13.6 Match Credits.** A Match Credit is counted in matches, not in rand: 1 credit is 1 ticket to any paid match, whatever its price. You get a credit only when you choose one instead of a refund (clauses 14.1 and 14.3), or when a ticket you paid for with a credit is given back (it comes back as a credit, because it was never cash). Credits:
 - are personal and cannot be transferred, sold or bought;
@@ -473,7 +474,7 @@ If you delete your Account (clause 20.1), you leave each upcoming match at the m
 
 **14.6 No electronic cooling-off period.** The seven-day cooling-off right in section 44 of ECTA does not apply to these bookings. Section 42(2) of ECTA excludes agreements for leisure services that the supplier undertakes to provide on a specific date or within a specific period, and a match place is such a service. Your cancellation rights are those in this clause 14.
 
-**14.7 How refunds are paid.** Refunds go back the way the payment was made, through Paystack: to the original card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from, and always to whoever paid. A refund can be part of a payment, for example one R80 place in a payment that covered several teammates. You can follow your refunds and their status in Tickets & credits (clause 13.7). For a bank refund Paystack sometimes needs your bank account details; support will ask you for them and pass them to Paystack. If a refund fails, our finance team follows it up; a failed refund is never turned into a Match Credit.
+**14.7 How refunds are paid.** Refunds go back the way the payment was made, through the Payment Provider that took it (for PayFast, through PayFast's refund service): to the original card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from, and always to whoever paid. A refund can be part of a payment, for example one R80 place in a payment that covered several teammates. You can follow your refunds and their status in Tickets & credits (clause 13.7). For a bank refund the Payment Provider sometimes needs your bank account details; support will ask you for them and pass them to that Payment Provider. If a refund fails, our finance team follows it up; a failed refund is never turned into a Match Credit.
 
 ## 15. Code of Conduct and Venue Rules
 
@@ -596,7 +597,7 @@ Administrators, Referees and suspended or banned Accounts cannot delete their Ac
 **20.2 Your money on closure.** When your Account is deleted (clause 20.1):
 - your upcoming tickets are dealt with when you confirm (clause 14.3): more than 24 hours before kick-off, a place you paid for is refunded to the payment method you used; 24 hours or less, it is forfeited;
 - each unused Match Credit that came from a ticket you paid for is refunded, for the price of that ticket, to the payment method used for that ticket, and the app tells you this before you confirm. Credits that did not come from a payment (for example a goodwill credit) lapse;
-- the deletion waits until these refunds, and the refunds for tickets you left when you confirmed, have been processed by Paystack or passed to our finance team.
+- the deletion waits until these refunds, and the refunds for tickets you left when you confirmed, have been processed by the Payment Provider or passed to our finance team.
 
 Refunds go to the card (including the card behind Apple Pay), or to the bank account a Capitec Pay or Instant EFT payment came from (clause 14.7). If a refund needs your bank account details, or cannot be completed automatically, our finance team contacts you to arrange it at the email address you used; we keep that address for this purpose only, until your money has been returned. The same applies if we close your Account (clause 20.6), and if you close it instead of accepting new Terms (clause 25.3). We never keep or wipe your money, other than an amount lawfully due to us (clause 20.6).
 
@@ -723,8 +724,8 @@ This summary is for convenience and does not replace the full Terms above. If th
 |---|---|
 | Who we are | FootyFinder (Pty) Ltd, a Cape Town company that helps you find, join and pay for football matches. |
 | Who can join | Anyone 18 or older. We may ask you to verify your age or identity; we never use face or biometric checks. |
-| What you pay | A match ticket: a fixed R80 for one place in one match, paid on Paystack (card, Apple Pay, Capitec Pay or Instant EFT, as offered) when you tap a position, after you tick that you understand the cancellation policy. We pay the fees. Subs pay R80 too. Free matches shown as "on FootyFinder" cost R0. You never pay money into FootyFinder in advance. |
-| Your place | Held for 10 minutes while you pay. You're in once Paystack confirms the payment to us. If it's confirmed too late and your place has gone, you're refunded in full. You get an emailed ticket receipt. |
+| What you pay | A match ticket: a fixed R80 for one place in one match, paid on Paystack (card, Apple Pay, Capitec Pay or Instant EFT, as offered) or PayFast (card or Instant EFT) when you tap a position, after you tick that you understand the cancellation policy. We pay the fees. Subs pay R80 too. Free matches shown as "on FootyFinder" cost R0. You never pay money into FootyFinder in advance. |
+| Your place | Held for 10 minutes while you pay. You're in once Paystack or PayFast confirms the payment to us. If it's confirmed too late and your place has gone, you're refunded in full. You get an emailed ticket receipt. |
 | Match credits | 1 credit = 1 ticket to any paid match. You only get one if you choose it instead of a refund. Personal, valid for 3 years, no cash value once chosen. |
 | When a game goes ahead | Only if every starting position is filled (for Team Matches, both teams fully paid 2 hours before kick-off) and a FootyFinder referee is assigned 30 minutes before kick-off. |
 | If the game is off before kick-off | Cancelled at the 30-minute check, by the Host or the home Team, or by us for weather or venue problems: whoever paid chooses a match credit or a full refund to their card or bank. No choice within 7 days means an automatic refund. |

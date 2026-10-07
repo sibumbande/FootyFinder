@@ -80,7 +80,7 @@ describe('PayFast encoding and signatures', () => {
 });
 
 describe('PayfastClient checkout', () => {
-  it('builds the signed, card-only payment form on the sandbox process page', async () => {
+  it('builds the signed payment form on the sandbox process page (methods are set in the PayFast dashboard)', async () => {
     const { authorizationUrl, reference } = await client().initialize(input);
     expect(reference).toBe('ff_ticket_1');
     const url = new URL(authorizationUrl);
@@ -88,12 +88,12 @@ describe('PayfastClient checkout', () => {
     expect(isPayfastCheckoutUrl(authorizationUrl, true)).toBe(true);
     const fields = [...url.searchParams.entries()];
     expect(fields.map(([key]) => key)).toEqual([
-      'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url', 'email_address', 'm_payment_id', 'amount', 'item_name', 'custom_str1', 'custom_str2', 'payment_method', 'signature',
+      'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url', 'email_address', 'm_payment_id', 'amount', 'item_name', 'custom_str1', 'custom_str2', 'signature',
     ]);
     const values = Object.fromEntries(fields);
     expect(values).toMatchObject({
       merchant_id: '10000100', return_url: input.callbackUrl, cancel_url: input.cancelUrl, notify_url: config.notifyUrl,
-      m_payment_id: 'ff_ticket_1', amount: '80.00', item_name: input.description, custom_str1: 'p1', custom_str2: 'c1', payment_method: 'cc',
+      m_payment_id: 'ff_ticket_1', amount: '80.00', item_name: input.description, custom_str1: 'p1', custom_str2: 'c1',
     });
     // The signature covers every other field in order, then the passphrase, which itself is never sent.
     const signed = fields.slice(0, -1).map(([key, value]) => `${key}=${payfastEncode(value)}`).join('&');
