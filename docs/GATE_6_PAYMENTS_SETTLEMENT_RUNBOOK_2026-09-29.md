@@ -40,6 +40,30 @@ There is no wallet. Every payment is a **match ticket** for one named match (DEC
 
 ---
 
+## PayFast (alternative provider, development and sandbox only)
+
+`PAYMENT_PROVIDER=payfast` takes match ticket payments on PayFast instead of Paystack, through the same checkout, settlement and refund paths. Each payment records its provider (`ProviderPayment.provider`), and it is always verified and refunded with that provider, so switching providers never strands a payment.
+
+**Not in production yet.** The Terms of Service name Paystack as the payment processor and data operator (clauses 8.4, 11.3, 13.2, 13.3, 14.7, 20.2 and the Annexure summary), so the API refuses `PAYMENT_PROVIDER=payfast` in production until the CEO approves Terms that name PayFast. The checkout is card only (`payment_method=cc`), a method the Terms already list.
+
+| Setting | Value |
+|---|---|
+| `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY` | From the PayFast dashboard (sandbox: the sandbox merchant). The merchant key is part of the checkout form, as PayFast requires. |
+| `PAYFAST_PASSPHRASE` | The passphrase set in the PayFast dashboard. It salts every signature and is never sent, logged or shown. Required. |
+| `PAYFAST_SANDBOX` | `true` (default): `sandbox.payfast.co.za` for checkout and ITN validation, and the Refund API with `?testing=true`. |
+| `PUBLIC_API_URL` | Must be reachable by PayFast: the ITN goes to `PUBLIC_API_URL/payments/payfast/itn`. Locally, use a tunnel. |
+
+**Flow.**
+1. Checkout (`POST /matches/:id/tickets/checkout`, or the team checkout) holds the place for 10 minutes and returns PayFast's signed payment form as a checkout address on `/eng/process`. The web app posts it to PayFast. Fields: `merchant_id`, `merchant_key`, `return_url` (`CLIENT_URL/tickets/return?reference=<our reference>`), `cancel_url` (the match lobby), `notify_url`, `email_address`, `m_payment_id` (our `ff_ticket_…` reference), `amount`, `item_name` ("FootyFinder match ticket: venue, date and time"), `custom_str1` (our payment id), `custom_str2` (the checkout id), `payment_method=cc` and `signature` (MD5 with the passphrase).
+2. ITN: `POST /payments/payfast/itn` checks the signature and the merchant id on the exact posted fields, stores the notice once, queues `PAYFAST_ITN_PROCESS` and answers 200. A forged notice gets 400 and is recorded without its body.
+3. The ITN job posts the signed fields back to PayFast's `/eng/query/validate`. Only a notice PayFast answers `VALID` for is marked validated, and then ticket settlement applies it: the amount, ZAR and our payment id must match our record (otherwise REVIEW), and `payment_status=COMPLETE` places the player. If PayFast cannot be reached, the job retries.
+4. The return page polls our server by reference and takes the player to the match lobby once their place is confirmed. The status check and the hold-expiry job use the same settlement path; they read only validated ITNs, so the browser never confirms anything.
+5. Refunds (leaving more than 24 hours out, a cancelled match, a late or duplicate payment) go to PayFast's Refund API (`POST https://api.payfast.co.za/refunds/{pf_payment_id}`) with the merchant id, `version: v1`, a timestamp and a signature over the sorted header and body values plus the passphrase. PayFast sends no refund webhooks, so an accepted refund is recorded as PROCESSED. A refused or failed one stays FAILED for finance, as with Paystack. Finance should reconcile PayFast refunds against the PayFast dashboard.
+
+**Before any live use (beyond the Terms):** run a sandbox payment and a sandbox refund end to end. The Refund API request fields and timestamp format follow PayFast's documentation and have only been exercised against a fake server here. Also decide whether to add PayFast's source-host check for ITNs (today: signature, merchant id and server-side validation), and set up a PayFast dispute (chargeback) process, because the Paystack dispute webhooks do not cover PayFast.
+
+**Smoke:** `npm run smoke:payfast --workspace=@footy-finder/api` (PayFast's servers faked; everything else real, on the test database). It is part of `smoke:all`.
+
 ## Before DEC-021 (history)
 
 ## What players get

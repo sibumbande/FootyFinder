@@ -46,8 +46,9 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['console', 'test', 'postmark']).default('console'),
     EMAIL_FROM: z.string().email().default('no-reply@footyfinder.test'),
     POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
-    // DEC-011 / TKT-603: 'demo' auto-succeeds and exists only in development/test.
-    PAYMENT_PROVIDER: z.enum(['demo', 'paystack']).default('demo'),
+    // DEC-011 / TKT-603: 'demo' auto-succeeds and exists only in development/test. 'payfast' is an alternative to
+    // Paystack for match tickets; it is refused in production until the Terms name PayFast (CLAUDE.md).
+    PAYMENT_PROVIDER: z.enum(['demo', 'paystack', 'payfast']).default('demo'),
     // TKT-604: Paystack credentials are owned by Platform Operations. Never log or echo them.
     PAYSTACK_SECRET_KEY: optionalSecret,
     PAYSTACK_PUBLIC_KEY: optionalSecret,
@@ -59,6 +60,16 @@ export const envSchema = z
       .default('card')
       .transform((value) => [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))])
       .pipe(z.array(z.enum(PAYMENT_CHANNELS)).min(1, 'PAYSTACK_CHANNELS needs at least one channel')),
+    // PayFast merchant credentials (Platform Operations). The passphrase salts every signature and is never sent,
+    // logged or echoed; the merchant key is part of the checkout form, as PayFast requires.
+    PAYFAST_MERCHANT_ID: optionalSecret,
+    PAYFAST_MERCHANT_KEY: optionalSecret,
+    PAYFAST_PASSPHRASE: optionalSecret,
+    // true: sandbox.payfast.co.za for checkout, ITN validation and refunds (the API's ?testing=true).
+    PAYFAST_SANDBOX: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .default('true'),
     // TKT-605: optional comma-separated Paystack webhook source IPs (the signature is always checked).
     PAYSTACK_WEBHOOK_IP_ALLOWLIST: z
       .string()
@@ -118,6 +129,10 @@ export const envSchema = z
         path: ['PAYSTACK_SECRET_KEY'],
         message: 'PAYSTACK_SECRET_KEY is required when PAYMENT_PROVIDER is paystack',
       });
+    if (value.PAYMENT_PROVIDER === 'payfast')
+      for (const name of ['PAYFAST_MERCHANT_ID', 'PAYFAST_MERCHANT_KEY', 'PAYFAST_PASSPHRASE'] as const)
+        if (!value[name])
+          context.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is required when PAYMENT_PROVIDER is payfast` });
     if (value.NODE_ENV !== 'production') return;
     if (value.PAYSTACK_BASE_URL !== 'https://api.paystack.co')
       context.addIssue({
@@ -178,11 +193,13 @@ export const envSchema = z
         path: ['POSTMARK_SERVER_TOKEN'],
         message: 'POSTMARK_SERVER_TOKEN is required in production',
       });
+    // The Terms of Service name Paystack as the payment processor (clauses 8.4, 11.3, 13.2, 13.3, 14.7), so PayFast
+    // stays a development/sandbox option until the Terms name it too.
     if (value.PAYMENT_PROVIDER !== 'paystack')
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['PAYMENT_PROVIDER'],
-        message: 'PAYMENT_PROVIDER must be paystack in production; the demo operator is development/test only',
+        message: 'PAYMENT_PROVIDER must be paystack in production; the demo operator is development/test only, and PayFast is not live until the Terms name it',
       });
     if (value.EMAIL_FROM.toLowerCase() === 'no-reply@footyfinder.test' || value.EMAIL_FROM.toLowerCase().endsWith('.test'))
       context.addIssue({

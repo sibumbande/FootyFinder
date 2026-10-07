@@ -1,13 +1,15 @@
 import { TICKET_REFERENCE_PATTERN } from '@footy-finder/shared';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button.js';
 import { FormError } from '@/components/ui/FormError.js';
 import { Spinner } from '@/components/ui/Spinner.js';
 import { useCheckoutByReference } from '../hooks/useTickets.js';
 
 /**
- * DEC-021 A1.3: Paystack sends the player back here. This page only asks our server for the checkout's status; it
- * never confirms anything itself. The ticket is confirmed once our server has verified the payment with Paystack.
+ * DEC-021 A1.3: the payment provider (Paystack, or PayFast) sends the player back here. This page only asks our server
+ * for the checkout's status; it never confirms anything itself. The ticket is confirmed once our server has verified
+ * the payment with the provider, and the player is then taken to the match lobby, where their place shows.
  */
 export function TicketReturnPage() {
   const [search] = useSearchParams();
@@ -16,6 +18,11 @@ export function TicketReturnPage() {
   const checkout = useCheckoutByReference(reference);
   const data = checkout.data;
   const matchLink = data ? `/matches/${data.matchId}` : '/matches';
+  const navigate = useNavigate();
+  const confirmed = data?.state === 'CONFIRMED';
+  useEffect(() => {
+    if (confirmed) navigate(matchLink, { replace: true });
+  }, [confirmed, matchLink, navigate]);
   return (
     <section className="mx-auto grid max-w-lg gap-4 rounded-3xl border border-line bg-surface p-6 text-center shadow-soft" aria-live="polite">
       {!reference ? (

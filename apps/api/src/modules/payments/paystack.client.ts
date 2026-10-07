@@ -29,6 +29,10 @@ export interface PaystackInitializeInput {
   reference: string;
   callbackUrl: string;
   metadata: Record<string, unknown>;
+  /** Where the player lands if they cancel at the provider (PayFast's cancel_url; Paystack has none). */
+  cancelUrl?: string;
+  /** The line item the player sees at checkout (PayFast's item_name; Paystack uses metadata.custom_fields). */
+  description?: string;
 }
 
 export interface PaystackVerifiedTransaction {

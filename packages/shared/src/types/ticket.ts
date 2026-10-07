@@ -17,7 +17,7 @@ export interface TicketLeaveResult {
 export type MatchTicketSeat = 'POSITION' | 'SUBSTITUTE' | 'TEAM';
 export type TicketMethod = 'PAYMENT' | 'CREDIT' | 'FREE';
 
-/** The result of starting a checkout. PROCESSING with an authorizationUrl means: go to Paystack's hosted checkout. */
+/** The result of starting a checkout. PROCESSING with an authorizationUrl means: go to the provider's hosted checkout. */
 export interface TicketCheckoutResult {
   checkoutId: string;
   matchId: string;
@@ -56,6 +56,8 @@ export interface MatchTicketContext {
   creditsAvailable: number;
   /** A payment of the viewer's is disputed (D9): they cannot buy tickets or use credits until it is resolved. */
   bookingRestricted: boolean;
+  /** Whose secure page a card payment is made on in this environment (absent: none, or the demo operator). */
+  paymentProvider?: 'paystack' | 'payfast';
   /** The cancellation policy in plain words, exactly as stored with the purchase. */
   policy: string[];
   /** DEC-021 A3: the viewer's places (as payer) in this cancelled match that still need a credit-or-refund choice. */

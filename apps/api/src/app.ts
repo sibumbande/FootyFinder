@@ -36,6 +36,7 @@ import { venuesRouter } from './modules/venues/venues.routes.js';
 import { publicMatchesRouter } from './modules/matches/public-matches.routes.js';
 import { accountRouter } from './modules/account/account.routes.js';
 import { createPaystackWebhookRouter } from './modules/payments/paystack-webhook.js';
+import { createPayfastItnRouter } from './modules/payments/payfast-itn.js';
 export const app: Express = express();
 const operations = new OperationsService();
 app.disable('x-powered-by');
@@ -51,6 +52,8 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 // TKT-605: must run before express.json() so the signature is checked on the exact raw body.
 app.use('/payments', createPaystackWebhookRouter());
+// PayFast's ITN: also before express.json(), so the signature is checked on the exact posted fields.
+app.use('/payments', createPayfastItnRouter());
 app.use(express.json());
 app.use(cookieParser());
 app.use(requireTrustedCookieOrigin);

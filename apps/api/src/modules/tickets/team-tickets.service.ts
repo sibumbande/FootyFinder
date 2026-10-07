@@ -177,7 +177,7 @@ export class TeamTicketsService {
       const paymentId = credit ? null : randomUUID();
       if (paymentId)
         await tx.providerPayment.create({
-          data: { id: paymentId, userId: payerId, purpose: 'TICKETS', provider: demo ? 'demo' : 'paystack', reference: `${TICKET_REFERENCE_PREFIX}${randomUUID().replaceAll('-', '')}`, amountCents },
+          data: { id: paymentId, userId: payerId, purpose: 'TICKETS', provider: demo ? 'demo' : this.checkouts.cardProvider(), reference: `${TICKET_REFERENCE_PREFIX}${randomUUID().replaceAll('-', '')}`, amountCents },
         });
       const checkout = await tx.ticketCheckout.create({
         data: {
@@ -206,14 +206,14 @@ export class TeamTicketsService {
         }
         await tx.ticketCheckout.update({ where: { id: checkout.id }, data: { status: 'COMPLETED', completedAt: now } });
         await enqueueTicketEmail(tx, { kind: 'RECEIPT', userId: payerId, checkoutId: checkout.id });
-        return { checkoutId: checkout.id, needsPaystack: false, notifications: await notifyPlayersPaidFor(tx, checkout.id) };
+        return { checkoutId: checkout.id, needsCheckout: false, notifications: await notifyPlayersPaidFor(tx, checkout.id) };
       }
       await enqueueDurableJob(tx, { type: TICKET_HOLD_EXPIRE_JOB_TYPE, dedupeKey: `ticket-hold-expire:${checkout.id}`, payload: { checkoutId: checkout.id }, runAt: holdExpiresAt });
-      return { checkoutId: checkout.id, needsPaystack: true, notifications: [] };
+      return { checkoutId: checkout.id, needsCheckout: true, notifications: [] };
     });
     this.notifications.publishPersistedMany(outcome.notifications);
     emitDomainEventBestEffort('match:updated', { matchId });
-    return outcome.needsPaystack ? this.checkouts.initializePaystack(outcome.checkoutId, payerId) : this.checkouts.result(outcome.checkoutId);
+    return outcome.needsCheckout ? this.checkouts.initializeCheckout(outcome.checkoutId, payerId) : this.checkouts.result(outcome.checkoutId);
   }
 }
 

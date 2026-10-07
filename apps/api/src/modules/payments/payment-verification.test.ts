@@ -46,6 +46,13 @@ describe('evaluateVerification (TKT-604 / D11)', () => {
       expect(evaluateVerification(payment, verified({ channel }), { ...open, channels })).toEqual({ kind: 'REVIEW', reason: 'channel_not_offered' });
   });
 
+  it('skips the Paystack channel list for a PayFast payment (card only in its signed form), but checks everything else', () => {
+    const payfast = { ...open, channels: ['card'] as const, anyChannel: true };
+    expect(evaluateVerification(payment, verified({ channel: 'payfast' }), payfast)).toEqual({ kind: 'CREDIT' });
+    expect(evaluateVerification(payment, verified({ channel: 'payfast', amountCents: Number.NaN }), payfast)).toEqual({ kind: 'REVIEW', reason: 'amount_mismatch' });
+    expect(evaluateVerification(payment, verified({ channel: 'payfast', metadata: { providerPaymentId: 'other' } }), payfast)).toEqual({ kind: 'REVIEW', reason: 'metadata_payment_mismatch' });
+  });
+
   it('fails declined and reversed payments', () => {
     expect(evaluateVerification(payment, verified({ status: 'failed' }), open)).toEqual({ kind: 'FAIL', reason: 'failed' });
     expect(evaluateVerification(payment, verified({ status: 'reversed' }), open)).toEqual({ kind: 'FAIL', reason: 'reversed' });

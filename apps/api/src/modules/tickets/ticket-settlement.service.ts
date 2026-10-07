@@ -6,7 +6,8 @@ import { emitDomainEventBestEffort } from '../../events/domain-events.js';
 import { logInfo } from '../../observability/logger.js';
 import { incrementOperationalMetric } from '../../observability/operational-metrics.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { PaystackClient, PaystackError, type PaystackGateway, type PaystackVerifiedTransaction } from '../payments/paystack.client.js';
+import { PaystackClient, type PaystackGateway, type PaystackVerifiedTransaction } from '../payments/paystack.client.js';
+import { gatewayResolver, isProviderNotFound, type GatewayResolver } from '../payments/payment-gateways.js';
 import { evaluateVerification, type SettlementSource } from '../payments/payment-verification.js';
 import { enqueueTicketEmail } from './ticket-emails.js';
 import { placeTicketInTx } from './ticket-placement.js';
@@ -38,7 +39,8 @@ export type TicketSettlementResult = { status: string; outcome: 'PLACED' | 'REFU
 
 /**
  * DEC-021 A1.3: the only path that turns a ticket payment into a place. The signed webhook, the hold-expiry job and
- * the player's status check all call it; each verifies with Paystack from our server (exact amount, ZAR, an offered
+ * the player's status check all call it; each verifies with the payment's provider (Paystack, or a PayFast ITN that
+ * PayFast confirmed as genuine) from our server (exact amount, ZAR, an offered
  * channel, our reference and metadata) and then, under the ProviderPayment row lock in a serializable transaction,
  * places the player. However they interleave, a payment is applied once. If the place or the match is gone by
  * then (a late payment, A1.4 / D5) the ticket is closed and refunded in full to the original method, with an email.
@@ -48,6 +50,7 @@ export class TicketSettlementService {
     private readonly gateway: PaystackGateway = new PaystackClient(),
     private readonly notifications = new NotificationsService(),
     private readonly channels?: readonly PaymentChannel[],
+    private readonly gatewayFor: GatewayResolver = gatewayResolver(gateway),
   ) {}
 
   async settleFromVerify(reference: string, source: SettlementSource, options: { now?: Date; finalAttempt?: boolean } = {}): Promise<TicketSettlementResult> {
@@ -59,13 +62,13 @@ export class TicketSettlementService {
 
     let verified: PaystackVerifiedTransaction | null;
     try {
-      verified = await this.gateway.verify(reference);
+      verified = await this.gatewayFor(payment.provider).verify(reference);
     } catch (error) {
-      if (!(error instanceof PaystackError) || error.code !== 'PAYSTACK_NOT_FOUND') throw error;
+      if (!isProviderNotFound(error)) throw error;
       verified = null;
     }
     const finalAttempt = options.finalAttempt ?? now.getTime() - payment.createdAt.getTime() >= TICKET_PAYMENT_MAX_PENDING_HOURS * 3_600_000;
-    const outcome = evaluateVerification(payment, verified, { finalAttempt, channels: this.channels });
+    const outcome = evaluateVerification(payment, verified, { finalAttempt, channels: this.channels, anyChannel: payment.provider === 'payfast' });
     const checkoutId = payment.checkout.id;
 
     const result = await serializableTransaction(async (tx) => {

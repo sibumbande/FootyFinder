@@ -19,19 +19,31 @@ import { logError } from '../../observability/logger.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { OnboardingService } from '../onboarding/onboarding.service.js';
 import { lockMatchForFormation } from '../matches/matches.repository.js';
-import { isPaystackCheckoutUrl, PaystackClient, PaystackError, type PaystackGateway } from '../payments/paystack.client.js';
-import { demoPaymentsEnabled } from '../payments/payment-config.js';
+import { isPaystackCheckoutUrl, PaystackClient, type PaystackGateway } from '../payments/paystack.client.js';
+import { isPayfastCheckoutUrl, PayfastError } from '../payments/payfast.client.js';
+import { gatewayResolver, providerErrorCode, type GatewayResolver } from '../payments/payment-gateways.js';
+import { demoPaymentsEnabled, livePaymentProvider } from '../payments/payment-config.js';
 import { assertTicketPlaceable, placeableMatchSelect, placeTicketInTx, refusal, releaseExpiredHolds } from './ticket-placement.js';
 import { TicketSettlementService } from './ticket-settlement.service.js';
 import { useOldestCreditInTx } from './match-credits.js';
 import { enqueueTicketEmail } from './ticket-emails.js';
 
-/** The return page re-verifies with Paystack at most this often per payment. */
+/** The return page re-verifies with the payment provider at most this often per payment. */
 export const TICKET_STATUS_CHECK_MIN_INTERVAL_MS = 5_000;
 
 export const TICKET_HOLD_EXPIRE_JOB_TYPE = 'TICKET_HOLD_EXPIRE';
-const PAYSTACK = 'paystack';
 const DEMO = 'demo';
+
+type CardProvider = 'paystack' | 'payfast';
+type CheckoutConfig = {
+  clientUrl: string;
+  demo: () => boolean;
+  /** Card payments can be taken in this environment (the demo operator aside). */
+  paystackEnabled: () => boolean;
+  termsVersion: () => Promise<string | undefined>;
+  /** Which provider takes new card payments; Paystack unless PAYMENT_PROVIDER=payfast. */
+  cardProvider?: () => CardProvider;
+};
 
 type CheckoutRecord = TicketCheckout & { tickets: MatchTicket[]; providerPayment: ProviderPayment | null };
 
@@ -63,8 +75,8 @@ const checkoutInclude = { tickets: true, providerPayment: true } as const;
 
 /**
  * DEC-021 A1: buying a ticket for one place in a Quick Match (or the individuals side of an "Open to both" team
- * match). The place is held for 10 minutes while the player pays on Paystack's hosted checkout; the player is placed
- * only after the payment is verified by our server, never because the browser says so. A free match gives an R0
+ * match). The place is held for 10 minutes while the player pays on the provider's hosted checkout (Paystack, or
+ * PayFast); the player is placed only after the payment is verified by our server, never because the browser says so. A free match gives an R0
  * ticket with no checkout. In development and test the demo operator confirms instantly.
  */
 export class TicketCheckoutService {
@@ -72,14 +84,21 @@ export class TicketCheckoutService {
     private readonly gateway: PaystackGateway = new PaystackClient(),
     private readonly notifications = new NotificationsService(),
     private readonly settlement = new TicketSettlementService(gateway),
-    private readonly config: { clientUrl: string; demo: () => boolean; paystackEnabled: () => boolean; termsVersion: () => Promise<string | undefined> } = {
+    private readonly config: CheckoutConfig = {
       clientUrl: env.CLIENT_URL,
       demo: () => demoPaymentsEnabled(),
-      paystackEnabled: () => !demoPaymentsEnabled() && Boolean(env.PAYSTACK_SECRET_KEY),
+      paystackEnabled: () => !demoPaymentsEnabled() && livePaymentProvider() !== null,
       // The Terms version the player accepted the cancellation policy under (A8).
       termsVersion: async () => (await new OnboardingService().currentLegalDocuments())[0]?.version,
+      cardProvider: () => (livePaymentProvider() === 'payfast' ? 'payfast' : 'paystack'),
     },
+    private readonly gatewayFor: GatewayResolver = gatewayResolver(gateway),
   ) {}
+
+  /** The provider new card payments go to (recorded on each payment, which is then always settled and refunded there). */
+  cardProvider(): CardProvider {
+    return this.config.cardProvider?.() ?? 'paystack';
+  }
 
   async start(
     matchId: string,
@@ -122,7 +141,7 @@ export class TicketCheckoutService {
             id: paymentId,
             userId,
             purpose: 'TICKETS',
-            provider: demo ? DEMO : PAYSTACK,
+            provider: demo ? DEMO : this.cardProvider(),
             reference: `${TICKET_REFERENCE_PREFIX}${randomUUID().replaceAll('-', '')}`,
             amountCents,
           },
@@ -169,7 +188,7 @@ export class TicketCheckoutService {
         await tx.ticketCheckout.update({ where: { id: checkout.id }, data: { status: 'COMPLETED', completedAt: now } });
         // A8: the ticket receipt straight after a confirmed purchase (paid, credit or free).
         await enqueueTicketEmail(tx, { kind: 'RECEIPT', userId, checkoutId: checkout.id });
-        return { checkoutId: checkout.id, notifications: placed.notifications, needsPaystack: false };
+        return { checkoutId: checkout.id, notifications: placed.notifications, needsCheckout: false };
       }
       await enqueueDurableJob(tx, {
         type: TICKET_HOLD_EXPIRE_JOB_TYPE,
@@ -177,20 +196,21 @@ export class TicketCheckoutService {
         payload: { checkoutId: checkout.id },
         runAt: holdExpiresAt,
       });
-      return { checkoutId: checkout.id, notifications: [], needsPaystack: true };
+      return { checkoutId: checkout.id, notifications: [], needsCheckout: true };
     });
     this.notifications.publishPersistedMany(outcome.notifications);
     emitDomainEventBestEffort('match:updated', { matchId });
-    if (!outcome.needsPaystack) return this.result(outcome.checkoutId);
-    return this.initializePaystack(outcome.checkoutId, userId);
+    if (!outcome.needsCheckout) return this.result(outcome.checkoutId);
+    return this.initializeCheckout(outcome.checkoutId, userId);
   }
 
   /**
-   * Asks Paystack for the hosted checkout page. One Paystack transaction = one ticket (A1.5), or, for a team, the
-   * named teammates' tickets (A5), with the match facts in its metadata and on the customer's receipt
-   * ("FootyFinder match ticket: <venue>, <date time>").
+   * Gets the hosted checkout page from the payment's provider. One transaction = one ticket (A1.5), or, for a team,
+   * the named teammates' tickets (A5), with the match facts in its metadata and on the customer's receipt
+   * ("FootyFinder match ticket: <venue>, <date time>"). Paystack returns to /tickets/return with the reference added;
+   * PayFast returns to the same page with the reference in its return_url, and its cancel_url is the match lobby.
    */
-  async initializePaystack(checkoutId: string, userId: string): Promise<TicketCheckoutResult> {
+  async initializeCheckout(checkoutId: string, userId: string): Promise<TicketCheckoutResult> {
     const checkout = await prisma.ticketCheckout.findUniqueOrThrow({
       where: { id: checkoutId },
       include: { ...checkoutInclude, match: { select: { id: true, startsAt: true, venue: { select: { name: true } } } } },
@@ -203,12 +223,16 @@ export class TicketCheckoutService {
     const ticket = checkout.tickets[0]!;
     const count = checkout.tickets.length;
     const description = `FootyFinder match ticket${count > 1 ? `s (${count} players)` : ''}: ${checkout.match.venue.name}, ${kickoff}`;
+    const client = this.config.clientUrl.replace(/\/$/, '');
+    const payfast = payment.provider === 'payfast';
     try {
-      const started = await this.gateway.initialize({
+      const started = await this.gatewayFor(payment.provider).initialize({
         email: user.email,
         amountCents: payment.amountCents,
         reference: payment.reference,
-        callbackUrl: `${this.config.clientUrl.replace(/\/$/, '')}/tickets/return`,
+        callbackUrl: payfast ? `${client}/tickets/return?reference=${encodeURIComponent(payment.reference)}` : `${client}/tickets/return`,
+        cancelUrl: `${client}/matches/${checkout.matchId}`,
+        description,
         metadata: {
           providerPaymentId: payment.id,
           checkoutId: checkout.id,
@@ -220,14 +244,14 @@ export class TicketCheckoutService {
           custom_fields: [{ display_name: 'Item', variable_name: 'item', value: description }],
         },
       });
-      if (!isPaystackCheckoutUrl(started.authorizationUrl))
-        throw new PaystackError('PAYSTACK_REJECTED', 'The payment provider returned an unexpected checkout address.');
+      if (!(payfast ? isPayfastCheckoutUrl(started.authorizationUrl) : isPaystackCheckoutUrl(started.authorizationUrl)))
+        throw new PayfastError('PAYFAST_REJECTED', 'The payment provider returned an unexpected checkout address.');
       await prisma.providerPayment.update({ where: { id: payment.id }, data: { authorizationUrl: started.authorizationUrl } });
       return this.result(checkoutId);
     } catch (error) {
-      // No checkout page reached the player, so nothing can be paid: release the place. If Paystack ever reports
+      // No checkout page reached the player, so nothing can be paid: release the place. If the provider ever reports
       // it paid anyway, settlement treats it as a late payment (placed if still free, otherwise refunded).
-      const reason = error instanceof PaystackError ? error.code : 'initialize_error';
+      const reason = providerErrorCode(error) ?? 'initialize_error';
       await serializableTransaction(async (tx) => {
         const now = new Date();
         await tx.providerPayment.updateMany({ where: { id: payment.id, status: 'INITIALIZED' }, data: { status: 'FAILED', failureReason: reason } });
@@ -251,7 +275,7 @@ export class TicketCheckoutService {
     return this.verifiedStatus(checkout, now);
   }
 
-  /** The payer's own checkout, by Paystack reference (Paystack's return URL carries the reference). */
+  /** The payer's own checkout, by our reference (both providers' return URLs carry it). */
   async statusByReference(userId: string, reference: string, now = new Date()): Promise<TicketCheckoutResult> {
     const checkout = await prisma.ticketCheckout.findFirst({ where: { payerId: userId, providerPayment: { reference } }, include: checkoutInclude });
     if (!checkout) throw new AppError(404, 'Checkout not found.', 'CHECKOUT_NOT_FOUND');
@@ -259,7 +283,7 @@ export class TicketCheckoutService {
   }
 
   /**
-   * While a payment is still open, our server re-verifies it with Paystack (at most every few seconds) through the
+   * While a payment is still open, our server re-verifies it with its provider (at most every few seconds) through the
    * shared settlement path, which may place the player. The browser never supplies payment facts.
    */
   private async verifiedStatus(checkout: CheckoutRecord, now: Date) {
@@ -321,6 +345,7 @@ export class TicketCheckoutService {
         choiceDeadlineAt: (item.choiceDeadlineAt ?? new Date()).toISOString(),
       })),
       policy: ticketCancellationPolicy(match.feeCents),
+      ...(!this.config.demo() && this.config.paystackEnabled() ? { paymentProvider: this.cardProvider() } : {}),
       leave: !confirmed
         ? { allowed: false, outcome: 'NOTHING', reason: 'NOT_IN_MATCH' }
         : !open

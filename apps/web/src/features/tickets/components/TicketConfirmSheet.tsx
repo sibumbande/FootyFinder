@@ -14,8 +14,8 @@ const SIDE_NAME: Record<TeamSide, string> = { HOME: 'Home', AWAY: 'Away' };
 /**
  * DEC-021 A1.1: the confirm sheet before paying. It shows the match, venue, kick-off, the place, the price and the
  * cancellation policy in plain words, and the player must tick "I understand the cancellation policy" before the
- * pay button works (A8). Paying goes to Paystack's hosted checkout; nothing is confirmed until our server verifies
- * the payment.
+ * pay button works (A8). Paying goes to the provider's hosted checkout (Paystack, or PayFast); nothing is confirmed
+ * until our server verifies the payment.
  */
 export function TicketConfirmSheet({
   match,
@@ -121,7 +121,11 @@ export function TicketConfirmSheet({
           {free ? 'Join for free' : `Pay ${formatRands(match.feeCents)} · Card / Instant EFT`}
         </Button>
       )}
-      {!free && <p className="mt-2 text-center text-xs text-content-muted">Card or bank payments are made on Paystack’s secure page. Your place is held for 10 minutes while you pay.</p>}
+      {!free && (
+        <p className="mt-2 text-center text-xs text-content-muted">
+          {context.data?.paymentProvider === 'payfast' ? 'Card payments are made on PayFast’s secure page.' : 'Card or bank payments are made on Paystack’s secure page.'} Your place is held for 10 minutes while you pay.
+        </p>
+      )}
     </Sheet>
   );
 }

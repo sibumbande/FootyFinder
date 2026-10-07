@@ -116,6 +116,24 @@ describe('environment contract', () => {
     expect(demo.success).toBe(false);
     expect(JSON.stringify(demo.error?.issues)).toContain('PAYMENT_PROVIDER');
     expect(envSchema.parse(valid).PAYMENT_PROVIDER).toBe('demo');
+    // PayFast is not live until the Terms of Service name it (CLAUDE.md), so production refuses it too.
+    const payfast = envSchema.safeParse({
+      ...production, PAYMENT_PROVIDER: 'payfast', PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: 'live-merchant-key', PAYFAST_PASSPHRASE: 'live passphrase', PAYFAST_SANDBOX: 'false',
+    });
+    expect(payfast.success).toBe(false);
+    expect(JSON.stringify(payfast.error?.issues)).toContain('PAYMENT_PROVIDER');
+  });
+
+  it('needs every PayFast credential with PAYMENT_PROVIDER=payfast, and defaults to the sandbox', () => {
+    const credentials = { PAYFAST_MERCHANT_ID: '10000100', PAYFAST_MERCHANT_KEY: '46f0cd694581a', PAYFAST_PASSPHRASE: 'sandbox passphrase' };
+    const parsed = envSchema.parse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials });
+    expect(parsed).toMatchObject({ PAYMENT_PROVIDER: 'payfast', PAYFAST_SANDBOX: true });
+    expect(envSchema.parse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, PAYFAST_SANDBOX: 'false' }).PAYFAST_SANDBOX).toBe(false);
+    for (const missing of Object.keys(credentials)) {
+      const result = envSchema.safeParse({ ...valid, PAYMENT_PROVIDER: 'payfast', ...credentials, [missing]: '' });
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain(missing);
+    }
   });
 
   it('fails closed when test-data tooling is enabled in production', () => {

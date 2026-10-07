@@ -21,15 +21,16 @@ type PaymentFacts = Pick<ProviderPayment, 'id' | 'userId' | 'reference' | 'amoun
 export function evaluateVerification(
   payment: PaymentFacts,
   verified: PaystackVerifiedTransaction | null,
-  options: { finalAttempt: boolean; channels?: readonly PaymentChannel[] },
+  options: { finalAttempt: boolean; channels?: readonly PaymentChannel[]; anyChannel?: boolean },
 ): VerificationOutcome {
   if (!verified) return options.finalAttempt ? { kind: 'FAIL', reason: 'not_found_at_provider' } : { kind: 'WAIT' };
   if (verified.reference !== payment.reference) return { kind: 'REVIEW', reason: 'reference_mismatch' };
   if (verified.status === 'success') {
     if (verified.amountCents !== payment.amountCents) return { kind: 'REVIEW', reason: 'amount_mismatch' };
     if (verified.currency !== 'ZAR') return { kind: 'REVIEW', reason: 'currency_mismatch' };
-    // CEO touch-up batch 4, item 3 (D7): only a channel FootyFinder offers (PAYSTACK_CHANNELS) is credited.
-    if (!verified.channel || !(options.channels ?? env.PAYSTACK_CHANNELS).includes(verified.channel as PaymentChannel))
+    // CEO touch-up batch 4, item 3 (D7): only a channel FootyFinder offers (PAYSTACK_CHANNELS) is credited. A PayFast
+    // payment has no Paystack channel: its card-only method is fixed in the signed checkout form (anyChannel).
+    if (!options.anyChannel && (!verified.channel || !(options.channels ?? env.PAYSTACK_CHANNELS).includes(verified.channel as PaymentChannel)))
       return { kind: 'REVIEW', reason: 'channel_not_offered' };
     const { providerPaymentId, userId } = verified.metadata;
     if (providerPaymentId !== undefined && providerPaymentId !== payment.id)

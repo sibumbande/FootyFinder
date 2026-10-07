@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TicketReturnPage } from './TicketReturnPage.js';
 
@@ -26,15 +26,28 @@ describe('TicketReturnPage (DEC-021 A1.3)', () => {
     expect(screen.getByRole('heading', { name: 'We couldn’t find that payment' })).toBeInTheDocument();
   });
 
-  it('waits for our server, then shows the confirmed ticket', () => {
+  it('waits for our server, then takes the player to the match lobby with their place confirmed', () => {
     mocks.query.data = result('PROCESSING');
-    const { rerender } = view(`?trxref=${REF}`);
+    const routes = () => (
+      <MemoryRouter initialEntries={[`/tickets/return?trxref=${REF}`]}>
+        <Routes>
+          <Route path="/tickets/return" element={<TicketReturnPage />} />
+          <Route path="/matches/:matchId" element={<h1>Match lobby</h1>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const { rerender } = render(routes());
     expect(mocks.reference).toBe(REF);
     expect(screen.getByRole('heading', { name: 'Confirming your payment…' })).toBeInTheDocument();
     mocks.query.data = result('CONFIRMED');
-    rerender(<MemoryRouter initialEntries={[`/tickets/return?reference=${REF}`]}><TicketReturnPage /></MemoryRouter>);
-    expect(screen.getByRole('heading', { name: 'You’re in' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Go to your match' })).toHaveAttribute('href', '/matches/m1');
+    rerender(routes());
+    expect(screen.getByRole('heading', { name: 'Match lobby' })).toBeInTheDocument();
+  });
+
+  it('reads the reference PayFast returns with (our own return_url)', () => {
+    mocks.query.data = result('PROCESSING');
+    view(`?reference=${REF}`);
+    expect(mocks.reference).toBe(REF);
   });
 
   it('explains an automatic refund when the place was gone, and an unpaid checkout', () => {

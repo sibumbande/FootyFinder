@@ -8,14 +8,16 @@ import { appendAdminAudit } from '../admin/admin-audit.js';
 import { notificationDedupeKey, persistNotifications } from '../notifications/notification-writer.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { PaystackClient, PaystackError, type PaystackGateway } from './paystack.client.js';
+import { gatewayResolver, providerErrorCode, type GatewayResolver } from './payment-gateways.js';
 
 const rands = (cents: number) => `R${(cents / 100).toFixed(2)}`;
 const lockRefund = (tx: Prisma.TransactionClient, id: string) =>
   tx.$queryRaw`SELECT "id" FROM "ProviderRefund" WHERE "id" = ${id}::uuid FOR UPDATE`;
 
 /**
- * TKT-606 / DEC-021 A7: refunds to the original payment method through the Paystack Refund API (partial refunds by
- * `amount`). Ticket refunds are created by the ticket rules (ticket-refunds.ts) and submitted here.
+ * TKT-606 / DEC-021 A7: refunds to the original payment method through the Refund API of the provider the payment
+ * was made with (Paystack, or PayFast), with partial refunds by amount. Ticket refunds are created by the ticket
+ * rules (ticket-refunds.ts) and submitted here.
  * - A failed refund stays FAILED for finance, which retries it. A bank refund Paystack cannot send without the
  *   customer's account is NEEDS_ATTENTION and is retried with their bank details. A failed refund never silently
  *   becomes a match credit.
@@ -24,6 +26,7 @@ export class CardRefundsService {
   constructor(
     private readonly gateway: PaystackGateway = new PaystackClient(),
     private readonly notifications = new NotificationsService(),
+    private readonly gatewayFor: GatewayResolver = gatewayResolver(gateway),
   ) {}
 
   /**
@@ -46,7 +49,7 @@ export class CardRefundsService {
         data: { providerRefundId: `demo-${refund.id}`, attempts: { increment: 1 }, status: 'PROCESSED', processedAt: new Date(), failureReason: null },
       });
     try {
-      const result = await this.gateway.refund({
+      const result = await this.gatewayFor(refund.providerPayment.provider).refund({
         reference: refund.providerPayment.reference,
         amountCents: refund.amountCents,
         merchantNote: 'FootyFinder match ticket refund',
@@ -67,7 +70,7 @@ export class CardRefundsService {
     } catch (error) {
       logError('card_refund_submit_failed', error, { refundId });
       incrementOperationalMetric('card_refund_failed_total');
-      return this.markFailed(refund.id, error instanceof PaystackError ? error.code : 'submit_error', ['PENDING'], true);
+      return this.markFailed(refund.id, providerErrorCode(error) ?? 'submit_error', ['PENDING'], true);
     }
   }
 

@@ -24,8 +24,45 @@ export const isPaystackCheckoutUrl = (value: string) => {
   }
 };
 
+/** PayFast's hosted payment page (live or sandbox; the server only ever issues the one it is configured for). */
+export const isPayfastCheckoutUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && ['www.payfast.co.za', 'sandbox.payfast.co.za'].includes(url.hostname) && url.pathname === '/eng/process';
+  } catch {
+    return false;
+  }
+};
+
+/** PayFast takes its signed payment form as a POST: the fields are sent exactly as the server signed them. */
+const postForm = (action: string, fields: Array<[string, string]>) => {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = action;
+  for (const [name, value] of fields) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    form.append(input);
+  }
+  document.body.append(form);
+  form.submit();
+};
+
 /** Indirection so tests can observe the redirect without leaving the page. */
-export const checkoutNavigation = { go: (url: string) => window.location.assign(url) };
+export const checkoutNavigation = {
+  go: (url: string) => window.location.assign(url),
+  post: postForm,
+};
+
+/** Sends the player to the provider's hosted checkout; any address that is not Paystack's or PayFast's is refused. */
+export const goToCheckout = (authorizationUrl: string) => {
+  if (isPaystackCheckoutUrl(authorizationUrl)) return checkoutNavigation.go(authorizationUrl);
+  if (!isPayfastCheckoutUrl(authorizationUrl)) throw new Error('Checkout could not be started. Please try again.');
+  const url = new URL(authorizationUrl);
+  checkoutNavigation.post(`${url.origin}${url.pathname}`, [...url.searchParams.entries()]);
+};
 
 /** The viewer's ticket, credits and the cancellation policy for one match (DEC-021). */
 export const useTicketContext = (matchId: string, enabled = true) =>
@@ -48,7 +85,7 @@ export const useTeamPaymentRoster = (matchId: string, side: TeamSide | null | un
 export type TicketPurchase = { kind: 'confirmed'; result: TicketCheckoutResult } | { kind: 'redirected' };
 
 /**
- * DEC-021 A1: buys a ticket. A paid place goes to Paystack's hosted checkout (the player is placed only once our
+ * DEC-021 A1: buys a ticket. A paid place goes to the provider's hosted checkout (the player is placed only once our
  * server verifies the payment); a free place, or the development demo operator, is confirmed straight away.
  */
 export function useBuyTicket(matchId: string) {
@@ -65,8 +102,7 @@ export function useBuyTicket(matchId: string) {
 const settleCheckout = (data: TicketCheckoutResult): TicketPurchase => {
   if (data.state === 'CONFIRMED') return { kind: 'confirmed', result: data };
   if (data.state === 'PROCESSING' && data.authorizationUrl) {
-    if (!isPaystackCheckoutUrl(data.authorizationUrl)) throw new Error('Checkout could not be started. Please try again.');
-    checkoutNavigation.go(data.authorizationUrl);
+    goToCheckout(data.authorizationUrl);
     return { kind: 'redirected' };
   }
   throw new Error('Checkout could not be started. Please try again.');
